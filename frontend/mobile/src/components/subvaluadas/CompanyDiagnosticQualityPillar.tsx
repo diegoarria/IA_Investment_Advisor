@@ -12,8 +12,8 @@ import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
 function SubCard({ icon, title, children, colors }: { icon: React.ReactNode; title: string; children: React.ReactNode; colors: any }) {
   return (
-    <View style={{ borderRadius: 14, padding: 12, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+    <View style={{ borderRadius: 16, padding: 14, backgroundColor: colors.bgRaised }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
         {icon}
         <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text, flex: 1 }} numberOfLines={1}>{title}</Text>
       </View>

@@ -193,34 +193,47 @@ export default function SubvaluadasScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: viColors.bg }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 }}>
-        <TouchableOpacity onPress={() => router.back()}><Ionicons name="chevron-back" size={22} color={viColors.text} /></TouchableOpacity>
-        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 12, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, paddingHorizontal: 12 }}>
-          <Ionicons name="search" size={16} color={viColors.textMuted} />
+      {/* Header — round back button + one search field with "Buscar" built
+          in (Nuvos Radar redesign, 2026-09-27). */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 }}>
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home" as any))}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: viColors.card, borderWidth: 1, borderColor: viColors.border }}
+        >
+          <Ionicons name="chevron-back" size={20} color={viColors.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1, height: 46, flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 23, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, paddingLeft: 14, paddingRight: 5 }}>
+          <Ionicons name="search" size={17} color={viColors.textMuted} />
           <TextInput
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={handleSearch}
+            returnKeyType="search"
             placeholder={t("subvaluadas.search.placeholder")}
             placeholderTextColor={viColors.placeholder}
-            style={{ flex: 1, paddingVertical: 10, fontSize: 13, color: viColors.text }}
+            style={{ flex: 1, fontSize: 14, color: viColors.text }}
           />
+          <TouchableOpacity onPress={handleSearch} disabled={!query.trim()}
+                            style={{ backgroundColor: viColors.brandGreen, paddingHorizontal: 14, height: 36, justifyContent: "center", borderRadius: 18, opacity: !query.trim() ? 0.45 : 1 }}>
+            <Text style={{ fontSize: 12.5, fontWeight: "800", color: "#0A0F1A" }}>{t("subvaluadas.search.button")}</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleSearch} disabled={!query.trim()}
-                          style={{ backgroundColor: viColors.brandGreen, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, opacity: !query.trim() ? 0.5 : 1 }}>
-          <Text style={{ fontSize: 12, fontWeight: "800", color: "#0A0F1A" }}>{t("subvaluadas.search.button")}</Text>
-        </TouchableOpacity>
       </View>
 
       {!isPremium && (
         <TouchableOpacity onPress={() => setPaywallOpen(true)}
-          style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 16, marginBottom: 12, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: "rgba(212,162,76,0.08)", borderWidth: 1, borderColor: "rgba(212,162,76,0.25)" }}>
-          <Text style={{ fontSize: 11.5, color: viColors.textSub, flex: 1, marginRight: 8 }}>{t("subvaluadas.freeGate.banner")}</Text>
-          <Text style={{ fontSize: 11.5, fontWeight: "800", color: GOLD }}>{t("subvaluadas.freeGate.bannerCta")}</Text>
+          activeOpacity={0.85}
+          style={{ flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 16, marginBottom: 12, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, backgroundColor: "rgba(212,162,76,0.08)", borderWidth: 1, borderColor: "rgba(212,162,76,0.25)" }}>
+          <View style={{ width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(212,162,76,0.16)" }}>
+            <Ionicons name="lock-closed" size={14} color={GOLD} />
+          </View>
+          <Text style={{ fontSize: 12, lineHeight: 17, color: viColors.textSub, flex: 1 }}>{t("subvaluadas.freeGate.banner")}</Text>
+          <Text style={{ fontSize: 12, fontWeight: "800", color: GOLD }}>{t("subvaluadas.freeGate.bannerCta")}</Text>
         </TouchableOpacity>
       )}
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
         {loading ? (
           <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
             <ActivityIndicator size="large" color={GOLD} />
@@ -242,23 +255,25 @@ export default function SubvaluadasScreen() {
           </View>
         ) : (
           <>
-            <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, gap: 12 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-                <StockAvatar ticker={data.ticker} size={44} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: "600", color: viColors.text }} numberOfLines={1}>{data.company_name}</Text>
-                  <Text style={{ fontSize: 12, color: viColors.textSub, marginTop: 2 }} numberOfLines={1}>
-                    {data.sector}{data.exchange ? ` · ${data.exchange}` : ""}
-                  </Text>
-                </View>
+            {/* Company card — the one place name, sector, price and today's
+                move live (the diagnostic below no longer repeats them). */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 16, padding: 16, borderRadius: 22, backgroundColor: viColors.card, borderWidth: 1, borderColor: viColors.border }}>
+              <StockAvatar ticker={data.ticker} size={52} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 17, fontWeight: "800", color: viColors.text, letterSpacing: -0.3 }} numberOfLines={1}>{data.company_name}</Text>
+                <Text style={{ fontSize: 12.5, color: viColors.textMuted, marginTop: 3 }} numberOfLines={1}>
+                  {data.sector}{data.exchange ? ` · ${data.exchange}` : ""}
+                </Text>
               </View>
               {data.price !== null && (
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={{ fontSize: 20, fontWeight: "600", color: viColors.text }}>${data.price.toFixed(2)}</Text>
+                <View style={{ alignItems: "flex-end", gap: 5 }}>
+                  <Text style={{ fontSize: 20, fontWeight: "800", color: viColors.text, fontVariant: ["tabular-nums"] }}>${data.price.toFixed(2)}</Text>
                   {data.change_pct !== null && (
-                    <Text style={{ fontSize: 12, color: data.change_pct >= 0 ? TEAL : CORAL }}>
-                      {data.change_pct >= 0 ? "+" : ""}{data.change_pct.toFixed(2)}% {t("subvaluadas.detail.today")}
-                    </Text>
+                    <View style={{ borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: data.change_pct >= 0 ? "rgba(79,166,149,0.16)" : "rgba(221,110,99,0.16)" }}>
+                      <Text style={{ fontSize: 11.5, fontWeight: "800", color: data.change_pct >= 0 ? TEAL : CORAL, fontVariant: ["tabular-nums"] }}>
+                        {data.change_pct >= 0 ? "+" : ""}{data.change_pct.toFixed(2)}% {t("subvaluadas.detail.today")}
+                      </Text>
+                    </View>
                   )}
                 </View>
               )}
@@ -274,11 +289,11 @@ export default function SubvaluadasScreen() {
               onUnlock={() => setPaywallOpen(true)}
             />
           ) : valuationPanelMode === "loading" ? (
-            <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, paddingVertical: 40, alignItems: "center" }}>
+            <View style={{ borderRadius: 22, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, paddingVertical: 48, alignItems: "center" }}>
               <ActivityIndicator size="large" color={GOLD} />
             </View>
           ) : companyDiagnosticError?.status === 403 ? (
-            <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, padding: 16, flexDirection: "row", gap: 10 }}>
+            <View style={{ borderRadius: 22, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, padding: 18, flexDirection: "row", gap: 12 }}>
               <Ionicons name="lock-closed-outline" size={18} color={GOLD} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13.5, fontWeight: "800", color: viColors.text }}>{t("subvaluadas.premiumGate.title")}</Text>
@@ -286,7 +301,7 @@ export default function SubvaluadasScreen() {
               </View>
             </View>
           ) : (
-            <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, padding: 16, flexDirection: "row", gap: 10 }}>
+            <View style={{ borderRadius: 22, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, padding: 18, flexDirection: "row", gap: 12 }}>
               <Ionicons name="alert-circle-outline" size={18} color={viColors.textMuted} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13.5, fontWeight: "800", color: viColors.text }}>{t("subvaluadas.valuationUnavailable.title")}</Text>
@@ -303,10 +318,10 @@ export default function SubvaluadasScreen() {
             </View>
           )}
 
-            <View style={{ marginTop: 18, gap: 10 }}>
+            <View style={{ marginTop: 20, alignItems: "center" }}>
               <GeneratedAtNote generatedAt={data.generated_at} colors={viColors} />
             </View>
-            <View style={{ marginTop: 14 }}>
+            <View style={{ marginTop: 12 }}>
               <ActionButtons watchlisted={watchlisted} onFollow={handleFollow} onAnalyze={handleAnalyze} colors={viColors} />
             </View>
           </>

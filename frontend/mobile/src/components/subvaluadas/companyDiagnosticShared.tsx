@@ -21,12 +21,16 @@ export function DiagCard({ children, colors, style }: { children: ReactNode; col
 
 export function DiagRaisedBlock({ children, colors, style }: { children: ReactNode; colors: any; style?: any }) {
   return (
-    <View style={[{ borderRadius: 10, padding: 10, backgroundColor: colors.bgRaised }, style]}>
+    <View style={[{ borderRadius: 12, padding: 12, backgroundColor: colors.bgRaised }, style]}>
       {children}
     </View>
   );
 }
 
+// Pillar sections render inside the diagnostic tabs card (see
+// CompanyDiagnosticValuationTabs), so they're flat — a header row and the
+// body — instead of a bordered card nested in another bordered card
+// (Nuvos Radar redesign, 2026-09-27).
 export function ExpandableSection({
   title, icon, headline, defaultExpanded = false, children, colors,
 }: {
@@ -39,22 +43,27 @@ export function ExpandableSection({
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   return (
-    <DiagCard colors={colors}>
+    <View>
       <TouchableOpacity
         onPress={() => setExpanded((e) => !e)}
-        style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, padding: 14 }}
+        activeOpacity={0.7}
+        style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingBottom: 14 }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-          {icon}
-          <Text style={{ fontSize: 14.5, fontWeight: "800", color: colors.text }} numberOfLines={1}>{title}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+          {icon && (
+            <View style={{ width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgRaised }}>
+              {icon}
+            </View>
+          )}
+          <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text, letterSpacing: -0.2 }} numberOfLines={1}>{title}</Text>
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, shrink: 0 } as any}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           {headline}
           <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
         </View>
       </TouchableOpacity>
-      {expanded && <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 10 }}>{children}</View>}
-    </DiagCard>
+      {expanded && <View style={{ gap: 14 }}>{children}</View>}
+    </View>
   );
 }
 

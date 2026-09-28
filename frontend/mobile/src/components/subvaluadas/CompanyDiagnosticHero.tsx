@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import Svg, { Circle } from "react-native-svg";
 import { useTranslation } from "react-i18next";
 import { valuationStatus, VERDICT_COLOR, VERDICT_EMOJI, SCENARIO_COLOR, fmtPrice } from "../../lib/types/companyDiagnostic";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
@@ -72,47 +73,43 @@ export function CompanyDiagnosticHero({ data, colors }: { data: CompanyDiagnosti
 
   return (
     <View>
-      <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 6 }}>
-            <Text style={{ fontSize: 23, fontWeight: "900", color: colors.text }}>{data.ticker}</Text>
-            <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textSub, flexShrink: 1 }} numberOfLines={1}>{data.companyName}</Text>
-          </View>
-          <Text style={{ fontSize: 12.5, marginTop: 3, color: colors.textMuted }} numberOfLines={1}>{data.sector} · {data.exchange}</Text>
-        </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <View style={{ flexDirection: "row", alignItems: "baseline" }}>
-            <Text style={{ fontSize: 34, fontWeight: "900", color: _GOLD }}>{data.score}</Text>
-            <Text style={{ fontSize: 14, fontWeight: "800", color: colors.textMuted }}>/100</Text>
-          </View>
-          <Text style={{ fontSize: 10.5, fontWeight: "800", textTransform: "uppercase", color: _GOLD, marginTop: 3, textAlign: "right" }} numberOfLines={2}>
+      {/* ── Score — ring gauge + label + badges. Ticker/name/sector are
+          no longer repeated here: the company card right above this one
+          (app/subvaluadas/index.tsx) already shows them (Nuvos Radar
+          redesign, 2026-09-27). ── */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 18 }}>
+        <ScoreRing score={data.score} colors={colors} />
+        <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
+          <Text style={{ fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.6, color: _GOLD }} numberOfLines={2}>
             {data.scoreLabel}
           </Text>
+          {data.badges.length > 0 && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              {data.badges.map((b) => (
+                <View key={b} style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: `${_GOLD}1f`, borderWidth: 1, borderColor: `${_GOLD}59` }}>
+                  <Text style={{ fontSize: 11, fontWeight: "800", color: _GOLD }}>{b}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </View>
 
-      {data.badges.length > 0 && (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, marginBottom: 15 }}>
-          {data.badges.map((b) => (
-            <View key={b} style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 11, backgroundColor: `${_GOLD}24`, borderWidth: 1, borderColor: _GOLD }}>
-              <Text style={{ fontSize: 12, fontWeight: "800", color: _GOLD }}>{b}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+      <View style={{ height: 1, backgroundColor: colors.border, marginBottom: 18 }} />
 
+      {/* ── Verdict ── */}
       {status && (
         <View style={{ alignItems: "center", marginBottom: 12 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, backgroundColor: `${VERDICT_COLOR[status.verdict]}29` }}>
-            <Text style={{ fontSize: 14 }}>{VERDICT_EMOJI[status.verdict]}</Text>
-            <Text style={{ fontSize: 13, fontWeight: "900", color: VERDICT_COLOR[status.verdict] }} numberOfLines={1} adjustsFontSizeToFit>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: `${VERDICT_COLOR[status.verdict]}1f`, borderWidth: 1, borderColor: `${VERDICT_COLOR[status.verdict]}4d` }}>
+            <Text style={{ fontSize: 13 }}>{VERDICT_EMOJI[status.verdict]}</Text>
+            <Text style={{ fontSize: 14, fontWeight: "900", color: VERDICT_COLOR[status.verdict] }} numberOfLines={1} adjustsFontSizeToFit>
               {t(`companyDiagnostic.hero.verdict.${status.verdict}`, { pct: status.pct.toFixed(0) })}
             </Text>
           </View>
         </View>
       )}
 
-      <Text style={{ fontSize: 13.5, lineHeight: 19, textAlign: "center", color: colors.textSub, marginBottom: 3 }}>
+      <Text style={{ fontSize: 14, lineHeight: 21, textAlign: "center", color: colors.textSub, marginBottom: 6, paddingHorizontal: 4 }}>
         {t("companyDiagnostic.hero.sentence", { price: fmtPrice(currentPrice), ticker: data.ticker, fairValue: fmtPrice(activeValue) })}{" "}
         {status && (
           <Text style={{ fontWeight: "800", color: VERDICT_COLOR[status.verdict] }}>
@@ -120,85 +117,100 @@ export function CompanyDiagnosticHero({ data, colors }: { data: CompanyDiagnosti
           </Text>
         )}.
       </Text>
-      <Text style={{ fontSize: 10.5, textAlign: "center", color: colors.textDim, marginBottom: 15 }}>
+      <Text style={{ fontSize: 10.5, textAlign: "center", color: colors.textDim, marginBottom: 18 }}>
         {t("companyDiagnostic.hero.disclaimer")}
       </Text>
 
       {/* Diego, 2026-09-07 — mirrors web: a real, narrowly-scoped guard
           against "overvalued reads as bad company" for a genuinely high-
-          quality business (real names Diego gave: Apple, Walmart,
-          Costco, Google). Shown ONLY when real quality >=70 AND today's
+          quality business. Shown ONLY when real quality >=70 AND today's
           verdict is overvalued — never a generic disclaimer on every
           card. */}
       {status?.verdict === "overvalued" && data.pillarScores.quality >= 70 && (
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 15, backgroundColor: `${_GOLD}24`, borderWidth: 1, borderColor: `${_GOLD}66` }}>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 18, backgroundColor: `${_GOLD}14`, borderWidth: 1, borderColor: `${_GOLD}4d` }}>
           <Ionicons name="shield-outline" size={16} color={_GOLD} style={{ marginTop: 1 }} />
-          <Text style={{ flex: 1, fontSize: 12, lineHeight: 17, color: colors.textSub }}>
+          <Text style={{ flex: 1, fontSize: 12.5, lineHeight: 18, color: colors.textSub }}>
             {t("companyDiagnostic.hero.qualityOvervaluedNote", { ticker: data.ticker, score: data.pillarScores.quality })}
           </Text>
         </View>
       )}
 
-      <View style={{ gap: 8, marginBottom: 14 }}>
+      {/* ── Comparison bars — label + value on one line, bar under it ── */}
+      <View style={{ gap: 14, marginBottom: 18 }}>
         {bars.map((bar) => {
           const pct = Math.min(100, (bar.value / maxVal) * 100);
           return (
-            <View key={bar.label} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={{ fontSize: 11, fontWeight: "800", color: bar.color, width: 78 }} numberOfLines={1}>{bar.label}</Text>
-              <View style={{ flex: 1, height: 24, borderRadius: 6, backgroundColor: colors.bgRaised, overflow: "hidden" }}>
-                <View style={{ height: "100%", width: `${pct}%`, borderRadius: 6, backgroundColor: bar.color }} />
+            <View key={bar.label}>
+              <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flexShrink: 1 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: bar.color }} />
+                  <Text style={{ fontSize: 12.5, fontWeight: "700", color: colors.textSub }} numberOfLines={1}>{bar.label}</Text>
+                </View>
+                <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text, fontVariant: ["tabular-nums"] }} numberOfLines={1}>
+                  {fmtPrice(bar.value)}
+                </Text>
               </View>
-              <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text, width: 74, textAlign: "right" }} numberOfLines={1} adjustsFontSizeToFit>
-                {fmtPrice(bar.value)}
-              </Text>
+              <View style={{ height: 10, borderRadius: 5, backgroundColor: colors.bgRaised, overflow: "hidden" }}>
+                <View style={{ height: "100%", width: `${pct}%`, borderRadius: 5, backgroundColor: bar.color }} />
+              </View>
             </View>
           );
         })}
       </View>
 
-      <View style={{ flexDirection: "row", gap: 7, marginBottom: 5 }}>
-        {(["bear", "base", "bull"] as ScenarioKey[]).map((key) => (
-          <TouchableOpacity
-            key={key}
-            onPress={() => setScenario(key)}
-            style={{
-              flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: "center",
-              borderWidth: 1, borderColor: scenario === key ? SCENARIO_COLOR[key] : colors.border,
-              backgroundColor: scenario === key ? `${SCENARIO_COLOR[key]}24` : "transparent",
-            }}
-          >
-            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: SCENARIO_COLOR[key] }}>
-              {t(`companyDiagnostic.hero.scenario.${key}`)}
-            </Text>
-            <Text style={{ fontSize: 13.5, fontWeight: "900", color: colors.text, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>
-              {fmtPrice(scenarioValue[key])}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      {/* ── Scenario — one segmented control ── */}
+      <View style={{ flexDirection: "row", gap: 4, padding: 4, borderRadius: 16, backgroundColor: colors.bgRaised, marginBottom: 8 }}>
+        {(["bear", "base", "bull"] as ScenarioKey[]).map((key) => {
+          const active = scenario === key;
+          return (
+            <TouchableOpacity
+              key={key}
+              onPress={() => setScenario(key)}
+              activeOpacity={0.8}
+              style={{
+                flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: "center",
+                backgroundColor: active ? colors.card : "transparent",
+                borderWidth: 1, borderColor: active ? `${SCENARIO_COLOR[key]}80` : "transparent",
+              }}
+            >
+              <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.4, textTransform: "uppercase", color: active ? SCENARIO_COLOR[key] : colors.textMuted }}>
+                {t(`companyDiagnostic.hero.scenario.${key}`)}
+              </Text>
+              <Text style={{ fontSize: 14.5, fontWeight: "900", color: active ? colors.text : colors.textSub, marginTop: 3, fontVariant: ["tabular-nums"] }} numberOfLines={1} adjustsFontSizeToFit>
+                {fmtPrice(scenarioValue[key])}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
-      <Text style={{ fontSize: 10, textAlign: "center", color: colors.textDim, marginBottom: 15 }}>
+      <Text style={{ fontSize: 10.5, textAlign: "center", color: colors.textDim, marginBottom: 18 }}>
         {t("companyDiagnostic.hero.scenarioHint")}
       </Text>
 
-      <View style={{ borderRadius: 16, padding: 14, backgroundColor: colors.cardElevated ?? colors.bgRaised }}>
-        <Text style={{ fontSize: 10.5, fontWeight: "900", textTransform: "uppercase", color: colors.textMuted, marginBottom: 6 }}>
-          {t("companyDiagnostic.hero.whyTitle")}
-        </Text>
-        <Text style={{ fontSize: 12.5, lineHeight: 18, color: colors.textSub }}>
+      {/* ── Why this value ── */}
+      <View style={{ borderRadius: 16, padding: 16, backgroundColor: colors.bgRaised }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <Ionicons name="help-circle-outline" size={16} color={_GOLD} />
+          <Text style={{ fontSize: 11, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase", color: colors.textMuted }}>
+            {t("companyDiagnostic.hero.whyTitle")}
+          </Text>
+        </View>
+        <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textSub }}>
           {t(
             data.valuation.shadowDualTrack?.applicable ? "companyDiagnostic.hero.whySummary" : "companyDiagnostic.hero.whySummarySingleTrack",
             { classification: classificationLabel },
           )}
         </Text>
-        <TouchableOpacity onPress={() => setWhyOpen((v) => !v)} style={{ marginTop: 10 }}>
-          <Text style={{ fontSize: 11, fontWeight: "800", color: _GOLD }}>
+        <TouchableOpacity onPress={() => setWhyOpen((v) => !v)} style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <Text style={{ fontSize: 12, fontWeight: "800", color: _GOLD }}>
             {whyOpen ? t("companyDiagnostic.hero.whyHide") : t("companyDiagnostic.hero.whyShow")}
           </Text>
+          <Ionicons name={whyOpen ? "chevron-up" : "chevron-down"} size={13} color={_GOLD} />
         </TouchableOpacity>
         {whyOpen && (
-          <View style={{ marginTop: 10, gap: 10 }}>
+          <View style={{ marginTop: 12, gap: 12 }}>
             {data.valuation.waccDetails?.wacc_pct != null && (
-              <Text style={{ fontSize: 12, color: colors.textSub }}>
+              <Text style={{ fontSize: 12.5, color: colors.textSub }}>
                 {t("companyDiagnostic.modelAssumptions.wacc")}:{" "}
                 <Text style={{ fontWeight: "800", color: colors.text }}>{data.valuation.waccDetails.wacc_pct.toFixed(1)}%</Text>
               </Text>
@@ -211,6 +223,33 @@ export function CompanyDiagnosticHero({ data, colors }: { data: CompanyDiagnosti
             )}
           </View>
         )}
+      </View>
+    </View>
+  );
+}
+
+// Circular score gauge (0-100). The number and its /100 are the same
+// values the old plain-text header showed.
+function ScoreRing({ score, colors }: { score: number; colors: any }) {
+  const size = 84;
+  const stroke = 7;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, score)) / 100;
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Svg width={size} height={size} style={{ position: "absolute" }}>
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={colors.bgRaised} strokeWidth={stroke} fill="none" />
+        <Circle
+          cx={size / 2} cy={size / 2} r={r}
+          stroke={_GOLD} strokeWidth={stroke} fill="none" strokeLinecap="round"
+          strokeDasharray={`${c * pct} ${c}`}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+      <View style={{ flexDirection: "row", alignItems: "baseline" }}>
+        <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text, fontVariant: ["tabular-nums"] }}>{score}</Text>
+        <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted }}>/100</Text>
       </View>
     </View>
   );

@@ -146,9 +146,9 @@ export function CompanyDiagnosticBacktestPanel({ colors }: { colors: any }) {
   const badgeY = spreadBadgeY(rows.map((_, i) => ({ y: rawEndY[i] })), 36);
 
   return (
-    <View style={{ marginTop: 26 }}>
-      <View style={{ borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden", backgroundColor: "#0D1420" }}>
-        <View style={{ padding: 16, paddingBottom: 8 }}>
+    <View style={{ marginTop: 16 }}>
+      <View style={{ borderRadius: 22, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden", backgroundColor: "#0D1420" }}>
+        <View style={{ padding: 18, paddingBottom: 8 }}>
           <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, color: "#8891A8" }}>
             {t("subvaluadas.backtest.eyebrow")}
           </Text>
@@ -205,7 +205,7 @@ export function CompanyDiagnosticBacktestPanel({ colors }: { colors: any }) {
         </View>
       </View>
 
-      <Text style={{ fontSize: 11, lineHeight: 16, marginTop: 10, color: colors.textMuted }}>
+      <Text style={{ fontSize: 11, lineHeight: 16, marginTop: 10, paddingHorizontal: 4, color: colors.textMuted }}>
         {t("subvaluadas.backtest.disclaimer")}
       </Text>
     </View>

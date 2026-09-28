@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { fmtPrice, SCENARIO_COLOR } from "../../lib/types/companyDiagnostic";
+import { fmtPrice, SCENARIO_COLOR, scoreColor } from "../../lib/types/companyDiagnostic";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 import { ExplainableValue } from "./companyDiagnosticShared";
 import { CompanyDiagnosticQualityPillar } from "./CompanyDiagnosticQualityPillar";
@@ -397,49 +397,80 @@ export function CompanyDiagnosticValuationTabs({ data, colors }: { data: Company
 
   if (!whyTabs.some((tb) => tb.available)) return null;
 
-  function TabStrip<K extends TabKey | PillarKey>({ items }: { items: { key: K; label: string; available?: boolean; icon?: keyof typeof Ionicons.glyphMap }[] }) {
-    return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ backgroundColor: colors.bgRaised }} contentContainerStyle={{ padding: 4, gap: 4 }}>
-        {items.map((tb) => {
-          const isAvailable = tb.available ?? true;
+  const pillarColor: Record<PillarKey, string> = { quality: "#eab308", trust: "#6366F1", value: "#4FA695", simplicity: "#f59e0b" };
+
+  const GroupLabel = ({ children }: { children: string }) => (
+    <Text style={{ fontSize: 10.5, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", color: colors.textMuted, marginBottom: 10 }}>
+      {children}
+    </Text>
+  );
+
+  return (
+    <View style={{ marginTop: 16, borderRadius: 22, overflow: "hidden", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
+      {/* Group 1 — why this valuation: pill chips (Nuvos Radar redesign, 2026-09-27) */}
+      <View style={{ paddingTop: 16, paddingHorizontal: 16 }}>
+        <GroupLabel>{t("companyDiagnostic.diagTabs.whyGroupLabel")}</GroupLabel>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+        {whyTabs.map((tb) => {
           const active = tab === tb.key;
           return (
             <TouchableOpacity
               key={tb.key}
-              disabled={!isAvailable}
+              disabled={!tb.available}
               onPress={() => setTab(tb.key)}
+              activeOpacity={0.8}
               style={{
-                flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
-                backgroundColor: active ? `${_GOLD}22` : "transparent",
-                borderWidth: 1, borderColor: active ? `${_GOLD}66` : "transparent",
-                opacity: isAvailable ? 1 : 0.4,
+                paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999,
+                backgroundColor: active ? _GOLD : colors.bgRaised,
+                opacity: tb.available ? 1 : 0.4,
               }}
             >
-              {tb.icon && <Ionicons name={tb.icon} size={12} color={!isAvailable ? colors.textDim : active ? _GOLD : colors.textMuted} />}
-              <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: !isAvailable ? colors.textDim : active ? _GOLD : colors.textMuted }}>
-                {tb.label}
-              </Text>
+              <Text style={{ fontSize: 12, fontWeight: "800", color: active ? "#0A0F1A" : colors.textSub }}>{tb.label}</Text>
             </TouchableOpacity>
           );
         })}
       </ScrollView>
-    );
-  }
 
-  return (
-    <View style={{ marginTop: 16, borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: colors.border }}>
-      <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4, backgroundColor: colors.bgRaised }}>
-        {t("companyDiagnostic.diagTabs.whyGroupLabel")}
-      </Text>
-      <TabStrip items={whyTabs} />
-      <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, paddingHorizontal: 14, paddingTop: 8, paddingBottom: 4, backgroundColor: colors.bgRaised }}>
-        {t("companyDiagnostic.diagTabs.pillarsGroupLabel")}
-      </Text>
-      <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <TabStrip items={pillarTabs} />
+      {/* Group 2 — the 4 pillars as a 2×2 grid, each with its real score */}
+      <View style={{ padding: 16, paddingBottom: 16 }}>
+        <GroupLabel>{t("companyDiagnostic.diagTabs.pillarsGroupLabel")}</GroupLabel>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {pillarTabs.map((tb) => {
+            const active = tab === tb.key;
+            const score = data.pillarScores[tb.key];
+            const pc = pillarColor[tb.key];
+            return (
+              <TouchableOpacity
+                key={tb.key}
+                onPress={() => setTab(tb.key)}
+                activeOpacity={0.8}
+                style={{
+                  width: "48.5%", flexGrow: 1, borderRadius: 16, padding: 12, gap: 10,
+                  backgroundColor: active ? `${pc}14` : colors.bgRaised,
+                  borderWidth: 1, borderColor: active ? `${pc}80` : "transparent",
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <View style={{ width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: `${pc}22` }}>
+                    {tb.icon && <Ionicons name={tb.icon} size={15} color={pc} />}
+                  </View>
+                  {score != null && (
+                    <Text style={{ fontSize: 17, fontWeight: "900", color: scoreColor(score), fontVariant: ["tabular-nums"] }}>
+                      {score}<Text style={{ fontSize: 10.5, fontWeight: "700", color: colors.textMuted }}>/100</Text>
+                    </Text>
+                  )}
+                </View>
+                <Text style={{ fontSize: 12.5, fontWeight: "800", color: active ? colors.text : colors.textSub }} numberOfLines={1}>{tb.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
-      <View style={{ padding: 14, backgroundColor: colors.card }}>
+      <View style={{ height: 1, backgroundColor: colors.border }} />
+
+      <View style={{ padding: 16 }}>
         {tab === "valuation" && <ValuationTab data={data} t={t} colors={colors} />}
         {tab === "scenarios" && <ScenariosTab data={data} t={t} colors={colors} />}
         {tab === "comparables" && <ComparablesTab data={data} t={t} colors={colors} />}

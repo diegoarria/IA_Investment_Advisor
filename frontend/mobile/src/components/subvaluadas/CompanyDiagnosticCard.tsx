@@ -26,17 +26,23 @@ function renderWithBoldNumbers(text: string, colors: any): ReactNode {
   return out;
 }
 
-function DiagSectionHeader({ title, subtitle, icon, colors }: { title: string; subtitle?: string; icon: ReactNode; colors: any }) {
+// Section header used by every card below the hero — icon in a tinted
+// square on the left, title + subtitle (Nuvos Radar redesign, 2026-09-27).
+function DiagSectionHeader({ title, subtitle, icon, colors, tint }: { title: string; subtitle?: string; icon: ReactNode; colors: any; tint?: string }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }} numberOfLines={1}>{title}</Text>
-        {subtitle && <Text style={{ fontSize: 11.5, color: colors.textMuted, marginTop: 2 }} numberOfLines={2}>{subtitle}</Text>}
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 }}>
+      <View style={{ width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: tint ? `${tint}1f` : colors.bgRaised }}>
+        {icon}
       </View>
-      {icon}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text, letterSpacing: -0.2 }} numberOfLines={1}>{title}</Text>
+        {subtitle && <Text style={{ fontSize: 12, lineHeight: 16, color: colors.textMuted, marginTop: 2 }} numberOfLines={2}>{subtitle}</Text>}
+      </View>
     </View>
   );
 }
+
+const CARD = { borderRadius: 22, padding: 18, borderWidth: 1 } as const;
 
 export function CompanyDiagnosticCard({
   data, colors, locked, onUnlock,
@@ -60,11 +66,11 @@ export function CompanyDiagnosticCard({
   const content = (
     <View>
       {/* Capa 1 — Hero (simplificado, ver CompanyDiagnosticHero.tsx) */}
-      <View style={{ borderRadius: 18, padding: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+      <View style={{ ...CARD, backgroundColor: colors.card, borderColor: colors.border }}>
         <CompanyDiagnosticHero data={data} colors={colors} />
 
         {data.sectorModelNote && (
-          <View style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 15, backgroundColor: "rgba(212,162,76,0.08)", borderWidth: 1, borderColor: "rgba(212,162,76,0.2)" }}>
+          <View style={{ borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginTop: 16, backgroundColor: "rgba(212,162,76,0.07)", borderLeftWidth: 3, borderLeftColor: "#D4A24C" }}>
             <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.accentLight, marginBottom: 3 }}>
               {t("companyDiagnostic.sectorModelNoteTitle")}
             </Text>
@@ -73,11 +79,13 @@ export function CompanyDiagnosticCard({
         )}
 
         {(data.valuation.fcfAssumptions || data.valuation.waccDetails) && (
-          <View style={{ marginTop: 8 }}>
-            <TouchableOpacity onPress={() => setAssumptionsOpen((o) => !o)}>
-              <Text style={{ fontSize: 11, color: colors.textMuted, textDecorationLine: "underline" }}>
+          <View style={{ marginTop: 14 }}>
+            <TouchableOpacity onPress={() => setAssumptionsOpen((o) => !o)} style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
+              <Ionicons name="options-outline" size={13} color={colors.textMuted} />
+              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>
                 {t("companyDiagnostic.modelAssumptions.toggle")}
               </Text>
+              <Ionicons name={assumptionsOpen ? "chevron-up" : "chevron-down"} size={12} color={colors.textMuted} />
             </TouchableOpacity>
             {assumptionsOpen && (
               <View style={{ marginTop: 8, gap: 6 }}>
@@ -123,30 +131,34 @@ export function CompanyDiagnosticCard({
 
       {/* Tesis Final */}
       {data.investmentThesis && (
-        <View style={{ marginTop: 14, borderRadius: 18, padding: 15, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent }}>
+        <View style={{ ...CARD, marginTop: 16, backgroundColor: colors.card, borderColor: colors.border, borderLeftWidth: 4, borderLeftColor: colors.accent }}>
           <DiagSectionHeader
             title={t("companyDiagnostic.thesis.title")}
             subtitle={t("companyDiagnostic.thesis.subtitle")}
-            icon={<Ionicons name="locate" size={17} color={colors.accentLight} />}
+            icon={<Ionicons name="locate" size={18} color={colors.accentLight} />}
+            tint={colors.accent}
             colors={colors}
           />
-          <Text style={{ fontSize: 14, lineHeight: 20.5, color: colors.textSub, marginTop: 6 }}>
+          <Text style={{ fontSize: 14.5, lineHeight: 22, color: colors.textSub }}>
             {renderWithBoldNumbers(data.investmentThesis, colors)}
           </Text>
         </View>
       )}
 
       {/* Guía de metodología */}
-      <View style={{ marginTop: 14, borderRadius: 18, padding: 15, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+      <View style={{ ...CARD, marginTop: 16, backgroundColor: colors.card, borderColor: colors.border }}>
         <DiagSectionHeader
           title={t("companyDiagnostic.methodology.title")}
           subtitle={t("companyDiagnostic.methodology.subtitle")}
-          icon={<Ionicons name="book" size={17} color={colors.textMuted} />}
+          icon={<Ionicons name="book-outline" size={18} color={colors.textSub} />}
           colors={colors}
         />
-        <View style={{ marginTop: 6, gap: 8 }}>
+        <View style={{ gap: 12 }}>
           {methodologyParagraphs.map((p, i) => (
-            <Text key={i} style={{ fontSize: 13, lineHeight: 19, color: colors.textSub }}>{p}</Text>
+            <View key={i} style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ width: 4, borderRadius: 2, backgroundColor: colors.bgRaised }} />
+              <Text style={{ flex: 1, fontSize: 13.5, lineHeight: 20, color: colors.textSub }}>{p}</Text>
+            </View>
           ))}
         </View>
       </View>
@@ -161,7 +173,7 @@ export function CompanyDiagnosticCard({
       <SelfCheckQuiz ticker={data.ticker} colors={colors} />
 
       {/* Disclaimer */}
-      <Text style={{ fontSize: 11, lineHeight: 16, marginTop: 16, textAlign: "center", color: colors.textDim }}>
+      <Text style={{ fontSize: 11, lineHeight: 16, marginTop: 20, paddingHorizontal: 8, textAlign: "center", color: colors.textDim }}>
         {t("companyDiagnostic.disclaimer")}
       </Text>
     </View>

@@ -628,17 +628,17 @@ export function ActionButtons({ watchlisted, onFollow, onAnalyze, colors }: {
 }) {
   const { t } = useTranslation();
   return (
-    <View style={{ flexDirection: "row", gap: 8 }}>
-      <TouchableOpacity onPress={onFollow} disabled={watchlisted}
-                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgRaised }}>
-        <Ionicons name={watchlisted ? "checkmark" : "star-outline"} size={13} color={watchlisted ? "#22c55e" : colors.textSub} />
-        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textSub }}>
+    <View style={{ flexDirection: "row", gap: 10 }}>
+      <TouchableOpacity onPress={onFollow} disabled={watchlisted} activeOpacity={0.8}
+                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 15, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
+        <Ionicons name={watchlisted ? "checkmark-circle" : "star-outline"} size={16} color={watchlisted ? "#22c55e" : colors.text} />
+        <Text style={{ fontSize: 13.5, fontWeight: "800", color: colors.text }}>
           {watchlisted ? t("subvaluadas.follow.following") : t("subvaluadas.follow.button")}
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={onAnalyze} style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.brandGreen ?? colors.accent }}>
-        <Ionicons name="chatbubble-ellipses-outline" size={13} color="#000" />
-        <Text style={{ fontSize: 11, fontWeight: "900", color: "#000" }}>
+      <TouchableOpacity onPress={onAnalyze} activeOpacity={0.85} style={{ flex: 1.3, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 15, borderRadius: 16, backgroundColor: colors.brandGreen ?? colors.accent }}>
+        <Ionicons name="chatbubble-ellipses-outline" size={16} color="#000" />
+        <Text style={{ fontSize: 13.5, fontWeight: "900", color: "#000" }}>
           {t("subvaluadas.analyze.button")}
         </Text>
       </TouchableOpacity>

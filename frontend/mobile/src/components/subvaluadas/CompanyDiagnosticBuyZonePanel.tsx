@@ -117,9 +117,9 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
   if (intrinsicValue == null || price == null) return null;
 
   return (
-    <View style={{ marginTop: 14, borderRadius: 16, padding: 15, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+    <View style={{ marginTop: 18, borderRadius: 18, padding: 16, backgroundColor: colors.bgRaised }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingBottom: 13, marginBottom: 13, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <View style={{ width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgRaised }}>
+        <View style={{ width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: colors.card }}>
           <Ionicons name="locate" size={18} color={ACCENT_GREEN} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -129,7 +129,7 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
       </View>
 
       {/* Primary card — currently selected margin */}
-      <View style={{ borderRadius: 14, padding: 13, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}>
+      <View style={{ borderRadius: 14, padding: 13, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
         <Text style={{ alignSelf: "flex-start", fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginBottom: 10, color: ACCENT_GREEN, backgroundColor: `${ACCENT_GREEN}1f` }}>
           {t("subvaluadas.followAlert.badge")}
         </Text>
@@ -203,7 +203,7 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
             <TouchableOpacity
               key={pct}
               onPress={() => handleSelect(pct)}
-              style={{ width: "31%", minHeight: 68, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}
+              style={{ width: "31%", minHeight: 68, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
             >
               <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text }}>{pct}%</Text>
               {intrinsicValue != null && (
@@ -222,7 +222,7 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
               <Text style={{ fontSize: 10.5, fontWeight: "700", color: colors.textMuted, textAlign: "center" }} numberOfLines={1}>{t("subvaluadas.followAlert.customOption")}</Text>
             </TouchableOpacity>
           ) : (
-            <View style={{ width: "100%", borderRadius: 12, padding: 10, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}>
+            <View style={{ width: "100%", borderRadius: 12, padding: 10, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
               <TextInput
                 autoFocus
                 keyboardType="numeric"

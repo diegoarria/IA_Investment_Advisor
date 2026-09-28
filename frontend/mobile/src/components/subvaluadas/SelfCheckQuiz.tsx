@@ -48,19 +48,26 @@ export function SelfCheckQuiz({ ticker, colors }: { ticker: string; colors: any 
   };
 
   return (
-    <View style={{ marginTop: 18, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <Ionicons name="clipboard-outline" size={18} color={colors.textMuted} />
-        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>{t("subvaluadas.selfCheckQuiz.title")}</Text>
+    <View style={{ marginTop: 16, padding: 18, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <View style={{ width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgRaised }}>
+          <Ionicons name="clipboard-outline" size={18} color={colors.textSub} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text, letterSpacing: -0.2 }}>{t("subvaluadas.selfCheckQuiz.title")}</Text>
+          <Text style={{ fontSize: 12, lineHeight: 16, color: colors.textMuted, marginTop: 2 }}>
+            {t("subvaluadas.selfCheckQuiz.subtitle")}
+          </Text>
+        </View>
       </View>
-      <Text style={{ fontSize: 11, lineHeight: 15, color: colors.textMuted, marginTop: 4 }}>
-        {t("subvaluadas.selfCheckQuiz.subtitle")}
-      </Text>
 
-      <View style={{ marginTop: 12, gap: 12 }}>
+      <View style={{ marginTop: 18, gap: 16 }}>
         {questions.map((q, i) => (
           <View key={i}>
-            <Text style={{ fontSize: 12.5, fontWeight: "600", color: colors.text, marginBottom: 5 }}>{q}</Text>
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: "900", color: colors.textMuted, fontVariant: ["tabular-nums"] }}>{i + 1}.</Text>
+              <Text style={{ flex: 1, fontSize: 13.5, lineHeight: 19, fontWeight: "600", color: colors.text }}>{q}</Text>
+            </View>
             <TextInput
               value={answers[i]}
               onChangeText={(v) => handleChange(i, v)}
@@ -69,22 +76,22 @@ export function SelfCheckQuiz({ ticker, colors }: { ticker: string; colors: any 
               multiline
               numberOfLines={2}
               style={{
-                borderWidth: 1, borderColor: colors.border, borderRadius: 10,
-                paddingHorizontal: 10, paddingVertical: 8, fontSize: 12.5, color: colors.text,
-                minHeight: 44, textAlignVertical: "top",
+                borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.bgRaised,
+                paddingHorizontal: 12, paddingVertical: 10, fontSize: 13.5, color: colors.text,
+                minHeight: 52, textAlignVertical: "top",
               }}
             />
           </View>
         ))}
       </View>
 
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 }}>
+      <View style={{ gap: 10, marginTop: 18 }}>
         <TouchableOpacity
           onPress={handleSave}
           disabled={!hasAnyAnswer || saving}
           style={{
-            flexDirection: "row", alignItems: "center", gap: 6,
-            paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12,
+            flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+            paddingHorizontal: 16, paddingVertical: 14, borderRadius: 14,
             backgroundColor: colors.brandGreen ?? colors.accent, opacity: !hasAnyAnswer || saving ? 0.4 : 1,
           }}
         >
@@ -93,12 +100,12 @@ export function SelfCheckQuiz({ ticker, colors }: { ticker: string; colors: any 
           ) : saved ? (
             <Ionicons name="checkmark" size={14} color="white" />
           ) : null}
-          <Text style={{ fontSize: 12.5, fontWeight: "700", color: "white" }}>
+          <Text style={{ fontSize: 14, fontWeight: "800", color: "white" }}>
             {saving ? t("subvaluadas.selfCheckQuiz.saving") : saved ? t("subvaluadas.selfCheckQuiz.saved") : t("subvaluadas.selfCheckQuiz.saveButton")}
           </Text>
         </TouchableOpacity>
         {error && (
-          <Text style={{ fontSize: 11, color: "#ef4444" }}>{t("subvaluadas.selfCheckQuiz.saveError")}</Text>
+          <Text style={{ fontSize: 12, color: "#ef4444", textAlign: "center" }}>{t("subvaluadas.selfCheckQuiz.saveError")}</Text>
         )}
       </View>
     </View>
