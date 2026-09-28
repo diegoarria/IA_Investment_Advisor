@@ -33,10 +33,7 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import BrokerConnectModal from "@/components/BrokerConnectModal";
 import { useUpsellStore } from "@/lib/upsellStore";
 import {
-  PieChart, Menu, X, Upload, Plus, Trash2,
-  BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Pencil, Eye,
-  Cloud, CloudOff, Check, TrendingUp, Bell, Users, Share2,
-  ChevronDown, ChevronUp, ChevronRight, Loader2, ArrowRight, FileBarChart, PlayCircle,
+  PieChart, Menu, X, Upload, Plus, Trash2, BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Pencil, Eye, Cloud, CloudOff, Check, TrendingUp, Bell, Users, Share2, ChevronDown, ChevronUp, ChevronRight, Loader2, ArrowRight, FileBarChart, PlayCircle, Link2, Lock, CloudUpload,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -1127,7 +1124,6 @@ export default function PortfolioPage() {
 
   // Currency picker
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
-  const [showImportSteps, setShowImportSteps] = useState(false);
 
   // "Historial de compras" panel — the table shows one combined row per
   // ticker; this lists every purchase lot behind that ticker individually.
@@ -1963,6 +1959,248 @@ export default function PortfolioPage() {
     setCalcResult({ final, invested:totalInvested, gain, pct:totalInvested>0?(gain/totalInvested)*100:0, multiplier, realFinal, bars });
   };
 
+  // Quick actions — one compact row under the value instead of four stacked
+  // full-width buttons above the money (mobile parity, Diego 2026-09-27).
+  // Import keeps web's drag-and-drop, and the screenshot-currency selector +
+  // ⌘V hint sit small under the row.
+  const quickActionsBlock = (
+    <div className="mb-5">
+      <div className="grid grid-cols-4 gap-2.5">
+        {([
+          { key: "import", label: t("portfolio.quickActions.import"), primary: true,
+            icon: screenshotAnalyzing ? <RefreshCw className="w-[22px] h-[22px] animate-spin" /> : <Upload className="w-[22px] h-[22px]" />,
+            onClick: () => { if (!screenshotAnalyzing) screenshotInputRef.current?.click(); } },
+          { key: "add", label: t("portfolio.quickActions.add"), icon: <Plus className="w-[22px] h-[22px]" />,
+            onClick: () => { setShowForm(!showForm); setScreenshotPreview(null); } },
+          { key: "broker", label: t("portfolio.quickActions.broker"), icon: <Link2 className="w-[22px] h-[22px]" />, locked: !isPremium,
+            onClick: () => (isPremium ? setBrokerModalOpen(true) : setPaywallOpen(true)) },
+          { key: "tutorial", label: t("portfolio.quickActions.tutorial"), icon: <PlayCircle className="w-[22px] h-[22px]" />,
+            onClick: () => setTutorialVideoOpen(true) },
+        ] as { key: string; label: string; primary?: boolean; locked?: boolean; icon: React.ReactNode; onClick: () => void }[]).map((a) => (
+          <button
+            key={a.key}
+            onClick={a.onClick}
+            onDragOver={a.primary ? (e) => { e.preventDefault(); if (!screenshotAnalyzing) setIsDragOver(true); } : undefined}
+            onDragLeave={a.primary ? () => setIsDragOver(false) : undefined}
+            onDrop={a.primary ? (e) => {
+              e.preventDefault(); setIsDragOver(false);
+              if (screenshotAnalyzing) return;
+              const all = Array.from(e.dataTransfer.files);
+              const pdf = all.find((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
+              const images = all.filter((f) => f.type.startsWith("image/"));
+              if (pdf) processPdfFile(pdf);
+              else if (images.length) processScreenshotFiles(images);
+            } : undefined}
+            className="flex flex-col items-center gap-[7px] group min-w-0"
+          >
+            <span className="relative w-[54px] h-[54px] rounded-[18px] flex items-center justify-center transition-transform group-hover:scale-105"
+                  style={a.primary
+                    ? { background: isDragOver ? "rgba(0,168,94,0.15)" : "#00d47e", color: "#04150e", border: isDragOver ? "2px dashed var(--accent)" : "none" }
+                    : { background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)" }}>
+              {a.icon}
+              {a.locked && (
+                <span className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full flex items-center justify-center" style={{ background: "#a855f7" }}>
+                  <Lock className="w-2.5 h-2.5 text-white" />
+                </span>
+              )}
+            </span>
+            <span className="text-[11.5px] font-bold truncate max-w-full" style={{ color: "var(--sub)" }}>{a.label}</span>
+          </button>
+        ))}
+      </div>
+      <input ref={screenshotInputRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleScreenshotChange} />
+
+      <div className="flex items-center justify-center gap-2 flex-wrap mt-3.5">
+        <span className="text-[11px]" style={{ color: "var(--muted)" }}>{t("portfolio.actions.screenshotPricesIn")}</span>
+        {["USD", "MXN", "EUR", "GBP"].map((c) => (
+          <button key={c} onClick={() => setScreenshotCurrency(c)}
+                  className="px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all"
+                  style={{
+                    background: screenshotCurrency === c ? "rgba(0,212,126,0.15)" : "var(--raised)",
+                    color: screenshotCurrency === c ? "#00d47e" : "var(--muted)",
+                    border: `1px solid ${screenshotCurrency === c ? "#00d47e" : "var(--border)"}`,
+                  }}>
+            {c}
+          </button>
+        ))}
+        <span className="text-[10px] ml-1" style={{ color: "var(--dim)" }}>
+          · {t("portfolio.actions.pasteHintPre")}{" "}
+          <kbd className="px-1 py-0.5 rounded font-mono text-[9px]" style={{ background: "var(--raised)", color: "var(--muted)" }}>⌘V</kbd>
+        </span>
+      </div>
+    </div>
+  );
+
+  // Screenshot-import preview + manual form — under the onboarding buttons on
+  // an empty portfolio, or right under the quick actions once there are
+  // positions (same state, same handlers).
+  const previewAndFormBlock = (
+    <>
+            {/* Screenshot preview */}
+            {screenshotPreview && (
+              <div className="mt-3 rounded-2xl border-2 p-4" style={{ borderColor:"#22c55e", background:"var(--card)" }}>
+                <p className="font-extrabold text-sm mb-1" style={{ color:"var(--text)" }}>
+                  {screenshotPreview.length} posiciones detectadas
+                </p>
+                <p className="text-xs mb-1" style={{ color:"var(--muted)" }}>
+                  Revisa las acciones detectadas y agrega el precio promedio de compra de cada posición.
+                </p>
+                <p className="text-[11px] mb-3 px-2.5 py-1.5 rounded-lg font-medium" style={{ color:"#f59e0b", background:"#f59e0b15" }}>
+                  ⚠ No usamos el precio de la foto — puede ser incorrecto en acciones fraccionadas. Búscalo en tu broker bajo "precio promedio" o "average cost".
+                </p>
+                {screenshotPreview.map((p) => {
+                  const sharesTyped = parseFloat(screenshotPriceInputs[p.id]?.shares ?? "");
+                  const sharesInvalid = isNaN(sharesTyped) || sharesTyped <= 0;
+                  return (
+                  <div key={p.id} className="py-3 border-b" style={{ borderColor:"var(--border)" }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <span className="font-extrabold text-sm" style={{ color:"var(--text)" }}>{p.ticker}</span>
+                        {p.name !== p.ticker && <span className="text-xs ml-2" style={{ color:"var(--muted)" }}>{p.name}</span>}
+                      </div>
+                      <button onClick={() => {
+                        setScreenshotPreview((prev) => { const next=(prev??[]).filter((x)=>x.id!==p.id); return next.length?next:null; });
+                        setScreenshotPriceInputs((prev) => { const n={...prev}; delete n[p.id]; return n; });
+                      }} className="text-[#ef4444] text-xl font-bold leading-none ml-2">×</button>
+                    </div>
+                    {sharesInvalid && (
+                      <p className="text-[11px] mb-2 px-2 py-1 rounded-lg font-medium" style={{ color:"#ef4444", background:"#ef444415" }}>
+                        No pudimos leer cuántas acciones tienes — agrégalas tú abajo (acepta fracciones, ej. 0.5).
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      <div className="w-24 shrink-0">
+                        <label className="text-[10px] font-bold uppercase block mb-1" style={{ color: sharesInvalid ? "#ef4444" : "var(--muted)" }}>
+                          Acciones
+                        </label>
+                        <input
+                          type="number" min="0" step="any"
+                          placeholder="ej. 0.5"
+                          value={screenshotPriceInputs[p.id]?.shares ?? ""}
+                          onChange={(e) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], shares: e.target.value } }))}
+                          className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                          style={{ background:"var(--raised)", borderColor: sharesInvalid ? "#ef4444" : "var(--border)", color:"var(--text)" }}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>
+                          Precio promedio ({portfolioCurrency})
+                        </label>
+                        <input
+                          type="number" min="0" step="any"
+                          placeholder={portfolioCurrency === "USD" ? "ej. 223.00" : `ej. ${(223 * fxRate).toFixed(0)}`}
+                          value={screenshotPriceInputs[p.id]?.avgPrice ?? ""}
+                          onChange={(e) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], avgPrice: e.target.value } }))}
+                          className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                          style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>
+                          Fecha de compra <span style={{ fontWeight:400 }}>(opcional)</span>
+                        </label>
+                        <input
+                          type="date"
+                          max={new Date().toISOString().split("T")[0]}
+                          value={screenshotPriceInputs[p.id]?.purchaseDate ?? ""}
+                          onChange={(e) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], purchaseDate: e.target.value } }))}
+                          className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                          style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  );
+                })}
+                <div className="flex gap-2 mt-3">
+                  <button onClick={() => { setScreenshotPreview(null); setScreenshotPriceInputs({}); }}
+                          className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
+                          style={{ borderColor:"var(--border)", color:"var(--muted)" }}>
+                    Cancelar
+                  </button>
+                  <button onClick={confirmScreenshotImport}
+                          disabled={screenshotPreview.some((p) => { const v = parseFloat(screenshotPriceInputs[p.id]?.shares ?? ""); return isNaN(v) || v <= 0; })}
+                          className="flex-[2] py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-40"
+                          style={{ background:"var(--accent)" }}>
+                    ✓ Agregar {screenshotPreview.length} posiciones
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Formulario manual — se expande al hacer click en "Agregar posición" */}
+            {showForm && (
+              <div className="rounded-2xl border-2 overflow-hidden"
+                   style={{ borderColor: "var(--accent-l)30" }}>
+                <div className="h-0.5" style={{ background: "var(--grad-green)" }} />
+                <div className="p-4" style={{ background: "var(--card)" }}>
+                  <p className="text-sm font-extrabold mb-3" style={{ color: "var(--text)" }}>
+                    Agregar posición al portafolio
+                  </p>
+                  <input
+                    value={form.ticker}
+                    onChange={(e) => setForm({ ...form, ticker: e.target.value.toUpperCase() })}
+                    className="w-full rounded-xl border px-3 py-2.5 text-sm mb-2 outline-none font-bold tracking-wide"
+                    style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
+                    placeholder="Ticker — ej. AAPL, NVDA, SPY"
+                    autoFocus
+                  />
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>¿Cuánto invertiste? ({portfolioCurrency})</label>
+                      <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9.,]/g, "") })}
+                             type="text" inputMode="decimal"
+                             className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+                             style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
+                             placeholder="500" />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Precio por acción ({portfolioCurrency})</label>
+                      <input value={form.avgPrice} onChange={(e) => setForm({ ...form, avgPrice: e.target.value.replace(/[^0-9.,]/g, "") })}
+                             type="text" inputMode="decimal"
+                             className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+                             style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
+                             placeholder={portfolioCurrency === "USD" ? "150.00" : (150 * fxRate).toFixed(0)} />
+                    </div>
+                  </div>
+                  {parseLocaleNumber(form.amount) > 0 && parseLocaleNumber(form.avgPrice) > 0 && (() => {
+                    const calcShares = parseLocaleNumber(form.amount) / parseLocaleNumber(form.avgPrice);
+                    const isWhole = Math.abs(calcShares - Math.round(calcShares)) < 0.0005;
+                    return (
+                      <p className="text-[11px] mb-2 px-0.5" style={{ color: "var(--accent-l)" }}>
+                        ≈ <span className="font-bold">{calcShares.toLocaleString("en-US", { maximumFractionDigits: 6 })}</span> acciones
+                        {" "}({isWhole ? "completas" : "fraccionadas"})
+                      </p>
+                    );
+                  })()}
+                  <div>
+                    <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Fecha de compra (opcional)</label>
+                    <input value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
+                           type="date" max={new Date().toISOString().split("T")[0]}
+                           className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none mb-3"
+                           style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }} />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowForm(false)}
+                            className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
+                            style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                      Cancelar
+                    </button>
+                    <button onClick={handleAdd} disabled={addingLoading}
+                            className="flex-[2] py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2"
+                            style={{ background: "var(--grad-green)" }}>
+                      {addingLoading
+                        ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Agregando...</>
+                        : <><Plus className="w-3.5 h-3.5" /> Agregar al portafolio</>
+                      }
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+    </>
+  );
+
   return (
     <>
     {/* Toast */}
@@ -2061,13 +2299,13 @@ export default function PortfolioPage() {
                   onMouseEnter={() => setHoveredPortfolioId(p.id)}
                   onMouseLeave={() => setHoveredPortfolioId(null)}
                   style={{
-                    padding: "4px 14px",
+                    padding: "7px 14px",
                     borderRadius: 20,
                     fontSize: 12,
                     fontWeight: 700,
                     cursor: "pointer",
-                    border: p.id === activePortfolioId ? "1.5px solid var(--accent-l)" : "1.5px solid var(--border)",
-                    background: p.id === activePortfolioId ? "rgba(0,212,126,0.12)" : "transparent",
+                    border: p.id === activePortfolioId ? "1px solid #00d47e" : "1px solid var(--border)",
+                    background: p.id === activePortfolioId ? "rgba(0,212,126,0.12)" : "var(--card)",
                     color: p.id === activePortfolioId ? "var(--accent-l)" : "var(--muted)",
                     display: "flex", alignItems: "center", gap: 6, position: "relative",
                   }}
@@ -2089,17 +2327,17 @@ export default function PortfolioPage() {
                         <span
                           onClick={e => { e.stopPropagation(); setRenamingId(p.id); setRenameValue(p.name); }}
                           title="Editar nombre"
-                          style={{ fontSize: 10, opacity: hoveredPortfolioId === p.id ? 0.6 : 0, cursor: "pointer", transition: "opacity 0.15s" }}
-                        >✏️</span>
+                          style={{ display: "inline-flex", opacity: hoveredPortfolioId === p.id ? 0.7 : 0, cursor: "pointer", transition: "opacity 0.15s" }}
+                        ><Pencil className="w-[11px] h-[11px]" /></span>
                       )}
                     </>
                   )}
                   {isPremium && p.id !== "default" && renamingId !== p.id && (
                     <span
                       onClick={e => { e.stopPropagation(); setConfirmModal({ msg: `¿Eliminar "${p.name}"?`, onConfirm: () => { deletePortfolio(p.id).catch(() => showToast("No se pudo eliminar el portafolio. Inténtalo de nuevo.")); } }); }}
-                      style={{ fontSize: 10, opacity: 0.5, cursor: "pointer", marginLeft: 2 }}
+                      style={{ display: "inline-flex", opacity: 0.6, cursor: "pointer", marginLeft: 2 }}
                       title="Eliminar portafolio"
-                    >✕</span>
+                    ><X className="w-[13px] h-[13px]" /></span>
                   )}
                 </button>
               ))}
@@ -2128,6 +2366,22 @@ export default function PortfolioPage() {
                   🔒 + Portafolio
                 </button>
               )}
+              {/* Cloud sync status — small, next to "+ Nuevo" (mobile parity, Diego 2026-09-27). */}
+              <span className="ml-auto flex items-center gap-1 text-[10.5px] font-semibold whitespace-nowrap"
+                    style={{ color: syncStatus === "error" ? "#ef4444" : "var(--muted)" }}>
+                {syncStatus === "error"
+                  ? <CloudOff className="w-[13px] h-[13px]" />
+                  : syncStatus === "syncing"
+                  ? <CloudUpload className="w-[13px] h-[13px]" style={{ color: "#22c55e" }} />
+                  : <Cloud className="w-[13px] h-[13px]" style={{ color: "#22c55e" }} />}
+                {syncStatus === "syncing"
+                  ? t("portfolio.sync.saving")
+                  : syncStatus === "error"
+                  ? t("portfolio.sync.errorShort")
+                  : lastSaved
+                  ? t("portfolio.sync.saved", { time: new Date(lastSaved).toLocaleTimeString(i18n.language === "en" ? "en-US" : "es-MX", { hour: "2-digit", minute: "2-digit" }) })
+                  : t("portfolio.sync.cloudShort")}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -2240,59 +2494,34 @@ export default function PortfolioPage() {
           {activeTab === "portfolio" && <div className="space-y-5">
 
           {/* ── Acciones del portafolio ── */}
-          <section>
-            {/* Cloud sync info + vaciar */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0"
-                     style={{ background: "rgba(34,197,94,0.12)" }}>
-                  <Cloud className="w-3.5 h-3.5" style={{ color: "#22c55e" }} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{t("portfolio.actions.cloudTitle")}</p>
-                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                    {t("portfolio.actions.cloudSubtitle")}
-                  </p>
-                </div>
+          {/* ── Retention banner ── */}
+          {daysSinceVisit !== null && daysSinceVisit >= 3 && (
+            <div className="rounded-2xl border p-4 mb-4 flex items-start gap-3"
+                 style={{ background: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.25)" }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                   style={{ background: "rgba(0,168,94,0.15)" }}>
+                <Bell className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
               </div>
-              {positions.length > 0 && (
-                <button
-                  onClick={() => {
-                    setConfirmModal({ msg: t("portfolio.actions.emptyConfirm", { count: positions.length }), onConfirm: clearPortfolio });
-                  }}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-colors"
-                  style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                  <Trash2 className="w-3 h-3" /> {t("portfolio.actions.empty")}
-                </button>
-              )}
-            </div>
-
-            {/* Pasos para importar portafolio por captura */}
-            <div className="mb-3 rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)", background: "var(--card)" }}>
-              <button
-                onClick={() => setShowImportSteps(v => !v)}
-                className="w-full flex items-center justify-between px-3 py-2.5 text-left transition-colors"
-                style={{ background: "transparent" }}>
-                <span className="text-xs font-bold" style={{ color: "var(--muted)" }}>{t("portfolio.actions.importHowTo")}</span>
-                {showImportSteps
-                  ? <ChevronUp className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted)" }} />
-                  : <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted)" }} />}
+              <div className="flex-1">
+                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
+                  Bienvenido de vuelta — {daysSinceVisit} días sin revisar
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+                  Tu portafolio sigue trabajando. Aquí va el resumen de hoy.
+                </p>
+              </div>
+              <button onClick={() => setDaysSinceVisit(null)} className="p-1 shrink-0">
+                <X className="w-3.5 h-3.5" style={{ color: "var(--dim)" }} />
               </button>
-              {showImportSteps && (
-                <div className="px-3 pb-3" style={{ borderTop: "1px solid var(--border)" }}>
-                  {(t("portfolio.actions.importSteps", { returnObjects: true }) as string[]).map((step, i) => (
-                    <div key={i} className="flex items-start gap-2.5 pt-2.5">
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-px"
-                           style={{ background: "rgba(0,212,126,0.15)", color: "#00d47e" }}>
-                        <span className="text-[10px] font-black">{i + 1}</span>
-                      </div>
-                      <p className="text-xs leading-snug" style={{ color: "var(--text)" }}>{step}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
+          )}
 
+          {/* Empty portfolio: import is the job — onboarding order (import /
+              add → tutorial → broker → cash). With positions these collapse
+              into the quick-actions row under the value and "Vaciar" moves to
+              the footer (mobile parity, Diego 2026-09-27). */}
+          {positions.length === 0 && (
+          <section>
             {/* Moneda de la captura — selector inline antes de importar */}
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs shrink-0" style={{ color: "var(--muted)" }}>{t("portfolio.actions.screenshotPricesIn")}</span>
@@ -2511,283 +2740,9 @@ export default function PortfolioPage() {
               )}
             </div>
 
-            {/* Screenshot preview */}
-            {screenshotPreview && (
-              <div className="mt-3 rounded-2xl border-2 p-4" style={{ borderColor:"#22c55e", background:"var(--card)" }}>
-                <p className="font-extrabold text-sm mb-1" style={{ color:"var(--text)" }}>
-                  {screenshotPreview.length} posiciones detectadas
-                </p>
-                <p className="text-xs mb-1" style={{ color:"var(--muted)" }}>
-                  Revisa las acciones detectadas y agrega el precio promedio de compra de cada posición.
-                </p>
-                <p className="text-[11px] mb-3 px-2.5 py-1.5 rounded-lg font-medium" style={{ color:"#f59e0b", background:"#f59e0b15" }}>
-                  ⚠ No usamos el precio de la foto — puede ser incorrecto en acciones fraccionadas. Búscalo en tu broker bajo "precio promedio" o "average cost".
-                </p>
-                {screenshotPreview.map((p) => {
-                  const sharesTyped = parseFloat(screenshotPriceInputs[p.id]?.shares ?? "");
-                  const sharesInvalid = isNaN(sharesTyped) || sharesTyped <= 0;
-                  return (
-                  <div key={p.id} className="py-3 border-b" style={{ borderColor:"var(--border)" }}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <span className="font-extrabold text-sm" style={{ color:"var(--text)" }}>{p.ticker}</span>
-                        {p.name !== p.ticker && <span className="text-xs ml-2" style={{ color:"var(--muted)" }}>{p.name}</span>}
-                      </div>
-                      <button onClick={() => {
-                        setScreenshotPreview((prev) => { const next=(prev??[]).filter((x)=>x.id!==p.id); return next.length?next:null; });
-                        setScreenshotPriceInputs((prev) => { const n={...prev}; delete n[p.id]; return n; });
-                      }} className="text-[#ef4444] text-xl font-bold leading-none ml-2">×</button>
-                    </div>
-                    {sharesInvalid && (
-                      <p className="text-[11px] mb-2 px-2 py-1 rounded-lg font-medium" style={{ color:"#ef4444", background:"#ef444415" }}>
-                        No pudimos leer cuántas acciones tienes — agrégalas tú abajo (acepta fracciones, ej. 0.5).
-                      </p>
-                    )}
-                    <div className="flex gap-2">
-                      <div className="w-24 shrink-0">
-                        <label className="text-[10px] font-bold uppercase block mb-1" style={{ color: sharesInvalid ? "#ef4444" : "var(--muted)" }}>
-                          Acciones
-                        </label>
-                        <input
-                          type="number" min="0" step="any"
-                          placeholder="ej. 0.5"
-                          value={screenshotPriceInputs[p.id]?.shares ?? ""}
-                          onChange={(e) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], shares: e.target.value } }))}
-                          className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
-                          style={{ background:"var(--raised)", borderColor: sharesInvalid ? "#ef4444" : "var(--border)", color:"var(--text)" }}
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>
-                          Precio promedio ({portfolioCurrency})
-                        </label>
-                        <input
-                          type="number" min="0" step="any"
-                          placeholder={portfolioCurrency === "USD" ? "ej. 223.00" : `ej. ${(223 * fxRate).toFixed(0)}`}
-                          value={screenshotPriceInputs[p.id]?.avgPrice ?? ""}
-                          onChange={(e) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], avgPrice: e.target.value } }))}
-                          className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
-                          style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>
-                          Fecha de compra <span style={{ fontWeight:400 }}>(opcional)</span>
-                        </label>
-                        <input
-                          type="date"
-                          max={new Date().toISOString().split("T")[0]}
-                          value={screenshotPriceInputs[p.id]?.purchaseDate ?? ""}
-                          onChange={(e) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], purchaseDate: e.target.value } }))}
-                          className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
-                          style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  );
-                })}
-                <div className="flex gap-2 mt-3">
-                  <button onClick={() => { setScreenshotPreview(null); setScreenshotPriceInputs({}); }}
-                          className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
-                          style={{ borderColor:"var(--border)", color:"var(--muted)" }}>
-                    Cancelar
-                  </button>
-                  <button onClick={confirmScreenshotImport}
-                          disabled={screenshotPreview.some((p) => { const v = parseFloat(screenshotPriceInputs[p.id]?.shares ?? ""); return isNaN(v) || v <= 0; })}
-                          className="flex-[2] py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-40"
-                          style={{ background:"var(--accent)" }}>
-                    ✓ Agregar {screenshotPreview.length} posiciones
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Formulario manual — se expande al hacer click en "Agregar posición" */}
-            {showForm && (
-              <div className="rounded-2xl border-2 overflow-hidden"
-                   style={{ borderColor: "var(--accent-l)30" }}>
-                <div className="h-0.5" style={{ background: "var(--grad-green)" }} />
-                <div className="p-4" style={{ background: "var(--card)" }}>
-                  <p className="text-sm font-extrabold mb-3" style={{ color: "var(--text)" }}>
-                    Agregar posición al portafolio
-                  </p>
-                  <input
-                    value={form.ticker}
-                    onChange={(e) => setForm({ ...form, ticker: e.target.value.toUpperCase() })}
-                    className="w-full rounded-xl border px-3 py-2.5 text-sm mb-2 outline-none font-bold tracking-wide"
-                    style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
-                    placeholder="Ticker — ej. AAPL, NVDA, SPY"
-                    autoFocus
-                  />
-                  <div className="grid grid-cols-2 gap-2 mb-2">
-                    <div>
-                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>¿Cuánto invertiste? ({portfolioCurrency})</label>
-                      <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9.,]/g, "") })}
-                             type="text" inputMode="decimal"
-                             className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-                             style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
-                             placeholder="500" />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Precio por acción ({portfolioCurrency})</label>
-                      <input value={form.avgPrice} onChange={(e) => setForm({ ...form, avgPrice: e.target.value.replace(/[^0-9.,]/g, "") })}
-                             type="text" inputMode="decimal"
-                             className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-                             style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
-                             placeholder={portfolioCurrency === "USD" ? "150.00" : (150 * fxRate).toFixed(0)} />
-                    </div>
-                  </div>
-                  {parseLocaleNumber(form.amount) > 0 && parseLocaleNumber(form.avgPrice) > 0 && (() => {
-                    const calcShares = parseLocaleNumber(form.amount) / parseLocaleNumber(form.avgPrice);
-                    const isWhole = Math.abs(calcShares - Math.round(calcShares)) < 0.0005;
-                    return (
-                      <p className="text-[11px] mb-2 px-0.5" style={{ color: "var(--accent-l)" }}>
-                        ≈ <span className="font-bold">{calcShares.toLocaleString("en-US", { maximumFractionDigits: 6 })}</span> acciones
-                        {" "}({isWhole ? "completas" : "fraccionadas"})
-                      </p>
-                    );
-                  })()}
-                  <div>
-                    <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Fecha de compra (opcional)</label>
-                    <input value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
-                           type="date" max={new Date().toISOString().split("T")[0]}
-                           className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none mb-3"
-                           style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }} />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowForm(false)}
-                            className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
-                            style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
-                      Cancelar
-                    </button>
-                    <button onClick={handleAdd} disabled={addingLoading}
-                            className="flex-[2] py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2"
-                            style={{ background: "var(--grad-green)" }}>
-                      {addingLoading
-                        ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Agregando...</>
-                        : <><Plus className="w-3.5 h-3.5" /> Agregar al portafolio</>
-                      }
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {previewAndFormBlock}
           </section>
-
-          {/* ── Retention banner ── */}
-          {daysSinceVisit !== null && daysSinceVisit >= 3 && (
-            <div className="rounded-2xl border p-4 mb-4 flex items-start gap-3"
-                 style={{ background: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.25)" }}>
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                   style={{ background: "rgba(0,168,94,0.15)" }}>
-                <Bell className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
-                  Bienvenido de vuelta — {daysSinceVisit} días sin revisar
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                  Tu portafolio sigue trabajando. Aquí va el resumen de hoy.
-                </p>
-              </div>
-              <button onClick={() => setDaysSinceVisit(null)} className="p-1 shrink-0">
-                <X className="w-3.5 h-3.5" style={{ color: "var(--dim)" }} />
-              </button>
-            </div>
           )}
-
-          {/* ── Goal progress widget ── */}
-          {(() => {
-            // The goal is stored in USD (entered without a currency picker in
-            // onboarding/profile) — convert it the same way positions are, so
-            // it tracks whatever currency is selected instead of staying in USD.
-            const goalAmtUSD = parseFloat(profile?.investment_goal_amount ?? "0");
-            if (!goalAmtUSD || goalAmtUSD <= 0) return null;
-            const goalAmt = goalAmtUSD * fxRate;
-            const progressPct = Math.min((totals.current / goalAmt) * 100, 100);
-            const remaining = Math.max(goalAmt - totals.current, 0);
-            const GOAL_LABELS: Record<string, string> = {
-              emergency_fund: t("portfolio.goal.emergencyFund", "Fondo de emergencia"),
-              big_purchase:   t("portfolio.goal.bigPurchase", "Compra importante"),
-              retirement:     t("portfolio.goal.retirement", "Retiro / pensión"),
-              independence:   t("portfolio.goal.independence", "Independencia financiera"),
-            };
-            const goalLabel = GOAL_LABELS[profile?.investment_goal ?? ""] ?? t("portfolio.goal.default");
-            const reached = progressPct >= 100;
-            return (
-              <div className="rounded-2xl border p-4 mb-4"
-                   style={{ background: "var(--card)", borderColor: reached ? "rgba(34,197,94,0.35)" : "var(--border)" }}>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5"
-                       style={{ color: "var(--accent-l)" }}>{t("portfolio.goal.label")}</p>
-                    <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{goalLabel}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black leading-none"
-                       style={{ color: reached ? "#22c55e" : "var(--text)" }}>
-                      {progressPct.toFixed(1)}%
-                    </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
-                      {reached ? t("portfolio.goal.reached") : t("portfolio.goal.completed")}
-                    </p>
-                  </div>
-                </div>
-                <div className="h-2.5 rounded-full overflow-hidden mb-2.5"
-                     style={{ background: "var(--border)" }}>
-                  <div className="h-full rounded-full transition-all duration-500"
-                       style={{ width: `${progressPct}%`, background: reached ? "#22c55e" : "var(--accent-l)" }} />
-                </div>
-                <div className="flex items-center justify-between text-[11px]">
-                  <span style={{ color: "var(--muted)" }}>
-                    <span className="font-semibold" style={{ color: "var(--sub)" }}>
-                      {currencySymbol}{totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                    </span>
-                    {" "}{t("portfolio.goal.accumulated")}
-                  </span>
-                  {reached ? (
-                    <span className="font-bold" style={{ color: "#22c55e" }}>{t("portfolio.goal.goalReached")}</span>
-                  ) : (
-                    <span style={{ color: "var(--muted)" }}>
-                      {t("portfolio.goal.missing")}{" "}
-                      <span className="font-semibold" style={{ color: "var(--sub)" }}>
-                        {currencySymbol}{remaining.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                      </span>
-                    </span>
-                  )}
-                </div>
-                <div className="mt-2 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px]" style={{ color: "var(--dim)" }}>
-                      {t("portfolio.goal.goalPrefix")} {currencySymbol}{goalAmt.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                    </span>
-                  </div>
-                  {(() => {
-                    const annualRate = (profile?.risk_tolerance ?? "").startsWith("conservative") ? 0.07
-                                     : (profile?.risk_tolerance ?? "").startsWith("aggressive") ? 0.12 : 0.10;
-                    const rateLabel = (profile?.risk_tolerance ?? "").startsWith("conservative") ? "7%"
-                                    : (profile?.risk_tolerance ?? "").startsWith("aggressive") ? "12%" : "10%";
-                    const r = annualRate / 12;
-                    const monthsToGoalPure = totals.current > 0 && goalAmt > totals.current
-                      ? Math.log(goalAmt / totals.current) / Math.log(1 + r) : null;
-                    if (monthsToGoalPure === null || reached) return null;
-                    const yearsToGoal = monthsToGoalPure / 12;
-                    const timeLabel = yearsToGoal < 1
-                      ? t("portfolio.goal.months", { count: Math.ceil(monthsToGoalPure) })
-                      : yearsToGoal < 1.83
-                      ? t("portfolio.goal.yearAndHalf")
-                      : t("portfolio.goal.years", { count: Math.round(yearsToGoal) });
-                    return (
-                      <p className="text-[10px] mt-1" style={{ color: "var(--dim)" }}>
-                        {t("portfolio.goal.rateLabel", { rate: rateLabel, time: timeLabel })}
-                      </p>
-                    );
-                  })()}
-                </div>
-              </div>
-            );
-          })()}
 
           {/* ── Positions ── */}
           {positions.length === 0 && !screenshotPreview && demoMode && !serverLoading ? (
@@ -2934,14 +2889,9 @@ export default function PortfolioPage() {
                 const heroColor = heroUp ? "#22c55e" : "#ef4444";
 
                 return (
-                  <div className="rounded-2xl overflow-hidden mb-4"
-                       style={{ background: "var(--card)", border: `1px solid ${heroColor}28`, boxShadow: `0 0 48px ${heroColor}07` }}>
-
-                    {/* ── Accent stripe ── */}
-                    <div className="h-[3px]" style={{ background: `linear-gradient(90deg,${heroColor},${heroColor}30)` }} />
-
-                    {/* ── HERO: value + since-purchase return ── */}
-                    <div className="px-5 pt-5 pb-4">
+                  <>
+                    {/* ── HERO — unboxed, like mobile (Diego, 2026-09-27): value first, the change on its own line, then invested · vs S&P 500. ── */}
+                    <div className="px-1 pt-1.5 pb-5">
                       {loadingPrices ? (
                         <div className="flex items-center gap-2" style={{ color: "var(--muted)" }}>
                           <RefreshCw className="w-4 h-4 animate-spin" />
@@ -2960,87 +2910,79 @@ export default function PortfolioPage() {
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-start justify-between gap-3 mb-3">
-                            <div>
-                              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--dim)" }}>
-                                <span className="flex items-center gap-1.5">
-                                {t("portfolio.summary.label")}
-                                <button onClick={() => setShowCurrencyPicker(true)}
-                                        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border transition-colors hover:border-[var(--accent)]"
-                                        style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--sub)" }}>
-                                  {portfolioCurrency} ▾
-                                </button>
-                              </span>
+                          <div className="flex items-center justify-between gap-3 mb-2.5">
+                            <p className="text-[11px] font-extrabold uppercase tracking-[0.8px]" style={{ color: "var(--muted)" }}>
+                              {t("portfolio.summary.label")}
+                            </p>
+                            <button onClick={() => setShowCurrencyPicker(true)}
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold border transition-colors hover:border-[var(--accent)]"
+                                    style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}>
+                              {portfolioCurrency} ▾
+                            </button>
+                          </div>
+                          {(() => {
+                            // Hovering the chart shows a specific historical date (stock
+                            // positions only — no historical cash balances), so cash only
+                            // folds into the resting-state total, never the hover value.
+                            const rawValueStr = `${currencySymbol}${(hovData?.value ?? (totals.current + cashTotal + dividendTotal)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                            const bigValueStr = mask(rawValueStr);
+                            // Large portfolios (7-8+ figures) shrink instead of overflowing.
+                            const bigValueSize =
+                              rawValueStr.length > 16 ? "1.7rem" :
+                              rawValueStr.length > 13 ? "2.1rem" :
+                              rawValueStr.length > 10 ? "2.4rem" : "2.6rem";
+                            return (
+                              <p className="font-black leading-none whitespace-nowrap tabular-nums"
+                                 style={{ color: "var(--text)", fontSize: bigValueSize, letterSpacing: "-0.03em" }}>
+                                {bigValueStr}
                               </p>
-                              {(() => {
-                                // Hovering the chart shows a specific historical date (stock
-                                // positions only — we don't have historical cash balances), so
-                                // cash only folds into the resting-state total, never the hover value.
-                                const rawValueStr = `${currencySymbol}${(hovData?.value ?? (totals.current + cashTotal + dividendTotal)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                                const bigValueStr = mask(rawValueStr);
-                                // Large portfolios (7-8+ figures) can otherwise overflow this
-                                // card's width at the default size — shrink proportionally to
-                                // the digit count instead of letting it wrap or clip.
-                                const bigValueSize =
-                                  rawValueStr.length > 16 ? "1.5rem" :
-                                  rawValueStr.length > 13 ? "1.8rem" :
-                                  rawValueStr.length > 10 ? "2.1rem" : "2.4rem";
-                                return (
-                                  <p
-                                    className="font-black tracking-tight leading-none whitespace-nowrap"
-                                    style={{ color: "var(--text)", fontSize: bigValueSize }}
-                                  >
-                                    {bigValueStr}
-                                  </p>
-                                );
-                              })()}
-                              {hovData ? (
-                                <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
-                                  {fmtChartDate(hovData.date, true)}
-                                </p>
-                              ) : (cashTotal > 0 || dividendTotal > 0) ? (
-                                <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
-                                  {[
-                                    cashTotal > 0 ? t("portfolio.cash.cashSummary", { amount: `${currencySymbol}${cashTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }) : null,
-                                    dividendTotal > 0 ? t("portfolio.cash.dividendSummary", { amount: `${currencySymbol}${dividendTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}` }) : null,
-                                  ].filter(Boolean).join(" + ")}
-                                </p>
-                              ) : null}
-                            </div>
-                            <div className="flex flex-col items-end gap-1 pt-1">
-                              {hovData ? (
-                                <>
-                                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black"
-                                       style={{ background: `${hovData.isUp ? "#22c55e" : "#ef4444"}18`, color: hovData.isUp ? "#22c55e" : "#ef4444" }}>
-                                    {hovData.isUp ? "▲" : "▼"} {hovData.isUp ? "+" : ""}{hovData.chgP.toFixed(2)}%
-                                  </div>
-                                  <p className="text-xs font-bold" style={{ color: hovData.isUp ? "#22c55e" : "#ef4444" }}>
-                                    {mask(`${hovData.isUp ? "+" : ""}${currencySymbol}${Math.abs(hovData.chgV).toLocaleString("en-US", { minimumFractionDigits: 2 })}`)}
-                                  </p>
-                                </>
-                              ) : sp ? (
-                                <>
-                                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black"
-                                       style={{ background: `${heroColor}18`, color: heroColor }}>
-                                    {heroUp ? "▲" : "▼"} {heroUp ? "+" : ""}{sp.pct.toFixed(2)}%
-                                  </div>
-                                  {sp.amount !== undefined && (
-                                    <p className="text-xs font-bold" style={{ color: heroColor }}>
-                                      {mask(`${heroUp ? "+" : ""}${currencySymbol}${Math.abs(sp.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`)}
-                                    </p>
-                                  )}
-                                </>
-                              ) : (
-                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black"
-                                     style={{ background: `${heroColor}18`, color: heroColor }}>
-                                  {totals.diff >= 0 ? "▲" : "▼"} {totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%
-                                </div>
-                              )}
-                            </div>
+                            );
+                          })()}
+                          {hovData ? (
+                            <p className="text-[11px] mt-1.5" style={{ color: "var(--dim)" }}>{fmtChartDate(hovData.date, true)}</p>
+                          ) : (cashTotal > 0 || dividendTotal > 0) ? (
+                            <p className="text-[11px] mt-1.5" style={{ color: "var(--dim)" }}>
+                              {[
+                                cashTotal > 0 ? t("portfolio.cash.cashSummary", { amount: `${currencySymbol}${cashTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }) : null,
+                                dividendTotal > 0 ? t("portfolio.cash.dividendSummary", { amount: `${currencySymbol}${dividendTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}` }) : null,
+                              ].filter(Boolean).join(" + ")}
+                            </p>
+                          ) : null}
+
+                          {/* Change — its own line under the value */}
+                          <div className="flex items-center gap-2.5 mt-3 flex-wrap">
+                            {hovData ? (
+                              <>
+                                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-black tabular-nums"
+                                      style={{ background: `${hovData.isUp ? "#22c55e" : "#ef4444"}18`, color: hovData.isUp ? "#22c55e" : "#ef4444" }}>
+                                  {hovData.isUp ? "▲" : "▼"} {hovData.isUp ? "+" : ""}{hovData.chgP.toFixed(2)}%
+                                </span>
+                                <span className="text-sm font-bold tabular-nums" style={{ color: hovData.isUp ? "#22c55e" : "#ef4444" }}>
+                                  {mask(`${hovData.isUp ? "+" : ""}${currencySymbol}${Math.abs(hovData.chgV).toLocaleString("en-US", { minimumFractionDigits: 2 })}`)}
+                                </span>
+                              </>
+                            ) : sp ? (
+                              <>
+                                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-black tabular-nums"
+                                      style={{ background: `${heroColor}18`, color: heroColor }}>
+                                  {heroUp ? "▲" : "▼"} {heroUp ? "+" : ""}{sp.pct.toFixed(2)}%
+                                </span>
+                                {sp.amount !== undefined && (
+                                  <span className="text-sm font-bold tabular-nums" style={{ color: heroColor }}>
+                                    {mask(`${heroUp ? "+" : ""}${currencySymbol}${Math.abs(sp.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`)}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-black tabular-nums"
+                                    style={{ background: `${heroColor}18`, color: heroColor }}>
+                                {totals.diff >= 0 ? "▲" : "▼"} {totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%
+                              </span>
+                            )}
                           </div>
 
-                          {/* Invested + date row */}
-                          <div className="flex items-center justify-between">
+                          {/* Invested + date · vs S&P 500 */}
+                          <div className="flex items-center justify-between gap-2 flex-wrap mt-4 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
                             <p className="text-xs" style={{ color: "var(--muted)" }}>
                               {t("portfolio.summary.invested")}{" "}
                               <span className="font-semibold" style={{ color: "var(--sub)" }}>
@@ -3069,51 +3011,13 @@ export default function PortfolioPage() {
                       )}
                     </div>
 
-                    {/* ── PERIOD TABS ── */}
-                    <div className="border-t px-4 py-3" style={{ borderColor: "var(--border)" }}>
-                      <div className="flex gap-1 overflow-x-auto scrollbar-none">
-                        {PERIODS.map(({ key, label, premium: needsPremium }) => {
-                          const locked = needsPremium && !isPremium;
-                          const ret    = locked ? null : (chartOverrides[key] ?? periodReturns[key]);
-                          const isSel  = selectedPeriod === key;
-                          const isUp   = ret ? ret.pct >= 0 : null;
-                          const tc     = locked ? "var(--muted)" : (isUp === null ? "#22c55e" : isUp ? "#22c55e" : "#ef4444");
-                          return (
-                            <button
-                              key={key}
-                              onClick={() => locked ? setPaywallOpen(true) : setSelectedPeriod(key)}
-                              className="flex-none flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl transition-all relative"
-                              style={{
-                                background: locked ? "var(--surface)" : isSel ? `${tc}14` : "transparent",
-                                border: `1.5px solid ${locked ? "var(--border)" : isSel ? `${tc}55` : "transparent"}`,
-                                opacity: locked ? 0.7 : 1,
-                              }}
-                            >
-                              <span className="text-[10px] font-bold whitespace-nowrap leading-tight flex items-center gap-0.5"
-                                    style={{ color: locked ? "var(--muted)" : isSel ? tc : "var(--muted)" }}>
-                                {locked && <span className="text-[9px]">🔒</span>}
-                                {label}
-                              </span>
-                              {locked ? (
-                                <span className="text-[9px] font-black leading-tight blur-[3px] select-none"
-                                      style={{ color: "#22c55e" }}>+9.9%</span>
-                              ) : loadingReturns ? (
-                                <span className="text-[9px]" style={{ color: "var(--dim)" }}>···</span>
-                              ) : ret ? (
-                                <span className="text-[10px] font-black leading-tight" style={{ color: tc }}>
-                                  {ret.pct >= 0 ? "+" : ""}{ret.pct.toFixed(2)}%
-                                </span>
-                              ) : (
-                                <span className="text-[9px]" style={{ color: "var(--dim)" }}>—</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    {quickActionsBlock}
+                    {previewAndFormBlock}
 
+                    {/* Chart card — KPIs, chart, period tabs, source (mobile order) */}
+                    <div className="rounded-[22px] overflow-hidden mb-5 border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                     {/* ── KPI ROW for selected period ── */}
-                    <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: "var(--border)" }}>
+                    <div className="px-4 pb-4 pt-4">
                       <div className="grid grid-cols-3 gap-2">
 
                         {/* Rendimiento % */}
@@ -3190,15 +3094,58 @@ export default function PortfolioPage() {
                     </div>
 
 
+                    {/* ── PERIOD TABS ── */}
+                    <div className="border-t px-4 py-3" style={{ borderColor: "var(--border)" }}>
+                      <div className="flex gap-1 overflow-x-auto scrollbar-none">
+                        {PERIODS.map(({ key, label, premium: needsPremium }) => {
+                          const locked = needsPremium && !isPremium;
+                          const ret    = locked ? null : (chartOverrides[key] ?? periodReturns[key]);
+                          const isSel  = selectedPeriod === key;
+                          const isUp   = ret ? ret.pct >= 0 : null;
+                          const tc     = locked ? "var(--muted)" : (isUp === null ? "#22c55e" : isUp ? "#22c55e" : "#ef4444");
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => locked ? setPaywallOpen(true) : setSelectedPeriod(key)}
+                              className="flex-none flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl transition-all relative"
+                              style={{
+                                background: locked ? "var(--surface)" : isSel ? `${tc}14` : "transparent",
+                                border: `1.5px solid ${locked ? "var(--border)" : isSel ? `${tc}55` : "transparent"}`,
+                                opacity: locked ? 0.7 : 1,
+                              }}
+                            >
+                              <span className="text-[10px] font-bold whitespace-nowrap leading-tight flex items-center gap-0.5"
+                                    style={{ color: locked ? "var(--muted)" : isSel ? tc : "var(--muted)" }}>
+                                {locked && <span className="text-[9px]">🔒</span>}
+                                {label}
+                              </span>
+                              {locked ? (
+                                <span className="text-[9px] font-black leading-tight blur-[3px] select-none"
+                                      style={{ color: "#22c55e" }}>+9.9%</span>
+                              ) : loadingReturns ? (
+                                <span className="text-[9px]" style={{ color: "var(--dim)" }}>···</span>
+                              ) : ret ? (
+                                <span className="text-[10px] font-black leading-tight" style={{ color: tc }}>
+                                  {ret.pct >= 0 ? "+" : ""}{ret.pct.toFixed(2)}%
+                                </span>
+                              ) : (
+                                <span className="text-[9px]" style={{ color: "var(--dim)" }}>—</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     {/* ── FOOTER ── */}
                     <div className="border-t px-4 py-2" style={{ borderColor: "var(--border)" }}>
                       <p className="text-[9px]" style={{ color: "var(--dim)" }}>{t("portfolio.summary.footer")}</p>
                     </div>
 
-                  </div>
+                    </div>
+                  </>
                 );
               })()}
-
               {/* Advanced table view */}
               {effectiveViewMode === "advanced" && sortedPositions.length > 0 && (
                 <div className="mb-4">
@@ -3351,6 +3298,197 @@ export default function PortfolioPage() {
                   </div>
                 );
               })}
+
+              {/* Cash sits right after the holdings once there are positions (mobile parity). */}
+              <div className="mt-5">
+            {/* Efectivo disponible — CETES, banco, bonos, etc. — cuenta hacia el total */}
+            <div className="rounded-2xl border p-3.5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
+                  💵 {t("portfolio.cash.title")}
+                </span>
+              </div>
+              {cashList.length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  {cashList.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 cursor-pointer transition-opacity hover:opacity-80"
+                         style={{ background: "var(--raised)" }} onClick={() => handleEditCash(c)}>
+                      <span style={{ color: "var(--sub)" }}>
+                        {t(`portfolio.cash.instrument.${c.instrument}`)}{c.label ? ` · ${c.label}` : ""}
+                        {c.rate_pct ? (
+                          <span className="ml-1.5 font-bold" style={{ color: "#22c55e" }}>· {c.rate_pct.toFixed(2)}{t("portfolio.cash.annualRate")}</span>
+                        ) : null}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold" style={{ color: "var(--text)" }}>
+                          {currencySymbol}{convertCashToPortfolioCurrency(c.accrued_amount ?? c.amount, c.currency).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        <Pencil className="w-3 h-3" style={{ color: "var(--dim)" }} />
+                        <button onClick={(e) => { e.stopPropagation(); handleRemoveCash(c.id); }} className="font-bold" style={{ color: "var(--dim)" }}>×</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {cashFormOpen ? (
+                <div className="space-y-2 mt-1">
+                  <div className="flex gap-2">
+                    <input
+                      type="number" min="0" step="any"
+                      placeholder={t("portfolio.cash.amountPlaceholder", { currency: portfolioCurrency })}
+                      value={cashForm.amount}
+                      onChange={(e) => setCashForm((f) => ({ ...f, amount: e.target.value }))}
+                      className="flex-1 rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+                    />
+                    <select
+                      value={cashForm.instrument}
+                      onChange={(e) => setCashForm((f) => ({ ...f, instrument: e.target.value as CashHolding["instrument"] }))}
+                      className="rounded-lg border px-2 py-1.5 text-sm outline-none"
+                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+                    >
+                      <option value="cetes">{t("portfolio.cash.instrument.cetes")}</option>
+                      <option value="bank">{t("portfolio.cash.instrument.bank")}</option>
+                      <option value="bonds">{t("portfolio.cash.instrument.bonds")}</option>
+                      <option value="other">{t("portfolio.cash.instrument.other")}</option>
+                    </select>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder={t("portfolio.cash.notePlaceholder")}
+                    value={cashForm.label}
+                    onChange={(e) => setCashForm((f) => ({ ...f, label: e.target.value }))}
+                    className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                    style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+                  />
+                  <div>
+                    <input
+                      type="number" min="0" step="any"
+                      placeholder={t("portfolio.cash.ratePlaceholder")}
+                      value={cashForm.rate}
+                      onChange={(e) => setCashForm((f) => ({ ...f, rate: e.target.value }))}
+                      className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+                    />
+                    <p className="text-[10px] mt-1" style={{ color: "var(--dim)" }}>
+                      {cashForm.instrument === "cetes" || cashForm.instrument === "bonds"
+                        ? t("portfolio.cash.rateHintAuto")
+                        : t("portfolio.cash.rateHintManual")}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setCashFormOpen(false); setCashEditingId(null); setCashForm({ amount: "", instrument: "bank", label: "", rate: "" }); }}
+                            className="flex-1 py-2 rounded-lg border text-xs font-semibold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                      {t("portfolio.cash.cancel")}
+                    </button>
+                    <button onClick={handleSaveCash} disabled={cashSaving || !cashForm.amount}
+                            className="flex-[2] py-2 rounded-lg text-xs font-bold text-white disabled:opacity-40"
+                            style={{ background: "var(--accent)" }}>
+                      {cashSaving ? t("portfolio.cash.saving") : cashEditingId ? t("portfolio.cash.saveChanges") : t("portfolio.cash.save")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setCashFormOpen(true)} className="text-xs font-bold mt-1" style={{ color: "var(--accent-l)" }}>
+                  {t("portfolio.cash.addCash")}
+                </button>
+              )}
+            </div>
+
+              </div>
+
+              {/* ── Goal progress widget ── */}
+              {(() => {
+                // The goal is stored in USD (entered without a currency picker in
+                // onboarding/profile) — convert it the same way positions are, so
+                // it tracks whatever currency is selected instead of staying in USD.
+                const goalAmtUSD = parseFloat(profile?.investment_goal_amount ?? "0");
+                if (!goalAmtUSD || goalAmtUSD <= 0) return null;
+                const goalAmt = goalAmtUSD * fxRate;
+                const progressPct = Math.min((totals.current / goalAmt) * 100, 100);
+                const remaining = Math.max(goalAmt - totals.current, 0);
+                const GOAL_LABELS: Record<string, string> = {
+                  emergency_fund: t("portfolio.goal.emergencyFund", "Fondo de emergencia"),
+                  big_purchase:   t("portfolio.goal.bigPurchase", "Compra importante"),
+                  retirement:     t("portfolio.goal.retirement", "Retiro / pensión"),
+                  independence:   t("portfolio.goal.independence", "Independencia financiera"),
+                };
+                const goalLabel = GOAL_LABELS[profile?.investment_goal ?? ""] ?? t("portfolio.goal.default");
+                const reached = progressPct >= 100;
+                return (
+                  <div className="rounded-[20px] border p-[18px] mt-5"
+                       style={{ background: "var(--card)", borderColor: reached ? "rgba(34,197,94,0.35)" : "var(--border)" }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5"
+                           style={{ color: "var(--accent-l)" }}>{t("portfolio.goal.label")}</p>
+                        <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{goalLabel}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-black leading-none"
+                           style={{ color: reached ? "#22c55e" : "var(--text)" }}>
+                          {progressPct.toFixed(1)}%
+                        </p>
+                        <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
+                          {reached ? t("portfolio.goal.reached") : t("portfolio.goal.completed")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="h-2.5 rounded-full overflow-hidden mb-2.5"
+                         style={{ background: "var(--border)" }}>
+                      <div className="h-full rounded-full transition-all duration-500"
+                           style={{ width: `${progressPct}%`, background: reached ? "#22c55e" : "var(--accent-l)" }} />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span style={{ color: "var(--muted)" }}>
+                        <span className="font-semibold" style={{ color: "var(--sub)" }}>
+                          {currencySymbol}{totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                        </span>
+                        {" "}{t("portfolio.goal.accumulated")}
+                      </span>
+                      {reached ? (
+                        <span className="font-bold" style={{ color: "#22c55e" }}>{t("portfolio.goal.goalReached")}</span>
+                      ) : (
+                        <span style={{ color: "var(--muted)" }}>
+                          {t("portfolio.goal.missing")}{" "}
+                          <span className="font-semibold" style={{ color: "var(--sub)" }}>
+                            {currencySymbol}{remaining.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px]" style={{ color: "var(--dim)" }}>
+                          {t("portfolio.goal.goalPrefix")} {currencySymbol}{goalAmt.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                      {(() => {
+                        const annualRate = (profile?.risk_tolerance ?? "").startsWith("conservative") ? 0.07
+                                         : (profile?.risk_tolerance ?? "").startsWith("aggressive") ? 0.12 : 0.10;
+                        const rateLabel = (profile?.risk_tolerance ?? "").startsWith("conservative") ? "7%"
+                                        : (profile?.risk_tolerance ?? "").startsWith("aggressive") ? "12%" : "10%";
+                        const r = annualRate / 12;
+                        const monthsToGoalPure = totals.current > 0 && goalAmt > totals.current
+                          ? Math.log(goalAmt / totals.current) / Math.log(1 + r) : null;
+                        if (monthsToGoalPure === null || reached) return null;
+                        const yearsToGoal = monthsToGoalPure / 12;
+                        const timeLabel = yearsToGoal < 1
+                          ? t("portfolio.goal.months", { count: Math.ceil(monthsToGoalPure) })
+                          : yearsToGoal < 1.83
+                          ? t("portfolio.goal.yearAndHalf")
+                          : t("portfolio.goal.years", { count: Math.round(yearsToGoal) });
+                        return (
+                          <p className="text-[10px] mt-1" style={{ color: "var(--dim)" }}>
+                            {t("portfolio.goal.rateLabel", { rate: rateLabel, time: timeLabel })}
+                          </p>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                );
+              })()}
+
             </section>
           ) : null}
 
@@ -4111,6 +4249,21 @@ export default function PortfolioPage() {
             })()}
           </section>
 
+          {positions.length > 0 && (
+            <div className="mt-7 pt-5 border-t flex items-center justify-end gap-2.5" style={{ borderColor: "var(--border)" }}>
+              {!isPremium && (
+                <span className="text-[11px]" style={{ color: positions.length >= FREE_POSITION_LIMIT ? "#ef4444" : "var(--dim)" }}>
+                  {positions.length}/{FREE_POSITION_LIMIT}
+                </span>
+              )}
+              <button
+                onClick={() => setConfirmModal({ msg: t("portfolio.actions.emptyConfirm", { count: positions.length }), onConfirm: clearPortfolio })}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold"
+                style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <Trash2 className="w-3 h-3" /> {t("portfolio.actions.empty")}
+              </button>
+            </div>
+          )}
           <div className="h-8" />
           </div>} {/* end activeTab === "portfolio" */}
 

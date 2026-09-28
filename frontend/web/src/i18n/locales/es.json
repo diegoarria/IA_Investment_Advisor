@@ -2238,6 +2238,22 @@
       "addCash": "+ Agregar efectivo",
       "cashSummary": "{{amount}} en efectivo",
       "dividendSummary": "{{amount}} en dividendos recibidos"
+    },
+    "sync": {
+      "title": "Portafolio en la nube",
+      "saving": "Guardando...",
+      "error": "⚠ Error al guardar",
+      "savedChecked": "✓ Guardado {{time}}",
+      "saved": "Guardado {{time}}",
+      "allDevices": "Sincronizado en todos tus dispositivos",
+      "errorShort": "Error al guardar",
+      "cloudShort": "En la nube"
+    },
+    "quickActions": {
+      "import": "Importar",
+      "add": "Agregar",
+      "broker": "Broker",
+      "tutorial": "Tutorial"
     }
   },
   "academy": {

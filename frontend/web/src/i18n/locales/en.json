@@ -2238,6 +2238,22 @@
       "addCash": "+ Add cash",
       "cashSummary": "{{amount}} in cash",
       "dividendSummary": "{{amount}} in dividends received"
+    },
+    "sync": {
+      "title": "Portfolio in the cloud",
+      "saving": "Saving...",
+      "error": "⚠ Error saving",
+      "savedChecked": "✓ Saved {{time}}",
+      "saved": "Saved {{time}}",
+      "allDevices": "Synced across all your devices",
+      "errorShort": "Couldn't save",
+      "cloudShort": "In the cloud"
+    },
+    "quickActions": {
+      "import": "Import",
+      "add": "Add",
+      "broker": "Broker",
+      "tutorial": "Tutorial"
     }
   },
   "academy": {
