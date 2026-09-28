@@ -4068,5 +4068,21 @@
       "saving": "Saving...",
       "save": "Save"
     }
+  },
+  "screenerWeekly": {
+    "heroTitle": "Your 5 opportunities this week",
+    "heroSubtitle": "Nuvos Radar reviewed the market with its valuation model and found 5 companies trading below what it estimates they're worth.",
+    "weekOf": "Week of {{date}}",
+    "renews": "Refreshes every Sunday",
+    "loading": "Getting this week's 5 companies ready…",
+    "statCompanies": "companies",
+    "statAvgMargin": "avg. margin",
+    "statSectors": "sectors",
+    "listTitle": "This week's companies",
+    "marginShort": "margin",
+    "quality": "Quality {{score}}/100",
+    "priceNow": "Price today",
+    "estimatedValue": "Estimated value",
+    "viewAnalysis": "See full analysis"
   }
 }

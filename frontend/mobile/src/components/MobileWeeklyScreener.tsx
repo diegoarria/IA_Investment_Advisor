@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, ActivityIndicator, StyleSheet,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { screenerWeeklyApi } from "../lib/api";
+import { useWeeklyOpportunities } from "../lib/useWeeklyOpportunities";
 import WeeklyOpportunityCard, { type WeeklyOpportunity } from "./WeeklyOpportunityCard";
 
 interface Props {
@@ -16,11 +15,6 @@ interface Props {
 }
 
 const TOOL_COLOR = "#8b5cf6";
-
-interface WeeklyData {
-  results?: WeeklyOpportunity[];
-  generated_at?: string | null;
-}
 
 // Diego, 2026-09-24: "Acciones subvaluadas (DCF) ... ese es el que quiero
 // que sea el Screener Semanal, el único." Real, DCF-backed candidates —
@@ -37,82 +31,15 @@ interface WeeklyData {
 // Diego, 2026-09-24: never persist an empty result, ignore one on read,
 // and time-box every entry to 8 days so a stale entry can't outlive its
 // week even if it once looked valid.
-const WEEKLY_CACHE_KEY = "nuvos_weekly_screener_cache";
-const WEEKLY_CACHE_MAX_AGE_MS = 8 * 24 * 3600 * 1000;
-function isValidWeeklyPayload(data: WeeklyData | null | undefined): boolean {
-  return !!data && (data.results?.length ?? 0) > 0;
-}
-async function readWeeklyCache(): Promise<WeeklyData | null> {
-  try {
-    const uid = (await SecureStore.getItemAsync("user_id")) ?? "guest";
-    const raw = await AsyncStorage.getItem(`${WEEKLY_CACHE_KEY}__${uid}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed.cachedAt || Date.now() - parsed.cachedAt > WEEKLY_CACHE_MAX_AGE_MS) return null;
-    return isValidWeeklyPayload(parsed.data) ? parsed.data : null;
-  } catch { return null; }
-}
-async function writeWeeklyCache(data: WeeklyData) {
-  if (!isValidWeeklyPayload(data)) return;
-  try {
-    const uid = (await SecureStore.getItemAsync("user_id")) ?? "guest";
-    await AsyncStorage.setItem(`${WEEKLY_CACHE_KEY}__${uid}`, JSON.stringify({ data, cachedAt: Date.now() }));
-  } catch { /* best-effort — session still has it in memory */ }
-}
-
-const RETRY_DELAYS_MS = [0, 1500, 4000, 8000];
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 export default function MobileWeeklyScreener({ isPremium: isPremiumProp, onUpgrade }: Props) {
   const { colors } = useTheme();
   const { t, i18n } = useTranslation();
-  const [data, setData]       = useState<WeeklyData | null>(null);
   const [previewRows, setPreviewRows] = useState<WeeklyOpportunity[]>([]);
-  const [loading, setLoading] = useState(false);
-  // The backend says this account is Free (the app's own tier can be stale
-  // or optimistic) — show the Free teaser, never an empty Premium list.
-  const [serverFree, setServerFree] = useState(false);
+  // Cache + retries + "never blank a real list" + serverFree: see the hook.
+  const { data, loading, serverFree, load } = useWeeklyOpportunities(isPremiumProp);
   const isPremium = isPremiumProp && !serverFree;
-  const loadSeq = useRef(0);
   const s = styles();
   const hasData = (data?.results?.length ?? 0) > 0;
-
-  useEffect(() => {
-    let cancelled = false;
-    readWeeklyCache().then((cached) => { if (cached && !cancelled) setData((d) => (isValidWeeklyPayload(d) ? d : cached)); });
-    return () => { cancelled = true; };
-  }, []);
-
-  // Diego, 2026-09-27: "SIEMPRE debe mostrar las 5 opciones de la semana."
-  // The backend now always returns this week's 5 for a Premium user; here:
-  // retry on failure, and a failed or empty answer never replaces a real
-  // list already on screen (it used to — and got cached as "no picks").
-  const load = useCallback(async () => {
-    if (!isPremiumProp) return;
-    const seq = ++loadSeq.current;
-    setLoading(true);
-    for (const delay of RETRY_DELAYS_MS) {
-      if (delay) await sleep(delay);
-      if (seq !== loadSeq.current) return;
-      try {
-        const res: any = await screenerWeeklyApi.getWeeklyOpportunities(i18n.language, 25000);
-        if (seq !== loadSeq.current) return;
-        if (res.data?.is_premium === false) {
-          setServerFree(true);
-          break;
-        }
-        setServerFree(false);
-        if (isValidWeeklyPayload(res.data)) {
-          setData(res.data);
-          writeWeeklyCache(res.data);
-          break;
-        }
-      } catch {}
-    }
-    if (seq === loadSeq.current) setLoading(false);
-  }, [isPremiumProp, i18n.language]);
-
-  useEffect(() => { load(); }, [load]);
 
   // Free/guest preview — real (never fabricated) candidates from the same
   // DCF universe, just not personalized (that part is Premium-only). Zero

@@ -1,377 +1,310 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, ActivityIndicator, SafeAreaView, ScrollView,
+  View, Text, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator, StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import Markdown from "react-native-markdown-display";
+import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { marketApi, screenerWeeklyApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
+import { useWeeklyOpportunities } from "../../src/lib/useWeeklyOpportunities";
 import PaywallModal from "../../src/components/PaywallModal";
-import WeeklyOpportunityCard, { type WeeklyOpportunity } from "../../src/components/WeeklyOpportunityCard";
+import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
+import StockAvatar from "../../src/components/StockAvatar";
+import type { WeeklyOpportunity } from "../../src/components/WeeklyOpportunityCard";
 
-const SECTORS = ["Todos", "Tech", "Finance", "Salud", "Consumo", "Energía", "ETF"];
+// Screener Semanal — the sidebar's "Screener" entry. Redesigned 2026-09-27
+// (Diego: "muy fea, mejora esa vista por mucho — el header, la vista,
+// todo"): this screen is now only the week's 5 real, DCF-backed picks
+// (same tickers as the Sunday "Nuvos Radar detectó..." push), laid out as
+// a proper page instead of a collapsed row on top of the old keyword
+// search. That old search (ASCII score bars + "Comprar/Vender" badges) is
+// gone — buy/sell labels contradict "Nuvos nunca prescribe"; company
+// search lives in Oportunidades.
 
-interface Stock {
-  ticker: string;
-  name: string;
-  sector: string;
-  price: number | null;
-  change_pct: number | null;
-  pe: number | null;
-  fwd_pe: number | null;
-  rev_growth: number | null;
-  margin: number | null;
-  div_yield: number | null;
-  recom: string;
-  score: number;
+const TOOL = "#8b5cf6";
+const GREEN = "#00d47e";
+
+function money(v: number | null | undefined): string {
+  if (v == null) return "—";
+  return `$${v.toLocaleString("en-US", { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 })}`;
 }
 
-function scoreBar(score: number): string {
-  const filled = Math.round(score / 10);
-  return "█".repeat(filled) + "░".repeat(10 - filled);
-}
-
-function scoreColor(score: number): string {
-  if (score >= 70) return "#22c55e";
-  if (score >= 50) return "#f59e0b";
-  return "#ef4444";
-}
-
-function RecomBadge({ recom, colors }: { recom: string; colors: Colors }) {
+function PickCard({ pick, rank, colors }: { pick: WeeklyOpportunity; rank: number; colors: Colors }) {
   const { t } = useTranslation();
-  const map: Record<string, { label: string; color: string }> = {
-    strong_buy: { label: t("explore.recom.strongBuy"), color: "#16a34a" },
-    buy:        { label: t("explore.recom.buy"),        color: "#22c55e" },
-    hold:       { label: t("explore.recom.hold"),        color: "#f59e0b" },
-    sell:       { label: t("explore.recom.sell"),        color: "#ef4444" },
-    strong_sell:{ label: t("explore.recom.strongSell"),  color: "#dc2626" },
-  };
-  const cfg = map[recom];
-  if (!cfg) return null;
-  return (
-    <View style={{ backgroundColor: cfg.color + "20", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }}>
-      <Text style={{ color: cfg.color, fontSize: 10, fontWeight: "700" }}>{cfg.label}</Text>
-    </View>
-  );
-}
-
-function StockCard({ item, colors, styles }: { item: Stock; colors: Colors; styles: ReturnType<typeof makeStyles> }) {
-  const { t } = useTranslation();
-  const { add, remove, has } = useWatchlistStore();
-  const watching = has(item.ticker);
-  const color = scoreColor(item.score);
-  const chgColor = (item.change_pct ?? 0) >= 0 ? "#22c55e" : "#ef4444";
+  const st = useMemo(() => cardStyles(colors), [colors]);
+  const mos = pick.margin_of_safety_pct;
+  const price = pick.price;
+  const base = pick.intrinsic_value_base;
+  // How far the current price sits below the base estimate — drawn as a bar
+  // (price as a share of base value), the one number people read at a glance.
+  const fill = price != null && base ? Math.max(0.06, Math.min(1, price / base)) : null;
+  const bq = pick.thesis_scores?.business_quality;
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={styles.cardHeader}>
-        <View style={styles.cardLeft}>
-          <Text style={[styles.ticker, { color: colors.text }]}>{item.ticker}</Text>
-          <Text style={[styles.name, { color: colors.textMuted }]}>{item.name}</Text>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() => router.push(`/stock/${pick.ticker}` as any)}
+      style={st.card}
+    >
+      <View style={st.topRow}>
+        <View style={st.rank}><Text style={st.rankText}>{rank}</Text></View>
+        <StockAvatar ticker={pick.ticker} size={42} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={st.ticker}>{pick.ticker}</Text>
+          {!!pick.company_name && <Text style={st.name} numberOfLines={1}>{pick.company_name}</Text>}
         </View>
-        <View style={styles.cardRight}>
-          {item.price && (
-            <Text style={[styles.price, { color: colors.text }]}>
-              ${item.price.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-            </Text>
-          )}
-          {item.change_pct !== null && (
-            <Text style={[styles.change, { color: chgColor }]}>
-              {item.change_pct >= 0 ? "▲" : "▼"} {Math.abs(item.change_pct).toFixed(2)}%
-            </Text>
-          )}
-        </View>
-      </View>
-
-      {/* Score bar */}
-      <View style={styles.scoreRow}>
-        <Text style={[styles.scoreBar, { color }]}>{scoreBar(item.score)}</Text>
-        <Text style={[styles.scoreNum, { color }]}>{item.score}/100</Text>
-      </View>
-
-      {/* Metrics row */}
-      <View style={styles.metricsRow}>
-        {item.pe     && <Text style={[styles.metric, { color: colors.textMuted }]}>P/E {item.pe}x</Text>}
-        {item.rev_growth && (
-          <Text style={[styles.metric, { color: item.rev_growth > 15 ? "#22c55e" : colors.textMuted }]}>
-            Rev +{item.rev_growth}%
-          </Text>
+        {mos != null && (
+          <View style={st.mosPill}>
+            <Text style={st.mosValue}>+{mos.toFixed(0)}%</Text>
+            <Text style={st.mosLabel}>{t("screenerWeekly.marginShort")}</Text>
+          </View>
         )}
-        {item.margin && <Text style={[styles.metric, { color: colors.textMuted }]}>{t("explore.card.marginLabel")} {item.margin}%</Text>}
-        {item.div_yield && <Text style={[styles.metric, { color: "#f59e0b" }]}>Div {item.div_yield}%</Text>}
-        <RecomBadge recom={item.recom} colors={colors} />
       </View>
 
-      {/* Watch button */}
-      <TouchableOpacity
-        style={[styles.watchBtn, { borderColor: watching ? "#22c55e" : colors.border }]}
-        onPress={() => watching ? remove(item.ticker) : add(item.ticker, item.name)}
-      >
-        <Ionicons name={watching ? "bookmark" : "bookmark-outline"} size={13} color={watching ? "#22c55e" : colors.textMuted} />
-        <Text style={[styles.watchBtnText, { color: watching ? "#22c55e" : colors.textMuted }]}>
-          {watching ? t("explore.watchBtn.inWatchlist") : t("explore.watchBtn.add")}
-        </Text>
-      </TouchableOpacity>
-    </View>
+      <View style={st.chips}>
+        {!!pick.sector && <View style={st.chip}><Text style={st.chipText}>{pick.sector}</Text></View>}
+        {bq != null && (
+          <View style={st.chip}>
+            <Ionicons name="shield-checkmark-outline" size={11} color={colors.textMuted} />
+            <Text style={st.chipText}>{t("screenerWeekly.quality", { score: bq })}</Text>
+          </View>
+        )}
+      </View>
+
+      {fill != null && (
+        <View style={st.valueBlock}>
+          <View style={st.valueLabels}>
+            <View>
+              <Text style={st.smallLabel}>{t("screenerWeekly.priceNow")}</Text>
+              <Text style={st.priceNow}>{money(price)}</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={st.smallLabel}>{t("screenerWeekly.estimatedValue")}</Text>
+              <Text style={st.baseValue}>{money(base)}</Text>
+            </View>
+          </View>
+          <View style={st.track}>
+            <View style={[st.trackFill, { width: `${fill * 100}%` }]} />
+          </View>
+        </View>
+      )}
+
+      {(pick.intrinsic_value_conservative != null || pick.intrinsic_value_optimistic != null) && (
+        <View style={st.scenarios}>
+          {([
+            ["pessimistic", pick.intrinsic_value_conservative, "#f87171"],
+            ["base", base, GREEN],
+            ["optimistic", pick.intrinsic_value_optimistic, "#4ade80"],
+          ] as const).map(([key, value, color]) => (
+            <View key={key} style={[st.scenario, key === "base" && st.scenarioBase]}>
+              <Text style={[st.scenarioLabel, { color }]} numberOfLines={1}>{t(`subvaluadas.scenarios.${key}`)}</Text>
+              <Text style={[st.scenarioValue, key === "base" && { color: GREEN }]} numberOfLines={1} adjustsFontSizeToFit>{money(value)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={st.footer}>
+        <Text style={st.footerText}>{t("screenerWeekly.viewAnalysis")}</Text>
+        <Ionicons name="chevron-forward" size={14} color={TOOL} />
+      </View>
+    </TouchableOpacity>
   );
 }
 
-export default function ExploreScreen() {
-  const { t } = useTranslation();
+export default function WeeklyScreenerScreen() {
+  const { t, i18n } = useTranslation();
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-
-  const subStore  = useSubscriptionStore();
-  const isPremium = hasPremiumAccess(subStore);
-
-  const [sector, setSector]       = useState<string | null>(null);
-  const [query, setQuery]         = useState("");
-  const [results, setResults]     = useState<Stock[]>([]);
-  const [aiInsight, setAiInsight] = useState<string | null>(null);
-  const [loading, setLoading]     = useState(false);
-  const [searched, setSearched]   = useState(false);
+  const st = useMemo(() => screenStyles(colors), [colors]);
+  const subStore = useSubscriptionStore();
+  const isPremiumAccess = hasPremiumAccess(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
-  // Diego, 2026-09-24: "el único" Screener Semanal — real, DCF-backed,
-  // per-user picks (same engine + same 5 tickers as the Sunday "Nuvos
-  // Radar detectó..." push), not the old AI narrative.
-  const [weekly, setWeekly]         = useState<{ results?: WeeklyOpportunity[]; generated_at?: string | null } | null>(null);
-  const [weeklyLoading, setWeeklyLoading] = useState(false);
-  const [weeklyExpanded, setWeeklyExpanded] = useState(false);
+  const { data, loading, failed, serverFree, load } = useWeeklyOpportunities(isPremiumAccess);
+  const isPremium = isPremiumAccess && !serverFree;
+  const picks = (data?.results ?? []).slice(0, 5);
 
-  const [weeklyFailed, setWeeklyFailed] = useState(false);
+  const summary = useMemo(() => {
+    const margins = picks.map((p) => p.margin_of_safety_pct).filter((m): m is number => m != null);
+    return {
+      avgMargin: margins.length ? margins.reduce((a, b) => a + b, 0) / margins.length : null,
+      sectors: new Set(picks.map((p) => p.sector).filter(Boolean)).size,
+    };
+  }, [picks]);
 
-  // Diego, 2026-09-27: always this week's 5 — retry on failure, and never
-  // keep an empty answer (it used to be stored and then never re-fetched).
-  const loadWeekly = useCallback(async () => {
-    if (!isPremium || (weekly?.results?.length ?? 0) > 0) return;
-    setWeeklyLoading(true);
-    setWeeklyFailed(false);
-    for (const delay of [0, 1500, 4000]) {
-      if (delay) await new Promise((r) => setTimeout(r, delay));
-      try {
-        const res: any = await screenerWeeklyApi.getWeeklyOpportunities(undefined, 25000);
-        if (res.data?.is_premium === false) {
-          // The backend says Free — same paywall as the Free branch above.
-          setWeeklyExpanded(false);
-          setPaywallOpen(true);
-          setWeeklyLoading(false);
-          return;
-        }
-        if ((res.data?.results?.length ?? 0) > 0) {
-          setWeekly(res.data);
-          setWeeklyLoading(false);
-          return;
-        }
-      } catch {}
-    }
-    setWeeklyFailed(true);
-    setWeeklyLoading(false);
-  }, [isPremium, weekly]);
-
-  const markdownStyles = useMemo(() => ({
-    body: { color: colors.textSub, fontSize: 13, lineHeight: 20 },
-    paragraph: { marginVertical: 2 },
-    strong: { color: colors.text, fontWeight: "700" as const },
-    bullet_list: { marginVertical: 3 },
-    list_item: { color: colors.textSub, fontSize: 13 },
-  }), [colors]);
-
-  const search = useCallback(async (overrideSector?: string | null) => {
-    setLoading(true);
-    setAiInsight(null);
-    try {
-      const s = overrideSector !== undefined ? overrideSector : sector;
-      const res = await marketApi.screener(s, query);
-      setResults(res.data.results);
-      setAiInsight(res.data.ai_insight ?? null);
-      setSearched(true);
-    } catch {}
-    setLoading(false);
-  }, [sector, query]);
-
-  const handleSector = (s: string) => {
-    const val = s === "Todos" ? null : s;
-    setSector(val);
-    search(val);
-  };
+  const weekLabel = data?.generated_at
+    ? new Date(data.generated_at).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" })
+    : null;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <FlatList
-        data={results}
-        keyExtractor={(item) => item.ticker}
-        renderItem={({ item }) => <StockCard item={item} colors={colors} styles={styles} />}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <View>
-            {/* ══ SCREENER SEMANAL PREMIUM ══ */}
-            <View style={{ marginHorizontal: 12, marginBottom: 12 }}>
-              <TouchableOpacity
-                style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 14, paddingVertical: 12 }}
-                onPress={() => { if (!isPremium) { setPaywallOpen(true); } else { setWeeklyExpanded(!weeklyExpanded); loadWeekly(); } }}
-              >
-                <Ionicons name="star-outline" size={16} color={colors.accent} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>{t("explore.weeklyPicks.title")}</Text>
-                  {weekly?.generated_at && weeklyExpanded && (
-                    <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>
-                      {t("explore.weeklyPicks.updated", { date: new Date(weekly.generated_at).toLocaleDateString("es-MX", { day: "numeric", month: "long" }) })}
-                    </Text>
-                  )}
-                </View>
-                {!isPremium && (
-                  <View style={{ backgroundColor: colors.accent + "20", borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 }}>
-                    <Text style={{ color: colors.accent, fontSize: 9, fontWeight: "800" }}>{t("explore.weeklyPicks.premiumBadge")}</Text>
-                  </View>
-                )}
-                {weeklyLoading
-                  ? <ActivityIndicator size="small" color={colors.accent} />
-                  : <Ionicons name={weeklyExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.textMuted} />
-                }
-              </TouchableOpacity>
-
-              {weeklyExpanded && weekly?.results && weekly.results.length > 0 && (
-                <View style={{ marginTop: 8, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, overflow: "hidden" }}>
-                  {weekly.results.slice(0, 5).map((pick, i) => (
-                    <WeeklyOpportunityCard key={pick.ticker} pick={pick} rank={i + 1} />
-                  ))}
-                </View>
-              )}
-              {weeklyExpanded && weeklyFailed && !weeklyLoading && !(weekly?.results?.length) && (
-                <TouchableOpacity onPress={loadWeekly} style={{ marginTop: 8, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 14, alignItems: "center", gap: 6 }}>
-                  <Text style={{ fontSize: 12, color: colors.textMuted, textAlign: "center" }}>{t("mobileWeeklyScreener.loadError")}</Text>
-                  <Text style={{ fontSize: 12, fontWeight: "800", color: colors.accent }}>{t("mobileWeeklyScreener.retry")}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Search bar */}
-            <View style={[styles.searchWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Ionicons name="search-outline" size={16} color={colors.textMuted} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.text }]}
-                placeholder={t("explore.search.placeholder")}
-                placeholderTextColor={colors.placeholder}
-                value={query}
-                onChangeText={setQuery}
-                onSubmitEditing={() => search()}
-                returnKeyType="search"
-              />
-              {query.length > 0 && (
-                <TouchableOpacity onPress={() => search()}>
-                  <View style={[styles.searchBtn, { backgroundColor: colors.accent }]}>
-                    <Text style={{ color: "white", fontSize: 12, fontWeight: "700" }}>{t("explore.search.button")}</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Sector chips */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-              {SECTORS.map((s) => {
-                const active = (s === "Todos" && sector === null) || s === sector;
-                return (
-                  <TouchableOpacity
-                    key={s}
-                    style={[styles.chip, { borderColor: active ? colors.accent : colors.border, backgroundColor: active ? colors.accent + "20" : "transparent" }]}
-                    onPress={() => handleSector(s)}
-                  >
-                    <Text style={[styles.chipText, { color: active ? colors.accentLight : colors.textMuted }]}>{s}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            {/* AI insight */}
-            {aiInsight && (
-              <View style={[styles.insightCard, { backgroundColor: colors.card, borderColor: colors.accent + "40" }]}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                  <Ionicons name="sparkles" size={14} color={colors.accentLight} />
-                  <Text style={[styles.insightTitle, { color: colors.accentLight }]}>{t("explore.aiInsight.title")}</Text>
-                </View>
-                <Markdown style={markdownStyles}>{aiInsight}</Markdown>
+    <View style={st.container}>
+      <ScrollView
+        contentContainerStyle={st.content}
+        refreshControl={isPremium ? <RefreshControl refreshing={loading && picks.length > 0} onRefresh={load} tintColor={TOOL} /> : undefined}
+      >
+        {/* Hero */}
+        <View style={st.hero}>
+          <View style={st.heroGlow} />
+          <View style={st.heroIcon}>
+            <Ionicons name="radio-outline" size={22} color="#fff" />
+          </View>
+          <Text style={st.heroEyebrow}>NUVOS RADAR</Text>
+          <Text style={st.heroTitle}>{t("screenerWeekly.heroTitle")}</Text>
+          <Text style={st.heroSubtitle}>{t("screenerWeekly.heroSubtitle")}</Text>
+          <View style={st.heroMeta}>
+            {weekLabel && (
+              <View style={st.metaPill}>
+                <Ionicons name="calendar-outline" size={12} color={TOOL} />
+                <Text style={st.metaText}>{t("screenerWeekly.weekOf", { date: weekLabel })}</Text>
               </View>
             )}
+            <View style={st.metaPill}>
+              <Ionicons name="refresh-outline" size={12} color={TOOL} />
+              <Text style={st.metaText}>{t("screenerWeekly.renews")}</Text>
+            </View>
+          </View>
+        </View>
 
-            {loading && (
-              <View style={{ alignItems: "center", padding: 32 }}>
-                <ActivityIndicator color={colors.accentLight} />
-                <Text style={[styles.loadingText, { color: colors.textMuted }]}>{t("explore.loading")}</Text>
-              </View>
-            )}
-
-            {!loading && !searched && (
-              <View style={styles.emptyState}>
-                <Ionicons name="telescope-outline" size={44} color={colors.textMuted} />
-                <Text style={[styles.emptyTitle, { color: colors.textMuted }]}>{t("explore.empty.title")}</Text>
-                <Text style={[styles.emptySub, { color: colors.textDim }]}>{t("explore.empty.subtitle")}</Text>
-              </View>
+        {!isPremium ? (
+          // Same locked preview + paywall the Portfolio card uses.
+          <MobileWeeklyScreener isPremium={false} onUpgrade={() => setPaywallOpen(true)} />
+        ) : picks.length === 0 ? (
+          <View style={st.stateCard}>
+            {loading || !failed ? (
+              <>
+                <ActivityIndicator color={TOOL} />
+                <Text style={st.stateText}>{t("screenerWeekly.loading")}</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="cloud-offline-outline" size={26} color={colors.textMuted} />
+                <Text style={st.stateText}>{t("mobileWeeklyScreener.loadError")}</Text>
+                <TouchableOpacity onPress={load} style={st.retryBtn}>
+                  <Ionicons name="refresh" size={14} color="#fff" />
+                  <Text style={st.retryText}>{t("mobileWeeklyScreener.retry")}</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
-        }
-        ListEmptyComponent={
-          !loading && searched ? (
-            <Text style={[styles.emptyTitle, { color: colors.textMuted, textAlign: "center", marginTop: 32 }]}>{t("explore.noResults")}</Text>
-          ) : null
-        }
-      />
-      <PaywallModal
-        visible={paywallOpen}
-        onClose={() => setPaywallOpen(false)}
-        reason={t("explore.paywallReason")}
-      />
-    </SafeAreaView>
+        ) : (
+          <>
+            <View style={st.stats}>
+              <View style={st.stat}>
+                <Text style={st.statValue}>{picks.length}</Text>
+                <Text style={st.statLabel}>{t("screenerWeekly.statCompanies")}</Text>
+              </View>
+              <View style={st.stat}>
+                <Text style={[st.statValue, { color: GREEN }]}>
+                  {summary.avgMargin != null ? `+${summary.avgMargin.toFixed(0)}%` : "—"}
+                </Text>
+                <Text style={st.statLabel}>{t("screenerWeekly.statAvgMargin")}</Text>
+              </View>
+              <View style={st.stat}>
+                <Text style={st.statValue}>{summary.sectors || "—"}</Text>
+                <Text style={st.statLabel}>{t("screenerWeekly.statSectors")}</Text>
+              </View>
+            </View>
+
+            <Text style={st.sectionTitle}>{t("screenerWeekly.listTitle")}</Text>
+            {picks.map((pick, i) => (
+              <PickCard key={pick.ticker} pick={pick} rank={i + 1} colors={colors} />
+            ))}
+
+            <View style={st.disclaimer}>
+              <Ionicons name="information-circle-outline" size={15} color={colors.textMuted} style={{ marginTop: 1 }} />
+              <Text style={st.disclaimerText}>{t("mobileWeeklyScreener.defaultDisclaimer")}</Text>
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("explore.paywallReason")} />
+    </View>
   );
 }
 
-function makeStyles(c: Colors) {
+function screenStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    list: { paddingBottom: 40 },
-    searchWrap: {
-      flexDirection: "row", alignItems: "center", gap: 8,
-      margin: 16, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10,
+    content: { padding: 16, paddingBottom: 48, gap: 14 },
+
+    hero: {
+      borderRadius: 24, padding: 20, overflow: "hidden",
+      backgroundColor: TOOL + "14", borderWidth: 1, borderColor: TOOL + "33",
     },
-    searchInput: { flex: 1, fontSize: 14 },
-    searchBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-    chipsScroll: { marginBottom: 12 },
-    chip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
-    chipText: { fontSize: 12, fontWeight: "600" },
-    insightCard: {
-      marginHorizontal: 16, marginBottom: 12,
-      borderRadius: 12, borderWidth: 1, padding: 14,
+    heroGlow: { position: "absolute", width: 220, height: 220, borderRadius: 110, top: -110, right: -70, backgroundColor: TOOL + "22" },
+    heroIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: TOOL, alignItems: "center", justifyContent: "center", marginBottom: 14 },
+    heroEyebrow: { fontSize: 10, fontWeight: "900", letterSpacing: 1.4, color: TOOL, marginBottom: 4 },
+    heroTitle: { fontSize: 22, fontWeight: "900", letterSpacing: -0.5, color: c.text, lineHeight: 27 },
+    heroSubtitle: { fontSize: 13, lineHeight: 19, color: c.textSub, marginTop: 6 },
+    heroMeta: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
+    metaPill: {
+      flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 20,
+      paddingHorizontal: 10, paddingVertical: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
     },
-    insightTitle: { fontSize: 13, fontWeight: "700" },
-    loadingText: { marginTop: 10, fontSize: 13 },
-    emptyState: { alignItems: "center", paddingTop: 60, gap: 8 },
-    emptyTitle: { fontSize: 15, fontWeight: "600" },
-    emptySub: { fontSize: 13 },
+    metaText: { fontSize: 11, fontWeight: "700", color: c.textSub },
+
+    stats: { flexDirection: "row", gap: 10 },
+    stat: {
+      flex: 1, borderRadius: 16, paddingVertical: 12, alignItems: "center",
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+    },
+    statValue: { fontSize: 20, fontWeight: "900", color: c.text },
+    statLabel: { fontSize: 10, fontWeight: "700", color: c.textMuted, marginTop: 2, textAlign: "center" },
+
+    sectionTitle: { fontSize: 12, fontWeight: "900", letterSpacing: 0.6, color: c.textMuted, textTransform: "uppercase", marginTop: 4 },
+
+    stateCard: {
+      borderRadius: 20, padding: 28, alignItems: "center", gap: 12,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+    },
+    stateText: { fontSize: 13, lineHeight: 19, color: c.textMuted, textAlign: "center" },
+    retryBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: TOOL, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 10 },
+    retryText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+
+    disclaimer: { flexDirection: "row", gap: 8, paddingHorizontal: 4, marginTop: 4 },
+    disclaimerText: { flex: 1, fontSize: 11, lineHeight: 16, color: c.textMuted },
+  });
+}
+
+function cardStyles(c: Colors) {
+  return StyleSheet.create({
     card: {
-      marginHorizontal: 12, marginBottom: 7,
-      borderRadius: 12, borderWidth: 1, padding: 10,
+      borderRadius: 20, padding: 16, gap: 12,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
     },
-    cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 5 },
-    cardLeft: { gap: 1 },
-    cardRight: { alignItems: "flex-end", gap: 1 },
-    ticker: { fontSize: 15, fontWeight: "800" },
-    name:   { fontSize: 10, color: "#888" },
-    price:  { fontSize: 15, fontWeight: "700" },
-    change: { fontSize: 11, fontWeight: "600" },
-    scoreRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 5 },
-    scoreBar: { fontSize: 10, fontFamily: "monospace", letterSpacing: -1 },
-    scoreNum: { fontSize: 11, fontWeight: "700" },
-    metricsRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginBottom: 7 },
-    metric: { fontSize: 10, fontWeight: "600" },
-    watchBtn: {
-      flexDirection: "row", alignItems: "center", gap: 4,
-      borderWidth: 1, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 4,
-      alignSelf: "flex-start",
+    topRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+    rank: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: TOOL + "22" },
+    rankText: { fontSize: 11, fontWeight: "900", color: TOOL },
+    ticker: { fontSize: 17, fontWeight: "900", color: c.text, letterSpacing: -0.3 },
+    name: { fontSize: 12, color: c.textMuted, marginTop: 1 },
+    mosPill: { alignItems: "center", borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "rgba(34,197,94,0.14)" },
+    mosValue: { fontSize: 15, fontWeight: "900", color: "#22c55e" },
+    mosLabel: { fontSize: 9, fontWeight: "700", color: "#22c55e", opacity: 0.85 },
+
+    chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+    chip: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: c.bgRaised },
+    chipText: { fontSize: 11, fontWeight: "600", color: c.textMuted },
+
+    valueBlock: { gap: 8 },
+    valueLabels: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
+    smallLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 0.4, color: c.textMuted, textTransform: "uppercase" },
+    priceNow: { fontSize: 16, fontWeight: "900", color: c.text, marginTop: 2 },
+    baseValue: { fontSize: 16, fontWeight: "900", color: GREEN, marginTop: 2 },
+    track: { height: 8, borderRadius: 4, backgroundColor: GREEN + "22", overflow: "hidden" },
+    trackFill: { height: "100%", borderRadius: 4, backgroundColor: c.textSub },
+
+    scenarios: { flexDirection: "row", gap: 8 },
+    scenario: { flex: 1, alignItems: "center", borderRadius: 12, paddingVertical: 8, paddingHorizontal: 4, backgroundColor: c.bgRaised },
+    scenarioBase: { backgroundColor: "rgba(0,168,94,0.1)", borderWidth: 1, borderColor: "rgba(0,168,94,0.3)" },
+    scenarioLabel: { fontSize: 9, fontWeight: "900", textTransform: "uppercase" },
+    scenarioValue: { fontSize: 13, fontWeight: "800", color: c.text, marginTop: 2 },
+
+    footer: {
+      flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border, paddingTop: 10,
     },
-    watchBtnText: { fontSize: 10, fontWeight: "600" },
+    footerText: { fontSize: 12, fontWeight: "800", color: TOOL },
   });
 }

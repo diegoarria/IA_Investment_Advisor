@@ -453,7 +453,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="profile"       options={{ title: t("tabsLayout.tabs.profile"),        header: () => <MobileHeader title={t("tabsLayout.myProfile")} /> }} />
       <Tabs.Screen name="products"      options={{ title: t("tabsLayout.tabs.products"),     header: () => <MobileHeader title={t("tabsLayout.productsAndServices")} /> }} />
       <Tabs.Screen name="support"       options={{ title: t("tabsLayout.tabs.support"),       header: () => <MobileHeader title={t("tabsLayout.tabs.support")} /> }} />
-      <Tabs.Screen name="explore"       options={{ href: null }} />
+      <Tabs.Screen name="explore"       options={{ href: null, title: t("common.nav.patrimonioSub.screener"), header: () => <MobileHeader title={t("common.nav.patrimonioSub.screener")} /> }} />
     </Tabs>
   );
 }
