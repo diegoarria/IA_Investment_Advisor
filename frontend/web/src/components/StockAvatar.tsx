@@ -6,9 +6,12 @@ interface StockAvatarProps {
   ticker: string;
   logoUrl?: string | null;
   size?: "sm" | "md" | "lg";
+  // Exact pixel size — overrides `size` (used by the redesigned Screener
+  // Semanal / Nuvos Radar screens to match mobile's avatar sizes).
+  px?: number;
 }
 
-export default function StockAvatar({ ticker, logoUrl, size = "md" }: StockAvatarProps) {
+export default function StockAvatar({ ticker, logoUrl, size = "md", px }: StockAvatarProps) {
   const initials = ticker.slice(0, 2).toUpperCase();
   const clean = ticker.replace(".", "-");
 
@@ -28,6 +31,9 @@ export default function StockAvatar({ ticker, logoUrl, size = "md" }: StockAvata
     size === "sm" ? "p-1" :
     size === "lg" ? "p-2" :
     "p-1.5";
+  const pxStyle = px
+    ? { width: px, height: px, padding: Math.round(px * 0.14), fontSize: Math.round(px * 0.32) }
+    : undefined;
 
   if (activeSrc) {
     return (
@@ -35,16 +41,16 @@ export default function StockAvatar({ ticker, logoUrl, size = "md" }: StockAvata
       <img
         src={activeSrc}
         alt={ticker}
-        className={`${sizeClass} ${paddingClass} rounded-full object-contain shrink-0`}
-        style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
+        className={`${px ? "" : `${sizeClass} ${paddingClass}`} rounded-full object-contain shrink-0`}
+        style={{ background: "var(--raised)", border: "1px solid var(--border)", ...pxStyle }}
         onError={() => setFailed((prev) => new Set([...prev, activeSrc]))}
       />
     );
   }
   return (
     <div
-      className={`${sizeClass} rounded-full flex items-center justify-center font-black shrink-0`}
-      style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)" }}
+      className={`${px ? "" : sizeClass} rounded-full flex items-center justify-center font-black shrink-0`}
+      style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)", ...(pxStyle ? { width: px, height: px, fontSize: pxStyle.fontSize } : {}) }}
     >
       {initials}
     </div>

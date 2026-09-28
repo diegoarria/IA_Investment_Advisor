@@ -4614,5 +4614,21 @@
     "secondaryCta": "Inicia sesión",
     "trust": "🔐 Sin tarjeta de crédito · Menos de 2 minutos",
     "close": "Cerrar"
+  },
+  "screenerWeekly": {
+    "heroTitle": "Tus 5 oportunidades de la semana",
+    "heroSubtitle": "Nuvos Radar revisó el mercado con su modelo de valuación y encontró 5 empresas que hoy cotizan por debajo de lo que estima que valen.",
+    "weekOf": "Semana del {{date}}",
+    "renews": "Se renueva cada domingo",
+    "loading": "Preparando tus 5 empresas de esta semana…",
+    "statCompanies": "empresas",
+    "statAvgMargin": "margen promedio",
+    "statSectors": "sectores",
+    "listTitle": "Las empresas de esta semana",
+    "marginShort": "margen",
+    "quality": "Calidad {{score}}/100",
+    "priceNow": "Precio hoy",
+    "estimatedValue": "Valor estimado",
+    "viewAnalysis": "Ver análisis completo"
   }
 }

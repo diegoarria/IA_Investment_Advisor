@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, RefreshCw, Loader2, Lock } from "lucide-react";
+import { RefreshCw, Loader2, Radio, Calendar, ChevronRight, ShieldCheck, Info, CloudOff } from "lucide-react";
+import Link from "next/link";
+import StockAvatar from "@/components/StockAvatar";
+import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
 import posthog from "posthog-js";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
@@ -11,7 +14,7 @@ import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useWeeklyOpportunities } from "@/lib/useWeeklyOpportunities";
-import WeeklyOpportunityCard, { type WeeklyOpportunity } from "@/components/WeeklyOpportunityCard";
+import type { WeeklyOpportunity } from "@/components/WeeklyOpportunityCard";
 
 interface UndervaluedResponse {
   is_premium: boolean;
@@ -45,6 +48,100 @@ function getEtfByRisk(t: TFunction): Record<string, { ticker: string; name: stri
       { ticker: "VWO",  name: "Vanguard Emerging Markets",   desc: t("screener.etf.descriptions.aggressive.vwo"), color: "#f59e0b" },
     ],
   };
+}
+
+// Redesigned 2026-09-27 to match mobile's Screener Semanal screen exactly
+// (Diego: "igualito para web app, sin ninguna diferencia") — Nuvos Radar
+// hero, summary stats, one large card per pick, non-advisory note.
+const TOOL = "#8b5cf6";
+const GREEN = "#00d47e";
+
+function money(v: number | null | undefined): string {
+  if (v == null) return "—";
+  return `$${v.toLocaleString("en-US", { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 })}`;
+}
+
+function PickCard({ pick, rank }: { pick: WeeklyOpportunity; rank: number }) {
+  const { t } = useTranslation();
+  const mos = pick.margin_of_safety_pct;
+  const price = pick.price;
+  const base = pick.intrinsic_value_base;
+  const fill = price != null && base ? Math.max(0.06, Math.min(1, price / base)) : null;
+  const bq = pick.thesis_scores?.business_quality;
+  const scenarios = [
+    { key: "pessimistic", value: pick.intrinsic_value_conservative, color: "#f87171" },
+    { key: "base", value: base, color: GREEN },
+    { key: "optimistic", value: pick.intrinsic_value_optimistic, color: "#4ade80" },
+  ];
+  return (
+    <Link href={`/stock/${pick.ticker}`} className="block rounded-[20px] border p-4 space-y-3 transition-transform hover:scale-[1.005]"
+          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+      <div className="flex items-center gap-2.5">
+        <div className="w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0" style={{ background: TOOL + "22" }}>
+          <span className="text-[11px] font-black" style={{ color: TOOL }}>{rank}</span>
+        </div>
+        <StockAvatar ticker={pick.ticker} px={42} />
+        <div className="flex-1 min-w-0">
+          <p className="text-[17px] font-black tracking-tight" style={{ color: "var(--text)" }}>{pick.ticker}</p>
+          {pick.company_name && <p className="text-xs truncate mt-px" style={{ color: "var(--muted)" }}>{pick.company_name}</p>}
+        </div>
+        {mos != null && (
+          <div className="flex flex-col items-center rounded-[14px] px-2.5 py-1.5" style={{ background: "rgba(34,197,94,0.14)" }}>
+            <span className="text-[15px] font-black" style={{ color: "#22c55e" }}>+{mos.toFixed(0)}%</span>
+            <span className="text-[9px] font-bold opacity-85" style={{ color: "#22c55e" }}>{t("screenerWeekly.marginShort")}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {pick.sector && (
+          <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "var(--raised)", color: "var(--muted)" }}>{pick.sector}</span>
+        )}
+        {bq != null && (
+          <span className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "var(--raised)", color: "var(--muted)" }}>
+            <ShieldCheck className="w-3 h-3" />{t("screenerWeekly.quality", { score: bq })}
+          </span>
+        )}
+      </div>
+
+      {fill != null && (
+        <div className="space-y-2">
+          <div className="flex justify-between items-end">
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("screenerWeekly.priceNow")}</p>
+              <p className="text-base font-black mt-0.5" style={{ color: "var(--text)" }}>{money(price)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-extrabold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("screenerWeekly.estimatedValue")}</p>
+              <p className="text-base font-black mt-0.5" style={{ color: GREEN }}>{money(base)}</p>
+            </div>
+          </div>
+          <div className="h-2 rounded overflow-hidden" style={{ background: GREEN + "22" }}>
+            <div className="h-full rounded" style={{ width: `${fill * 100}%`, background: "var(--sub)" }} />
+          </div>
+        </div>
+      )}
+
+      {(pick.intrinsic_value_conservative != null || pick.intrinsic_value_optimistic != null) && (
+        <div className="flex gap-2">
+          {scenarios.map((sc) => (
+            <div key={sc.key} className="flex-1 flex flex-col items-center rounded-xl py-2 px-1"
+                 style={sc.key === "base"
+                   ? { background: "rgba(0,168,94,0.1)", border: "1px solid rgba(0,168,94,0.3)" }
+                   : { background: "var(--raised)" }}>
+              <span className="text-[9px] font-black uppercase truncate" style={{ color: sc.color }}>{t(`subvaluadas.scenarios.${sc.key}`)}</span>
+              <span className="text-[13px] font-extrabold mt-0.5" style={{ color: sc.key === "base" ? GREEN : "var(--text)" }}>{money(sc.value)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center justify-end gap-0.5 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+        <span className="text-xs font-extrabold" style={{ color: TOOL }}>{t("screenerWeekly.viewAnalysis")}</span>
+        <ChevronRight className="w-3.5 h-3.5" style={{ color: TOOL }} />
+      </div>
+    </Link>
+  );
 }
 
 export default function ScreenerPage() {
@@ -93,7 +190,7 @@ export default function ScreenerPage() {
     <div className="flex h-screen" style={{ background: "var(--bg)" }}>
       <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
       <main className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-2xl mx-auto space-y-6">
+        <div className="max-w-2xl mx-auto space-y-6 pb-12">
           {/* ETF mode for basico */}
           {!isAtLeast(userLevel, "intermedio") && (() => {
             const risk = (profile?.risk_tolerance ?? "moderate") as string;
@@ -136,84 +233,102 @@ export default function ScreenerPage() {
             );
           })()}
 
-          {/* Header — only shown for intermedio+ */}
-          {isAtLeast(userLevel, "intermedio") && <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--text)" }}>
-                <Search className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
-                {t("screener.header.title")}
-              </h1>
-              <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                {t("screener.header.subtitle")}
-              </p>
-            </div>
-            {isPremium && (
-              <button onClick={loadWeekly} disabled={weeklyLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium"
-                      style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
-                <RefreshCw className={`w-3.5 h-3.5 ${weeklyLoading ? "animate-spin" : ""}`} />
-                {t("screener.header.refresh")}
-              </button>
-            )}
-          </div>}
+          {/* Weekly screener — every level (básico sees it under its ETF block, same as before). */}
+          {(() => {
+            const picks = weekly.slice(0, 5);
+            const margins = picks.map((p) => p.margin_of_safety_pct).filter((m): m is number => m != null);
+            const avgMargin = margins.length ? margins.reduce((x, y) => x + y, 0) / margins.length : null;
+            const sectors = new Set(picks.map((p) => p.sector).filter(Boolean)).size;
+            const weekLabel = weeklyGeneratedAt
+              ? new Date(weeklyGeneratedAt).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" })
+              : null;
+            return (
+              <div className="space-y-3.5">
+                {/* Hero */}
+                <div className="relative overflow-hidden rounded-3xl p-5 border" style={{ background: TOOL + "14", borderColor: TOOL + "33" }}>
+                  <div className="absolute w-[220px] h-[220px] rounded-full -top-[110px] -right-[70px] pointer-events-none" style={{ background: TOOL + "22" }} />
+                  <div className="relative">
+                    <div className="flex items-start justify-between">
+                      <div className="w-11 h-11 rounded-[14px] flex items-center justify-center mb-3.5" style={{ background: TOOL }}>
+                        <Radio className="w-[22px] h-[22px] text-white" />
+                      </div>
+                      {isPremium && (
+                        <button onClick={loadWeekly} disabled={weeklyLoading} aria-label={t("screener.header.refresh")}
+                                className="w-9 h-9 rounded-full flex items-center justify-center border"
+                                style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}>
+                          <RefreshCw className={`w-4 h-4 ${weeklyLoading ? "animate-spin" : ""}`} />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] font-black tracking-[1.4px] mb-1" style={{ color: TOOL }}>NUVOS RADAR</p>
+                    <h1 className="text-[22px] font-black tracking-tight leading-[27px]" style={{ color: "var(--text)" }}>{t("screenerWeekly.heroTitle")}</h1>
+                    <p className="text-[13px] leading-[19px] mt-1.5" style={{ color: "var(--sub)" }}>{t("screenerWeekly.heroSubtitle")}</p>
+                    <div className="flex flex-wrap gap-2 mt-3.5">
+                      {weekLabel && (
+                        <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border text-[11px] font-bold" style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}>
+                          <Calendar className="w-3 h-3" style={{ color: TOOL }} />{t("screenerWeekly.weekOf", { date: weekLabel })}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border text-[11px] font-bold" style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}>
+                        <RefreshCw className="w-3 h-3" style={{ color: TOOL }} />{t("screenerWeekly.renews")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-          {/* Paywall gate — all free users. Real, never-hardcoded count
-              (§5/§11: "el número debe ser calculado dinámicamente"). */}
-          {!isPremium && (
-            <div className="rounded-2xl border p-8 text-center"
-                 style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                   style={{ background: "rgba(0,168,94,0.1)" }}>
-                <Lock className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
+                {!isPremium ? (
+                  // Same locked preview + paywall the Portfolio card uses (mobile parity).
+                  <WeeklyScreenerCard
+                    isPremium={false}
+                    onUpgrade={() => {
+                      posthog.capture("opportunities_upgrade_clicked", { count: opportunitiesTeaserCount });
+                      handleUpgrade(opportunitiesTeaserCount === null ? t("screener.paywall.reason") : t("screener.paywall.teaser", { count: opportunitiesTeaserCount }));
+                    }}
+                  />
+                ) : picks.length === 0 ? (
+                  <div className="rounded-[20px] border p-7 flex flex-col items-center gap-3 text-center" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                    {weeklyLoading ? (
+                      <>
+                        <Loader2 className="w-6 h-6 animate-spin" style={{ color: TOOL }} />
+                        <p className="text-[13px] leading-[19px]" style={{ color: "var(--muted)" }}>{t("screenerWeekly.loading")}</p>
+                      </>
+                    ) : (
+                      <>
+                        <CloudOff className="w-6 h-6" style={{ color: "var(--muted)" }} />
+                        <p className="text-[13px] leading-[19px]" style={{ color: "var(--muted)" }}>{t("weeklyScreenerCard.loadError")}</p>
+                        <button onClick={loadWeekly} className="flex items-center gap-1.5 rounded-[14px] px-4 py-2.5 text-[13px] font-extrabold text-white" style={{ background: TOOL }}>
+                          <RefreshCw className="w-3.5 h-3.5" />{t("weeklyScreenerCard.retry")}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-2.5">
+                      {[
+                        { value: String(picks.length), label: t("screenerWeekly.statCompanies"), color: "var(--text)" },
+                        { value: avgMargin != null ? `+${avgMargin.toFixed(0)}%` : "—", label: t("screenerWeekly.statAvgMargin"), color: GREEN },
+                        { value: sectors ? String(sectors) : "—", label: t("screenerWeekly.statSectors"), color: "var(--text)" },
+                      ].map((st) => (
+                        <div key={st.label} className="flex-1 rounded-2xl border py-3 flex flex-col items-center" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                          <span className="text-xl font-black" style={{ color: st.color }}>{st.value}</span>
+                          <span className="text-[10px] font-bold mt-0.5 text-center" style={{ color: "var(--muted)" }}>{st.label}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="text-xs font-black tracking-wide uppercase pt-1" style={{ color: "var(--muted)" }}>{t("screenerWeekly.listTitle")}</p>
+                    {picks.map((pick, i) => <PickCard key={pick.ticker} pick={pick} rank={i + 1} />)}
+
+                    <div className="flex gap-2 px-1 pt-1">
+                      <Info className="w-[15px] h-[15px] shrink-0 mt-px" style={{ color: "var(--muted)" }} />
+                      <p className="text-[11px] leading-4" style={{ color: "var(--muted)" }}>{t("weeklyScreenerCard.defaultDisclaimer")}</p>
+                    </div>
+                  </>
+                )}
               </div>
-              <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>{t("screener.paywall.title")}</h2>
-              <p className="text-sm mb-5 max-w-sm mx-auto" style={{ color: "var(--muted)" }}>
-                {opportunitiesTeaserCount === null
-                  ? t("screener.paywall.desc")
-                  : t("screener.paywall.teaser", { count: opportunitiesTeaserCount })}
-              </p>
-              <button onClick={() => {
-                        posthog.capture("opportunities_upgrade_clicked", { count: opportunitiesTeaserCount });
-                        handleUpgrade(opportunitiesTeaserCount === null ? t("screener.paywall.reason") : t("screener.paywall.teaser", { count: opportunitiesTeaserCount }));
-                      }}
-                      className="px-6 py-2.5 rounded-xl text-sm font-bold text-white"
-                      style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                {t("screener.paywall.cta")}
-              </button>
-            </div>
-          )}
-
-          {/* The one, real, DCF-backed Screener Semanal — same tickers as
-              the Sunday "Nuvos Radar detectó..." push, read back from
-              weekly_opportunities_history so it never drifts from what was
-              actually sent. */}
-          {isPremium && (
-            <div>
-              {weeklyGeneratedAt && (
-                <p className="text-[11px] mb-3" style={{ color: "var(--muted)" }}>
-                  {t("screener.weekTheme.updated", { date: new Date(weeklyGeneratedAt).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" }) })}
-                </p>
-              )}
-              {weeklyLoading && weekly.length === 0 ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
-                </div>
-              ) : weekly.length === 0 ? (
-                <div className="rounded-xl border p-4 flex flex-col items-center gap-3 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>{t("screener.loadError")}</p>
-                  <button onClick={loadWeekly} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: "var(--accent)", color: "#fff" }}>
-                    {t("screener.retry")}
-                  </button>
-                </div>
-              ) : (
-                <div className="rounded-2xl border overflow-hidden divide-y" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                  {weekly.map((u, i) => (
-                    <WeeklyOpportunityCard key={u.ticker} pick={u} rank={i + 1} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+            );
+          })()}
         </div>
       </main>
 
