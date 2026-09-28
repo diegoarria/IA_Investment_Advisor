@@ -1715,6 +1715,12 @@
     },
     "calc": {
       "finalValueIn": "Final value in {{years}} {{unit}}"
+    },
+    "quickActions": {
+      "import": "Import",
+      "add": "Add",
+      "broker": "Broker",
+      "tutorial": "Tutorial"
     }
   },
   "products": {
