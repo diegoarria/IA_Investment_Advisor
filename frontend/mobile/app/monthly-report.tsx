@@ -9,6 +9,7 @@ import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import api, { BASE_URL } from "../src/lib/api";
 import { posthog } from "../src/config/posthog";
+import MonthlyReportClosed from "../src/components/MonthlyReportClosed";
 
 const LOGO = require("../assets/images/logo_new.png");
 
@@ -737,16 +738,7 @@ export default function MonthlyReportScreen() {
     </View>
   );
 
-  if (windowClosed) return (
-    <View style={ldg.container}>
-      <Text style={{ fontSize: 34, marginBottom: 6 }}>🔒</Text>
-      <Text style={[ldg.text, { fontWeight: "800", color: WT.text, fontSize: 16, textAlign: "center", paddingHorizontal: 32 }]}>{t("monthlyReport.closedTitle")}</Text>
-      <Text style={{ color: "#9ca3af", fontSize: 13, marginTop: 6, textAlign: "center", paddingHorizontal: 32 }}>{t("monthlyReport.closedBody")}</Text>
-      <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 16 }}>
-        <Text style={{ color: WT.accentL, fontSize: 14 }}>{t("monthlyReport.back")}</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  if (windowClosed) return <MonthlyReportClosed />;
 
   if (premiumLocked) return (
     <View style={ldg.container}>

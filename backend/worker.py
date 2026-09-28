@@ -2151,6 +2151,13 @@ async def job_monthly_report_email():
             db.table("notification_preferences").select("user_id,email_daily_summary")
         )
         disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("email_daily_summary") is False}
+        # Already emailed this month by job_monthly_report_notify_available
+        # (they asked to be told when it opens) — don't send the recap twice.
+        optin_res = await run_query(
+            db.table("feature_notify_optins").select("user_id,notified_at").eq("feature_key", "monthly_report")
+        )
+        this_month = today.strftime("%Y-%m")
+        disabled |= {r["user_id"] for r in (optin_res.data or []) if str(r.get("notified_at") or "")[:7] == this_month}
 
         profiles_res = await run_query(
             db.table("user_profiles").select("user_id,name,subscription_tier,trial_started_at,streak_bonus_premium_until,preferred_language")
@@ -2195,6 +2202,114 @@ async def job_monthly_report_email():
         logger.info("Monthly report email: %d/%d premium users sent (%s-%02d)", sent, len(premium_profiles), year, month)
     except Exception as e:
         logger.error("job_monthly_report_email failed: %s", e)
+
+
+async def job_monthly_report_notify_available():
+    """8:50 AM ET on the 1st — the Monthly Report window opens. Diego,
+    2026-09-27: the closed-window screen has an "Avísame cuando abra"
+    button (POST /api/monthly-report/notify-me → feature_notify_optins,
+    feature_key "monthly_report"); this tells every opted-in user by push
+    AND email, once per month (`notified_at`), same recurring pattern as
+    job_wrapped_notify_available. Premium users get the same full recap
+    email job_monthly_report_email would send (built from the real
+    get_monthly_report()), and that job skips them afterward so nobody gets
+    it twice; Free users get a short "ya abrió" email.
+
+    Runs 10 minutes before job_monthly_report_email on purpose."""
+    import pytz
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push, send_email_notification
+    from app.services.monthly_report_service import get_monthly_report
+    from app.services.email_templates import _email_wrapper, _nuvos_header
+
+    db = get_supabase()
+    try:
+        now = datetime.now(timezone.utc)
+        today = datetime.now(pytz.timezone("America/New_York")).date()
+        prev_month_end = today.replace(day=1) - timedelta(days=1)
+        year, month = prev_month_end.year, prev_month_end.month
+
+        optins_res = await run_query(
+            db.table("feature_notify_optins").select("user_id,notified_at").eq("feature_key", "monthly_report")
+        )
+
+        def _notified_this_month(v) -> bool:
+            if not v:
+                return False
+            ts = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+            return (ts.year, ts.month) == (now.year, now.month)
+
+        pending = [r["user_id"] for r in (optins_res.data or []) if not _notified_this_month(r.get("notified_at"))]
+        if not pending:
+            return
+
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,name,subscription_tier,trial_started_at,streak_bonus_premium_until,preferred_language")
+            .in_("user_id", pending)
+        )
+        profiles = {r["user_id"]: r for r in (prof_res.data or [])}
+
+        sent = 0
+        for i, uid in enumerate(pending):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            prof = profiles.get(uid, {})
+            lang = prof.get("preferred_language") or "es"
+            is_en = lang == "en"
+            month_label = (
+                f"{_ENGLISH_MONTHS[month - 1]} {year}" if is_en
+                else f"{_SPANISH_MONTHS[month - 1].capitalize()} {year}"
+            )
+            first = (prof.get("name") or ("Investor" if is_en else "Inversor")).split()[0]
+            try:
+                title = f"📊 Your {month_label} Monthly Report is ready" if is_en else f"📊 Tu Monthly Report de {month_label} ya está listo"
+                body = (
+                    "See how your month went. It's open until the 3rd."
+                    if is_en else
+                    "Descubre cómo te fue este mes. Está disponible hasta el día 3."
+                )
+                await send_push(uid, "monthly_report_available", title, body, {"screen": "monthly-report"}, db)
+
+                html = None
+                subject = title
+                if _is_premium_user(prof.get("subscription_tier") or "free", prof.get("trial_started_at"), prof.get("streak_bonus_premium_until")):
+                    try:
+                        report = await get_monthly_report(uid, year, month, lang=lang)
+                        if report.get("available"):
+                            subject, html = build_monthly_report_email_for_user(
+                                first=first, month_label=month_label, year=year, month=month, report=report, lang=lang,
+                            )
+                    except Exception as e:
+                        logger.warning("job_monthly_report_notify_available: report failed for %s: %s", uid, e)
+                if html is None:
+                    cta = "Open my Monthly Report" if is_en else "Ver mi Monthly Report"
+                    text = (
+                        f"Hi {first}, your {month_label} Monthly Report just opened. It's available until the 3rd."
+                        if is_en else
+                        f"Hola {first}, tu Monthly Report de {month_label} ya abrió. Está disponible hasta el día 3."
+                    )
+                    html = _email_wrapper(
+                        _nuvos_header("Monthly Report")
+                        + f'<p style="color:#e5e7eb;font-size:15px;line-height:1.6;text-align:center;margin:0 0 24px">{text}</p>'
+                        + '<div style="text-align:center"><a href="https://www.nuvosai.com/monthly-report" '
+                        + 'style="display:inline-block;background:#00d47e;color:#000;font-weight:800;font-size:14px;'
+                        + f'text-decoration:none;border-radius:12px;padding:12px 26px">{cta}</a></div>'
+                    )
+                await send_email_notification(uid, "monthly_report", subject, html, db)
+
+                await run_query(
+                    db.table("feature_notify_optins").update({"notified_at": now.isoformat()})
+                    .eq("user_id", uid).eq("feature_key", "monthly_report")
+                )
+                sent += 1
+                await asyncio.sleep(random.uniform(0.05, 0.15))
+            except Exception as e:
+                logger.warning("job_monthly_report_notify_available: failed for %s: %s", uid, e)
+
+        logger.info("job_monthly_report_notify_available: %d/%d users notified (%s-%02d)", sent, len(pending), year, month)
+    except Exception as e:
+        logger.error("job_monthly_report_notify_available failed: %s", e)
 
 
 # ── Annual Wrapped email (Dec 15, when the window opens) ───────────────────
@@ -6844,6 +6959,8 @@ async def main():
     # month even when the 1st is a weekend/holiday (same idiom as
     # job_weekly_open_snapshot's day-of-week cron + internal gate).
     scheduler.add_job(job_monthly_report_email, "cron", day="1-3",             hour=9,       minute=0,     timezone="America/New_York")
+    # "Avísame cuando abra" opt-ins (push + email) — 10 minutes before the recap email so that job can skip them.
+    scheduler.add_job(job_monthly_report_notify_available, "cron", day=1, hour=8, minute=50, timezone="America/New_York")
     # Dec 15, 9:00am ET — same moment job_wrapped_notify_available pushes its
     # opt-in users, but this email reaches every user (see docstring).
     # ── 13:00 ET weekdays: rotating nudge for users WITHOUT a portfolio

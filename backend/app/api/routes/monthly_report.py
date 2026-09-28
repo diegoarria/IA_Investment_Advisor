@@ -89,3 +89,61 @@ async def get_monthly_report_route(
             "worst_position": portfolio.get("worst_position"),
         },
     }
+
+
+# ── "Avísame cuando abra" (Diego, 2026-09-27) ────────────────────────────────
+# The closed-window screen offers a button to get a push + email the moment
+# the report opens. Same opt-in table and recurring philosophy as Wrapped's
+# notify-me (feature_notify_optins, migration 095): one row per user, kept
+# across months, `notified_at` marks "already told this cycle" — so a user
+# who opts in once is told on the 1st of every month until they turn it off.
+# worker.py's job_monthly_report_notify_available sends it.
+
+_NOTIFY_KEY = "monthly_report"
+
+
+def next_monthly_report_open_date(today: date | None = None) -> date:
+    """The next day the report opens (the 1st of next month), or today while
+    the window is open."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from app.core.monthly_report_window import MONTHLY_REPORT_CLOSE_DAY
+
+    today = today or datetime.now(ZoneInfo("America/New_York")).date()
+    if today.day <= MONTHLY_REPORT_CLOSE_DAY:
+        return today
+    return date(today.year + (today.month == 12), today.month % 12 + 1, 1)
+
+
+@router.get("/notify-me")
+async def get_monthly_report_notify_status(user_id: str = Depends(get_current_user_id)):
+    db = get_supabase()
+    res = await run_query(
+        db.table("feature_notify_optins").select("user_id")
+        .eq("user_id", user_id).eq("feature_key", _NOTIFY_KEY)
+    )
+    return {"opted_in": bool(res.data), "opens_on": next_monthly_report_open_date().isoformat()}
+
+
+@router.post("/notify-me")
+async def monthly_report_notify_me(user_id: str = Depends(get_current_user_id)):
+    """Idempotent opt-in. Resets notified_at so a user who turned it off and
+    back on is still told on the next opening."""
+    db = get_supabase()
+    await run_query(
+        db.table("feature_notify_optins").upsert(
+            {"user_id": user_id, "feature_key": _NOTIFY_KEY, "notified_at": None},
+            on_conflict="user_id,feature_key",
+        )
+    )
+    return {"opted_in": True, "opens_on": next_monthly_report_open_date().isoformat()}
+
+
+@router.delete("/notify-me")
+async def monthly_report_notify_off(user_id: str = Depends(get_current_user_id)):
+    db = get_supabase()
+    await run_query(
+        db.table("feature_notify_optins").delete()
+        .eq("user_id", user_id).eq("feature_key", _NOTIFY_KEY)
+    )
+    return {"opted_in": False, "opens_on": next_monthly_report_open_date().isoformat()}

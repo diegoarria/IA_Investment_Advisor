@@ -2355,7 +2355,32 @@
     "retry": "Retry",
     "back": "Back",
     "premiumTitle": "Monthly Report is Premium",
-    "nextMonth": "Next month"
+    "nextMonth": "Next month",
+    "closed": {
+      "title": "Your Monthly Report opens on {{date}}",
+      "body": "From the 1st to the 3rd of every month, Nuvos puts together how your month went: your portfolio, your decisions and how you're growing as an investor.",
+      "daysLeft": "{{count}} days to go",
+      "oneDayLeft": "1 day to go",
+      "window": "Available the 1st to the 3rd",
+      "notifyTitle": "Tell me when it opens",
+      "notifyBody": "We'll send you a notification and an email on {{date}}, as soon as your report is ready.",
+      "notifyOnTitle": "Done, we'll let you know",
+      "notifyOnBody": "You'll get a notification and an email on {{date}}, and every month after that.",
+      "channel_push": "Notification",
+      "channel_email": "Email",
+      "notifyCta": "Notify me by push and email",
+      "notifyOff": "Stop the reminder",
+      "notifyError": "We couldn't save your reminder. Please try again.",
+      "includesTitle": "What you'll see",
+      "includes": {
+        "portfolio": "Your portfolio",
+        "decisions": "Your decisions",
+        "research": "Companies you researched",
+        "wealth": "Your net worth",
+        "habits": "Your consistency",
+        "achievements": "Your achievements"
+      }
+    }
   },
   "wrapped": {
     "unknownError": "Unknown error",

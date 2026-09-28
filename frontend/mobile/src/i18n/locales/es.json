@@ -2362,7 +2362,32 @@
     "retry": "Reintentar",
     "back": "Volver",
     "premiumTitle": "Monthly Report es Premium",
-    "nextMonth": "Mes siguiente"
+    "nextMonth": "Mes siguiente",
+    "closed": {
+      "title": "Tu Monthly Report abre el {{date}}",
+      "body": "Del 1 al 3 de cada mes, Nuvos prepara el resumen de cómo te fue: tu portafolio, tus decisiones y cómo vas creciendo como inversionista.",
+      "daysLeft": "Faltan {{count}} días",
+      "oneDayLeft": "Falta 1 día",
+      "window": "Disponible del 1 al 3",
+      "notifyTitle": "Avísame cuando abra",
+      "notifyBody": "Te mandamos una notificación y un correo el {{date}}, en cuanto tu reporte esté listo.",
+      "notifyOnTitle": "Listo, te avisamos",
+      "notifyOnBody": "Recibirás una notificación y un correo el {{date}}, y así cada mes.",
+      "channel_push": "Notificación",
+      "channel_email": "Correo",
+      "notifyCta": "Avísame por notificación y correo",
+      "notifyOff": "Ya no quiero el aviso",
+      "notifyError": "No pudimos guardar tu aviso. Inténtalo de nuevo.",
+      "includesTitle": "Lo que vas a ver",
+      "includes": {
+        "portfolio": "Tu portafolio",
+        "decisions": "Tus decisiones",
+        "research": "Empresas que investigaste",
+        "wealth": "Tu patrimonio",
+        "habits": "Tu constancia",
+        "achievements": "Tus logros"
+      }
+    }
   },
   "index": {
     "activate": "Activar",

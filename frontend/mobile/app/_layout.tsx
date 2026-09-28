@@ -168,6 +168,9 @@ function AppStack() {
         // Nuvos Weekly Rituals — daily question, Sunday prep, Saturday
         // reflection (see backend/app/services/weekly_rituals_service.py).
         router.navigate(`/${data.screen}` as any);
+      } else if (data.screen === "monthly-report") {
+        // "Avísame cuando abra" push on the 1st (job_monthly_report_notify_available).
+        router.navigate("/monthly-report");
       } else if (data.screen === "morning-brief") {
         // Morning Brief (Diego's Aug 16 spec) — Mon-Fri 9:15am ET push,
         // see backend/app/services/morning_brief_service.py. Distinct
