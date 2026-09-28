@@ -356,7 +356,7 @@ export default function ProfileScreen() {
 
 if (!profile) {
     return (
-      <SafeAreaView style={s.container}>
+      <SafeAreaView style={s.container} edges={["left", "right"]}>
         <View style={s.empty}>
           <Ionicons name="person-circle-outline" size={60} color={colors.textDim} />
           <Text style={[s.emptyText, { color: colors.textMuted }]}>{t("profile.noProfile")}</Text>
@@ -476,7 +476,9 @@ if (!profile) {
   const horizonYrs = profile.investment_horizon ? parseInt(profile.investment_horizon) : 0;
 
   return (
-    <SafeAreaView style={s.container} edges={["bottom", "left", "right"]}>
+    <SafeAreaView style={s.container} edges={["left", "right"]}>
+      {/* No "bottom" edge: the tab bar already sits in the bottom safe area —
+          it used to add a blank strip right above it (Diego, 2026-09-27). */}
 
       {/* ── HEADER ── */}
       <View style={[s.header, { borderBottomColor: colors.border }]}>
