@@ -3336,12 +3336,21 @@ async def job_weekly_opportunities_push():
             return
 
         history_res = await run_query(
-            db.table("weekly_opportunities_history").select("user_id,ticker")
+            db.table("weekly_opportunities_history").select("user_id,ticker,sent_at")
             .in_("user_id", [r["user_id"] for r in premium_profiles])
         )
+        # The in-app screen now picks on its own for anyone this job hasn't
+        # reached yet (Diego, 2026-09-27: always 5 per user all week) — a
+        # user who already has this week's list must not get a second,
+        # different batch (and a push that doesn't match their screen).
+        from app.api.routes.screener import _weekly_opportunities_week_start, _parse_ts
+        week_start = _weekly_opportunities_week_start()
         sent_by_user: dict[str, set[str]] = {}
+        this_week_count: dict[str, int] = {}
         for row in (history_res.data or []):
             sent_by_user.setdefault(row["user_id"], set()).add(row["ticker"])
+            if _parse_ts(row.get("sent_at")) >= week_start:
+                this_week_count[row["user_id"]] = this_week_count.get(row["user_id"], 0) + 1
 
         sent = 0
         for i, r in enumerate(premium_profiles):
@@ -3350,6 +3359,8 @@ async def job_weekly_opportunities_push():
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.12))
 
+            if this_week_count.get(uid, 0) >= 5:
+                continue
             picks = pick_weekly_opportunities_for_user(r.get("risk_tolerance"), sent_by_user.get(uid, set()), count=5)
             if not picks:
                 continue  # honest — no real new candidates for this user this week, never fabricated

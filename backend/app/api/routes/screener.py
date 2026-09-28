@@ -1230,44 +1230,30 @@ async def weekly_opportunities(lang: str | None = None, user_id: str = Depends(g
     )
     rows = hist.data or []
 
-    if not rows:
-        # Never sent to this user before (new Premium, or their first run
-        # was missed) — compute one now with the exact same picker the
-        # Sunday job uses, and record it (with a snapshot) so it's never
-        # resent later and displays correctly from here on.
-        risk_tolerance = getattr(profile, "risk_tolerance", None)
-        picks = await asyncio.to_thread(pick_weekly_opportunities_for_user, risk_tolerance, set(), 5)
-        if picks:
-            try:
-                await run_query(
-                    db.table("weekly_opportunities_history").upsert(
-                        [{
-                            "user_id": user_id, "ticker": p["ticker"],
-                            "snapshot": {
-                                "ticker": p.get("ticker"), "company_name": p.get("company_name"),
-                                "sector": p.get("sector"), "price": p.get("price"),
-                                "intrinsic_value_base": p.get("intrinsic_value_base"),
-                                "intrinsic_value_conservative": p.get("intrinsic_value_conservative"),
-                                "intrinsic_value_optimistic": p.get("intrinsic_value_optimistic"),
-                                "margin_of_safety_pct": p.get("margin_of_safety_pct"),
-                                "thesis_scores": p.get("thesis_scores"),
-                            },
-                        } for p in picks],
-                        on_conflict="user_id,ticker",
-                    )
-                )
-            except Exception as exc:
-                logger.warning("weekly_opportunities: failed to record history for %s: %s", user_id, exc)
-        return {"is_premium": True, "results": picks, "generated_at": None}
-
-    # `rows` is sorted newest-first — everything sent on the same real
-    # calendar day as the most recent entry is "this week's" batch. Never
-    # blindly take "the last 5 rows", which could silently blend in older
-    # tickers from a prior week on a week the real candidate pool came up
-    # short (an honest, documented case — see pick_weekly_opportunities_
-    # for_user's own docstring).
-    latest_date = rows[0]["sent_at"][:10]
-    this_week = [r for r in rows if r["sent_at"][:10] == latest_date]
+    # Diego, 2026-09-27: "SIEMPRE debe mostrar las 5 opciones de la semana
+    # para cada usuario" — and the list stays the same all week. A "week"
+    # is anchored to the Sunday 12:10 ET job run (job_weekly_opportunities_
+    # push), not to a calendar date: the old "same date as the newest row"
+    # grouping (a) kept showing LAST week's batch forever to anyone the
+    # job skipped (new Premium mid-week, a failed run), and (b) stuck at
+    # fewer than 5 when the pool came up short. Now: this week's batch if
+    # it exists, topped up to 5 with real candidates when short, or picked
+    # on the spot (and recorded, so it never changes again this week).
+    week_start = _weekly_opportunities_week_start()
+    now = datetime.now(timezone.utc)
+    this_week = [r for r in rows if _parse_ts(r.get("sent_at")) >= week_start]
+    if not this_week and rows and now < week_start + timedelta(hours=_WEEKLY_JOB_GRACE_HOURS):
+        # The Sunday job is (probably) still working through users — keep
+        # showing last week's real list until it reaches this user, rather
+        # than racing it with a second batch.
+        prev_start = week_start - timedelta(days=7)
+        this_week = [r for r in rows if _parse_ts(r.get("sent_at")) >= prev_start] or rows[:5]
+    else:
+        missing_count = 5 - len(this_week)
+        if missing_count > 0:
+            this_week = this_week + await _top_up_weekly_opportunities(
+                db, user_id, getattr(profile, "risk_tolerance", None), rows, this_week, missing_count
+            )
 
     results = [r["snapshot"] for r in this_week if r.get("snapshot")]
     missing = [r["ticker"] for r in this_week if not r.get("snapshot")]
@@ -1287,7 +1273,81 @@ async def weekly_opportunities(lang: str | None = None, user_id: str = Depends(g
         by_ticker = {r["ticker"]: r for r in full["results"]}
         results.extend(by_ticker[t] for t in missing if t in by_ticker)
 
-    return {"is_premium": True, "results": results, "generated_at": rows[0]["sent_at"]}
+    generated_at = max((r.get("sent_at") or "" for r in this_week), default="") or None
+    return {"is_premium": True, "results": results[:5], "generated_at": generated_at}
+
+
+# The Sunday job (worker.py job_weekly_opportunities_push) runs at 12:10 ET;
+# give it this long to reach every user before the endpoint picks on its own.
+_WEEKLY_JOB_GRACE_HOURS = 3
+
+
+def _weekly_opportunities_week_start() -> datetime:
+    """Most recent Sunday 12:10 ET (the weekly job's run time), as UTC."""
+    from zoneinfo import ZoneInfo
+    et = ZoneInfo("America/New_York")
+    now_et = datetime.now(et)
+    days_since_sunday = (now_et.weekday() + 1) % 7
+    start = (now_et - timedelta(days=days_since_sunday)).replace(hour=12, minute=10, second=0, microsecond=0)
+    if start > now_et:
+        start -= timedelta(days=7)
+    return start.astimezone(timezone.utc)
+
+
+def _parse_ts(value) -> datetime:
+    try:
+        ts = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+    except Exception:
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _weekly_snapshot(p: dict) -> dict:
+    return {
+        "ticker": p.get("ticker"), "company_name": p.get("company_name"),
+        "sector": p.get("sector"), "price": p.get("price"),
+        "intrinsic_value_base": p.get("intrinsic_value_base"),
+        "intrinsic_value_conservative": p.get("intrinsic_value_conservative"),
+        "intrinsic_value_optimistic": p.get("intrinsic_value_optimistic"),
+        "margin_of_safety_pct": p.get("margin_of_safety_pct"),
+        "thesis_scores": p.get("thesis_scores"),
+    }
+
+
+async def _top_up_weekly_opportunities(
+    db, user_id: str, risk_tolerance, all_rows: list[dict], this_week: list[dict], count: int,
+) -> list[dict]:
+    """`count` more REAL picks for this week (same picker as the Sunday
+    job), recorded with sent_at=now so they stay put for the rest of the
+    week. Prefers never-sent tickers; only if the real universe has run
+    out of those does it allow a ticker sent in an earlier week (never one
+    already in this week's list). Returns history-shaped rows."""
+    from app.services.undervalued_screener_service import pick_weekly_opportunities_for_user, bootstrap_fill_if_empty_sync
+
+    this_week_tickers = {r["ticker"] for r in this_week}
+    ever_sent = {r["ticker"] for r in all_rows}
+    picks = await asyncio.to_thread(pick_weekly_opportunities_for_user, risk_tolerance, ever_sent, count)
+    if len(picks) < count:
+        more = await asyncio.to_thread(
+            pick_weekly_opportunities_for_user, risk_tolerance, this_week_tickers | {p["ticker"] for p in picks}, count - len(picks)
+        )
+        picks += more
+    if not picks and not this_week:
+        # Cold screener cache (e.g. right after a deploy) — build it once, then pick.
+        await asyncio.to_thread(bootstrap_fill_if_empty_sync)
+        picks = await asyncio.to_thread(pick_weekly_opportunities_for_user, risk_tolerance, ever_sent, count)
+    if not picks:
+        logger.warning("weekly_opportunities: could not top up %s (%d missing) — universe empty", user_id, count)
+        return []
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    new_rows = [{"user_id": user_id, "ticker": p["ticker"], "sent_at": now_iso, "snapshot": _weekly_snapshot(p)} for p in picks]
+    try:
+        await run_query(db.table("weekly_opportunities_history").upsert(new_rows, on_conflict="user_id,ticker"))
+    except Exception as exc:
+        # Still show them now; they'll be re-picked (same ranking) next open.
+        logger.warning("weekly_opportunities: failed to record top-up for %s: %s", user_id, exc)
+    return [{"ticker": r["ticker"], "sent_at": now_iso, "snapshot": r["snapshot"]} for r in new_rows]
 
 
 @router.get("/sector-roster")

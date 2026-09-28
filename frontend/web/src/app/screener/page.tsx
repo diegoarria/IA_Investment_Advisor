@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Search, RefreshCw, Loader2, Lock } from "lucide-react";
 import posthog from "posthog-js";
 import AppSidebar from "@/components/AppSidebar";
@@ -10,6 +10,7 @@ import { useSubscriptionStore, useProfileStore, hasPremiumAccess } from "@/lib/s
 import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { useWeeklyOpportunities } from "@/lib/useWeeklyOpportunities";
 import WeeklyOpportunityCard, { type WeeklyOpportunity } from "@/components/WeeklyOpportunityCard";
 
 interface UndervaluedResponse {
@@ -26,12 +27,6 @@ interface UndervaluedResponse {
 // from UndervaluedResponse above (generated_at is an ISO string here,
 // a unix timestamp there) — kept as its own type instead of reusing
 // UndervaluedResponse so that difference stays explicit.
-interface WeeklyOpportunitiesResponse {
-  is_premium: boolean;
-  results?: WeeklyOpportunity[];
-  generated_at?: string | null;
-}
-
 function getEtfByRisk(t: TFunction): Record<string, { ticker: string; name: string; desc: string; color: string }[]> {
   return {
     conservative: [
@@ -56,35 +51,24 @@ export default function ScreenerPage() {
   const { t, i18n } = useTranslation();
   const ETF_BY_RISK = getEtfByRisk(t);
   const sub          = useSubscriptionStore();
-  const isPremium = hasPremiumAccess(sub);
+  const isPremiumAccess = hasPremiumAccess(sub);
   const { profile }  = useProfileStore();
   const userLevel    = getUserLevel(profile);
   const [paywallOpen, setPaywall]   = useState(false);
   const [paywallReason, setPaywallReason] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const [weekly, setWeekly] = useState<WeeklyOpportunity[]>([]);
-  const [weeklyGeneratedAt, setWeeklyGeneratedAt] = useState<string | null>(null);
-  const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [opportunitiesTeaserCount, setOpportunitiesTeaserCount] = useState<number | null>(null);
 
-  const loadWeekly = useCallback(async () => {
-    if (!isPremium) return;
-    setWeeklyLoading(true);
-    try {
-      const res = await screenerApi.getWeeklyOpportunities(i18n.language);
-      const data = res.data as WeeklyOpportunitiesResponse;
-      setWeekly(data.results ?? []);
-      setWeeklyGeneratedAt(data.generated_at ?? null);
-    } catch {
-      // Keep whatever was already showing — never wipe a real list on a
-      // transient failure.
-    } finally {
-      setWeeklyLoading(false);
-    }
-  }, [isPremium, i18n.language]);
-
-  useEffect(() => { loadWeekly(); }, [loadWeekly]);
+  // Diego, 2026-09-27: always this week's 5 — cached per user, retried, and
+  // never blanked by a failed/empty answer (see useWeeklyOpportunities).
+  // `serverFree`: billing status hadn't loaded yet, so the page assumed
+  // Premium, but the backend says Free — show the Free teaser, not an
+  // empty Premium list ("Todavía no hay datos del screener semanal").
+  const { data: weeklyData, loading: weeklyLoading, serverFree, load: loadWeekly } = useWeeklyOpportunities(isPremiumAccess);
+  const isPremium = isPremiumAccess && !serverFree;
+  const weekly = weeklyData?.results ?? [];
+  const weeklyGeneratedAt = weeklyData?.generated_at ?? null;
 
   useEffect(() => {
     // Free/guest users still see a REAL, never-hardcoded count of how many
@@ -210,13 +194,16 @@ export default function ScreenerPage() {
                   {t("screener.weekTheme.updated", { date: new Date(weeklyGeneratedAt).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" }) })}
                 </p>
               )}
-              {weeklyLoading ? (
+              {weeklyLoading && weekly.length === 0 ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
                 </div>
               ) : weekly.length === 0 ? (
-                <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>{t("screener.empty")}</p>
+                <div className="rounded-xl border p-4 flex flex-col items-center gap-3 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>{t("screener.loadError")}</p>
+                  <button onClick={loadWeekly} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: "var(--accent)", color: "#fff" }}>
+                    {t("screener.retry")}
+                  </button>
                 </div>
               ) : (
                 <div className="rounded-2xl border overflow-hidden divide-y" style={{ borderColor: "var(--border)", background: "var(--card)" }}>

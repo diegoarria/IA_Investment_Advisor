@@ -2872,7 +2872,8 @@
     "defaultDisclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa antes de invertir un solo dólar.",
     "retry": "Reintentar",
     "unlockPreview": "Desbloquea tus 5 ideas de la semana",
-    "unlockCta": "Desbloquear con Premium"
+    "unlockCta": "Desbloquear con Premium",
+    "loadError": "No pudimos conectar para traer tus 5 opciones de esta semana. Revisa tu conexión e inténtalo de nuevo."
   },
   "weeklyOpportunityCard": {
     "priceNow": "Precio actual",

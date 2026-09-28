@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, TouchableOpacity, ActivityIndicator, StyleSheet,
 } from "react-native";
@@ -60,40 +60,57 @@ async function writeWeeklyCache(data: WeeklyData) {
   } catch { /* best-effort — session still has it in memory */ }
 }
 
-export default function MobileWeeklyScreener({ isPremium, onUpgrade }: Props) {
+const RETRY_DELAYS_MS = [0, 1500, 4000, 8000];
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export default function MobileWeeklyScreener({ isPremium: isPremiumProp, onUpgrade }: Props) {
   const { colors } = useTheme();
   const { t, i18n } = useTranslation();
   const [data, setData]       = useState<WeeklyData | null>(null);
   const [previewRows, setPreviewRows] = useState<WeeklyOpportunity[]>([]);
   const [loading, setLoading] = useState(false);
+  // The backend says this account is Free (the app's own tier can be stale
+  // or optimistic) — show the Free teaser, never an empty Premium list.
+  const [serverFree, setServerFree] = useState(false);
+  const isPremium = isPremiumProp && !serverFree;
+  const loadSeq = useRef(0);
   const s = styles();
+  const hasData = (data?.results?.length ?? 0) > 0;
 
   useEffect(() => {
     let cancelled = false;
-    readWeeklyCache().then((cached) => { if (cached && !cancelled) setData(cached); });
+    readWeeklyCache().then((cached) => { if (cached && !cancelled) setData((d) => (isValidWeeklyPayload(d) ? d : cached)); });
     return () => { cancelled = true; };
   }, []);
 
+  // Diego, 2026-09-27: "SIEMPRE debe mostrar las 5 opciones de la semana."
+  // The backend now always returns this week's 5 for a Premium user; here:
+  // retry on failure, and a failed or empty answer never replaces a real
+  // list already on screen (it used to — and got cached as "no picks").
   const load = useCallback(async () => {
-    if (!isPremium) return;
-    // Diego, 2026-09-23: "necesito que abra en máximo 10 segundos." This is
-    // a plain DB read (weekly_opportunities_history), normally instant —
-    // the budget only matters on the rare on-demand fallback (a brand new
-    // Premium user this job hasn't run for yet). One bounded attempt (8s)
-    // decides what's on screen within the 10s ceiling; a second, longer
-    // attempt keeps trying quietly in the background if that doesn't land.
+    if (!isPremiumProp) return;
+    const seq = ++loadSeq.current;
     setLoading(true);
-    try {
-      const res = await screenerWeeklyApi.getWeeklyOpportunities(i18n.language, 8000);
-      setData(res.data);
-      writeWeeklyCache(res.data);
-    } catch {
-      screenerWeeklyApi.getWeeklyOpportunities(i18n.language, 25000)
-        .then((res: any) => { setData(res.data); writeWeeklyCache(res.data); })
-        .catch(() => {}); // still nothing — the empty/cached state below already covers this
+    for (const delay of RETRY_DELAYS_MS) {
+      if (delay) await sleep(delay);
+      if (seq !== loadSeq.current) return;
+      try {
+        const res: any = await screenerWeeklyApi.getWeeklyOpportunities(i18n.language, 25000);
+        if (seq !== loadSeq.current) return;
+        if (res.data?.is_premium === false) {
+          setServerFree(true);
+          break;
+        }
+        setServerFree(false);
+        if (isValidWeeklyPayload(res.data)) {
+          setData(res.data);
+          writeWeeklyCache(res.data);
+          break;
+        }
+      } catch {}
     }
-    setLoading(false);
-  }, [isPremium, i18n.language]);
+    if (seq === loadSeq.current) setLoading(false);
+  }, [isPremiumProp, i18n.language]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -197,21 +214,21 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade }: Props) {
 
       {/* ── Content ── */}
       <View style={s.content}>
-        {loading && (
+        {loading && !hasData && (
           <View style={s.loadingRow}>
             <ActivityIndicator size="small" color={TOOL_COLOR} />
             <Text style={[s.loadingText, { color: colors.textMuted }]}>{t("mobileWeeklyScreener.searching")}</Text>
           </View>
         )}
 
-        {!loading && data?.results?.map((pick, i) => (
+        {hasData && data!.results!.slice(0, 5).map((pick, i) => (
           <WeeklyOpportunityCard key={pick.ticker} pick={pick} rank={i + 1} />
         ))}
 
-        {!loading && (!data || !data.results || data.results.length === 0) && (
+        {!loading && !hasData && (
           <View style={s.emptyWrap}>
             <Text style={{ fontSize: 28 }}>🔍</Text>
-            <Text style={[s.emptyText, { color: colors.textMuted }]}>{t("mobileWeeklyScreener.noPicks")}</Text>
+            <Text style={[s.emptyText, { color: colors.textMuted }]}>{t("mobileWeeklyScreener.loadError")}</Text>
             <TouchableOpacity
               onPress={load}
               style={[s.retryBtn, { backgroundColor: TOOL_COLOR + "15" }]}
@@ -222,7 +239,7 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade }: Props) {
           </View>
         )}
 
-        {!loading && data?.results && data.results.length > 0 && (
+        {hasData && (
           <View style={[s.disclaimerRow, { borderTopColor: colors.border }]}>
             <Ionicons name="information-circle-outline" size={13} color={colors.textDim ?? colors.textMuted} style={{ marginTop: 1 }} />
             <Text style={[s.disclaimerText, { color: colors.textDim ?? colors.textMuted }]}>

@@ -610,7 +610,9 @@
     "weekTheme": {
       "label": "🗓 TEMA DE LA SEMANA",
       "updated": "Actualizado: {{date}}"
-    }
+    },
+    "loadError": "No pudimos conectar para traer tus 5 opciones de esta semana. Revisa tu conexión e inténtalo de nuevo.",
+    "retry": "Reintentar"
   },
   "earnings": {
     "title": "Análisis de Earnings",
@@ -3439,7 +3441,8 @@
     "retry": "Reintentar",
     "previewRowHint": "Análisis completo disponible con Premium...",
     "unlockPreview": "Desbloquea tus 5 ideas de la semana",
-    "unlockCta": "Desbloquear con Premium"
+    "unlockCta": "Desbloquear con Premium",
+    "loadError": "No pudimos conectar para traer tus 5 opciones de esta semana. Revisa tu conexión e inténtalo de nuevo."
   },
   "paywallModal": {
     "planYearlyBadge": "MÁS POPULAR",

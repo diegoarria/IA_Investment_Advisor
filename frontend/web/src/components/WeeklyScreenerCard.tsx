@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
   Search, Loader2, RefreshCw, Lock, X, Sparkles, Info,
 } from "lucide-react";
 import { screenerApi } from "@/lib/api";
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@/lib/store";
+import { useWeeklyOpportunities } from "@/lib/useWeeklyOpportunities";
 import WeeklyOpportunityCard, { type WeeklyOpportunity } from "@/components/WeeklyOpportunityCard";
 
 // Diego, 2026-09-24: "Acciones subvaluadas (DCF) ... ese es el que quiero
@@ -14,11 +14,6 @@ import WeeklyOpportunityCard, { type WeeklyOpportunity } from "@/components/Week
 // same engine and same 5 tickers as the Sunday "Nuvos Radar detectó..."
 // push (GET /screener/weekly-opportunities), never an AI narrative.
 type Pick = WeeklyOpportunity;
-
-interface WeeklyData {
-  results?: Pick[];
-  generated_at?: string | null;
-}
 
 interface Props {
   isPremium: boolean;
@@ -39,82 +34,33 @@ const TOOL_COLOR = "#8b5cf6";
 // persist an empty result, ignore one on read, and time-box every entry
 // to 8 days (server-side history is read fresh each Sunday) so a stale
 // entry can't outlive its week even if it once looked valid.
-const WEEKLY_CACHE_MAX_AGE_MS = 8 * 24 * 3600 * 1000;
-function weeklyCacheKey(userId: string | null): string | null {
-  return userId ? `nuvos_weekly_screener_cache__${userId}` : null;
-}
-function isValidWeeklyPayload(data: WeeklyData | null | undefined): data is WeeklyData {
-  return !!data && (data.results?.length ?? 0) > 0;
-}
-function readWeeklyCache(userId: string | null): WeeklyData | null {
-  const key = weeklyCacheKey(userId);
-  if (!key) return null;
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { data?: WeeklyData; cachedAt?: number };
-    if (!parsed.cachedAt || Date.now() - parsed.cachedAt > WEEKLY_CACHE_MAX_AGE_MS) return null;
-    return isValidWeeklyPayload(parsed.data) ? parsed.data! : null;
-  } catch { return null; }
-}
-function writeWeeklyCache(userId: string | null, data: WeeklyData) {
-  const key = weeklyCacheKey(userId);
-  if (!key || !isValidWeeklyPayload(data)) return;
-  try { localStorage.setItem(key, JSON.stringify({ data, cachedAt: Date.now() })); } catch {}
-}
-
 export default function WeeklyScreenerCard({ isPremium, onUpgrade }: Props) {
   const { t, i18n } = useTranslation();
-  const { isAuthenticated, authRestoring, userId } = useAuthStore();
   const [open, setOpen]          = useState(false);
-  const [data, setData]          = useState<WeeklyData | null>(() => readWeeklyCache(userId));
-  const [loading, setLoading]    = useState(false);
   const [previewRows, setPreviewRows] = useState<Pick[]>([]);
-
-  const load = useCallback(async () => {
-    // Same auth-rehydration race fixed elsewhere in this app (watchlist,
-    // subvaluadas, portfolio's cash/dividends): firing before the session
-    // cookie is attached used to 401, and the old bare `catch {}` below
-    // swallowed that silently with no retry — permanently empty until a
-    // manual reload, which is exactly "en web app nunca se ve."
-    if (authRestoring || !isAuthenticated || !isPremium) return;
-    setLoading(true);
-    // Diego, 2026-09-23: "necesito que abra en máximo 10 segundos." This is
-    // a plain DB read (weekly_opportunities_history), normally instant —
-    // the budget only matters on the rare on-demand fallback (a brand new
-    // Premium user this job hasn't run for yet). One bounded attempt (8s)
-    // decides what's on screen within the 10s ceiling; a second, longer
-    // attempt keeps trying quietly in the background if that doesn't land.
-    try {
-      const res = await screenerApi.getWeeklyOpportunities(i18n.language);
-      setData(res.data);
-      writeWeeklyCache(userId, res.data);
-    } catch {
-      screenerApi.getWeeklyOpportunities(i18n.language)
-        .then((res) => { setData(res.data); writeWeeklyCache(userId, res.data); })
-        .catch(() => {}); // still nothing — the empty/cached state below already covers this
-    }
-    setLoading(false);
-  }, [isPremium, authRestoring, isAuthenticated, userId, i18n.language]);
-
-  useEffect(() => { load(); }, [load]);
+  // Cache + retries + "never blank a real list" live in the shared hook
+  // (see useWeeklyOpportunities). `serverFree`: the backend says this
+  // account is Free even though billing status hadn't loaded yet.
+  const { data, loading, serverFree, load } = useWeeklyOpportunities(isPremium);
+  const premium = isPremium && !serverFree;
+  const hasData = (data?.results?.length ?? 0) > 0;
 
   // Free/guest preview — real (never fabricated) candidates from the same
   // DCF universe, just not personalized (that part is Premium-only). Zero
   // AI cost, same source /screener page's own free-tier teaser uses.
   useEffect(() => {
-    if (isPremium) return;
+    if (premium) return;
     screenerApi.getUndervalued(undefined, 3)
       .then((res) => setPreviewRows((res.data?.results ?? []) as Pick[]))
       .catch(() => {});
-  }, [isPremium]);
+  }, [premium]);
 
   const handleOpen = () => {
-    if (!isPremium) { onUpgrade(); return; }
+    if (!premium) { onUpgrade(); return; }
     setOpen(true);
   };
 
-  if (!isPremium) {
+  if (!premium) {
     const rows: (Pick | null)[] = previewRows.length ? previewRows.slice(0, 3) : [null, null, null];
     return (
       <div
@@ -293,14 +239,14 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade }: Props) {
             </div>
 
             <div className="overflow-y-auto flex-1">
-              {loading && (
+              {loading && !hasData && (
                 <div className="flex items-center gap-2 p-5">
                   <Loader2 className="w-4 h-4 animate-spin" style={{ color: TOOL_COLOR }} />
                   <span className="text-xs" style={{ color: "var(--muted)" }}>{t("weeklyScreenerCard.analyzingMarket")}</span>
                 </div>
               )}
 
-              {!loading && data?.generated_at && (
+              {data?.generated_at && (
                 <div className="px-5 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                   <p className="text-[11px] leading-snug" style={{ color: "var(--muted)" }}>
                     {t("weeklyScreenerCard.updated", {
@@ -310,15 +256,15 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade }: Props) {
                 </div>
               )}
 
-              {!loading && data?.results && data.results.length > 0 && (
+              {hasData && (
                 <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-                  {data.results.slice(0, 5).map((pick, i) => (
+                  {data!.results!.slice(0, 5).map((pick, i) => (
                     <WeeklyOpportunityCard key={pick.ticker} pick={pick} rank={i + 1} />
                   ))}
                 </div>
               )}
 
-              {!loading && data && (
+              {hasData && (
                 <div className="flex items-start gap-2 px-5 py-3 border-t" style={{ borderColor: "var(--border)" }}>
                   <Info className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "var(--dim)" }} />
                   <p className="text-[10px] leading-relaxed" style={{ color: "var(--dim)" }}>
@@ -327,9 +273,9 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade }: Props) {
                 </div>
               )}
 
-              {!loading && (!data || !data.results || data.results.length === 0) && (
+              {!loading && !hasData && (
                 <div className="p-5 flex flex-col items-center gap-3 text-center">
-                  <span className="text-xs" style={{ color: "var(--muted)" }}>{t("weeklyScreenerCard.noSuggestions")}</span>
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>{t("weeklyScreenerCard.loadError")}</span>
                   <button
                     onClick={load}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold"

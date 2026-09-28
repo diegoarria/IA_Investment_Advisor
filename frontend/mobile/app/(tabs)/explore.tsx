@@ -143,13 +143,33 @@ export default function ExploreScreen() {
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [weeklyExpanded, setWeeklyExpanded] = useState(false);
 
+  const [weeklyFailed, setWeeklyFailed] = useState(false);
+
+  // Diego, 2026-09-27: always this week's 5 — retry on failure, and never
+  // keep an empty answer (it used to be stored and then never re-fetched).
   const loadWeekly = useCallback(async () => {
-    if (!isPremium || weekly) return;
+    if (!isPremium || (weekly?.results?.length ?? 0) > 0) return;
     setWeeklyLoading(true);
-    try {
-      const res: any = await screenerWeeklyApi.getWeeklyOpportunities();
-      setWeekly(res.data);
-    } catch {}
+    setWeeklyFailed(false);
+    for (const delay of [0, 1500, 4000]) {
+      if (delay) await new Promise((r) => setTimeout(r, delay));
+      try {
+        const res: any = await screenerWeeklyApi.getWeeklyOpportunities(undefined, 25000);
+        if (res.data?.is_premium === false) {
+          // The backend says Free — same paywall as the Free branch above.
+          setWeeklyExpanded(false);
+          setPaywallOpen(true);
+          setWeeklyLoading(false);
+          return;
+        }
+        if ((res.data?.results?.length ?? 0) > 0) {
+          setWeekly(res.data);
+          setWeeklyLoading(false);
+          return;
+        }
+      } catch {}
+    }
+    setWeeklyFailed(true);
     setWeeklyLoading(false);
   }, [isPremium, weekly]);
 
@@ -217,10 +237,16 @@ export default function ExploreScreen() {
 
               {weeklyExpanded && weekly?.results && weekly.results.length > 0 && (
                 <View style={{ marginTop: 8, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, overflow: "hidden" }}>
-                  {weekly.results.map((pick, i) => (
+                  {weekly.results.slice(0, 5).map((pick, i) => (
                     <WeeklyOpportunityCard key={pick.ticker} pick={pick} rank={i + 1} />
                   ))}
                 </View>
+              )}
+              {weeklyExpanded && weeklyFailed && !weeklyLoading && !(weekly?.results?.length) && (
+                <TouchableOpacity onPress={loadWeekly} style={{ marginTop: 8, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 14, alignItems: "center", gap: 6 }}>
+                  <Text style={{ fontSize: 12, color: colors.textMuted, textAlign: "center" }}>{t("mobileWeeklyScreener.loadError")}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "800", color: colors.accent }}>{t("mobileWeeklyScreener.retry")}</Text>
+                </TouchableOpacity>
               )}
             </View>
 

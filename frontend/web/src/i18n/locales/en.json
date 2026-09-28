@@ -610,7 +610,9 @@
     "weekTheme": {
       "label": "🗓 THEME OF THE WEEK",
       "updated": "Updated: {{date}}"
-    }
+    },
+    "loadError": "We couldn't connect to get this week's 5 picks. Check your connection and try again.",
+    "retry": "Try again"
   },
   "earnings": {
     "title": "Earnings Analysis",
@@ -3439,7 +3441,8 @@
     "retry": "Retry",
     "previewRowHint": "Full analysis available with Premium...",
     "unlockPreview": "Unlock your 5 ideas for the week",
-    "unlockCta": "Unlock with Premium"
+    "unlockCta": "Unlock with Premium",
+    "loadError": "We couldn't connect to get this week's 5 picks. Check your connection and try again."
   },
   "paywallModal": {
     "planYearlyBadge": "MOST POPULAR",
