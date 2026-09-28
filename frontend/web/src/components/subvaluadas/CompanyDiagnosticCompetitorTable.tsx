@@ -9,7 +9,7 @@
 // duplicate section title.
 
 import { useTranslation } from "react-i18next";
-import { RaisedBlock } from "@/components/ui/Card";
+import { Award } from "lucide-react";
 import { _SCENARIO_COLOR } from "@/components/subvaluadas/shared";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
@@ -25,57 +25,37 @@ export function CompanyDiagnosticCompetitorTable({
 
   return (
     <div>
-      <p className="text-[13px] font-semibold mb-3" style={{ color: "var(--muted)" }}>
+      <p className="text-[12.5px] font-bold mb-2.5 truncate" style={{ color: "var(--muted)" }}>
         {t("companyDiagnostic.pillars.quality.vs")} {competitorName}
       </p>
 
-      {/* >=640px: real table */}
-      <div className="hidden sm:block overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr style={{ background: "var(--card)" }}>
-              <th className="px-3.5 py-2.5 text-[12px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}></th>
-              <th className="px-3.5 py-2.5 text-[12px] font-bold uppercase tracking-wide" style={{ color: _NUVOS_ADVANTAGE_COLOR }}>Nuvos</th>
-              <th className="px-3.5 py-2.5 text-[12px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{competitorName}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.metricName} className="border-t" style={{ borderColor: "var(--border)" }}>
-                <td className="px-3.5 py-3 text-[14px] font-bold" style={{ color: "var(--text)" }}>{row.metricName}</td>
-                <td className="px-3.5 py-3 text-[14.5px] font-black tabular-nums" style={{ color: _NUVOS_ADVANTAGE_COLOR }}>{row.targetCompanyValue}</td>
-                <td className="px-3.5 py-3 text-[14.5px] tabular-nums" style={{ color: "var(--sub)" }}>{row.competitorValue}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* <640px: stacked duel cards */}
-      <div className="sm:hidden space-y-2.5">
+      <div className="space-y-2.5">
         {rows.map((row) => (
-          <RaisedBlock key={row.metricName} style={{ background: "var(--card)" }}>
-            <p className="text-[13px] font-bold mb-2" style={{ color: "var(--muted)" }}>{row.metricName}</p>
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: _NUVOS_ADVANTAGE_COLOR }}>Nuvos</p>
-                <p className="text-[15px] font-black tabular-nums" style={{ color: "var(--text)" }}>{row.targetCompanyValue}</p>
+          <div key={row.metricName} className="rounded-[14px] p-3.5" style={{ background: "var(--card)" }}>
+            <p className="text-xs font-extrabold mb-2.5 truncate" style={{ color: "var(--sub)" }}>{row.metricName}</p>
+            <div className="flex items-stretch gap-2">
+              <div className="flex-1 min-w-0 rounded-xl p-2.5" style={{ background: `${_NUVOS_ADVANTAGE_COLOR}1f` }}>
+                <p className="text-[9.5px] font-black uppercase tracking-[0.5px]" style={{ color: _NUVOS_ADVANTAGE_COLOR }}>Nuvos</p>
+                <p className="text-base font-black tabular-nums mt-[3px] truncate" style={{ color: "var(--text)" }}>{row.targetCompanyValue}</p>
               </div>
-              <div className="text-right">
-                <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{competitorName}</p>
-                <p className="text-[15px] font-bold tabular-nums" style={{ color: "var(--sub)" }}>{row.competitorValue}</p>
+              <div className="flex-1 min-w-0 rounded-xl p-2.5 text-right" style={{ background: "var(--raised)" }}>
+                <p className="text-[9.5px] font-black uppercase tracking-[0.5px] truncate" style={{ color: "var(--muted)" }}>{competitorName}</p>
+                <p className="text-base font-extrabold tabular-nums mt-[3px] truncate" style={{ color: "var(--sub)" }}>{row.competitorValue}</p>
               </div>
             </div>
-            <p className="text-[13px] mt-2 leading-relaxed" style={{ color: "var(--dim)" }}>{row.nuvosAdvantageNote}</p>
-          </RaisedBlock>
+            <p className="text-xs leading-[17px] mt-2.5" style={{ color: "var(--muted)" }}>{row.nuvosAdvantageNote}</p>
+          </div>
         ))}
       </div>
 
-      <div className="mt-3.5 rounded-xl p-3.5" style={{ background: `${_NUVOS_ADVANTAGE_COLOR}1a`, border: `1px solid ${_NUVOS_ADVANTAGE_COLOR}` }}>
-        <p className="text-[12px] font-bold uppercase tracking-wide mb-1.5" style={{ color: _NUVOS_ADVANTAGE_COLOR }}>
-          {t("companyDiagnostic.pillars.quality.conclusionLabel")}
-        </p>
-        <p className="text-[14px] leading-relaxed" style={{ color: "var(--text)" }}>{conclusion}</p>
+      <div className="mt-3 rounded-2xl p-3.5" style={{ background: `linear-gradient(135deg, ${_NUVOS_ADVANTAGE_COLOR}2e, ${_NUVOS_ADVANTAGE_COLOR}0a)`, border: `1px solid ${_NUVOS_ADVANTAGE_COLOR}66` }}>
+        <div className="flex items-center gap-2 mb-1.5">
+          <Award className="w-[15px] h-[15px]" style={{ color: _NUVOS_ADVANTAGE_COLOR }} />
+          <p className="text-[11.5px] font-black uppercase tracking-[0.5px]" style={{ color: _NUVOS_ADVANTAGE_COLOR }}>
+            {t("companyDiagnostic.pillars.quality.conclusionLabel")}
+          </p>
+        </div>
+        <p className="text-sm leading-[20.5px]" style={{ color: "var(--text)" }}>{conclusion}</p>
       </div>
     </div>
   );

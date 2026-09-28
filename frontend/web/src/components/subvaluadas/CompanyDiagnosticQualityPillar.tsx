@@ -6,24 +6,12 @@
 // the app's shared ExpandableSection accordion.
 
 import { useTranslation } from "react-i18next";
-import { Trophy, PieChart, Castle, Swords, Scale } from "lucide-react";
-import { ExpandableSection } from "@/components/ui/ExpandableSection";
+import { Trophy, PieChart, Castle, Swords, Scale, Check } from "lucide-react";
+import { PillarSection, TintSubCard, IconDot, GOLD_LIGHT } from "@/components/subvaluadas/radarUi";
 import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyDiagnosticSectionScore";
 import { CompanyDiagnosticCompetitorTable } from "@/components/subvaluadas/CompanyDiagnosticCompetitorTable";
 import { CompanyDiagnosticSectorComparison } from "@/components/subvaluadas/CompanyDiagnosticSectorComparison";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
-
-function SubCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl p-4" style={{ background: "var(--card-2, var(--raised))", border: "1px solid var(--border-s, var(--border))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 22px rgba(0,0,0,0.3)" }}>
-      <div className="flex items-center gap-2.5 mb-3.5">
-        {icon}
-        <p className="text-[15px] font-bold" style={{ color: "var(--text)" }}>{title}</p>
-      </div>
-      {children}
-    </div>
-  );
-}
 
 export function CompanyDiagnosticQualityPillar({
   score, revenueBreakdown, moatPoints, competitorComparison, sectorComparison, ticker,
@@ -38,10 +26,10 @@ export function CompanyDiagnosticQualityPillar({
   const { t } = useTranslation();
 
   return (
-    <ExpandableSection
+    <PillarSection
       title={t("companyDiagnostic.pillars.quality.title")}
-      icon={<Trophy className="w-5 h-5" style={{ color: "#eab308" }} />}
-      defaultExpanded
+      icon={<Trophy className="w-[18px] h-[18px]" style={{ color: "#eab308" }} />}
+      iconColor="#eab308"
       headline={
         <CompanyDiagnosticSectionScore
           score={score}
@@ -50,45 +38,46 @@ export function CompanyDiagnosticQualityPillar({
         />
       }
     >
-      <div className="space-y-5">
-        <SubCard icon={<PieChart className="w-5 h-5" style={{ color: "var(--accent-l)" }} />} title={t("companyDiagnostic.pillars.quality.revenueBreakdown")}>
-          <div className="space-y-3">
+      <div className="space-y-3.5">
+        <TintSubCard tint="#D4A24C" icon={<PieChart className="w-4 h-4" style={{ color: "var(--accent-l)" }} />} title={t("companyDiagnostic.pillars.quality.revenueBreakdown")}>
+          <div className="space-y-3.5">
             {revenueBreakdown.map((r) => (
               <div key={r.category}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[14px] font-semibold" style={{ color: "var(--text)" }}>{r.category}</span>
-                  <span className="text-[14px] font-black tabular-nums" style={{ color: "var(--text)" }}>{r.percentage}%</span>
+                <div className="flex items-baseline justify-between gap-2 mb-[7px]">
+                  <span className="flex-1 min-w-0 text-[13.5px] font-bold truncate" style={{ color: "var(--text)" }}>{r.category}</span>
+                  <span className="text-[15px] font-black tabular-nums" style={{ color: "var(--text)" }}>{r.percentage}%</span>
                 </div>
-                <div className="h-2 rounded-full" style={{ background: "var(--border)" }}>
-                  <div className="h-2 rounded-full" style={{ width: `${r.percentage}%`, background: "var(--accent)" }} />
+                <div className="h-2.5 rounded-[5px] overflow-hidden" style={{ background: "rgba(127,127,127,0.16)" }}>
+                  <div className="h-full rounded-[5px]" style={{ width: `${r.percentage}%`, background: `linear-gradient(90deg, ${GOLD_LIGHT}, var(--accent))` }} />
                 </div>
               </div>
             ))}
           </div>
-        </SubCard>
+        </TintSubCard>
 
-        <SubCard icon={<Castle className="w-5 h-5" style={{ color: "#4FA695" }} />} title={t("companyDiagnostic.pillars.quality.moatTitle")}>
-          <div className="space-y-2">
+        <TintSubCard tint="#4FA695" icon={<Castle className="w-4 h-4" style={{ color: "#4FA695" }} />} title={t("companyDiagnostic.pillars.quality.moatTitle")}>
+          <div className="space-y-2.5">
             {moatPoints.map((point, i) => (
-              <div key={i} className="rounded-xl p-3" style={{ background: "var(--card)" }}>
-                <p className="text-[14px] leading-relaxed" style={{ color: "var(--text)" }}>{point}</p>
+              <div key={i} className="flex gap-2.5 items-start rounded-[14px] p-3" style={{ background: "var(--card)" }}>
+                <div className="mt-px"><IconDot color="#4FA695" size={22}><Check className="w-3 h-3" /></IconDot></div>
+                <p className="flex-1 text-[13.5px] leading-[19.5px]" style={{ color: "var(--text)" }}>{point}</p>
               </div>
             ))}
           </div>
-        </SubCard>
+        </TintSubCard>
 
         {sectorComparison && (
-          <SubCard icon={<Scale className="w-5 h-5" style={{ color: "var(--accent-l)" }} />} title={t("companyDiagnostic.pillars.quality.sectorComparisonTitle")}>
+          <TintSubCard tint="#D4A24C" icon={<Scale className="w-4 h-4" style={{ color: "var(--accent-l)" }} />} title={t("companyDiagnostic.pillars.quality.sectorComparisonTitle")}>
             <CompanyDiagnosticSectorComparison comparison={sectorComparison} ticker={ticker} />
-          </SubCard>
+          </TintSubCard>
         )}
 
         {competitorComparison && (
-          <SubCard icon={<Swords className="w-5 h-5" style={{ color: "#DD6E63" }} />} title={t("companyDiagnostic.pillars.quality.competitorTitle")}>
+          <TintSubCard tint="#DD6E63" icon={<Swords className="w-4 h-4" style={{ color: "#DD6E63" }} />} title={t("companyDiagnostic.pillars.quality.competitorTitle")}>
             <CompanyDiagnosticCompetitorTable competitorComparison={competitorComparison} />
-          </SubCard>
+          </TintSubCard>
         )}
       </div>
-    </ExpandableSection>
+    </PillarSection>
   );
 }

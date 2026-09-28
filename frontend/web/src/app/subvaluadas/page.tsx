@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { Loader2, Lock, Search, X, AlertTriangle } from "lucide-react";
+import { Loader2, Lock, Search, X, AlertTriangle, ArrowRight, ArrowUp, ArrowDown } from "lucide-react";
 import posthog from "posthog-js";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
@@ -26,7 +26,7 @@ import { CompanyDiagnosticCard } from "@/components/subvaluadas/CompanyDiagnosti
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 import { Card } from "@/components/ui/Card";
 import { resolveValuationPanelMode } from "@/lib/valuationPanelMode";
-import { screenerApi, watchlist } from "@/lib/api";
+import { screenerApi, watchlist, market } from "@/lib/api";
 import { clearTombstone } from "@/lib/watchlistTombstones";
 import { useSubscriptionStore, useThemeStore, useAuthStore, isGuestUser, getGuestId, hasPremiumAccess } from "@/lib/store";
 
@@ -533,7 +533,41 @@ function SubvaluadasPageInner() {
     // satisfies that same-case check and short-circuits straight past the
     // name search — so a plain company name failed unless it happened to
     // already equal its own ticker. Send exactly what the user typed.
+    setSuggestions([]);
     setTicker(query.trim());
+  };
+
+  // ── Type-ahead (Diego, 2026-09-27, same as mobile) — GET
+  // /api/market/search, debounced 250ms; only the latest query's answer
+  // is ever shown. Picking one analyzes that ticker straight away.
+  const [suggestions, setSuggestions] = useState<{ ticker: string; name: string }[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const suggestSeq = useRef(0);
+  useEffect(() => {
+    const q = query.trim();
+    const seq = ++suggestSeq.current;
+    if (!q || !searchFocused) { setSuggestions([]); setSuggestLoading(false); return; }
+    setSuggestLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await market.searchTickers(q);
+        if (seq === suggestSeq.current) setSuggestions(res.data?.results ?? []);
+      } catch {
+        if (seq === suggestSeq.current) setSuggestions([]);
+      } finally {
+        if (seq === suggestSeq.current) setSuggestLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query, searchFocused]);
+  const pickSuggestion = (sym: string) => {
+    suggestSeq.current++;
+    setSuggestions([]);
+    setSuggestLoading(false);
+    setSearchFocused(false);
+    handleSectorCardClick(sym.toUpperCase());
+    setQuery("");
   };
 
   const suggestedG = data?.dcf_assumptions?.suggested_g ?? 7;
@@ -567,42 +601,80 @@ function SubvaluadasPageInner() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <MarketTickerBar />
 
-        <div className="flex-1 overflow-y-auto scrollbar-thin" style={viTheme}>
-            <div className="max-w-[1000px] mx-auto px-6 py-8 md:px-10">
+        <div className="flex-1 overflow-y-auto scrollbar-thin relative" style={viTheme}>
+            {/* Ambient gold glow behind the top of the screen (mobile parity). */}
+            <div className="absolute inset-x-0 top-0 h-[380px] pointer-events-none"
+                 style={{ background: "linear-gradient(rgba(212,162,76,0.22), rgba(212,162,76,0.06) 50%, rgba(212,162,76,0))" }} />
+            <div className="relative max-w-[1000px] mx-auto px-6 py-8 md:px-10">
 
               {!isPremium && (
-                <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl px-4 py-2.5 mb-4"
+                <div className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3 mb-4"
                      style={{ background: "rgba(212,162,76,0.08)", border: "1px solid rgba(212,162,76,0.25)" }}>
-                  <span className="text-[12.5px]" style={{ color: "var(--sub)" }}>{t("subvaluadas.freeGate.banner")}</span>
+                  <div className="w-[30px] h-[30px] rounded-[10px] flex items-center justify-center shrink-0" style={{ background: "rgba(212,162,76,0.16)" }}>
+                    <Lock className="w-3.5 h-3.5" style={{ color: GOLD }} />
+                  </div>
+                  <span className="flex-1 text-[12.5px] leading-[17px]" style={{ color: "var(--sub)" }}>{t("subvaluadas.freeGate.banner")}</span>
                   <button onClick={() => setPaywallOpen(true)} className="text-[12px] font-bold shrink-0" style={{ color: GOLD }}>
                     {t("subvaluadas.freeGate.bannerCta")}
                   </button>
                 </div>
               )}
 
-              <div className="flex gap-2 mb-8">
-                <div className="flex-1 flex items-center gap-2 rounded-xl border px-3"
+              {/* Search — one pill field with "Buscar" inside + type-ahead
+                  dropdown (mobile parity). */}
+              <div className="relative z-20 mb-8">
+                <div className="h-[46px] flex items-center gap-2 rounded-full border pl-3.5 pr-[5px]"
                      style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                  <Search className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
+                  <Search className="w-[17px] h-[17px] shrink-0" style={{ color: "var(--muted)" }} />
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    onFocus={() => setSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+                    autoComplete="off"
                     placeholder={t("subvaluadas.search.placeholder")}
-                    className="flex-1 py-2.5 text-sm bg-transparent outline-none"
+                    className="flex-1 min-w-0 text-sm bg-transparent outline-none"
                     style={{ color: "var(--text)" }}
                   />
                   {query && (
-                    <button onClick={() => setQuery("")}>
+                    <button onClick={() => setQuery("")} aria-label="clear">
                       <X className="w-4 h-4" style={{ color: "var(--muted)" }} />
                     </button>
                   )}
+                  <button onClick={handleSearch} disabled={!query.trim()}
+                          className="h-9 px-3.5 rounded-full text-[12.5px] font-extrabold disabled:opacity-45 shrink-0"
+                          style={{ background: "var(--brand-green)", color: "#0A0F1A" }}>
+                    {t("subvaluadas.search.button")}
+                  </button>
                 </div>
-                <button onClick={handleSearch} disabled={!query.trim()}
-                        className="px-4 py-2.5 rounded-xl text-sm font-bold disabled:opacity-40"
-                        style={{ background: "var(--brand-green)", color: "#0A0F1A" }}>
-                  {t("subvaluadas.search.button")}
-                </button>
+                {searchFocused && query.trim().length > 0 && (suggestions.length > 0 || suggestLoading) && (
+                  <div className="absolute left-0 right-0 top-[54px] rounded-[20px] overflow-hidden border"
+                       style={{ background: "var(--card)", borderColor: "var(--border)", boxShadow: "0 18px 40px -10px rgba(0,0,0,0.55)" }}>
+                    {suggestions.length === 0 ? (
+                      <div className="py-4 flex justify-center"><Loader2 className="w-5 h-5 animate-spin" style={{ color: GOLD }} /></div>
+                    ) : (
+                      <div className="max-h-[360px] overflow-y-auto">
+                        {suggestions.map((sug, i) => (
+                          <button
+                            key={sug.ticker}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => pickSuggestion(sug.ticker)}
+                            className="w-full flex items-center gap-3 px-3.5 py-[11px] text-left hover:bg-white/5 transition-colors"
+                            style={{ borderTop: i ? "1px solid var(--border)" : "none" }}
+                          >
+                            <StockAvatar ticker={sug.ticker} px={34} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[14.5px] font-black truncate" style={{ color: "var(--text)" }}>{sug.ticker}</p>
+                              <p className="text-xs truncate mt-px" style={{ color: "var(--muted)" }}>{sug.name}</p>
+                            </div>
+                            <ArrowRight className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-2.5 overflow-x-auto pb-2 mb-8 -mx-1 px-1" style={{ scrollbarWidth: "thin" }}>
@@ -740,25 +812,30 @@ function SubvaluadasPageInner() {
                 </div>
               ) : (
                 <>
-                  {/* Hero — free-floating, no card, same treatment as before but
-                      on the new type scale (rediseño visual). */}
-                  <div className="flex items-end justify-between gap-5 flex-wrap mb-8">
-                    <div className="flex items-center gap-4">
-                      <div style={{ width: 48, height: 48 }}><StockAvatar ticker={data.ticker} size="lg" /></div>
-                      <div>
-                        <div className="text-lg font-bold tracking-tight" style={{ color: "var(--text)" }}>{data.company_name}</div>
-                        <div className="text-[12px] mt-0.5" style={{ color: "var(--sub)" }}>
-                          {data.sector}{data.exchange ? ` · ${data.exchange}` : ""}
-                        </div>
-                      </div>
+                  {/* Company hero — no box: big logo in a glowing ring, name,
+                      ticker chip + sector · exchange, and the price as the
+                      headline number (mobile parity). The diagnostic below
+                      no longer repeats name/sector. */}
+                  <div className="flex flex-col items-center pt-2.5 pb-6 px-2 text-center">
+                    <div className="p-1 rounded-full mb-3.5" style={{ background: "rgba(212,162,76,0.18)", border: "1px solid rgba(212,162,76,0.45)" }}>
+                      <StockAvatar ticker={data.ticker} px={72} />
+                    </div>
+                    <h1 className="w-full text-2xl sm:text-[28px] font-black tracking-tight leading-tight line-clamp-2" style={{ color: "var(--text)" }}>{data.company_name}</h1>
+                    <div className="flex items-center justify-center gap-2 mt-2 max-w-full">
+                      <span className="px-[9px] py-1 rounded-lg text-xs font-black tracking-[0.5px] shrink-0" style={{ color: GOLD, background: "rgba(212,162,76,0.16)" }}>{data.ticker}</span>
+                      <span className="text-[12.5px] leading-[17px] line-clamp-2" style={{ color: "var(--sub)" }}>
+                        {data.sector}{data.exchange ? ` · ${data.exchange}` : ""}
+                      </span>
                     </div>
                     {data.price !== null && (
-                      <div className="text-right">
-                        <div className="text-[22px] font-black tabular-nums" style={{ color: "var(--text)" }}>${data.price.toFixed(2)}</div>
+                      <div className="flex flex-col items-center mt-[18px]">
+                        <span className="text-[44px] leading-[50px] font-black tabular-nums tracking-[-1.5px]" style={{ color: "var(--text)" }}>${data.price.toFixed(2)}</span>
                         {data.change_pct !== null && (
-                          <div className="text-[12px] font-semibold tabular-nums" style={{ color: data.change_pct >= 0 ? TEAL : CORAL }}>
+                          <span className="flex items-center gap-1 mt-1.5 rounded-full px-3 py-1.5 text-[13px] font-extrabold tabular-nums"
+                                style={{ color: data.change_pct >= 0 ? TEAL : CORAL, background: data.change_pct >= 0 ? "rgba(79,166,149,0.18)" : "rgba(221,110,99,0.18)" }}>
+                            {data.change_pct >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
                             {data.change_pct >= 0 ? "+" : ""}{data.change_pct.toFixed(2)}% {t("subvaluadas.detail.today")}
-                          </div>
+                          </span>
                         )}
                       </div>
                     )}
@@ -824,10 +901,10 @@ function SubvaluadasPageInner() {
                     </Card>
                   )}
 
-                  <div className="space-y-3 mt-8">
+                  <div className="mt-5 flex justify-center">
                     <GeneratedAtNote generatedAt={data.generated_at} />
                   </div>
-                  <div className="flex gap-2 mt-6">
+                  <div className="flex gap-2.5 mt-3">
                     <FollowButton ticker={data.ticker} watchlisted={watchlisted} onFollow={handleFollow} />
                     <AnalyzeButton onAnalyze={handleAnalyze} />
                   </div>

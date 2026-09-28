@@ -7,8 +7,7 @@
 
 import { useTranslation } from "react-i18next";
 import { Shield } from "lucide-react";
-import { ExpandableSection } from "@/components/ui/ExpandableSection";
-import { RaisedBlock } from "@/components/ui/Card";
+import { PillarSection, RaisedTile } from "@/components/subvaluadas/radarUi";
 import { ExplainableValue } from "@/components/ui/ExplainableValue";
 import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyDiagnosticSectionScore";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
@@ -32,10 +31,10 @@ export function CompanyDiagnosticTrustPillar({
   ];
 
   return (
-    <ExpandableSection
+    <PillarSection
       title={t("companyDiagnostic.pillars.trust.title")}
-      icon={<Shield className="w-5 h-5" style={{ color: "#6366F1" }} />}
-      defaultExpanded
+      icon={<Shield className="w-[18px] h-[18px]" style={{ color: "#6366F1" }} />}
+      iconColor="#6366F1"
       headline={
         <CompanyDiagnosticSectionScore
           score={score}
@@ -48,23 +47,23 @@ export function CompanyDiagnosticTrustPillar({
         {rows.map((row) => {
           const label = t(`companyDiagnostic.pillars.trust.${row.explKey}`);
           return (
-            <RaisedBlock key={row.explKey}>
+            <RaisedTile key={row.explKey} tint="#6366F1">
               <ExplainableValue
                 label={t(`companyDiagnostic.explanations.${row.explKey}.title`)}
                 content={{ summary: t(`companyDiagnostic.explanations.${row.explKey}.body`) }}
               >
-                <span className="block text-[12px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{label}</span>
+                <span className="block text-[10.5px] font-black uppercase tracking-[0.4px] truncate" style={{ color: "var(--muted)" }}>{label}</span>
               </ExplainableValue>
-              <p className="text-[17px] font-black tabular-nums mt-1" style={{ color: "var(--text)" }}>{row.value}</p>
+              <p className="text-[19px] font-black tabular-nums mt-2 tracking-tight" style={{ color: "var(--text)" }}>{row.value}</p>
               {row.explKey === "roic" && roicAdjustedForBuybacks && (
-                <p className="text-[9.5px] mt-1" style={{ color: "var(--muted)" }}>
+                <p className="text-[10px] leading-[14px] mt-1.5" style={{ color: "var(--muted)" }}>
                   {t("companyDiagnostic.pillars.trust.roicAdjustedNote")}
                 </p>
               )}
-            </RaisedBlock>
+            </RaisedTile>
           );
         })}
       </div>
-    </ExpandableSection>
+    </PillarSection>
   );
 }

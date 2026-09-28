@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  Star, MessageCircle, AlertTriangle, Check, Sparkles, ShieldCheck, Wand2,
+  Star, MessageCircle, CheckCircle2, AlertTriangle, Check, Sparkles, ShieldCheck, Wand2,
   ChevronDown, ChevronUp, Shield, Target, Users, Rocket, TrendingDown, TrendingUp, Minus,
 } from "lucide-react";
 import { projectDriverBasedDcf, type DriverBasedDcfInput, type DriverBasedDcfResult } from "@/lib/driverBasedDcf";
@@ -1251,9 +1251,9 @@ export function FollowButton({ watchlisted, onFollow }: { ticker: string; watchl
   const { t } = useTranslation();
   return (
     <button onClick={onFollow} disabled={watchlisted}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-colors"
-            style={{ borderColor: "var(--border)", color: "var(--sub)", background: "var(--raised)" }}>
-      {watchlisted ? <Check className="w-3.5 h-3.5" style={{ color: "#22c55e" }} /> : <Star className="w-3.5 h-3.5" />}
+            className="flex-1 flex items-center justify-center gap-[7px] py-4 rounded-2xl text-[13.5px] font-extrabold border transition-colors"
+            style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--card)" }}>
+      {watchlisted ? <CheckCircle2 className="w-4 h-4" style={{ color: "#22c55e" }} /> : <Star className="w-4 h-4" />}
       {watchlisted ? t("subvaluadas.follow.following") : t("subvaluadas.follow.button")}
     </button>
   );
@@ -1263,9 +1263,9 @@ export function AnalyzeButton({ onAnalyze }: { onAnalyze: () => void }) {
   const { t } = useTranslation();
   return (
     <button onClick={onAnalyze}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-black"
-            style={{ background: "var(--brand-green)" }}>
-      <MessageCircle className="w-3.5 h-3.5" />
+            className="flex-[1.3] flex items-center justify-center gap-[7px] py-4 rounded-2xl text-sm font-black"
+            style={{ background: "linear-gradient(135deg, var(--brand-green-l, #00e887), var(--brand-green))", color: "#04150e" }}>
+      <MessageCircle className="w-4 h-4" />
       {t("subvaluadas.analyze.button")}
     </button>
   );

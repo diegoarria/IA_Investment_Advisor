@@ -123,10 +123,10 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
   if (intrinsicValue == null || price == null) return null;
 
   return (
-    <div className="mt-4 rounded-2xl p-5 sm:p-6" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+    <div className="mt-[18px] rounded-[18px] p-4 sm:p-5" style={{ background: "var(--card)" }}>
       {/* Header */}
       <div className="flex items-center gap-3 pb-4 mb-5" style={{ borderBottom: "1px solid var(--border)" }}>
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--raised)" }}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--card)" }}>
           <Target className="w-5 h-5" style={{ color: _ACCENT_GREEN }} />
         </div>
         <div>
@@ -137,7 +137,7 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
 
       <div className="flex flex-col lg:flex-row gap-5">
         {/* Primary card — currently selected margin */}
-        <div className="lg:w-[420px] shrink-0 rounded-2xl p-5" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+        <div className="lg:w-[420px] shrink-0 rounded-2xl p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
           <span
             className="inline-block text-[11px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-lg mb-3.5"
             style={{ background: `${_ACCENT_GREEN}1f`, color: _ACCENT_GREEN }}
@@ -218,7 +218,7 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
                 key={pct}
                 onClick={() => handleSelect(pct)}
                 className="rounded-xl px-2 py-3 flex flex-col items-center justify-center text-center min-h-[76px] transition-colors duration-150"
-                style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
+                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
               >
                 <p className="text-[17px] font-black tabular-nums" style={{ color: "var(--text)" }}>{pct}%</p>
                 {intrinsicValue != null && (
@@ -238,7 +238,7 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
                 <p className="text-[11px] font-semibold text-center" style={{ color: "var(--muted)" }}>{t("subvaluadas.followAlert.customOption")}</p>
               </button>
             ) : (
-              <div className="col-span-3 rounded-xl p-3 flex items-center gap-1.5" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+              <div className="col-span-3 rounded-xl p-3 flex items-center gap-1.5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
                 <input
                   autoFocus
                   type="number"

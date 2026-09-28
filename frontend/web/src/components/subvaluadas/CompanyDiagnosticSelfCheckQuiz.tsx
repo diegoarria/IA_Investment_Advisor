@@ -10,9 +10,8 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { GlowCard, IconSquare } from "@/components/subvaluadas/radarUi";
 import { ClipboardList, Loader2, Check } from "lucide-react";
-import { Card } from "@/components/ui/Card";
-import { SectionHeader } from "@/components/ui/SectionHeader";
 import { decisionsApi } from "@/lib/api";
 
 export function CompanyDiagnosticSelfCheckQuiz({ ticker }: { ticker: string }) {
@@ -54,33 +53,37 @@ export function CompanyDiagnosticSelfCheckQuiz({ ticker }: { ticker: string }) {
   };
 
   return (
-    <Card padding="p-5 sm:p-6" className="mt-4">
-      <SectionHeader
-        title={t("companyDiagnostic.selfCheckQuiz.title")}
-        subtitle={t("companyDiagnostic.selfCheckQuiz.subtitle")}
-        action={<ClipboardList className="w-5 h-5 shrink-0" style={{ color: "var(--muted)" }} />}
-      />
-      <div className="mt-4 space-y-3.5">
+    <GlowCard className="mt-4">
+      <div className="flex items-center gap-3">
+        <IconSquare><ClipboardList className="w-[18px] h-[18px]" style={{ color: "var(--sub)" }} /></IconSquare>
+        <div className="flex-1 min-w-0">
+          <p className="text-base font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("companyDiagnostic.selfCheckQuiz.title")}</p>
+          <p className="text-xs leading-4 mt-0.5" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.selfCheckQuiz.subtitle")}</p>
+        </div>
+      </div>
+      <div className="mt-[18px] space-y-4">
         {questions.map((q, i) => (
           <div key={i}>
-            <label className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>{q}</label>
+            <label className="flex gap-2 text-[13.5px] leading-[19px] font-semibold" style={{ color: "var(--text)" }}>
+              <span className="font-black tabular-nums" style={{ color: "var(--muted)" }}>{i + 1}.</span>{q}
+            </label>
             <textarea
               value={answers[i]}
               onChange={(e) => handleChange(i, e.target.value)}
               placeholder={t("companyDiagnostic.selfCheckQuiz.placeholder")}
               rows={2}
-              className="w-full mt-1.5 text-[13px] rounded-lg px-2.5 py-2 border bg-transparent resize-none outline-none"
-              style={{ borderColor: "var(--border)", color: "var(--text)" }}
+              className="w-full mt-2 text-[13.5px] rounded-xl px-3 py-2.5 border resize-none outline-none"
+              style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--raised)", minHeight: 52 }}
             />
           </div>
         ))}
       </div>
 
-      <div className="mt-4 flex items-center gap-3 flex-wrap">
+      <div className="mt-[18px] space-y-2.5">
         <button
           onClick={handleSave}
           disabled={!hasAnyAnswer || saving}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-40"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-[14px] text-sm font-extrabold text-white disabled:opacity-40"
           style={{ background: "var(--brand-green)" }}
         >
           {saving ? (
@@ -92,9 +95,9 @@ export function CompanyDiagnosticSelfCheckQuiz({ ticker }: { ticker: string }) {
           )}
         </button>
         {error && (
-          <span className="text-[12px]" style={{ color: "#ef4444" }}>{t("companyDiagnostic.selfCheckQuiz.saveError")}</span>
+          <p className="text-[12px] text-center" style={{ color: "#ef4444" }}>{t("companyDiagnostic.selfCheckQuiz.saveError")}</p>
         )}
       </div>
-    </Card>
+    </GlowCard>
   );
 }

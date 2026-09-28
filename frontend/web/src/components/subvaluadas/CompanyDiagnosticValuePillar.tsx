@@ -16,8 +16,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Gem } from "lucide-react";
-import { ExpandableSection } from "@/components/ui/ExpandableSection";
-import { RaisedBlock } from "@/components/ui/Card";
+import { PillarSection, RaisedTile, Eyebrow } from "@/components/subvaluadas/radarUi";
 import { ExplainableValue } from "@/components/ui/ExplainableValue";
 import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyDiagnosticSectionScore";
 import { CompanyDiagnosticBuyZonePanel } from "@/components/subvaluadas/CompanyDiagnosticBuyZonePanel";
@@ -64,9 +63,10 @@ export function CompanyDiagnosticValuePillar({
 
   return (
     <div id={COMPANY_DIAGNOSTIC_VALUE_PILLAR_ID}>
-      <ExpandableSection
+      <PillarSection
         title={t("companyDiagnostic.pillars.value.title")}
-        icon={<Gem className="w-5 h-5" style={{ color: "#4FA695" }} />}
+        icon={<Gem className="w-[18px] h-[18px]" style={{ color: "#4FA695" }} />}
+        iconColor="#4FA695"
         headline={
           <CompanyDiagnosticSectionScore
             score={score}
@@ -74,68 +74,68 @@ export function CompanyDiagnosticValuePillar({
             explanation={t("companyDiagnostic.explanations.scoreValue.body")}
           />
         }
-        defaultExpanded
       >
         <div>
-          <p className="text-[13px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "var(--muted)" }}>
-            {t("companyDiagnostic.pillars.value.multiplesTitle")}
-          </p>
-          <div className="grid grid-cols-3 gap-2.5">
+          <Eyebrow>{t("companyDiagnostic.pillars.value.multiplesTitle")}</Eyebrow>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
             {multiples.map((m) => (
-              <RaisedBlock key={m.explKey}>
+              <RaisedTile key={m.explKey} tint="#4FA695">
                 <ExplainableValue
                   label={t(`companyDiagnostic.explanations.${m.explKey}.title`)}
                   content={{ summary: t(`companyDiagnostic.explanations.${m.explKey}.body`) }}
                 >
-                  <span className="block text-[12px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+                  <span className="block text-[10.5px] font-black uppercase tracking-[0.4px] truncate" style={{ color: "var(--muted)" }}>
                     {t(`companyDiagnostic.pillars.value.${m.explKey}`)}
                   </span>
                 </ExplainableValue>
-                <p className="text-[16px] font-black tabular-nums mt-1" style={{ color: "var(--text)" }}>{m.value}</p>
-              </RaisedBlock>
+                <p className="text-[22px] font-black tabular-nums mt-2 tracking-tight" style={{ color: "var(--text)" }}>{m.value}</p>
+              </RaisedTile>
             ))}
           </div>
         </div>
 
         <div>
-          <p className="text-[13px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "var(--muted)" }}>
-            {t("companyDiagnostic.pillars.value.modelsTitle")}
-          </p>
-          <div className="grid grid-cols-3 gap-2.5">
-            {scenarios.map((s) => {
-              const isSelected = s.key === selectedScenario;
+          <Eyebrow>{t("companyDiagnostic.pillars.value.modelsTitle")}</Eyebrow>
+          <div className="flex gap-1.5 p-[5px] rounded-[18px]" style={{ background: "var(--raised)" }}>
+            {scenarios.map((sc) => {
+              const isSelected = sc.key === selectedScenario;
               return (
                 <button
-                  key={s.key}
-                  onClick={() => setSelectedScenario(s.key)}
-                  className="rounded-xl p-3 text-center transition-all"
-                  style={{
-                    background: `${s.color}${isSelected ? "33" : "1f"}`,
-                    border: `${isSelected ? 2 : 1}px solid ${s.color}`,
-                    boxShadow: isSelected ? `0 6px 18px ${s.color}33` : "none",
-                  }}
+                  key={sc.key}
+                  onClick={() => setSelectedScenario(sc.key)}
+                  className="flex-1 min-w-0 rounded-[14px] py-[11px] px-1 flex flex-col items-center transition-all"
+                  style={{ background: isSelected ? `linear-gradient(135deg, ${sc.color}, ${sc.color}b3)` : "transparent" }}
                 >
-                  <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: s.color }}>{s.label}</p>
-                  <p className="text-[16px] font-black tabular-nums mt-0.5" style={{ color: "var(--text)" }}>{fmtPrice(s.value)}</p>
+                  <span className="text-[9.5px] font-black uppercase tracking-[0.4px] text-center" style={{ color: isSelected ? "#0A0F1A" : sc.color }}>{sc.label}</span>
+                  <span className="text-[15.5px] font-black tabular-nums mt-1" style={{ color: isSelected ? "#0A0F1A" : "var(--text)" }}>{fmtPrice(sc.value)}</span>
                 </button>
               );
             })}
           </div>
-          <div className="flex items-center justify-between mt-3">
-            <ExplainableValue
-              label={t("companyDiagnostic.explanations.marginOfSafety.title")}
-              content={{ summary: t("companyDiagnostic.explanations.marginOfSafety.body") }}
-            >
-              <span className="text-[13px]" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.pillars.value.marginOfSafety")}</span>
-            </ExplainableValue>
+
+          <div
+            className="mt-3 rounded-2xl flex items-center gap-2.5 px-4 py-3.5"
+            style={{
+              background: status ? `linear-gradient(90deg, ${_VERDICT_COLOR[status.verdict]}2b, ${_VERDICT_COLOR[status.verdict]}08)` : "var(--raised)",
+              border: `1px solid ${status ? `${_VERDICT_COLOR[status.verdict]}55` : "var(--border)"}`,
+            }}
+          >
+            <div className="flex-1 min-w-0">
+              <ExplainableValue
+                label={t("companyDiagnostic.explanations.marginOfSafety.title")}
+                content={{ summary: t("companyDiagnostic.explanations.marginOfSafety.body") }}
+              >
+                <span className="text-[13.5px] font-bold" style={{ color: "var(--sub)" }}>{t("companyDiagnostic.pillars.value.marginOfSafety")}</span>
+              </ExplainableValue>
+            </div>
             {status && (
-              <span className="text-[15px] font-black tabular-nums flex items-center gap-1" style={{ color: _VERDICT_COLOR[status.verdict] }}>
+              <span className="text-2xl font-black tabular-nums tracking-tight" style={{ color: _VERDICT_COLOR[status.verdict] }}>
                 {_VERDICT_EMOJI[status.verdict]} {status.pct.toFixed(1)}%
               </span>
             )}
           </div>
         </div>
-      </ExpandableSection>
+      </PillarSection>
 
       <CompanyDiagnosticBuyZonePanel
         key={selectedScenario}

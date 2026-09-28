@@ -13,6 +13,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Trophy, Shield, Scale, Sparkles } from "lucide-react";
+import { Eyebrow, RingGauge, GOLD_LIGHT } from "@/components/subvaluadas/radarUi";
 import { fmtPrice } from "@/lib/types/stock";
 import { ExplainableValue } from "@/components/ui/ExplainableValue";
 import { CompanyDiagnosticPEWaterfall } from "@/components/subvaluadas/CompanyDiagnosticPEWaterfall";
@@ -77,49 +78,71 @@ export function CompanyDiagnosticValuationTabs({ data }: { data: CompanyDiagnost
 
   if (!whyTabs.some((tb) => tb.available)) return null;
 
-  function TabStrip<K extends TabKey | PillarKey>(props: { items: { key: K; label: string; available?: boolean; icon?: React.ReactNode }[] }) {
-    return (
-      <div className="flex overflow-x-auto gap-1 p-1" style={{ background: "var(--raised)" }}>
-        {props.items.map((tb) => {
-          const isAvailable = tb.available ?? true;
-          const active = tab === tb.key;
-          return (
-            <button
-              key={tb.key}
-              disabled={!isAvailable}
-              onClick={() => setTab(tb.key)}
-              className="flex-1 py-2.5 px-2 text-[11px] sm:text-[12px] font-bold uppercase tracking-wide transition-colors whitespace-nowrap flex items-center justify-center gap-1 rounded-lg"
-              style={{
-                color: !isAvailable ? "var(--dim)" : active ? _GOLD : "var(--muted)",
-                background: active ? `${_GOLD}22` : "transparent",
-                border: active ? `1px solid ${_GOLD}66` : "1px solid transparent",
-                boxShadow: active ? `0 4px 14px ${_GOLD}2e` : "none",
-                opacity: isAvailable ? 1 : 0.4,
-                cursor: isAvailable ? "pointer" : "not-allowed",
-              }}
-            >
-              {tb.icon}{tb.label}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
+  // Redesign v2 (2026-09-27, mobile parity): "why" group as gold gradient
+  // chips; the four pillars as a 2×2 grid of gradient tiles, each with a
+  // mini ring showing that pillar's real score.
+  const pillarColor: Record<PillarKey, string> = { quality: "#eab308", trust: "#6366F1", value: "#4FA695", simplicity: "#f59e0b" };
 
   return (
-    <div id="valuation-tabs" className="mt-4 rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-      <p className="text-[9.5px] font-bold uppercase tracking-wide px-3.5 pt-3 pb-1" style={{ color: "var(--muted)", background: "var(--raised)" }}>
-        {t("companyDiagnostic.tabs.whyGroupLabel")}
-      </p>
-      <TabStrip items={whyTabs} />
-      <p className="text-[9.5px] font-bold uppercase tracking-wide px-3.5 pt-2.5 pb-1" style={{ color: "var(--muted)", background: "var(--raised)" }}>
-        {t("companyDiagnostic.tabs.pillarsGroupLabel")}
-      </p>
-      <div style={{ borderBottom: "1px solid var(--border)" }}>
-        <TabStrip items={pillarTabs} />
-      </div>
+    <div id="valuation-tabs" className="mt-4 rounded-3xl overflow-hidden relative" style={{ border: "1px solid var(--border)", background: "var(--card)" }}>
+      <div className="absolute inset-x-0 top-0 h-[220px] pointer-events-none" style={{ background: "linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0))" }} />
+      <div className="relative">
+        <div className="pt-4 px-4"><Eyebrow>{t("companyDiagnostic.tabs.whyGroupLabel")}</Eyebrow></div>
+        <div className="flex gap-2 overflow-x-auto px-4 pb-0.5">
+          {whyTabs.map((tb) => {
+            const active = tab === tb.key;
+            return (
+              <button
+                key={tb.key}
+                disabled={!tb.available}
+                onClick={() => setTab(tb.key)}
+                className="shrink-0 rounded-full px-4 py-2.5 text-[12.5px] font-extrabold whitespace-nowrap transition-all"
+                style={{
+                  background: active ? `linear-gradient(135deg, ${GOLD_LIGHT}, ${_GOLD})` : "var(--raised)",
+                  color: active ? "#0A0F1A" : "var(--sub)",
+                  opacity: tb.available ? 1 : 0.4,
+                  cursor: tb.available ? "pointer" : "not-allowed",
+                }}
+              >
+                {tb.label}
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="p-3.5 sm:p-4">
+        <div className="p-4">
+          <Eyebrow>{t("companyDiagnostic.tabs.pillarsGroupLabel")}</Eyebrow>
+          <div className="grid grid-cols-2 gap-2">
+            {pillarTabs.map((tb) => {
+              const active = tab === tb.key;
+              const score = data.pillarScores[tb.key];
+              const pc = pillarColor[tb.key];
+              return (
+                <button
+                  key={tb.key}
+                  onClick={() => setTab(tb.key)}
+                  className="rounded-[18px] p-3.5 flex items-center gap-3 text-left transition-all"
+                  style={{
+                    background: active ? `linear-gradient(135deg, ${pc}38, ${pc}0d)` : `linear-gradient(135deg, ${pc}12, var(--raised))`,
+                    border: `1px solid ${active ? `${pc}99` : "var(--border)"}`,
+                  }}
+                >
+                  <RingGauge score={score ?? 0} size={50} stroke={5} from={pc} to={`${pc}aa`}>
+                    <span className="text-[15px] font-black tabular-nums" style={{ color: "var(--text)" }}>{score ?? "—"}</span>
+                  </RingGauge>
+                  <div className="flex-1 min-w-0 space-y-[3px]">
+                    <span style={{ color: pc }} className="block">{tb.icon}</span>
+                    <span className="block text-[13px] font-extrabold leading-tight" style={{ color: active ? "var(--text)" : "var(--sub)" }}>{tb.label}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="h-px" style={{ background: "var(--border)" }} />
+
+      <div className="p-4 sm:p-5">
         {tab === "valuation" && <ValuationTab data={data} t={t} />}
         {tab === "scenarios" && <ScenariosTab data={data} t={t} />}
         {tab === "comparables" && <ComparablesTab data={data} t={t} />}
@@ -157,6 +180,7 @@ export function CompanyDiagnosticValuationTabs({ data }: { data: CompanyDiagnost
           />
         )}
       </div>
+      </div>
     </div>
   );
 }
@@ -170,22 +194,29 @@ function Step({
 }: { n: number; label: string; explainer?: string; children: React.ReactNode; last?: boolean }) {
   return (
     <div className="flex gap-3.5">
-      <div className="flex flex-col items-center shrink-0">
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-black shrink-0"
-          style={{ background: `${_GOLD}2e`, border: `2px solid ${_GOLD}`, color: _GOLD, boxShadow: `0 0 0 5px ${_GOLD}17, 0 4px 12px ${_GOLD}40` }}
-        >
+      <div className="flex flex-col items-center shrink-0 w-[34px]">
+        <div className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-sm font-black shrink-0"
+             style={{ background: `linear-gradient(135deg, ${GOLD_LIGHT}, ${_GOLD})`, color: "#0A0F1A" }}>
           {n}
         </div>
-        {!last && <div className="w-0.5 flex-1 mt-2 rounded-full" style={{ background: `linear-gradient(${_GOLD}66, var(--border))`, minHeight: 16 }} />}
+        {!last && <div className="w-0.5 flex-1 mt-1.5 rounded-sm" style={{ background: `linear-gradient(${_GOLD}66, ${_GOLD}0d)`, minHeight: 16 }} />}
       </div>
-      <div className="flex-1 min-w-0 pb-6">
-        <p className="text-[13.5px] font-black mb-1" style={{ color: "var(--text)" }}>{label}</p>
+      <div className="flex-1 min-w-0 pb-[26px]">
+        <p className="text-[15.5px] font-black mb-1 mt-1.5 tracking-tight" style={{ color: "var(--text)" }}>{label}</p>
         {explainer && (
-          <p className="text-[11.5px] leading-relaxed mb-3" style={{ color: "var(--sub)" }}>{explainer}</p>
+          <p className="text-[12.5px] leading-[18px] mb-3" style={{ color: "var(--sub)" }}>{explainer}</p>
         )}
         {children}
       </div>
+    </div>
+  );
+}
+
+// Tinted step card (mobile's StepCard).
+function StepCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-[18px] p-3.5" style={{ background: `linear-gradient(135deg, ${_GOLD}14, var(--raised) 75%)`, border: `1px solid ${_GOLD}33` }}>
+      {children}
     </div>
   );
 }
@@ -199,9 +230,9 @@ function ValuationTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string,
       {/* Paso 1 — qué tipo de empresa es */}
       {classification && (
         <Step n={1} label={t("companyDiagnostic.classification.step")} explainer={t("companyDiagnostic.classification.explainer")}>
-          <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.035)", border: "1px solid var(--border-s, var(--border))", borderLeft: `3px solid ${_GOLD}`, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 22px rgba(0,0,0,0.4)" }}>
+          <div className="rounded-[18px] p-3.5" style={{ background: `linear-gradient(135deg, ${_GOLD}14, var(--raised) 75%)`, border: `1px solid ${_GOLD}33` }}>
             <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-              <span className="text-[13px] font-black" style={{ color: "var(--text)" }}>
+              <span className="text-base font-black" style={{ color: _GOLD }}>
                 {t(`companyDiagnostic.classification.category.${classification.category}`, { defaultValue: classification.category })}
               </span>
               <div className="flex items-center gap-1.5">
@@ -212,14 +243,14 @@ function ValuationTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string,
                 <span className="text-[10px] font-bold tabular-nums" style={{ color: "var(--text)" }}>{Math.round(classification.confidence)}/100</span>
               </div>
             </div>
-            <div className="rounded-lg px-3 py-2.5 mb-2" style={{ background: "var(--card-2, var(--raised))", borderLeft: `3px solid ${_GOLD}` }}>
-              <p className="text-[11.5px] leading-relaxed" style={{ color: "var(--sub)" }}>{classification.reason}</p>
+            <div className="rounded-xl p-3 mb-2.5" style={{ background: "var(--card)" }}>
+              <p className="text-[13px] leading-[19px]" style={{ color: "var(--sub)" }}>{classification.reason}</p>
             </div>
             {classification.factors.length > 0 && (
               <div className="space-y-1">
                 {classification.factors.map((f, i) => (
-                  <p key={i} className="text-[11px] leading-relaxed flex gap-1.5" style={{ color: "var(--dim)" }}>
-                    <span className="shrink-0">•</span>{f}
+                  <p key={i} className="text-xs leading-[18px] flex gap-2" style={{ color: "var(--muted)" }}>
+                    <span className="w-[5px] h-[5px] rounded-full shrink-0 mt-[7px]" style={{ background: _GOLD }} />{f}
                   </p>
                 ))}
               </div>
@@ -231,46 +262,46 @@ function ValuationTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string,
       {/* Paso 2 — tasa de descuento (WACC) */}
       {waccDetails && (
         <Step n={2} label={t("companyDiagnostic.discountRate.step")} explainer={t("companyDiagnostic.discountRate.explainer")}>
-          <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.035)", border: "1px solid var(--border-s, var(--border))", borderLeft: `3px solid ${_GOLD}`, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 22px rgba(0,0,0,0.4)" }}>
+          <div className="rounded-[18px] p-3.5" style={{ background: `linear-gradient(135deg, ${_GOLD}14, var(--raised) 75%)`, border: `1px solid ${_GOLD}33` }}>
             {waccDetails.method === "capm" && waccDetails.beta != null ? (
               <>
                 <div className="grid grid-cols-2 gap-2 mb-3">
-                  <div className="rounded-md p-2" style={{ background: "var(--card-2, var(--card))" }}>
+                  <div className="rounded-xl p-2.5" style={{ background: "var(--card)" }}>
                     <ExplainableValue label={t("companyDiagnostic.explanations.beta.title")} content={{ summary: t("companyDiagnostic.explanations.beta.body") }}>
                       <span className="text-[9.5px] font-bold uppercase" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.discountRate.beta")}</span>
                     </ExplainableValue>
-                    <p className="text-[13px] font-black tabular-nums" style={{ color: "var(--text)" }}>{waccDetails.beta.toFixed(2)}</p>
+                    <p className="text-[17px] font-black tabular-nums mt-1" style={{ color: "var(--text)" }}>{waccDetails.beta.toFixed(2)}</p>
                   </div>
                   {waccDetails.risk_free_rate_pct != null && (
-                    <div className="rounded-md p-2" style={{ background: "var(--card-2, var(--card))" }}>
+                    <div className="rounded-xl p-2.5" style={{ background: "var(--card)" }}>
                       <ExplainableValue label={t("companyDiagnostic.explanations.riskFree.title")} content={{ summary: t("companyDiagnostic.explanations.riskFree.body") }}>
                         <span className="text-[9.5px] font-bold uppercase" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.discountRate.riskFree")}</span>
                       </ExplainableValue>
-                      <p className="text-[13px] font-black tabular-nums" style={{ color: "var(--text)" }}>{waccDetails.risk_free_rate_pct.toFixed(1)}%</p>
+                      <p className="text-[17px] font-black tabular-nums mt-1" style={{ color: "var(--text)" }}>{waccDetails.risk_free_rate_pct.toFixed(1)}%</p>
                     </div>
                   )}
                   {waccDetails.equity_risk_premium_pct != null && (
-                    <div className="rounded-md p-2" style={{ background: "var(--card-2, var(--card))" }}>
+                    <div className="rounded-xl p-2.5" style={{ background: "var(--card)" }}>
                       <ExplainableValue label={t("companyDiagnostic.explanations.erp.title")} content={{ summary: t("companyDiagnostic.explanations.erp.body") }}>
                         <span className="text-[9.5px] font-bold uppercase" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.discountRate.erp")}</span>
                       </ExplainableValue>
-                      <p className="text-[13px] font-black tabular-nums" style={{ color: "var(--text)" }}>{waccDetails.equity_risk_premium_pct.toFixed(1)}%</p>
+                      <p className="text-[17px] font-black tabular-nums mt-1" style={{ color: "var(--text)" }}>{waccDetails.equity_risk_premium_pct.toFixed(1)}%</p>
                     </div>
                   )}
                   {waccDetails.cost_of_equity_pct != null && (
-                    <div className="rounded-md p-2" style={{ background: "var(--card-2, var(--card))" }}>
+                    <div className="rounded-xl p-2.5" style={{ background: "var(--card)" }}>
                       <ExplainableValue label={t("companyDiagnostic.explanations.costOfEquity.title")} content={{ summary: t("companyDiagnostic.explanations.costOfEquity.body") }}>
                         <span className="text-[9.5px] font-bold uppercase" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.discountRate.costOfEquity")}</span>
                       </ExplainableValue>
-                      <p className="text-[13px] font-black tabular-nums" style={{ color: "var(--text)" }}>{waccDetails.cost_of_equity_pct.toFixed(1)}%</p>
+                      <p className="text-[17px] font-black tabular-nums mt-1" style={{ color: "var(--text)" }}>{waccDetails.cost_of_equity_pct.toFixed(1)}%</p>
                     </div>
                   )}
                   {waccDetails.cost_of_debt_pct != null && (
-                    <div className="rounded-md p-2" style={{ background: "var(--card-2, var(--card))" }}>
+                    <div className="rounded-xl p-2.5" style={{ background: "var(--card)" }}>
                       <ExplainableValue label={t("companyDiagnostic.explanations.costOfDebt.title")} content={{ summary: t("companyDiagnostic.explanations.costOfDebt.body") }}>
                         <span className="text-[9.5px] font-bold uppercase" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.discountRate.costOfDebt")}</span>
                       </ExplainableValue>
-                      <p className="text-[13px] font-black tabular-nums" style={{ color: "var(--text)" }}>{waccDetails.cost_of_debt_pct.toFixed(1)}%</p>
+                      <p className="text-[17px] font-black tabular-nums mt-1" style={{ color: "var(--text)" }}>{waccDetails.cost_of_debt_pct.toFixed(1)}%</p>
                     </div>
                   )}
                 </div>
@@ -292,9 +323,9 @@ function ValuationTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string,
               <p className="text-[11px] mb-2" style={{ color: "var(--dim)" }}>{t("companyDiagnostic.discountRate.fallbackNote")}</p>
             )}
             {waccDetails.wacc_pct != null && (
-              <div className="rounded-lg text-center py-3" style={{ background: `${_GOLD}14`, border: `1px solid ${_GOLD}40` }}>
-                <p className="text-[9.5px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.discountRate.finalWacc")}</p>
-                <p className="text-[22px] font-black tabular-nums" style={{ color: _GOLD, textShadow: `0 0 18px ${_GOLD}4d` }}>{waccDetails.wacc_pct.toFixed(1)}%</p>
+              <div className="rounded-[14px] text-center py-3.5" style={{ background: `linear-gradient(135deg, ${_GOLD}3d, ${_GOLD}12)`, border: `1px solid ${_GOLD}66` }}>
+                <p className="text-[10.5px] font-black uppercase tracking-[0.6px]" style={{ color: "var(--sub)" }}>{t("companyDiagnostic.discountRate.finalWacc")}</p>
+                <p className="text-[30px] font-black tabular-nums tracking-tight mt-0.5" style={{ color: _GOLD }}>{waccDetails.wacc_pct.toFixed(1)}%</p>
               </div>
             )}
           </div>
@@ -304,7 +335,7 @@ function ValuationTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string,
       {/* Paso 3 — P/E justo (track de ganancias) */}
       {fairPeBreakdown && (
         <Step n={3} label={t("companyDiagnostic.fairPeBreakdown.toggle")} explainer={t("companyDiagnostic.fairPeBreakdown.explainer")}>
-          <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.035)", border: "1px solid var(--border-s, var(--border))", borderLeft: `3px solid ${_GOLD}`, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 22px rgba(0,0,0,0.4)" }}>
+          <div className="rounded-[18px] p-3.5" style={{ background: `linear-gradient(135deg, ${_GOLD}14, var(--raised) 75%)`, border: `1px solid ${_GOLD}33` }}>
             {fairPeBreakdown.base_multiple != null && (
               <CompanyDiagnosticPEWaterfall breakdown={fairPeBreakdown} t={t} />
             )}
@@ -369,12 +400,12 @@ function ValuationTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string,
       {/* Paso 4 — cálculo final del track de ganancias */}
       {fairPeBreakdown && scenarioBreakdown?.base?.eps != null && (
         <Step n={4} label={t("companyDiagnostic.classification.fairValueFormula")} last={!hasShadowFcf}>
-          <div className="rounded-lg p-3 text-[13px] tabular-nums" style={{ background: "rgba(255,255,255,0.035)", color: "var(--text)", border: "1px solid var(--border-s, var(--border))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 22px rgba(0,0,0,0.4)" }}>
+          <div className="rounded-[18px] p-3.5 text-[15px] leading-[22px] tabular-nums" style={{ background: `linear-gradient(135deg, ${_GOLD}14, var(--raised) 75%)`, color: "var(--text)", border: `1px solid ${_GOLD}33` }}>
             EPS <span style={{ fontWeight: 800 }}>${scenarioBreakdown.base.eps.toFixed(2)}</span>
             {" × "}{t("companyDiagnostic.fairPeBreakdown.finalPe")}{" "}
             <span style={{ fontWeight: 800 }}>{fairPeBreakdown.fair_pe.toFixed(1)}x</span>
             {" = "}
-            <span style={{ color: "#4FA695", fontWeight: 800 }}>{fmtPrice(scenarioBreakdown.base.eps * fairPeBreakdown.fair_pe)}</span>
+            <span style={{ color: "#4FA695", fontWeight: 900, fontSize: 18 }}>{fmtPrice(scenarioBreakdown.base.eps * fairPeBreakdown.fair_pe)}</span>
           </div>
           {hasShadowFcf && (
             <p className="text-[10.5px] leading-relaxed mt-2" style={{ color: "var(--dim)" }}>
@@ -387,13 +418,13 @@ function ValuationTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string,
       {/* Paso 5 — segundo track: flujo de caja (shadow-mode) */}
       {hasShadowFcf && shadowDualTrack && shadowDualTrack.applicable && (
         <Step n={5} label={t("companyDiagnostic.shadowDualTrack.stepLabel")} last>
-          <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.035)", border: "1px solid var(--border-s, var(--border))", borderLeft: `3px solid ${_GOLD}`, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 22px rgba(0,0,0,0.4)" }}>
+          <div className="rounded-[18px] p-3.5" style={{ background: `linear-gradient(135deg, ${_GOLD}14, var(--raised) 75%)`, border: `1px solid ${_GOLD}33` }}>
             <p className="text-[11px] leading-relaxed mb-3" style={{ color: "var(--sub)" }}>
               {t("companyDiagnostic.shadowDualTrack.subtitle")}
             </p>
-            <div className="rounded-lg text-center py-3 mb-3" style={{ background: "var(--card-2, var(--raised))" }}>
-              <p className="text-[9.5px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.shadowDualTrack.fcfTrack")}</p>
-              <p className="text-[20px] font-black tabular-nums" style={{ color: _GOLD }}>{fmtPrice(shadowDualTrack.fcfTrackValue)}</p>
+            <div className="rounded-[14px] text-center py-3.5 mb-2.5" style={{ background: "var(--card)" }}>
+              <p className="text-[10.5px] font-black uppercase tracking-[0.6px]" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.shadowDualTrack.fcfTrack")}</p>
+              <p className="text-[26px] font-black tabular-nums mt-0.5" style={{ color: _GOLD }}>{fmtPrice(shadowDualTrack.fcfTrackValue)}</p>
             </div>
             {shadowDualTrack.normalizedFcfMarginPct != null && (
               <p className="text-[11px] mb-1.5" style={{ color: "var(--sub)" }}>
@@ -423,7 +454,7 @@ function ScenariosTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string)
   const peLabels = grid?.rows[0]?.values.map((v) => v.peLabel) ?? [];
   return (
     <div>
-      <p className="text-[11.5px] leading-relaxed mb-3.5" style={{ color: "var(--sub)" }}>
+      <p className="text-[13px] leading-[19px] mb-3.5" style={{ color: "var(--sub)" }}>
         {t("companyDiagnostic.scenarios.explainer")}
       </p>
       <div className="space-y-2.5">
@@ -434,21 +465,22 @@ function ScenariosTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string)
           return (
             <div
               key={key}
-              className="rounded-lg p-3 flex items-center justify-between gap-2"
+              className="rounded-[18px] p-4 flex items-center justify-between gap-2"
               style={{
-                background: isBase ? `${color}1a` : "rgba(255,255,255,0.035)",
-                border: `1px solid ${isBase ? `${color}70` : "var(--border-s, var(--border))"}`,
-                borderLeft: `3px solid ${color}`,
-                boxShadow: isBase ? `inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 22px ${color}30` : "inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 22px rgba(0,0,0,0.3)",
+                background: `linear-gradient(90deg, ${color}${isBase ? "33" : "1a"}, var(--raised))`,
+                border: `${isBase ? 1.5 : 1}px solid ${isBase ? `${color}99` : `${color}40`}`,
               }}
             >
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color }}>{label}</p>
-                <p className="text-[11px] mt-0.5 tabular-nums" style={{ color: "var(--muted)" }}>
-                  EPS ${s.eps?.toFixed(2) ?? "—"} × {s.fair_pe.toFixed(1)}x
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="w-2.5 h-9 rounded-[5px] shrink-0" style={{ background: color }} />
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.5px]" style={{ color }}>{label}</p>
+                  <p className="text-xs mt-[3px] tabular-nums" style={{ color: "var(--muted)" }}>
+                    EPS ${s.eps?.toFixed(2) ?? "—"} × {s.fair_pe.toFixed(1)}x
+                  </p>
+                </div>
               </div>
-              <p className="text-[18px] font-black tabular-nums" style={{ color: "var(--text)" }}>{fmtPrice(s.fair_value_per_share ?? 0)}</p>
+              <p className="text-[22px] font-black tabular-nums tracking-tight" style={{ color: "var(--text)" }}>{fmtPrice(s.fair_value_per_share ?? 0)}</p>
             </div>
           );
         })}
@@ -466,12 +498,12 @@ function ScenariosTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string)
             {t("companyDiagnostic.sensitivity.subtitle")}
           </p>
           <div className="overflow-x-auto">
-            <table className="w-full text-[11px] tabular-nums" style={{ borderCollapse: "collapse" }}>
+            <table className="w-full text-[13px] tabular-nums" style={{ borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th className="text-left py-1.5 pr-2" style={{ color: "var(--muted)" }}>EPS \ P/E</th>
+                  <th className="text-left py-2.5 pr-2" style={{ color: "var(--muted)" }}>EPS \ P/E</th>
                   {peLabels.map((pl, i) => (
-                    <th key={pl} className="text-right py-1.5 px-2 font-bold" style={{ color: _SCENARIO_COLOR[["bear", "fair", "bull"][i]] ?? "var(--text)" }}>
+                    <th key={pl} className="text-right py-2.5 px-2 font-bold" style={{ color: _SCENARIO_COLOR[["bear", "fair", "bull"][i]] ?? "var(--text)" }}>
                       {grid.rows[0].values[i].pe.toFixed(1)}x
                     </th>
                   ))}
@@ -480,9 +512,9 @@ function ScenariosTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string)
               <tbody>
                 {grid.rows.map((row) => (
                   <tr key={row.epsLabel} style={{ borderTop: "1px solid var(--border)" }}>
-                    <td className="py-1.5 pr-2 font-bold" style={{ color: "var(--text)" }}>${row.eps.toFixed(2)}</td>
+                    <td className="py-2.5 pr-2 font-bold" style={{ color: "var(--text)" }}>${row.eps.toFixed(2)}</td>
                     {row.values.map((v) => (
-                      <td key={v.peLabel} className="text-right py-1.5 px-2" style={{ color: "var(--sub)" }}>{fmtPrice(v.fairValue)}</td>
+                      <td key={v.peLabel} className="text-right py-2.5 px-2" style={{ color: "var(--sub)" }}>{fmtPrice(v.fairValue)}</td>
                     ))}
                   </tr>
                 ))}
@@ -499,66 +531,66 @@ function ComparablesTab({ data, t }: { data: CompanyDiagnosticData; t: (k: strin
   const { sectorComparison, competitorComparison } = data;
   return (
     <div className="space-y-4">
-      <p className="text-[11.5px] leading-relaxed" style={{ color: "var(--sub)" }}>
+      <p className="text-[13px] leading-[19px]" style={{ color: "var(--sub)" }}>
         {t("companyDiagnostic.tabs.comparablesExplainer")}
       </p>
       {sectorComparison && (
-        <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.035)", border: "1px solid var(--border-s, var(--border))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 22px rgba(0,0,0,0.35)" }}>
-          <p className="text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>
+        <div className="rounded-[18px] p-4" style={{ background: "var(--raised)" }}>
+          <p className="text-[11.5px] font-black uppercase tracking-[0.5px] mb-2.5" style={{ color: _GOLD }}>
             {sectorComparison.sector} · {sectorComparison.peerCount} {t("companyDiagnostic.tabs.peers")}
           </p>
           <div className="overflow-x-auto">
-            <table className="w-full text-[11px] tabular-nums" style={{ borderCollapse: "collapse" }}>
+            <table className="w-full text-[13px] tabular-nums" style={{ borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th className="text-left py-1.5 pr-2" style={{ color: "var(--muted)" }}></th>
-                  <th className="text-right py-1.5 px-2" style={{ color: "var(--text)" }}>{data.ticker}</th>
-                  <th className="text-right py-1.5 px-2" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.tabs.sectorMedian")}</th>
+                  <th className="text-left py-2.5 pr-2" style={{ color: "var(--muted)" }}></th>
+                  <th className="text-right py-2.5 px-2" style={{ color: "var(--text)" }}>{data.ticker}</th>
+                  <th className="text-right py-2.5 px-2" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.tabs.sectorMedian")}</th>
                 </tr>
               </thead>
               <tbody>
                 {sectorComparison.rows.map((r) => (
                   <tr key={r.metricName} style={{ borderTop: "1px solid var(--border)" }}>
-                    <td className="py-1.5 pr-2" style={{ color: "var(--sub)" }}>{r.metricName}</td>
-                    <td className="text-right py-1.5 px-2 font-bold" style={{ color: "var(--text)" }}>{r.companyValue}</td>
-                    <td className="text-right py-1.5 px-2" style={{ color: "var(--muted)" }}>{r.sectorValue}</td>
+                    <td className="py-2.5 pr-2" style={{ color: "var(--sub)" }}>{r.metricName}</td>
+                    <td className="text-right py-2.5 px-2 font-bold" style={{ color: "var(--text)" }}>{r.companyValue}</td>
+                    <td className="text-right py-2.5 px-2" style={{ color: "var(--muted)" }}>{r.sectorValue}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           {sectorComparison.insight && (
-            <p className="text-[11px] leading-relaxed mt-2" style={{ color: "var(--sub)" }}>{sectorComparison.insight}</p>
+            <p className="text-[12.5px] leading-[18.5px] mt-2.5" style={{ color: "var(--sub)" }}>{sectorComparison.insight}</p>
           )}
         </div>
       )}
       {competitorComparison && (
-        <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.035)", border: "1px solid var(--border-s, var(--border))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 22px rgba(0,0,0,0.35)" }}>
-          <p className="text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>
+        <div className="rounded-[18px] p-4" style={{ background: "var(--raised)" }}>
+          <p className="text-[11.5px] font-black uppercase tracking-[0.5px] mb-2.5" style={{ color: _GOLD }}>
             {data.ticker} vs. {competitorComparison.competitorName}
           </p>
           <div className="overflow-x-auto">
-            <table className="w-full text-[11px] tabular-nums" style={{ borderCollapse: "collapse" }}>
+            <table className="w-full text-[13px] tabular-nums" style={{ borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th className="text-left py-1.5 pr-2" style={{ color: "var(--muted)" }}></th>
-                  <th className="text-right py-1.5 px-2" style={{ color: "var(--text)" }}>{data.ticker}</th>
-                  <th className="text-right py-1.5 px-2" style={{ color: "var(--muted)" }}>{competitorComparison.competitorName}</th>
+                  <th className="text-left py-2.5 pr-2" style={{ color: "var(--muted)" }}></th>
+                  <th className="text-right py-2.5 px-2" style={{ color: "var(--text)" }}>{data.ticker}</th>
+                  <th className="text-right py-2.5 px-2" style={{ color: "var(--muted)" }}>{competitorComparison.competitorName}</th>
                 </tr>
               </thead>
               <tbody>
                 {competitorComparison.rows.map((r) => (
                   <tr key={r.metricName} style={{ borderTop: "1px solid var(--border)" }}>
-                    <td className="py-1.5 pr-2" style={{ color: "var(--sub)" }}>{r.metricName}</td>
-                    <td className="text-right py-1.5 px-2 font-bold" style={{ color: "var(--text)" }}>{r.targetCompanyValue}</td>
-                    <td className="text-right py-1.5 px-2" style={{ color: "var(--muted)" }}>{r.competitorValue}</td>
+                    <td className="py-2.5 pr-2" style={{ color: "var(--sub)" }}>{r.metricName}</td>
+                    <td className="text-right py-2.5 px-2 font-bold" style={{ color: "var(--text)" }}>{r.targetCompanyValue}</td>
+                    <td className="text-right py-2.5 px-2" style={{ color: "var(--muted)" }}>{r.competitorValue}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           {competitorComparison.conclusion && (
-            <p className="text-[11px] leading-relaxed mt-2" style={{ color: "var(--sub)" }}>{competitorComparison.conclusion}</p>
+            <p className="text-[12.5px] leading-[18.5px] mt-2.5" style={{ color: "var(--sub)" }}>{competitorComparison.conclusion}</p>
           )}
         </div>
       )}
@@ -802,19 +834,15 @@ function HistoryTab({ data, t, lang }: { data: CompanyDiagnosticData; t: (k: str
 
   return (
     <div>
-      <p className="text-[14px] font-black mb-1" style={{ color: "var(--text)" }}>
+      <p className="text-lg leading-6 font-black mb-1.5 tracking-tight" style={{ color: "var(--text)" }}>
         {t(`companyDiagnostic.priceHistory.headline.${todayBucket}`, { ticker: data.ticker })}
       </p>
-      <p className="text-[11.5px] leading-relaxed mb-4" style={{ color: "var(--sub)" }}>
+      <p className="text-[13px] leading-[19px] mb-4" style={{ color: "var(--sub)" }}>
         {t(`companyDiagnostic.priceHistory.subheadline.${todayBucket}`, { pct: Math.round(percentileCheaperThan), days: daysUsed })}
       </p>
 
       <div className="relative mt-6 mb-2">
-        <div className="h-2 rounded-full flex overflow-hidden">
-          <div className="flex-1" style={{ background: _BUCKET_COLOR.cheap }} />
-          <div className="flex-1" style={{ background: "var(--dim)" }} />
-          <div className="flex-1" style={{ background: _BUCKET_COLOR.expensive }} />
-        </div>
+        <div className="h-3 rounded-md" style={{ background: `linear-gradient(90deg, ${_BUCKET_COLOR.cheap}, var(--dim), ${_BUCKET_COLOR.expensive})` }} />
         <div className="absolute -top-6 -translate-x-1/2 flex flex-col items-center" style={{ left: `${markerPct}%` }}>
           <span className="text-[10px] font-black uppercase tracking-wide rounded-full px-2 py-0.5" style={{ background: "var(--text)", color: "var(--bg)" }}>
             {t("companyDiagnostic.priceHistory.today")}
@@ -842,12 +870,10 @@ function HistoryTab({ data, t, lang }: { data: CompanyDiagnosticData; t: (k: str
           return (
             <div
               key={key}
-              className="rounded-lg p-3"
+              className="rounded-2xl p-3.5"
               style={{
-                background: isToday ? `${_BUCKET_COLOR[key]}1a` : "rgba(255,255,255,0.035)",
-                border: `1px solid ${isToday ? _BUCKET_COLOR[key] : "var(--border-s, var(--border))"}`,
-                borderLeft: `3px solid ${isToday ? _BUCKET_COLOR[key] : "var(--border-s, var(--border))"}`,
-                boxShadow: isToday ? `inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 22px ${_BUCKET_COLOR[key]}30` : "inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 22px rgba(0,0,0,0.3)",
+                background: isToday ? `${_BUCKET_COLOR[key]}1f` : "var(--raised)",
+                border: `1px solid ${isToday ? `${_BUCKET_COLOR[key]}99` : "transparent"}`,
               }}
             >
               <div className="flex items-center gap-2 mb-1">
@@ -861,7 +887,7 @@ function HistoryTab({ data, t, lang }: { data: CompanyDiagnosticData; t: (k: str
                 )}
               </div>
               {b ? (
-                <p className="text-[11.5px]" style={{ color: "var(--sub)" }}>
+                <p className="text-[13px] leading-[19px] mt-1" style={{ color: "var(--sub)" }}>
                   {t("companyDiagnostic.priceHistory.timesHigher", { n: b.timesHigherLater, total: b.daysCount })}
                   {" · "}
                   {t("companyDiagnostic.priceHistory.typicalReturn")}:{" "}

@@ -15,8 +15,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { BookOpen, Lock, Target } from "lucide-react";
-import { Card } from "@/components/ui/Card";
-import { SectionHeader } from "@/components/ui/SectionHeader";
+import { GlowCard, IconSquare } from "@/components/subvaluadas/radarUi";
 import { CompanyDiagnosticHero } from "@/components/subvaluadas/CompanyDiagnosticHero";
 import { CompanyDiagnosticValuationTabs } from "@/components/subvaluadas/CompanyDiagnosticValuationTabs";
 import { CompanyDiagnosticSelfCheckQuiz } from "@/components/subvaluadas/CompanyDiagnosticSelfCheckQuiz";
@@ -34,6 +33,19 @@ function renderWithBoldNumbers(text: string): ReactNode[] {
   const matchRe = new RegExp(`^(?:${_NUMBER_PATTERN_SOURCE})$`, "i");
   return text.split(splitRe).map((part, i) =>
     matchRe.test(part) ? <strong key={i} style={{ color: "var(--text)" }}>{part}</strong> : <span key={i}>{part}</span>
+  );
+}
+
+// Section header — icon in a tinted square, title + subtitle (mobile parity).
+function DiagHeader({ title, subtitle, icon, tint }: { title: string; subtitle?: string; icon: ReactNode; tint?: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-3.5">
+      <IconSquare color={tint}>{icon}</IconSquare>
+      <div className="flex-1 min-w-0">
+        <p className="text-base font-extrabold tracking-tight truncate" style={{ color: "var(--text)" }}>{title}</p>
+        {subtitle && <p className="text-xs leading-4 mt-0.5" style={{ color: "var(--muted)" }}>{subtitle}</p>}
+      </div>
+    </div>
   );
 }
 
@@ -63,44 +75,37 @@ export function CompanyDiagnosticCard({
   // El header de identificación (nombre/logo/precio) sobre esta tarjeta
   // vive en app/subvaluadas/page.tsx, fuera de este componente, y sigue
   // visible — es lo mínimo para saber qué empresa buscaste.
+  // Redesign v2 (2026-09-27, mobile parity): the hero is three cards of its
+  // own (verdict / score / why), so it's no longer wrapped in one big card.
   const hero = (
-    <Card
-      padding="p-6 sm:p-7"
-      style={{
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 32px rgba(0,0,0,0.4)",
-        borderColor: "var(--border-s, var(--border))",
-        backgroundImage: "radial-gradient(120% 60% at 50% 0%, rgba(212,162,76,0.08) 0%, transparent 55%)",
-      }}
-    >
+    <div>
       <CompanyDiagnosticHero data={data} locked={locked} onUnlock={onUnlock} />
 
-      {/* Diego, 2026-09-23: "esta pantalla NUNCA debe fallar, SIEMPRE debe
-          abrir" — shown only when every real data provider was
-          simultaneously unavailable and the backend fell back to the last
-          real, previously-computed diagnostic instead of a hard failure.
-          Real data, never fabricated — just says so plainly. */}
-      {data.stale && (
-        <div className="rounded-xl px-3 py-2.5 mt-5" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
-          <p className="text-[11.5px] leading-relaxed" style={{ color: "#f59e0b" }}>
-            {t("companyDiagnostic.staleNotice", { period: data.staleAsOf || t("companyDiagnostic.staleNoticeUnknownPeriod") })}
-          </p>
-        </div>
+      {(data.stale || data.sectorModelNote) && (
+        <GlowCard className="mt-4 space-y-3.5">
+          {/* Diego, 2026-09-23: "esta pantalla NUNCA debe fallar" — shown
+              only when every real data provider was unavailable and the
+              backend served the last real, previously-computed diagnostic. */}
+          {data.stale && (
+            <div className="rounded-[14px] px-3.5 py-3" style={{ background: "rgba(245,158,11,0.08)", borderLeft: "3px solid #f59e0b" }}>
+              <p className="text-[12px] leading-relaxed" style={{ color: "#f59e0b" }}>
+                {t("companyDiagnostic.staleNotice", { period: data.staleAsOf || t("companyDiagnostic.staleNoticeUnknownPeriod") })}
+              </p>
+            </div>
+          )}
+          {data.sectorModelNote && (
+            <div className="rounded-[14px] px-3.5 py-3" style={{ background: "rgba(212,162,76,0.08)", borderLeft: "3px solid #D4A24C" }}>
+              <p className="text-[10px] font-extrabold uppercase mb-1" style={{ color: "var(--accent-l)" }}>
+                {t("companyDiagnostic.sectorModelNoteTitle")}
+              </p>
+              <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>{data.sectorModelNote.detalle}</p>
+            </div>
+          )}
+        </GlowCard>
       )}
-
-      {data.sectorModelNote && (
-        <div className="rounded-xl px-3 py-2.5 mt-5" style={{ background: "rgba(212,162,76,0.08)", border: "1px solid rgba(212,162,76,0.2)" }}>
-          <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--accent-l)" }}>
-            {t("companyDiagnostic.sectorModelNoteTitle")}
-          </p>
-          <p className="text-[11.5px] leading-relaxed" style={{ color: "var(--sub)" }}>{data.sectorModelNote.detalle}</p>
-        </div>
-      )}
-    </Card>
+    </div>
   );
 
-  // Capa 2+ — todo lo demás (tabs de valuación con el detalle real, tesis,
-  // metodología, backtest, self-check quiz) sigue detrás del blur + CTA de
-  // Premium cuando `locked`, exactamente como antes.
   const content = (
     <div>
       <CompanyDiagnosticValuationTabs data={data} />
@@ -114,31 +119,35 @@ export function CompanyDiagnosticCard({
           Omitida cuando la generación de IA on-demand falló para este
           ticker (nunca se muestra un placeholder inventado). */}
       {data.investmentThesis && (
-        <Card padding="p-5 sm:p-6" className="mt-4" style={{ borderColor: "var(--accent)" }}>
-          <SectionHeader
+        <GlowCard tint="#00b96d" strong className="mt-4">
+          <DiagHeader
             title={t("companyDiagnostic.thesis.title")}
             subtitle={t("companyDiagnostic.thesis.subtitle")}
-            action={<Target className="w-5 h-5 shrink-0" style={{ color: "var(--accent-l)" }} />}
+            icon={<Target className="w-[18px] h-[18px]" style={{ color: "var(--accent-l)" }} />}
+            tint="#00b96d"
           />
-          <p className="text-[15px] leading-relaxed mt-4" style={{ color: "var(--text)" }}>
+          <p className="text-[14.5px] leading-[22px]" style={{ color: "var(--sub)" }}>
             {renderWithBoldNumbers(data.investmentThesis)}
           </p>
-        </Card>
+        </GlowCard>
       )}
 
       {/* Guía de metodología — hasta abajo del todo, antes del disclaimer legal */}
-      <Card padding="p-5 sm:p-6" className="mt-4">
-        <SectionHeader
+      <GlowCard className="mt-4">
+        <DiagHeader
           title={t("companyDiagnostic.methodology.title")}
           subtitle={t("companyDiagnostic.methodology.subtitle")}
-          action={<BookOpen className="w-5 h-5 shrink-0" style={{ color: "var(--muted)" }} />}
+          icon={<BookOpen className="w-[18px] h-[18px]" style={{ color: "var(--sub)" }} />}
         />
-        <div className="mt-4 space-y-3">
+        <div className="space-y-3">
           {methodologyParagraphs.map((p, i) => (
-            <p key={i} className="text-[14px] leading-relaxed" style={{ color: "var(--sub)" }}>{p}</p>
+            <div key={i} className="flex gap-2.5">
+              <div className="w-1 rounded-sm shrink-0" style={{ background: "var(--raised)" }} />
+              <p className="flex-1 text-[13.5px] leading-5" style={{ color: "var(--sub)" }}>{p}</p>
+            </div>
           ))}
         </div>
-      </Card>
+      </GlowCard>
 
       {/* "What $10,000 became" — ticker-independent, cached globally (see
           ValuationBacktestPanel.tsx). Moved here from the bottom of
@@ -155,7 +164,7 @@ export function CompanyDiagnosticCard({
       {/* Disclaimer — donde termina esta tarjeta. El pie (Actualizado hoy /
           Seguir / Analizar con Arthur) lo agrega el caller, no este
           componente — ver la nota al inicio del archivo. */}
-      <p className="text-[12px] leading-relaxed mt-5 text-center" style={{ color: "var(--dim)" }}>
+      <p className="text-[11px] leading-4 mt-5 px-2 text-center" style={{ color: "var(--dim)" }}>
         {t("companyDiagnostic.disclaimer")}
       </p>
     </div>
