@@ -26,7 +26,17 @@ const CATEGORY_LEVEL: Record<string, UserLevel> = {
   analysis:    "avanzado",
   ratios:      "avanzado",
 };
-import { Search, Menu, X } from "lucide-react";
+import {
+  Search, X, LayoutGrid, Library, Building2, Calculator, LineChart, Flag, Zap, Lightbulb, Globe2, Globe,
+  MapPin, Briefcase, Check, Sparkles, ChevronRight, ClipboardCheck, type LucideIcon,
+} from "lucide-react";
+
+// Line icon per category — the topic cards use their category's icon
+// (redesign 2026-09-27: corporate, formal, no emoji; same look as mobile).
+const CATEGORY_ICON: Record<string, LucideIcon> = {
+  all: LayoutGrid, basics: Library, instruments: Building2, ratios: Calculator, analysis: LineChart,
+  strategies: Flag, trading: Zap, psychology: Lightbulb, macro: Globe2, markets: Globe, mexico: MapPin, companies: Briefcase,
+};
 import type { TFunction } from "i18next";
 
 function getCategories(t: TFunction) {
@@ -311,6 +321,12 @@ export default function LearnPage() {
 
   useEffect(() => { initStreak(); }, []);
 
+  // Opened from a category in the Aprendizaje hub (/learn?cat=basics) → start filtered.
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get("cat");
+    if (c && CATEGORIES.some((x) => x.id === c)) setSelectedCat(c);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return TOPICS.filter((t) => {
@@ -346,7 +362,7 @@ export default function LearnPage() {
   const handleSearch = (term?: string) => {
     const q = (term || search).trim();
     if (!q) return;
-    openTopic(q, "", "🔍");
+    openTopic(q, "", "search");
   };
 
   return (
@@ -377,22 +393,22 @@ export default function LearnPage() {
         {/* Main */}
         <main className="flex-1 flex flex-col overflow-hidden">
 
-          {/* Search bar */}
-          <div className="px-4 pt-2 pb-2 shrink-0">
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-2.5"
+          {/* Search — one pill field with "Preguntar" inside */}
+          <div className="px-4 sm:px-6 pt-4 pb-3 shrink-0">
+            <div className="max-w-5xl mx-auto h-12 flex items-center gap-2.5 rounded-full border pl-4 pr-1.5"
                  style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-              <Search className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
+              <Search className="w-[17px] h-[17px] shrink-0" style={{ color: "var(--muted)" }} />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                className="flex-1 bg-transparent text-sm outline-none"
+                className="flex-1 min-w-0 bg-transparent text-[14.5px] outline-none"
                 style={{ color: "var(--text)" }}
                 placeholder={t("learn.searchPlaceholder")}
               />
               {search.trim() && (
                 <button onClick={() => handleSearch()}
-                        className="text-xs font-bold px-2.5 py-1 rounded-lg text-white"
+                        className="h-9 px-3.5 rounded-full text-[13px] font-bold text-white shrink-0"
                         style={{ background: "var(--accent)" }}>
                   {t("learn.ask")}
                 </button>
@@ -400,96 +416,95 @@ export default function LearnPage() {
             </div>
           </div>
 
-          {/* Category chips */}
-          <div className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-none shrink-0">
-            {CATEGORIES.map((cat) => {
-              const active = selectedCat === cat.id;
-              return (
-                <button key={cat.id}
-                        onClick={() => setSelectedCat(cat.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold shrink-0 transition-all"
-                        style={{
-                          borderColor: active ? "var(--accent-l)" : "var(--border)",
-                          background: active ? "rgba(0,212,126,0.1)" : "var(--card)",
-                          color: active ? "var(--accent-l)" : "var(--sub)",
-                        }}>
-                  <span>{cat.emoji}</span>
-                  <span>{cat.title}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Topic grid */}
-          <div className="flex-1 overflow-y-auto scrollbar-thin px-4 pb-8">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {filtered.map((topic) => {
-                const catLabel = CATEGORIES.find((c) => c.id === topic.category)?.title ?? "";
-                const logoUrl = COMPANY_LOGOS[topic.id];
-                const topicLevel = CATEGORY_LEVEL[topic.category] ?? "intermedio";
-                const isMyLevel = topicLevel === userLevel;
-                const tc = LEVEL_COLOR[topicLevel];
+          {/* Categories */}
+          <div className="px-4 sm:px-6 pb-2 shrink-0">
+            <div className="max-w-5xl mx-auto flex gap-2 overflow-x-auto scrollbar-none pb-1">
+              {CATEGORIES.map((cat) => {
+                const active = selectedCat === cat.id;
+                const Icon = CATEGORY_ICON[cat.id] ?? LayoutGrid;
                 return (
-                  <button key={topic.id}
-                          id={`topic-${topic.id}`}
-                          onClick={() => openTopic(topic.title, topic.prompt, topic.emoji, topic.id)}
-                          className="text-left p-3 rounded-2xl border transition-all hover:border-[#00d47e]/40 hover:bg-[#00d47e]/5 relative"
-                          style={{ background: completedTopicIds.includes(topic.id) ? "rgba(0,212,126,0.04)" : "var(--card)", borderColor: completedTopicIds.includes(topic.id) ? "rgba(0,212,126,0.3)" : isMyLevel ? `${tc}40` : "var(--border)" }}>
-                    {completedTopicIds.includes(topic.id) && (
-                      <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
-                           style={{ background: "rgba(0,212,126,0.2)" }}>
-                        <span className="text-[10px]" style={{ color: "#00d47e" }}>✓</span>
-                      </div>
-                    )}
-                    {!completedTopicIds.includes(topic.id) && isMyLevel && (
-                      <div className="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                           style={{ background: `${tc}20`, color: tc }}>
-                        {t("learn.forYou")}
-                      </div>
-                    )}
-                    {logoUrl ? (
-                      <img src={logoUrl} alt={topic.title}
-                           className="w-9 h-9 rounded-xl object-contain mb-2"
-                           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                    ) : (
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg mb-2"
-                           style={{ background: "rgba(0,212,126,0.1)" }}>
-                        {topic.emoji}
-                      </div>
-                    )}
-                    <p className="text-xs font-bold leading-tight mb-1" style={{ color: "var(--text)" }}>
-                      {topic.title}
-                    </p>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
-                            style={{ background: "var(--border)", color: "var(--muted)" }}>
-                        {catLabel}
-                      </span>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                            style={{ background: `${tc}15`, color: tc }}>
-                        {getLevelLabel(t, topicLevel)}
-                      </span>
-                    </div>
+                  <button key={cat.id}
+                          onClick={() => setSelectedCat(cat.id)}
+                          className="flex items-center gap-1.5 h-9 px-3.5 rounded-full border text-[13px] font-semibold shrink-0 transition-colors"
+                          style={active
+                            ? { background: "var(--text)", borderColor: "var(--text)", color: "var(--bg)" }
+                            : { background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}>
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{cat.title}</span>
                   </button>
                 );
               })}
+            </div>
+          </div>
 
-              {/* Tarjeta dinámica: buscar CUALQUIER término con IA */}
+          {/* Topics */}
+          <div className="flex-1 overflow-y-auto scrollbar-thin px-4 sm:px-6 pb-10">
+            <div className="max-w-5xl mx-auto">
+              <div className="flex items-baseline justify-between px-1 pt-3 pb-3">
+                <p className="text-[11px] font-bold uppercase tracking-[1.2px]" style={{ color: "var(--muted)" }}>
+                  {CATEGORIES.find((c) => c.id === selectedCat)?.title}
+                </p>
+                <p className="text-xs font-semibold" style={{ color: "var(--muted)" }}>{t("learn.topicsCount", { count: filtered.length })}</p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {filtered.map((topic) => {
+                  const catLabel = CATEGORIES.find((c) => c.id === topic.category)?.title ?? "";
+                  const logoUrl = COMPANY_LOGOS[topic.id];
+                  const topicLevel = CATEGORY_LEVEL[topic.category] ?? "intermedio";
+                  const isMyLevel = topicLevel === userLevel;
+                  const isDone = completedTopicIds.includes(topic.id);
+                  const Icon = CATEGORY_ICON[topic.category] ?? Library;
+                  return (
+                    <button key={topic.id}
+                            id={`topic-${topic.id}`}
+                            onClick={() => openTopic(topic.title, topic.prompt, topic.category, topic.id)}
+                            className="text-left p-4 rounded-[18px] border transition-colors hover:border-[#00d47e]/40 flex flex-col min-h-[140px]"
+                            style={{ background: "var(--card)", borderColor: isDone ? "rgba(0,212,126,0.35)" : "var(--border)" }}>
+                      <div className="flex items-start justify-between mb-3.5">
+                        {logoUrl ? (
+                          <img src={logoUrl} alt={topic.title}
+                               className="w-10 h-10 rounded-[10px] object-contain"
+                               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                        ) : (
+                          <span className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(0,212,126,0.08)" }}>
+                            <Icon className="w-[19px] h-[19px]" style={{ color: "var(--accent-l)" }} />
+                          </span>
+                        )}
+                        {isDone ? (
+                          <span className="w-[22px] h-[22px] rounded-full flex items-center justify-center" style={{ background: "rgba(0,212,126,0.12)" }}>
+                            <Check className="w-3 h-3" style={{ color: "var(--accent-l)" }} />
+                          </span>
+                        ) : isMyLevel ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border" style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
+                            {t("learn.forYou")}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="flex-1 text-[14.5px] font-bold leading-[19px] tracking-tight line-clamp-3" style={{ color: "var(--text)" }}>
+                        {topic.title}
+                      </p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.6px] mt-2.5 truncate" style={{ color: "var(--muted)" }}>
+                        {catLabel} · {getLevelLabel(t, topicLevel)}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Search any term with AI */}
               {search.trim().length >= 1 && (
                 <button
                   onClick={() => handleSearch()}
-                  className="text-left p-3 rounded-2xl border-2 border-dashed transition-all hover:border-solid"
-                  style={{ borderColor: "var(--accent-l)", background: "rgba(0,212,126,0.04)" }}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg mb-2"
-                       style={{ background: "rgba(0,212,126,0.15)" }}>
-                    🔍
-                  </div>
-                  <p className="text-xs font-bold leading-tight mb-1" style={{ color: "var(--accent-l)" }}>
-                    "{search.trim()}"
-                  </p>
-                  <span className="text-[9px] font-semibold" style={{ color: "var(--muted)" }}>
-                    {t("learn.explainWithAI")}
+                  className="w-full mt-3 flex items-center gap-3 p-4 rounded-[18px] border text-left transition-colors hover:border-[#00d47e]/40"
+                  style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                  <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(0,212,126,0.08)" }}>
+                    <Sparkles className="w-[19px] h-[19px]" style={{ color: "var(--accent-l)" }} />
                   </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[14.5px] font-bold truncate" style={{ color: "var(--text)" }}>&quot;{search.trim()}&quot;</span>
+                    <span className="block text-[12.5px] font-semibold mt-0.5" style={{ color: "var(--accent-l)" }}>{t("learn.explainWithAI")}</span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
                 </button>
               )}
             </div>
@@ -499,88 +514,92 @@ export default function LearnPage() {
       </div>
       </div>
 
-      {/* Flashcard modal */}
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-             style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
-             onClick={() => !streaming && setModal(null)}>
-          <div className="w-full max-w-md rounded-3xl overflow-hidden"
-               style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-               onClick={(e) => e.stopPropagation()}>
-
-            {/* Color strip */}
-            <div className="h-1" style={{ background: "var(--grad-green)" }} />
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b"
-                 style={{ borderColor: "var(--border)" }}>
-              <div className="flex items-center gap-2.5">
-                <span className="text-2xl">{modal.emoji}</span>
-                <span className="font-extrabold text-base" style={{ color: "var(--text)" }}>{modal.title}</span>
-              </div>
-              <button onClick={() => {
-                // Close without quiz: mark completed if topic has no quiz
-                if (modal?.topicId && !QUIZ_DATA[modal.topicId]) {
-                  markTopicCompleted();
-                  markTopicId(modal.topicId);
-                }
-                setModal(null);
-              }} style={{ color: "var(--muted)" }}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="px-5 py-5 min-h-[180px]">
-              {!content ? (
-                <div className="flex flex-col items-center justify-center h-36 gap-3">
-                  <div className="w-7 h-7 border-2 rounded-full animate-spin"
-                       style={{ borderColor: "rgba(0,212,126,0.2)", borderTopColor: "#00d47e" }} />
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>{t("learn.preparingFlashcard")}</p>
+      {/* Flashcard — a formal reading card: icon + eyebrow + title, the
+          explanation as a document, one clear action (mobile parity). */}
+      {modal && (() => {
+        const MIcon = modal.emoji === "search" ? Sparkles : (CATEGORY_ICON[modal.emoji] ?? Library);
+        const closeModal = () => {
+          // Close without quiz: mark completed if topic has no quiz
+          if (modal?.topicId && !QUIZ_DATA[modal.topicId]) {
+            markTopicCompleted();
+            markTopicId(modal.topicId);
+          }
+          setModal(null);
+        };
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+               style={{ background: "rgba(4,8,16,0.72)", backdropFilter: "blur(6px)" }}
+               onClick={() => !streaming && setModal(null)}>
+            <div className="w-full max-w-[460px] rounded-[22px] overflow-hidden border flex flex-col max-h-[88vh]"
+                 style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                 onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+                <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(0,212,126,0.08)" }}>
+                  <MIcon className="w-[19px] h-[19px]" style={{ color: "var(--accent-l)" }} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-[1.2px]" style={{ color: "var(--muted)" }}>{t("learn.flashcardEyebrow")}</p>
+                  <p className="text-lg font-extrabold tracking-tight leading-snug line-clamp-2" style={{ color: "var(--text)" }}>{modal.title}</p>
                 </div>
-              ) : (
-                <div className="learn-markdown">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-                  {streaming && <span style={{ color: "#22c55e" }}>▋</span>}
+                <button onClick={closeModal} aria-label="close"
+                        className="w-8 h-8 rounded-full border flex items-center justify-center shrink-0"
+                        style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--sub)" }}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-5 py-5 overflow-y-auto min-h-[170px]">
+                {!content ? (
+                  <div className="space-y-2.5 py-1.5">
+                    {[90, 75, 95, 60, 80].map((w, i) => (
+                      <div key={i} className="h-[11px] rounded-md animate-pulse" style={{ width: `${w}%`, background: "var(--border)" }} />
+                    ))}
+                    <p className="text-xs pt-1.5" style={{ color: "var(--muted)" }}>{t("learn.preparingFlashcard")}</p>
+                  </div>
+                ) : (
+                  <div className="learn-markdown">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                  </div>
+                )}
+              </div>
+
+              {!streaming && content && (
+                <div className="px-5 py-4 border-t" style={{ borderColor: "var(--border)" }}>
+                  {modal?.topicId && QUIZ_DATA[modal.topicId] && !completedTopicIds.includes(modal.topicId) ? (
+                    <button
+                      onClick={() => {
+                        const m = modal;
+                        setModal(null);
+                        if (m?.topicId) setQuizModal({ topicId: m.topicId, title: m.title, emoji: m.emoji });
+                      }}
+                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-[14px] text-[14.5px] font-bold text-white"
+                      style={{ background: "var(--accent)" }}
+                    >
+                      <ClipboardCheck className="w-[17px] h-[17px]" />
+                      {t("learn.understoodTakeQuiz")}
+                    </button>
+                  ) : (
+                    <button onClick={() => setModal(null)}
+                            className="w-full py-3.5 rounded-[14px] text-[14.5px] font-bold text-white"
+                            style={{ background: "var(--accent)" }}>
+                      {t("learn.understood")}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
-
-            {/* Action */}
-            {!streaming && content && (
-              <div className="px-5 pb-5">
-                {modal?.topicId && QUIZ_DATA[modal.topicId] && !completedTopicIds.includes(modal.topicId) ? (
-                  <button
-                    onClick={() => {
-                      const m = modal;
-                      setModal(null);
-                      if (m?.topicId) setQuizModal({ topicId: m.topicId, title: m.title, emoji: m.emoji });
-                    }}
-                    className="w-full py-2.5 rounded-2xl text-sm font-bold text-white"
-                    style={{ background: "var(--grad-green)" }}
-                  >
-                    {t("learn.understoodTakeQuiz")}
-                  </button>
-                ) : (
-                  <button onClick={() => setModal(null)}
-                          className="w-full py-2.5 rounded-2xl text-sm font-bold text-white"
-                          style={{ background: "var(--grad-green)" }}>
-                    {t("learn.understood")}
-                  </button>
-                )}
-              </div>
-            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <style>{`
-        .learn-markdown { color: var(--sub); font-size: 14px; line-height: 1.65; }
-        .learn-markdown p { margin: 6px 0; }
-        .learn-markdown strong { color: var(--text); font-weight: 800; font-size: 15px; }
-        .learn-markdown em { color: var(--accent-l); font-style: normal; font-weight: 600; }
-        .learn-markdown ul { margin: 8px 0; padding-left: 18px; }
-        .learn-markdown li { margin: 4px 0; color: var(--sub); }
+        .learn-markdown { color: var(--sub); font-size: 15px; line-height: 1.6; }
+        .learn-markdown p { margin: 0 0 10px; }
+        .learn-markdown p:first-child strong:only-child { display: block; color: var(--text); font-size: 19px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
+        .learn-markdown strong { color: var(--text); font-weight: 700; }
+        .learn-markdown em { color: var(--text); font-style: italic; }
+        .learn-markdown ul { margin: 6px 0 12px; padding-left: 18px; }
+        .learn-markdown li { margin: 5px 0; color: var(--sub); }
         .learn-markdown li::marker { color: var(--accent-l); }
         @keyframes milestone-pop { from { opacity:0; transform:scale(0.8); } to { opacity:1; transform:scale(1); } }
         @keyframes milestone-pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.08); } }

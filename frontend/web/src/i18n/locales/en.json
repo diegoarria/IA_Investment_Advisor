@@ -2258,9 +2258,9 @@
   },
   "academy": {
     "streakDays": "{{count}}-day streak",
-    "streakActiveDone": "Streak active! You already read today 🎉",
-    "streakActivePending": "Streak active! Read today to keep it going",
-    "streakInactive": "Read to start your streak",
+    "streakActiveDone": "Streak active. You've completed today's reading.",
+    "streakActivePending": "Streak active. Complete a reading today to keep it.",
+    "streakInactive": "Complete a reading to start your streak.",
     "exploreTopics": "Explore topics",
     "viewAllTopics": "See all topics",
     "eyebrow": "Learn and invest",
@@ -2275,7 +2275,21 @@
     },
     "tourTitle": "Start your first lesson",
     "tourDesc": "There's a new lesson every day. Complete 3 in a row and kick off your streak — it shows up on your home screen.",
-    "tourCta": "Got it, back to home ✓"
+    "tourCta": "Got it, back to home",
+    "progressEyebrow": "Your progress",
+    "completedTopics": "Topics completed",
+    "nextGoal": "Next goal",
+    "nextGoalValue": "{{count}} days",
+    "allGoals": "All goals reached",
+    "categoryHints": {
+      "basics": "Essential concepts to get started",
+      "instruments": "Stocks, ETFs, bonds and more",
+      "analysis": "How to evaluate a company",
+      "strategies": "Ways to build your portfolio",
+      "psychology": "Decide with a clear head",
+      "macro": "The economy and global markets"
+    },
+    "days": "days"
   },
   "support": {
     "eyebrow": "Help",
@@ -2499,10 +2513,10 @@
     "reportsOn": "{{ticker}} reports {{when}}",
     "viewLesson": "View lesson →",
     "forYou": "For you",
-    "explainWithAI": "Explain with AI →",
-    "preparingFlashcard": "Preparing flashcard... ~2 sec",
-    "understoodTakeQuiz": "Got it? — Take the quiz →",
-    "understood": "Got it ✓",
+    "explainWithAI": "Explain with AI",
+    "preparingFlashcard": "Preparing your flashcard…",
+    "understoodTakeQuiz": "Take the assessment",
+    "understood": "Got it",
     "claimingReward": "Claiming...",
     "claimReward": "Claim reward!",
     "premiumDaysActivated": "{{days}} days of Premium activated! 🎉",
@@ -2526,7 +2540,9 @@
       "mexico": "Mexico",
       "companies": "Companies"
     },
-    "flashcardError": "Could not load. Try again."
+    "flashcardError": "Could not load. Try again.",
+    "flashcardEyebrow": "Flashcard",
+    "topicsCount": "{{count}} topics"
   },
   "chat": {
     "newChat": "New",
@@ -3315,16 +3331,19 @@
     "workingCapital": "Working Capital"
   },
   "quizModal": {
-    "passed": "Quiz passed!",
+    "passed": "Assessment passed",
     "almostThere": "Almost there",
     "scoreSummary": "{{score}}/{{total}} correct · you needed {{passing}}",
-    "markedComplete": "{{emoji}} {{title}} marked as complete ✓",
-    "continue": "Continue →",
+    "markedComplete": "{{title}} is now marked as completed",
+    "continue": "Continue",
     "retry": "Retry",
     "close": "Close",
     "quizLabel": "Quiz · {{title}}",
-    "seeResult": "See result →",
-    "next": "Next →"
+    "seeResult": "See result",
+    "next": "Next",
+    "eyebrow": "Assessment",
+    "questionOf": "Question {{n}} of {{total}}",
+    "explanation": "Explanation"
   },
   "wrappedCard": {
     "preparing": "Preparing your ScoreBoard…",

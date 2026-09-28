@@ -2258,9 +2258,9 @@
   },
   "academy": {
     "streakDays": "{{count}} días de racha",
-    "streakActiveDone": "¡Racha activa! Ya leíste hoy 🎉",
-    "streakActivePending": "¡Racha activa! Lee hoy para mantenerla",
-    "streakInactive": "Lee para mantener tu racha",
+    "streakActiveDone": "Racha activa. Ya completaste tu lectura de hoy.",
+    "streakActivePending": "Racha activa. Completa una lectura hoy para mantenerla.",
+    "streakInactive": "Completa una lectura para iniciar tu racha.",
     "exploreTopics": "Explorar temas",
     "viewAllTopics": "Ver todos los temas",
     "eyebrow": "Aprende e invierte",
@@ -2275,7 +2275,21 @@
     },
     "tourTitle": "Empieza tu primera lección",
     "tourDesc": "Cada día hay una lección nueva. Completa 3 seguidas y arranca tu racha — tu streak se muestra en el home.",
-    "tourCta": "Entendido, volver al inicio ✓"
+    "tourCta": "Entendido, volver al inicio",
+    "progressEyebrow": "Tu progreso",
+    "completedTopics": "Temas completados",
+    "nextGoal": "Próxima meta",
+    "nextGoalValue": "{{count}} días",
+    "allGoals": "Todas las metas logradas",
+    "categoryHints": {
+      "basics": "Conceptos esenciales para empezar",
+      "instruments": "Acciones, ETFs, bonos y más",
+      "analysis": "Cómo evaluar una empresa",
+      "strategies": "Formas de construir tu portafolio",
+      "psychology": "Decidir con cabeza fría",
+      "macro": "Economía y mercados globales"
+    },
+    "days": "días"
   },
   "support": {
     "eyebrow": "Ayuda",
@@ -2499,10 +2513,10 @@
     "reportsOn": "{{ticker}} reporta {{when}}",
     "viewLesson": "Ver lección →",
     "forYou": "Para ti",
-    "explainWithAI": "Explicar con IA →",
-    "preparingFlashcard": "Preparando flashcard... ~2 seg",
-    "understoodTakeQuiz": "¿Entendido? — Haz el quiz →",
-    "understood": "Entendido ✓",
+    "explainWithAI": "Explicar con IA",
+    "preparingFlashcard": "Preparando tu flashcard…",
+    "understoodTakeQuiz": "Hacer la evaluación",
+    "understood": "Entendido",
     "claimingReward": "Reclamando...",
     "claimReward": "¡Reclamar recompensa!",
     "premiumDaysActivated": "¡{{days}} días Premium activados! 🎉",
@@ -2526,7 +2540,9 @@
       "mexico": "México",
       "companies": "Empresas"
     },
-    "flashcardError": "No se pudo cargar. Intenta de nuevo."
+    "flashcardError": "No se pudo cargar. Intenta de nuevo.",
+    "flashcardEyebrow": "Flashcard",
+    "topicsCount": "{{count}} temas"
   },
   "chat": {
     "newChat": "Nuevo",
@@ -3315,16 +3331,19 @@
     "workingCapital": "Capital de Trabajo"
   },
   "quizModal": {
-    "passed": "¡Quiz aprobado!",
+    "passed": "Evaluación aprobada",
     "almostThere": "Casi lo logras",
     "scoreSummary": "{{score}}/{{total}} correctas · necesitabas {{passing}}",
-    "markedComplete": "{{emoji}} {{title}} marcado como completado ✓",
-    "continue": "Continuar →",
+    "markedComplete": "{{title}} quedó marcado como completado",
+    "continue": "Continuar",
     "retry": "Reintentar",
     "close": "Cerrar",
     "quizLabel": "Quiz · {{title}}",
-    "seeResult": "Ver resultado →",
-    "next": "Siguiente →"
+    "seeResult": "Ver resultado",
+    "next": "Siguiente",
+    "eyebrow": "Evaluación",
+    "questionOf": "Pregunta {{n}} de {{total}}",
+    "explanation": "Explicación"
   },
   "wrappedCard": {
     "preparing": "Preparando tu ScoreBoard…",
