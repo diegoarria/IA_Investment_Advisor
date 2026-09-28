@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  View, Text, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, TextInput,
+  View, Text, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, TextInput, Keyboard,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { useTheme } from "../../src/lib/ThemeContext";
-import { screenerWeeklyApi, watchlistServerApi } from "../../src/lib/api";
+import { screenerWeeklyApi, watchlistServerApi, marketApi } from "../../src/lib/api";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
 import ExplainButton from "../../src/components/ExplainButton";
@@ -181,9 +181,47 @@ export default function SubvaluadasScreen() {
 
   const handleSearch = () => {
     if (!query.trim()) return;
+    setSuggestions([]);
     setWatchlisted(false);
     setSearchTriggered(true);
     setTicker(query.trim());
+  };
+
+  // ── Type-ahead (Diego, 2026-09-27: "que salten opciones de tickers o
+  // empresas") — GET /api/market/search, debounced; only the latest query's
+  // answer is ever shown.
+  const [suggestions, setSuggestions] = useState<{ ticker: string; name: string }[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const suggestSeq = useRef(0);
+
+  useEffect(() => {
+    const q = query.trim();
+    const seq = ++suggestSeq.current;
+    if (!q || !searchFocused) { setSuggestions([]); setSuggestLoading(false); return; }
+    setSuggestLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res: any = await marketApi.searchTickers(q);
+        if (seq === suggestSeq.current) setSuggestions(res.data?.results ?? []);
+      } catch {
+        if (seq === suggestSeq.current) setSuggestions([]);
+      } finally {
+        if (seq === suggestSeq.current) setSuggestLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query, searchFocused]);
+
+  const pickSuggestion = (sym: string) => {
+    suggestSeq.current++;
+    Keyboard.dismiss();
+    setSuggestions([]);
+    setSuggestLoading(false);
+    setQuery("");
+    setWatchlisted(false);
+    setSearchTriggered(true);
+    setTicker(sym.toUpperCase());
   };
 
   const handleFollow = async () => {
@@ -202,6 +240,7 @@ export default function SubvaluadasScreen() {
       />
       {/* Header — round back button + one search field with "Buscar" built
           in (Nuvos Radar redesign, 2026-09-27). */}
+      <View style={{ zIndex: 20, elevation: 20 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 }}>
         <TouchableOpacity
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home" as any))}
@@ -216,6 +255,9 @@ export default function SubvaluadasScreen() {
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={handleSearch}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+            autoCorrect={false}
             returnKeyType="search"
             placeholder={t("subvaluadas.search.placeholder")}
             placeholderTextColor={viColors.placeholder}
@@ -226,6 +268,40 @@ export default function SubvaluadasScreen() {
             <Text style={{ fontSize: 12.5, fontWeight: "800", color: "#0A0F1A" }}>{t("subvaluadas.search.button")}</Text>
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Suggestions dropdown — floats over the content below */}
+      {searchFocused && query.trim().length > 0 && (suggestions.length > 0 || suggestLoading) && (
+        <View style={{
+          position: "absolute", top: 64, left: 16, right: 16,
+          borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card,
+          shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 24,
+        }}>
+          {suggestions.length === 0 ? (
+            <View style={{ paddingVertical: 18, alignItems: "center" }}>
+              <ActivityIndicator color={GOLD} />
+            </View>
+          ) : (
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 360 }}>
+              {suggestions.map((sug, i) => (
+                <TouchableOpacity
+                  key={sug.ticker}
+                  onPress={() => pickSuggestion(sug.ticker)}
+                  activeOpacity={0.7}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 11, borderTopWidth: i ? 1 : 0, borderTopColor: viColors.border }}
+                >
+                  <StockAvatar ticker={sug.ticker} size={34} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontSize: 14.5, fontWeight: "900", color: viColors.text }} numberOfLines={1}>{sug.ticker}</Text>
+                    <Text style={{ fontSize: 12, color: viColors.textMuted, marginTop: 1 }} numberOfLines={1}>{sug.name}</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={16} color={viColors.textMuted} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
       </View>
 
       {!isPremium && (

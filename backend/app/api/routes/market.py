@@ -330,6 +330,24 @@ async def search_tickers(q: str = Query(""), user_id: str = Depends(get_current_
     if cached is not None:
         return {"results": cached}
 
+    # Type-ahead first (Diego, 2026-09-27): instant local match against the
+    # SEC's US company list — partial tickers ("NVD" → NVDA) and names
+    # ("coca" → KO), biggest companies first. The network search below
+    # only tops it up (non-US listings, anything the local list lacks).
+    local: list[dict] = []
+    try:
+        from app.services.ticker_search import search_local
+        local = await asyncio.to_thread(search_local, q, 8)
+    except Exception:
+        local = []
+    if len(local) >= 5:
+        cache_set(ck, local, ttl=_SEARCH_CACHE_TTL)
+        return {"results": local}
+
+    def _merge(extra: list[dict]) -> list[dict]:
+        seen = {r["ticker"] for r in local}
+        return (local + [r for r in extra if r["ticker"] not in seen])[:8]
+
     # Primary: Finnhub search
     try:
         from app.core.finnhub import fh_search
@@ -341,6 +359,7 @@ async def search_tickers(q: str = Query(""), user_id: str = Depends(get_current_
                 if item.get("symbol") and item.get("type", "") in ("", "Common Stock", "ETP", "ETF")
             ][:6]
             if results:
+                results = _merge(results)
                 cache_set(ck, results, ttl=_SEARCH_CACHE_TTL)
                 return {"results": results}
     except Exception:
@@ -359,10 +378,11 @@ async def search_tickers(q: str = Query(""), user_id: str = Depends(get_current_
             for item in quotes
             if item.get("symbol") and item.get("quoteType") in ("EQUITY", "ETF", "MUTUALFUND")
         ][:6]
+        results = _merge(results)
         cache_set(ck, results, ttl=_SEARCH_CACHE_TTL)
         return {"results": results}
     except Exception:
-        return {"results": []}
+        return {"results": local}
 
 
 @router.post("/prices")
