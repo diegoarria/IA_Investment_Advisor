@@ -265,24 +265,34 @@ export default function SubvaluadasScreen() {
             {/* Company hero — no box: big logo with a glowing ring, name,
                 sector · exchange, and the price as the headline number. The
                 diagnostic below no longer repeats name/sector. */}
-            <View style={{ alignItems: "center", paddingTop: 10, paddingBottom: 24 }}>
+            <View style={{ alignItems: "center", paddingTop: 10, paddingBottom: 24, paddingHorizontal: 8 }}>
               <View style={{ padding: 4, borderRadius: 44, backgroundColor: "rgba(212,162,76,0.18)", borderWidth: 1, borderColor: "rgba(212,162,76,0.45)", marginBottom: 14 }}>
                 <StockAvatar ticker={data.ticker} size={72} />
               </View>
-              <Text style={{ fontSize: 24, fontWeight: "900", color: viColors.text, letterSpacing: -0.6, textAlign: "center" }} numberOfLines={2}>{data.company_name}</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
+              <Text
+                style={{ width: "100%", fontSize: 24, fontWeight: "900", color: viColors.text, letterSpacing: -0.6, textAlign: "center" }}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                {data.company_name}
+              </Text>
+              {/* Ticker chip + sector · exchange — the text shrinks and wraps
+                  to a second line instead of running off-screen on long
+                  sector names (Diego, 2026-09-27). */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8, maxWidth: "100%" }}>
                 <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: "rgba(212,162,76,0.16)" }}>
                   <Text style={{ fontSize: 12, fontWeight: "900", color: GOLD, letterSpacing: 0.5 }}>{data.ticker}</Text>
                 </View>
-                <Text style={{ fontSize: 13, color: viColors.textSub }} numberOfLines={1}>
+                <Text style={{ flexShrink: 1, fontSize: 12.5, lineHeight: 17, color: viColors.textSub, textAlign: "center" }} numberOfLines={2}>
                   {data.sector}{data.exchange ? ` · ${data.exchange}` : ""}
                 </Text>
               </View>
               {data.price !== null && (
                 <View style={{ alignItems: "center", marginTop: 18 }}>
-                  <Text style={{ fontSize: 44, lineHeight: 50, fontWeight: "900", color: viColors.text, letterSpacing: -1.5, fontVariant: ["tabular-nums"] }}>${data.price.toFixed(2)}</Text>
+                  <Text style={{ fontSize: 44, lineHeight: 50, fontWeight: "900", color: viColors.text, letterSpacing: -1.5, fontVariant: ["tabular-nums"] }} numberOfLines={1} adjustsFontSizeToFit>${data.price.toFixed(2)}</Text>
                   {data.change_pct !== null && (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: data.change_pct >= 0 ? "rgba(79,166,149,0.18)" : "rgba(221,110,99,0.18)" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, maxWidth: "100%", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: data.change_pct >= 0 ? "rgba(79,166,149,0.18)" : "rgba(221,110,99,0.18)" }}>
                       <Ionicons name={data.change_pct >= 0 ? "arrow-up" : "arrow-down"} size={13} color={data.change_pct >= 0 ? TEAL : CORAL} />
                       <Text style={{ fontSize: 13, fontWeight: "800", color: data.change_pct >= 0 ? TEAL : CORAL, fontVariant: ["tabular-nums"] }}>
                         {data.change_pct >= 0 ? "+" : ""}{data.change_pct.toFixed(2)}% {t("subvaluadas.detail.today")}
