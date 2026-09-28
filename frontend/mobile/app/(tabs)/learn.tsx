@@ -304,7 +304,7 @@ export default function LearnScreen() {
     }
   };
 
-const { topicId } = useLocalSearchParams<{ topicId?: string }>();
+const { topicId, cat } = useLocalSearchParams<{ topicId?: string; cat?: string }>();
 
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("all");
@@ -371,6 +371,11 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
     openTopic(q, "", "search-outline");
   };
 
+  // Opened from a category in the Aprendizaje hub → start filtered to it.
+  useEffect(() => {
+    if (cat && CATEGORIES.some((c) => c.id === cat)) setSelectedCat(cat);
+  }, [cat]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!topicId) return;
     const topic = TOPICS.find(t => t.id === topicId);
@@ -383,9 +388,10 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
       {/* ── Aprender content ── */}
       <View style={{ flex: 1 }}>
 
-      {/* Barra de búsqueda */}
+      {/* Search — one field with "Preguntar" inside (redesign 2026-09-27:
+          corporate, formal — neutral surfaces, one accent, line icons). */}
       <View style={[s.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Ionicons name="search-outline" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />
+        <Ionicons name="search-outline" size={17} color={colors.textMuted} />
         <TextInput
           style={[s.searchInput, { color: colors.text }]}
           value={search}
@@ -396,90 +402,97 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
           onSubmitEditing={() => handleCustomSearch()}
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => handleCustomSearch()} style={s.searchBtn}>
+          <TouchableOpacity onPress={() => handleCustomSearch()} style={s.searchBtn} activeOpacity={0.85}>
             <Text style={s.searchBtnText}>{t("learn.ask")}</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Categorías */}
+      {/* Categories */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catsScroll} contentContainerStyle={s.catsContent}>
-        {CATEGORIES.map((cat) => {
-          const active = selectedCat === cat.id;
+        {CATEGORIES.map((c) => {
+          const active = selectedCat === c.id;
           return (
             <TouchableOpacity
-              key={cat.id}
-              style={[
-                s.catChip,
-                { backgroundColor: colors.card, borderColor: colors.border },
-                active && s.catChipActive,
-              ]}
-              onPress={() => setSelectedCat(cat.id)}
+              key={c.id}
+              style={[s.catChip, active
+                ? { backgroundColor: colors.text, borderColor: colors.text }
+                : { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => setSelectedCat(c.id)}
+              activeOpacity={0.8}
             >
-              <Ionicons name={cat.icon} size={14} color={active ? colors.accentLight : colors.textSub} />
-              <Text style={[s.catText, { color: active ? colors.accentLight : colors.textSub }]}>
-                {cat.title}
-              </Text>
+              <Ionicons name={c.icon} size={14} color={active ? colors.bg : colors.textSub} />
+              <Text style={[s.catText, { color: active ? colors.bg : colors.textSub }]}>{c.title}</Text>
             </TouchableOpacity>
           );
         })}
       </ScrollView>
 
-      {/* Grid de temas */}
+      {/* Topics */}
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
         numColumns={2}
         contentContainerStyle={s.grid}
         columnWrapperStyle={s.gridRow}
+        ListHeaderComponent={
+          <View style={s.listHeader}>
+            <Text style={[s.eyebrow, { color: colors.textMuted }]}>
+              {CATEGORIES.find((c) => c.id === selectedCat)?.title}
+            </Text>
+            <Text style={[s.countText, { color: colors.textMuted }]}>
+              {t("learn.topicsCount", { count: filtered.length })}
+            </Text>
+          </View>
+        }
         ListEmptyComponent={
           search.trim().length === 0 ? (
             <View style={s.emptyState}>
-              <Ionicons name="help-circle-outline" size={40} color={colors.textMuted} style={{ marginBottom: 12 }} />
+              <View style={[s.emptyIcon, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Ionicons name="help-outline" size={26} color={colors.textMuted} />
+              </View>
               <Text style={[s.emptyTitle, { color: colors.text }]}>{t("learn.notFoundTitle")}</Text>
               <Text style={[s.emptyDesc, { color: colors.textMuted }]}>{t("learn.notFoundDesc")}</Text>
             </View>
           ) : null
         }
         ListFooterComponent={
-          <View>
+          <View style={{ gap: 12, marginTop: 4 }}>
             {search.trim().length >= 1 && (
               <TouchableOpacity
                 onPress={() => handleCustomSearch()}
-                activeOpacity={0.75}
-                style={[s.aiCard, { borderColor: colors.accentLight, backgroundColor: colors.accentLight + "08" }]}
+                activeOpacity={0.8}
+                style={[s.aiCard, { borderColor: colors.border, backgroundColor: colors.card }]}
               >
-                <View style={[s.topicIconBox, { backgroundColor: colors.accentLight + "20" }]}>
-                  <Ionicons name="search-outline" size={20} color={colors.accentLight} />
+                <View style={[s.iconBox, { backgroundColor: colors.accentLight + "14", marginBottom: 0 }]}>
+                  <Ionicons name="sparkles-outline" size={19} color={colors.accentLight} />
                 </View>
-                <Text style={[s.topicTitle, { color: colors.accentLight }]} numberOfLines={2}>
-                  "{search.trim()}"
-                </Text>
-                <Text style={[s.topicCat, { color: colors.accentLight + "99" }]}>
-                  {t("learn.explainWithAI")}
-                </Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[s.aiTitle, { color: colors.text }]} numberOfLines={2}>"{search.trim()}"</Text>
+                  <Text style={[s.aiSub, { color: colors.accentLight }]}>{t("learn.explainWithAI")}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
               </TouchableOpacity>
             )}
 
-            {/* Sesión 1:1 con Diego */}
+            {/* 1:1 session */}
             <TouchableOpacity
-              style={[s.coachingCard, { backgroundColor: colors.card, borderColor: "rgba(0,212,126,0.3)" }]}
+              style={[s.coachingCard, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai")}
-              activeOpacity={0.75}
+              activeOpacity={0.8}
             >
-              <View style={[s.coachingIconBox, { backgroundColor: "rgba(0,212,126,0.12)" }]}>
-                <Ionicons name="calendar-outline" size={22} color="#00d47e" />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <View style={[s.iconBox, { backgroundColor: colors.accentLight + "14", marginBottom: 0 }]}>
+                  <Ionicons name="calendar-outline" size={19} color={colors.accentLight} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[s.coachingCardTitle, { color: colors.text }]}>{t("learn.coachingTitle")}</Text>
+                  <Text style={[s.coachingCardSub, { color: colors.textMuted }]}>{t("learn.coachingDesc")}</Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.coachingCardTitle, { color: colors.text }]}>
-                  {t("learn.coachingTitle")}
-                </Text>
-                <Text style={[s.coachingCardSub, { color: colors.textMuted }]}>
-                  {t("learn.coachingDesc")}
-                </Text>
-              </View>
-              <View style={[s.coachingReservarBtn, { backgroundColor: "#00a85e" }]}>
-                <Text style={s.coachingReservarText}>{t("learn.coaching45min")}</Text>
+              <View style={[s.coachingBtn, { borderColor: colors.border }]}>
+                <Ionicons name="time-outline" size={14} color={colors.text} />
+                <Text style={[s.coachingBtnText, { color: colors.text }]}>{t("learn.coaching45min")}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -488,93 +501,84 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
           const isDone = completedTopicIds.includes(item.id);
           return (
             <TouchableOpacity
-              style={[
-                s.topicCard,
-                { backgroundColor: isDone ? "rgba(0,212,126,0.05)" : colors.card,
-                  borderColor: isDone ? "rgba(0,212,126,0.3)" : colors.border },
-              ]}
+              style={[s.topicCard, { backgroundColor: colors.card, borderColor: isDone ? colors.accentLight + "55" : colors.border }]}
               onPress={() => openTopic(item.title, item.prompt, item.icon, item.id)}
-              activeOpacity={0.75}
+              activeOpacity={0.8}
             >
-              {isDone && (
-                <View style={{ position: "absolute", top: 8, right: 8, width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(0,212,126,0.2)", alignItems: "center", justifyContent: "center" }}>
-                  <Text style={{ fontSize: 9, color: "#00d47e", fontWeight: "800" }}>✓</Text>
-                </View>
-              )}
-              {COMPANY_LOGOS[item.id] ? (
-                <Image source={{ uri: COMPANY_LOGOS[item.id] }} style={s.companyLogo} resizeMode="contain" />
-              ) : (
-                <View style={[s.topicIconBox, { backgroundColor: colors.accentLight + "15" }]}>
-                  <Ionicons name={item.icon} size={20} color={colors.accentLight} />
-                </View>
-              )}
-              <Text style={[s.topicTitle, { color: colors.text }]}>{item.title}</Text>
-              <View style={[s.topicCatPill, { backgroundColor: colors.border }]}>
-                <Text style={[s.topicCat, { color: colors.textMuted }]}>
-                  {CATEGORIES.find((c) => c.id === item.category)?.title}
-                </Text>
+              <View style={s.topicTop}>
+                {COMPANY_LOGOS[item.id] ? (
+                  <Image source={{ uri: COMPANY_LOGOS[item.id] }} style={s.companyLogo} resizeMode="contain" />
+                ) : (
+                  <View style={[s.iconBox, { backgroundColor: colors.accentLight + "14" }]}>
+                    <Ionicons name={item.icon} size={19} color={colors.accentLight} />
+                  </View>
+                )}
+                {isDone && (
+                  <View style={[s.doneBadge, { backgroundColor: colors.accentLight + "1f" }]}>
+                    <Ionicons name="checkmark" size={12} color={colors.accentLight} />
+                  </View>
+                )}
               </View>
+              <Text style={[s.topicTitle, { color: colors.text }]} numberOfLines={3}>{item.title}</Text>
+              <Text style={[s.topicCat, { color: colors.textMuted }]} numberOfLines={1}>
+                {CATEGORIES.find((c) => c.id === item.category)?.title}
+              </Text>
             </TouchableOpacity>
           );
         }}
       />
 
-      {/* Flashcard modal — centrado, breve */}
+      {/* Flashcard — a formal reading card: eyebrow + title header, the
+          explanation as a document, one clear action. */}
       <Modal visible={!!modal} animationType="fade" transparent onRequestClose={() => !streaming && setModal(null)}>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.72)", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <View style={{ width: "100%", maxWidth: 420, borderRadius: 24, overflow: "hidden", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-            {/* Color strip */}
-            <View style={{ height: 3, backgroundColor: "#00a85e" }} />
-
-            {/* Header */}
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: colors.accentLight + "18", alignItems: "center", justifyContent: "center" }}>
-                  <Ionicons name={modal?.icon ?? "book-outline"} size={18} color={colors.accentLight} />
-                </View>
-                <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text, flex: 1 }} numberOfLines={1}>{modal?.title}</Text>
+        <View style={s.overlay}>
+          <View style={[s.flashcard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[s.flashHeader, { borderBottomColor: colors.border }]}>
+              <View style={[s.iconBox, { backgroundColor: colors.accentLight + "14", marginBottom: 0 }]}>
+                <Ionicons name={modal?.icon ?? "book-outline"} size={19} color={colors.accentLight} />
               </View>
-              <TouchableOpacity onPress={() => setModal(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="close" size={20} color={colors.textMuted} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[s.eyebrow, { color: colors.textMuted }]}>{t("learn.flashcardEyebrow")}</Text>
+                <Text style={[s.flashTitle, { color: colors.text }]} numberOfLines={2}>{modal?.title}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setModal(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                style={[s.closeBtn, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                <Ionicons name="close" size={16} color={colors.textSub} />
               </TouchableOpacity>
             </View>
 
-            {/* Content */}
-            <View style={{ paddingHorizontal: 18, paddingVertical: 18, minHeight: 160 }}>
+            <ScrollView style={{ maxHeight: 440 }} contentContainerStyle={s.flashBody}>
               {!content ? (
-                <View style={{ alignItems: "center", justifyContent: "center", height: 120, gap: 12 }}>
-                  <ActivityIndicator color={colors.accentLight} size="large" />
-                  <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("learn.preparingFlashcard")}</Text>
+                <View style={{ gap: 10, paddingVertical: 6 }}>
+                  {[0.9, 0.75, 0.95, 0.6, 0.8].map((w, i) => (
+                    <View key={i} style={{ height: 11, width: `${w * 100}%`, borderRadius: 6, backgroundColor: colors.border }} />
+                  ))}
+                  <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 6 }}>{t("learn.preparingFlashcard")}</Text>
                 </View>
               ) : (
                 <View>
                   <Markdown style={markdownStyles}>{content}</Markdown>
-                  {streaming && <Text style={{ color: "#22c55e", fontSize: 16 }}>▋</Text>}
+                  {streaming && <View style={{ width: 8, height: 16, backgroundColor: colors.accentLight, marginTop: 2 }} />}
                 </View>
               )}
-            </View>
+            </ScrollView>
 
-            {/* Action */}
             {!streaming && content && (
-              <View style={{ paddingHorizontal: 18, paddingBottom: 18 }}>
+              <View style={[s.flashFooter, { borderTopColor: colors.border }]}>
                 {modal?.topicId && QUIZ_DATA[modal.topicId] && !completedTopicIds.includes(modal.topicId) ? (
                   <TouchableOpacity
                     onPress={() => {
                       const m = modal;
                       setModal(null);
-                      if (m?.topicId) {
-                        const topic = TOPICS.find(t => t.id === m.topicId);
-                        setQuizModal({ topicId: m.topicId, title: m.title, emoji: topic ? String(topic.icon) : "📚" });
-                      }
+                      if (m?.topicId) setQuizModal({ topicId: m.topicId, title: m.title, emoji: m.icon ?? "book-outline" });
                     }}
-                    style={{ backgroundColor: "#00a85e", borderRadius: 16, paddingVertical: 12, alignItems: "center" }}>
-                    <Text style={{ color: "white", fontWeight: "800", fontSize: 14 }}>{t("learn.quizCta")}</Text>
+                    style={[s.primaryBtn, { backgroundColor: colors.accent }]} activeOpacity={0.85}>
+                    <Ionicons name="checkbox-outline" size={17} color="#fff" />
+                    <Text style={s.primaryBtnText}>{t("learn.quizCta")}</Text>
                   </TouchableOpacity>
                 ) : (
-                  <TouchableOpacity
-                    onPress={() => setModal(null)}
-                    style={{ backgroundColor: "#00a85e", borderRadius: 16, paddingVertical: 12, alignItems: "center" }}>
-                    <Text style={{ color: "white", fontWeight: "800", fontSize: 14 }}>{t("learn.understood")}</Text>
+                  <TouchableOpacity onPress={() => setModal(null)} style={[s.primaryBtn, { backgroundColor: colors.accent }]} activeOpacity={0.85}>
+                    <Text style={s.primaryBtnText}>{t("learn.understood")}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -641,74 +645,68 @@ function makeStyles(c: Colors) {
     // Search
     searchBar: {
       flexDirection: "row", alignItems: "center", gap: 10,
-      marginHorizontal: 14, marginTop: 14, marginBottom: 10,
-      borderRadius: 16, borderWidth: 1,
-      paddingHorizontal: 14, paddingVertical: 11,
+      marginHorizontal: 16, marginTop: 14, marginBottom: 12, height: 48,
+      borderRadius: 24, borderWidth: 1, paddingLeft: 16, paddingRight: 6,
     },
-    searchInput: { flex: 1, fontSize: 14, paddingVertical: 0 },
-    searchBtn: {
-      backgroundColor: c.accent, borderRadius: 10,
-      paddingHorizontal: 12, paddingVertical: 7,
-    },
-    searchBtnText: { color: "white", fontSize: 12, fontWeight: "700", letterSpacing: 0.2 },
+    searchInput: { flex: 1, fontSize: 14.5, paddingVertical: 0 },
+    searchBtn: { backgroundColor: c.accent, borderRadius: 18, paddingHorizontal: 14, height: 36, justifyContent: "center" },
+    searchBtnText: { color: "white", fontSize: 13, fontWeight: "700" },
 
     // Categories
     catsScroll: { flexShrink: 0 },
-    catsContent: { paddingHorizontal: 12, gap: 7, flexDirection: "row", paddingVertical: 6 },
+    catsContent: { paddingHorizontal: 16, gap: 8, flexDirection: "row", paddingBottom: 6 },
     catChip: {
       flexDirection: "row", alignItems: "center", gap: 6,
-      borderRadius: 20, borderWidth: 1,
-      paddingHorizontal: 13, height: 36, flexShrink: 0,
+      borderRadius: 18, borderWidth: 1, paddingHorizontal: 14, height: 36, flexShrink: 0,
     },
-    catChipActive: { borderColor: c.accentLight, backgroundColor: c.accentLight + "18" },
+    catChipActive: {},
     catText: { fontSize: 13, fontWeight: "600" },
 
     // Topic grid
-    grid: { padding: 12, paddingTop: 6, paddingBottom: 40 },
+    listHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingHorizontal: 4, paddingTop: 10, paddingBottom: 12 },
+    eyebrow: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.2 },
+    countText: { fontSize: 12, fontWeight: "600" },
+    grid: { paddingHorizontal: 12, paddingBottom: 40 },
     gridRow: { gap: 10 },
-    topicCard: {
-      flex: 1, borderRadius: 16, borderWidth: 1,
-      padding: 14, marginBottom: 10, minHeight: 105,
-    },
-    topicIconBox: {
-      width: 40, height: 40, borderRadius: 12,
-      alignItems: "center", justifyContent: "center", marginBottom: 10,
-    },
+    topicCard: { flex: 1, borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 10, minHeight: 138 },
+    topicTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 },
+    iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    doneBadge: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
     topicEmoji: { fontSize: 26, marginBottom: 8 },
-    companyLogo: { width: 38, height: 38, marginBottom: 8, borderRadius: 9 },
-    topicTitle: { fontSize: 13, fontWeight: "700", marginBottom: 4, letterSpacing: -0.1 },
-    topicCatPill: {
-      alignSelf: "flex-start",
-      borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
-    },
-    topicCat: { fontSize: 9, fontWeight: "600", letterSpacing: 0.3 },
-    aiCard: {
-      borderRadius: 16, borderWidth: 1.5, borderStyle: "dashed",
-      padding: 14, marginHorizontal: 16, marginBottom: 16, minHeight: 105,
-    },
+    companyLogo: { width: 40, height: 40, borderRadius: 10 },
+    topicTitle: { fontSize: 14.5, fontWeight: "700", letterSpacing: -0.2, lineHeight: 19, flex: 1 },
+    topicCatPill: {},
+    topicCat: { fontSize: 11, fontWeight: "600", marginTop: 10, textTransform: "uppercase", letterSpacing: 0.6 },
+    aiCard: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 18, borderWidth: 1, padding: 16, marginHorizontal: 4 },
+    aiTitle: { fontSize: 14.5, fontWeight: "700" },
+    aiSub: { fontSize: 12.5, fontWeight: "600", marginTop: 2 },
 
-    // 1:1 coaching CTA
-    coachingCard: {
-      flexDirection: "row", alignItems: "center", gap: 12,
-      borderRadius: 18, borderWidth: 1.5,
-      padding: 14, marginHorizontal: 12, marginBottom: 24, marginTop: 4,
-    },
-    coachingIconBox: {
-      width: 44, height: 44, borderRadius: 14,
-      alignItems: "center", justifyContent: "center", flexShrink: 0,
-    },
-    coachingCardTitle:  { fontSize: 13, fontWeight: "700", marginBottom: 3 },
-    coachingCardSub:    { fontSize: 11, lineHeight: 16 },
-    coachingReservarBtn: {
-      paddingHorizontal: 12, paddingVertical: 7,
-      borderRadius: 20, flexShrink: 0,
-    },
-    coachingReservarText: { fontSize: 12, fontWeight: "800", color: "white" },
+    // 1:1 coaching
+    coachingCard: { borderRadius: 18, borderWidth: 1, padding: 16, marginHorizontal: 4, marginBottom: 24, gap: 14 },
+    coachingIconBox: {},
+    coachingCardTitle: { fontSize: 14.5, fontWeight: "700", marginBottom: 3 },
+    coachingCardSub: { fontSize: 12.5, lineHeight: 18 },
+    coachingReservarBtn: {},
+    coachingReservarText: {},
+    coachingBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderRadius: 14, paddingVertical: 11 },
+    coachingBtnText: { fontSize: 13.5, fontWeight: "700" },
 
     // Empty
-    emptyState: { alignItems: "center", paddingTop: 60, paddingHorizontal: 32 },
-    emptyTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8, letterSpacing: -0.2 },
+    emptyState: { alignItems: "center", paddingTop: 48, paddingHorizontal: 32 },
+    emptyIcon: { width: 56, height: 56, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center", marginBottom: 14 },
+    emptyTitle: { fontSize: 16, fontWeight: "700", marginBottom: 6, letterSpacing: -0.2 },
     emptyDesc: { fontSize: 13, textAlign: "center", lineHeight: 20 },
+
+    // Flashcard
+    overlay: { flex: 1, backgroundColor: "rgba(4,8,16,0.72)", alignItems: "center", justifyContent: "center", padding: 20 },
+    flashcard: { width: "100%", maxWidth: 440, borderRadius: 22, overflow: "hidden", borderWidth: 1 },
+    flashHeader: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth },
+    flashTitle: { fontSize: 18, fontWeight: "800", letterSpacing: -0.3, marginTop: 2 },
+    closeBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+    flashBody: { paddingHorizontal: 20, paddingVertical: 18 },
+    flashFooter: { paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: StyleSheet.hairlineWidth },
+    primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 14 },
+    primaryBtnText: { color: "#fff", fontSize: 14.5, fontWeight: "700" },
 
     // Learn modal
     modalContainer: { flex: 1 },
@@ -716,10 +714,6 @@ function makeStyles(c: Colors) {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
       paddingHorizontal: 16, paddingVertical: 13,
       borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-    closeBtn: {
-      width: 32, height: 32, borderRadius: 16,
-      alignItems: "center", justifyContent: "center",
     },
     modalTitle: { fontSize: 16, fontWeight: "700", flex: 1, textAlign: "center", letterSpacing: -0.2 },
     modalContent: { padding: 20, paddingBottom: 48 },
@@ -756,22 +750,24 @@ function makeStyles(c: Colors) {
 
 function makeMarkdownStyles(c: Colors) {
   return {
-    body: { color: c.textSub, fontSize: 15, lineHeight: 25 },
-    heading1: { color: c.text, fontSize: 21, fontWeight: "800" as const, letterSpacing: -0.4, marginTop: 18, marginBottom: 8, paddingBottom: 6, borderBottomWidth: 1.5, borderBottomColor: c.accentLight },
-    heading2: { color: c.text, fontSize: 17, fontWeight: "700" as const, letterSpacing: -0.2, marginTop: 16, marginBottom: 6 },
-    heading3: { color: c.accentLight, fontSize: 13, fontWeight: "700" as const, letterSpacing: 0.5, textTransform: "uppercase" as const, marginTop: 12, marginBottom: 5 },
+    body: { color: c.textSub, fontSize: 15, lineHeight: 24 },
+    heading1: { color: c.text, fontSize: 19, fontWeight: "800" as const, letterSpacing: -0.3, marginTop: 4, marginBottom: 10 },
+    heading2: { color: c.text, fontSize: 16.5, fontWeight: "700" as const, letterSpacing: -0.2, marginTop: 14, marginBottom: 6 },
+    heading3: { color: c.textMuted, fontSize: 11.5, fontWeight: "700" as const, letterSpacing: 1, textTransform: "uppercase" as const, marginTop: 12, marginBottom: 6 },
+    paragraph: { marginTop: 0, marginBottom: 10 },
     strong: { color: c.text, fontWeight: "700" as const },
-    em: { color: c.accentLight, fontStyle: "italic" as const },
-    bullet_list: { marginVertical: 6 },
-    ordered_list: { marginVertical: 6 },
-    list_item: { color: c.textSub, fontSize: 15, lineHeight: 24, marginVertical: 2 },
-    code_inline: { backgroundColor: c.accentLight + "1a", color: c.accentLight, borderRadius: 5, paddingHorizontal: 5, fontSize: 13, fontWeight: "600" as const },
+    em: { color: c.text, fontStyle: "italic" as const },
+    bullet_list: { marginVertical: 4 },
+    ordered_list: { marginVertical: 4 },
+    list_item: { color: c.textSub, fontSize: 15, lineHeight: 23, marginVertical: 3 },
+    bullet_list_icon: { color: c.accentLight, fontSize: 16, lineHeight: 23, marginRight: 8 },
+    code_inline: { backgroundColor: c.bgRaised ?? c.card, color: c.text, borderRadius: 5, paddingHorizontal: 5, fontSize: 13, fontWeight: "600" as const },
     fence: { backgroundColor: c.bgRaised ?? c.card, borderRadius: 12, padding: 14, marginVertical: 8, borderWidth: 1, borderColor: c.border },
-    code_block: { color: c.accentLight, fontSize: 13, fontFamily: "monospace" as const },
-    blockquote: { borderLeftWidth: 3, borderLeftColor: c.accentLight, backgroundColor: c.accentLight + "0d", paddingLeft: 12, paddingVertical: 8, marginVertical: 8, borderRadius: 4 },
+    code_block: { color: c.text, fontSize: 13, fontFamily: "monospace" as const },
+    blockquote: { borderLeftWidth: 3, borderLeftColor: c.accentLight, backgroundColor: c.bgRaised ?? c.card, paddingLeft: 12, paddingVertical: 8, marginVertical: 8, borderRadius: 4 },
     table: { borderWidth: 1, borderColor: c.border, borderRadius: 10, marginVertical: 8, overflow: "hidden" as const },
-    thead: { backgroundColor: c.accent + "33" },
-    th: { color: c.accentLight, fontWeight: "700" as const, padding: 9, fontSize: 12, letterSpacing: 0.4 },
+    thead: { backgroundColor: c.bgRaised ?? c.card },
+    th: { color: c.text, fontWeight: "700" as const, padding: 9, fontSize: 12, letterSpacing: 0.4 },
     td: { color: c.textSub, padding: 9, fontSize: 13, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
     hr: { borderColor: c.border, marginVertical: 14 },
     link: { color: c.accentLight, textDecorationLine: "underline" as const },

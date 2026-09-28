@@ -1953,13 +1953,26 @@
     "days": "days",
     "streakTitleOne": "{{count}} day streak",
     "streakTitleOther": "{{count}} day streak",
-    "streakActiveDone": "Streak active! You already read today 🎉",
-    "streakActivePending": "Streak active! Read today to keep it going",
-    "streakInactive": "Read to start your streak",
+    "streakActiveDone": "Streak active. You've completed today's reading.",
+    "streakActivePending": "Streak active. Complete a reading today to keep it.",
+    "streakInactive": "Complete a reading to start your streak.",
     "exploreTopics": "Explore topics",
-    "seeAll": "See all →",
+    "seeAll": "See all topics",
     "headerSub": "Learn and invest",
-    "headerTitle": "Learning"
+    "headerTitle": "Learning",
+    "progressEyebrow": "Your progress",
+    "completedTopics": "Topics completed",
+    "nextGoal": "Next goal",
+    "nextGoalValue": "{{count}} days",
+    "allGoals": "All goals reached",
+    "categoryHints": {
+      "basics": "Essential concepts to get started",
+      "instruments": "Stocks, ETFs, bonds and more",
+      "analysis": "How to evaluate a company",
+      "strategies": "Ways to build your portfolio",
+      "psychology": "Decide with a clear head",
+      "macro": "The economy and global markets"
+    }
   },
   "learn": {
     "categories": {
@@ -2144,14 +2157,14 @@
     "viewArrow": "View →",
     "notFoundTitle": "Couldn't find that topic",
     "notFoundDesc": "Tap \"Ask\" so the AI can explain any concept",
-    "explainWithAI": "Explain with AI →",
+    "explainWithAI": "Explain with AI",
     "coachingTitle": "Prefer learning with someone?",
     "coachingDesc": "45 min with an expert from our team — they'll guide you through the app and create your personalized investment plan.",
-    "coaching45min": "45 min →",
-    "preparingFlashcard": "Preparing flashcard... ~2 sec",
+    "coaching45min": "Book a 45-min session",
+    "preparingFlashcard": "Preparing your flashcard…",
     "flashcardError": "We couldn't load the explanation. Check your connection and try again.",
-    "quizCta": "Got it? — Take the quiz →",
-    "understood": "Got it ✓",
+    "quizCta": "Take the assessment",
+    "understood": "Got it",
     "streakGoalsTitle": "Streak Goals",
     "streakConsecutiveDays": "{{count}} in a row · {{claimed}}/{{total}} claimed",
     "streakDaySingular": "day",
@@ -2161,7 +2174,9 @@
     "claim": "Claim",
     "premiumActivated": "{{count}} days of Premium activated! 🎉",
     "messagesReset": "Daily messages reset! ⚡",
-    "rewardClaimed": "Reward claimed! 🏆"
+    "rewardClaimed": "Reward claimed! 🏆",
+    "flashcardEyebrow": "Flashcard",
+    "topicsCount": "{{count}} topics"
   },
   "chat": {
     "suggestionsDefault": [
@@ -3535,16 +3550,19 @@
     "error": "Couldn't save. Please try again."
   },
   "quizModal": {
-    "passed": "Quiz passed!",
+    "passed": "Assessment passed",
     "almostThere": "Almost there",
     "scoreLine": "{{score}}/{{total}} correct · needed {{passing}}",
-    "markedComplete": "{{emoji}} {{title}} marked as completed ✓",
-    "continue": "Continue →",
+    "markedComplete": "{{title}} is now marked as completed",
+    "continue": "Continue",
     "retry": "Retry",
     "close": "Close",
-    "quizTitle": "Quiz · {{title}}",
-    "seeResult": "See result →",
-    "next": "Next →"
+    "quizTitle": "Assessment · {{title}}",
+    "seeResult": "See result",
+    "next": "Next",
+    "eyebrow": "Assessment",
+    "questionOf": "Question {{n}} of {{total}}",
+    "explanation": "Explanation"
   },
   "stockDetailScreen": {
     "verdictLocked": {

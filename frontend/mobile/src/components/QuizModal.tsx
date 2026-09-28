@@ -3,6 +3,8 @@ import {
   View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet,
 } from "react-native";
 import { useTranslation } from "react-i18next";
+import { Ionicons } from "@expo/vector-icons";
+import Svg, { Circle } from "react-native-svg";
 import { QUIZ_DATA, type QuizQuestion } from "../lib/quizData";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -53,131 +55,152 @@ export default function QuizModal({ visible, topicId, topicTitle, topicEmoji, on
   const q = questions[idx];
   const passed = score >= passing;
 
-  const s = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.88)", justifyContent: "center", alignItems: "center", padding: 16 },
-    card:    { width: "100%", maxWidth: 440, borderRadius: 28, overflow: "hidden", borderWidth: 1 },
-    header:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: StyleSheet.hairlineWidth },
-    option:  { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 18, borderWidth: 1, marginBottom: 8 },
-    btn:     { paddingVertical: 14, borderRadius: 18, alignItems: "center", marginTop: 12 },
-  });
+  // Redesign 2026-09-27 (corporate, formal): icon header + segmented
+  // progress, lettered options with clear right/wrong states, an
+  // explanation panel, and a results screen with a score ring. The topic
+  // "emoji" prop actually carries an Ionicons name (it always did — it used
+  // to render as literal text like "library-outline").
+  const iconName = (topicEmoji in Ionicons.glyphMap ? topicEmoji : "book-outline") as keyof typeof Ionicons.glyphMap;
+  const ACCENT = colors.accentLight;
+  const RED = "#ef4444";
+
+  const Header = () => (
+    <View style={[st.header, { borderBottomColor: colors.border }]}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <View style={[st.iconBox, { backgroundColor: ACCENT + "14" }]}>
+          <Ionicons name={iconName} size={19} color={ACCENT} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[st.eyebrow, { color: colors.textMuted }]}>{t("quizModal.eyebrow")}</Text>
+          <Text style={[st.title, { color: colors.text }]} numberOfLines={1}>{topicTitle}</Text>
+        </View>
+        <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          style={[st.closeBtn, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+          <Ionicons name="close" size={16} color={colors.textSub} />
+        </TouchableOpacity>
+      </View>
+      {!done && (
+        <View style={{ marginTop: 14 }}>
+          <View style={{ flexDirection: "row", gap: 4 }}>
+            {questions.map((_, i) => (
+              <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i < idx || (i === idx && answered) ? ACCENT : i === idx ? ACCENT + "55" : colors.border }} />
+            ))}
+          </View>
+          <Text style={[st.progressText, { color: colors.textMuted }]}>{t("quizModal.questionOf", { n: idx + 1, total })}</Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const ring = (() => {
+    const size = 96, stroke = 7, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+    const pct = total ? score / total : 0;
+    const col = passed ? ACCENT : "#f59e0b";
+    return (
+      <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+        <Svg width={size} height={size} style={{ position: "absolute" }}>
+          <Circle cx={size / 2} cy={size / 2} r={r} stroke={colors.border} strokeWidth={stroke} fill="none" />
+          <Circle cx={size / 2} cy={size / 2} r={r} stroke={col} strokeWidth={stroke} fill="none" strokeLinecap="round"
+                  strokeDasharray={`${c * pct} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+        </Svg>
+        <Text style={{ fontSize: 24, fontWeight: "800", color: colors.text }}>{score}/{total}</Text>
+      </View>
+    );
+  })();
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={s.overlay}>
-        <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={st.overlay}>
+        <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Header />
           {done ? (
-            /* ── Result Screen ── */
-            <ScrollView contentContainerStyle={{ padding: 24, alignItems: "center" }}>
-              <Text style={{ fontSize: 48, marginBottom: 8 }}>{passed ? "🎉" : "📚"}</Text>
-              <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text, marginBottom: 4 }}>
-                {passed ? t("quizModal.passed") : t("quizModal.almostThere")}
-              </Text>
-              <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 16 }}>
-                {t("quizModal.scoreLine", { score, total, passing })}
-              </Text>
+            <ScrollView contentContainerStyle={{ padding: 20, alignItems: "center" }}>
+              {ring}
+              <Text style={[st.resultTitle, { color: colors.text }]}>{passed ? t("quizModal.passed") : t("quizModal.almostThere")}</Text>
+              <Text style={[st.resultSub, { color: colors.textMuted }]}>{t("quizModal.scoreLine", { score, total, passing })}</Text>
 
               {passed ? (
                 <>
-                  <View style={{ width: "100%", borderRadius: 16, padding: 14, backgroundColor: "rgba(0,212,126,0.08)", borderWidth: 1, borderColor: "rgba(0,212,126,0.25)", marginBottom: 16 }}>
-                    <Text style={{ fontSize: 13, fontWeight: "800", color: "#00d47e", textAlign: "center" }}>
-                      {t("quizModal.markedComplete", { emoji: topicEmoji, title: topicTitle })}
+                  <View style={[st.notice, { backgroundColor: ACCENT + "12", borderColor: ACCENT + "40" }]}>
+                    <Ionicons name="checkmark-circle" size={18} color={ACCENT} />
+                    <Text style={{ flex: 1, fontSize: 13.5, fontWeight: "600", color: colors.text }}>
+                      {t("quizModal.markedComplete", { emoji: "", title: topicTitle }).trim()}
                     </Text>
                   </View>
-                  <TouchableOpacity style={[s.btn, { backgroundColor: "#00d47e", width: "100%" }]} onPress={onPass} activeOpacity={0.8}>
-                    <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>{t("quizModal.continue")}</Text>
+                  <TouchableOpacity style={[st.primaryBtn, { backgroundColor: colors.accent }]} onPress={onPass} activeOpacity={0.85}>
+                    <Text style={st.primaryText}>{t("quizModal.continue")}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
                   {wrongAnswers.length > 0 && (
-                    <View style={{ width: "100%", marginBottom: 16, gap: 8 }}>
+                    <View style={{ width: "100%", gap: 10, marginBottom: 16 }}>
                       {wrongAnswers.map((wa, i) => (
-                        <View key={i} style={{ borderRadius: 14, padding: 12, backgroundColor: "rgba(239,68,68,0.05)", borderWidth: 1, borderColor: "rgba(239,68,68,0.15)" }}>
-                          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text, marginBottom: 4 }}>{wa.q.q}</Text>
-                          <Text style={{ fontSize: 10, color: "#ef4444", marginBottom: 2 }}>✗ {wa.q.options[wa.chosen]}</Text>
-                          <Text style={{ fontSize: 10, color: "#00d47e", marginBottom: 4 }}>✓ {wa.q.options[wa.q.correct]}</Text>
-                          <Text style={{ fontSize: 10, color: colors.textMuted }}>{wa.q.explanation}</Text>
+                        <View key={i} style={[st.review, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                          <Text style={{ fontSize: 13.5, fontWeight: "700", color: colors.text, marginBottom: 8, lineHeight: 19 }}>{wa.q.q}</Text>
+                          <View style={st.reviewRow}>
+                            <Ionicons name="close-circle" size={15} color={RED} />
+                            <Text style={{ flex: 1, fontSize: 12.5, color: RED }}>{wa.q.options[wa.chosen]}</Text>
+                          </View>
+                          <View style={st.reviewRow}>
+                            <Ionicons name="checkmark-circle" size={15} color={ACCENT} />
+                            <Text style={{ flex: 1, fontSize: 12.5, color: ACCENT }}>{wa.q.options[wa.q.correct]}</Text>
+                          </View>
+                          <Text style={{ fontSize: 12.5, lineHeight: 18, color: colors.textMuted, marginTop: 6 }}>{wa.q.explanation}</Text>
                         </View>
                       ))}
                     </View>
                   )}
-                  <View style={{ flexDirection: "row", gap: 8, width: "100%" }}>
-                    <TouchableOpacity style={[s.btn, { flex: 1, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border }]} onPress={reset} activeOpacity={0.8}>
-                      <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>{t("quizModal.retry")}</Text>
+                  <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
+                    <TouchableOpacity style={[st.secondaryBtn, { borderColor: colors.border }]} onPress={onClose} activeOpacity={0.8}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.textSub }}>{t("quizModal.close")}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[s.btn, { flex: 1, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border }]} onPress={onClose} activeOpacity={0.8}>
-                      <Text style={{ fontSize: 13, fontWeight: "800", color: colors.textMuted }}>{t("quizModal.close")}</Text>
+                    <TouchableOpacity style={[st.primaryBtn, { flex: 1, marginTop: 0, backgroundColor: colors.accent }]} onPress={reset} activeOpacity={0.85}>
+                      <Text style={st.primaryText}>{t("quizModal.retry")}</Text>
                     </TouchableOpacity>
                   </View>
                 </>
               )}
             </ScrollView>
           ) : (
-            /* ── Question Screen ── */
-            <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
-              {/* Header */}
-              <View style={[s.header, { borderBottomColor: colors.border }]}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <Text style={{ fontSize: 14 }}>{topicEmoji}</Text>
-                    <Text style={{ fontSize: 11, fontWeight: "800", color: colors.accent }}>{t("quizModal.quizTitle", { title: topicTitle })}</Text>
-                  </View>
-                  {/* Progress bar */}
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <View style={{ flex: 1, height: 4, borderRadius: 4, backgroundColor: colors.border, overflow: "hidden" }}>
-                      <View style={{ width: `${(idx / total) * 100}%`, height: "100%", backgroundColor: colors.accent, borderRadius: 4 }} />
-                    </View>
-                    <Text style={{ fontSize: 10, color: colors.textMuted }}>{idx + 1}/{total}</Text>
-                  </View>
-                </View>
-                <TouchableOpacity onPress={onClose} style={{ marginLeft: 12 }}>
-                  <Text style={{ fontSize: 16, color: colors.textMuted }}>✕</Text>
-                </TouchableOpacity>
-              </View>
+            <ScrollView contentContainerStyle={{ padding: 20 }}>
+              <Text style={[st.question, { color: colors.text }]}>{q.q}</Text>
 
-              <View style={{ padding: 16 }}>
-                {/* Question */}
-                <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text, marginBottom: 16, lineHeight: 20 }}>
-                  {q.q}
-                </Text>
-
-                {/* Options */}
+              <View style={{ gap: 10 }}>
                 {q.options.map((opt, i) => {
-                  let bg = colors.bg;
-                  let border = colors.border;
-                  let textColor = colors.textSub;
-                  if (answered) {
-                    if (i === q.correct) { bg = "rgba(0,212,126,0.08)"; border = "rgba(0,212,126,0.4)"; textColor = "#00d47e"; }
-                    else if (i === selected && i !== q.correct) { bg = "rgba(239,68,68,0.05)"; border = "rgba(239,68,68,0.3)"; textColor = "#ef4444"; }
-                  } else if (selected === i) {
-                    bg = "rgba(0,212,126,0.05)"; border = "rgba(0,212,126,0.3)"; textColor = colors.text;
-                  }
+                  const isCorrect = answered && i === q.correct;
+                  const isWrong = answered && i === selected && i !== q.correct;
+                  const border = isCorrect ? ACCENT : isWrong ? RED : colors.border;
+                  const bg = isCorrect ? ACCENT + "12" : isWrong ? RED + "0f" : colors.bg;
+                  const fg = isCorrect ? ACCENT : isWrong ? RED : colors.text;
                   return (
-                    <TouchableOpacity key={i} style={[s.option, { backgroundColor: bg, borderColor: border }]} onPress={() => choose(i)} activeOpacity={0.7}>
-                      <Text style={{ fontSize: 13, fontWeight: "600", color: textColor }}>
-                        <Text style={{ fontWeight: "900" }}>{String.fromCharCode(65 + i)}. </Text>
-                        {opt}
-                      </Text>
+                    <TouchableOpacity key={i} style={[st.option, { backgroundColor: bg, borderColor: border }]} onPress={() => choose(i)} activeOpacity={0.75} disabled={answered}>
+                      <View style={[st.letter, { borderColor: border, backgroundColor: isCorrect ? ACCENT : isWrong ? RED : "transparent" }]}>
+                        {isCorrect ? <Ionicons name="checkmark" size={14} color="#fff" />
+                          : isWrong ? <Ionicons name="close" size={14} color="#fff" />
+                          : <Text style={{ fontSize: 12, fontWeight: "800", color: colors.textSub }}>{String.fromCharCode(65 + i)}</Text>}
+                      </View>
+                      <Text style={{ flex: 1, fontSize: 14, lineHeight: 20, fontWeight: "600", color: fg }}>{opt}</Text>
                     </TouchableOpacity>
                   );
                 })}
-
-                {/* Explanation */}
-                {answered && (
-                  <View style={{ borderRadius: 16, padding: 12, backgroundColor: "rgba(0,212,126,0.04)", borderWidth: 1, borderColor: "rgba(0,212,126,0.15)", marginTop: 4 }}>
-                    <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 18 }}>{q.explanation}</Text>
-                  </View>
-                )}
-
-                {/* Next button */}
-                {answered && (
-                  <TouchableOpacity style={[s.btn, { backgroundColor: "#00d47e" }]} onPress={next} activeOpacity={0.8}>
-                    <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>
-                      {idx + 1 >= total ? t("quizModal.seeResult") : t("quizModal.next")}
-                    </Text>
-                  </TouchableOpacity>
-                )}
               </View>
+
+              {answered && (
+                <View style={[st.explain, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
+                    <Text style={[st.eyebrow, { color: colors.textMuted }]}>{t("quizModal.explanation")}</Text>
+                  </View>
+                  <Text style={{ fontSize: 13.5, color: colors.textSub, lineHeight: 20 }}>{q.explanation}</Text>
+                </View>
+              )}
+
+              {answered && (
+                <TouchableOpacity style={[st.primaryBtn, { backgroundColor: colors.accent }]} onPress={next} activeOpacity={0.85}>
+                  <Text style={st.primaryText}>{idx + 1 >= total ? t("quizModal.seeResult") : t("quizModal.next")}</Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
           )}
         </View>
@@ -185,3 +208,26 @@ export default function QuizModal({ visible, topicId, topicTitle, topicEmoji, on
     </Modal>
   );
 }
+
+const st = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(4,8,16,0.78)", justifyContent: "center", alignItems: "center", padding: 16 },
+  card: { width: "100%", maxWidth: 460, maxHeight: "90%", borderRadius: 22, overflow: "hidden", borderWidth: 1 },
+  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  eyebrow: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.1 },
+  title: { fontSize: 16.5, fontWeight: "800", letterSpacing: -0.3, marginTop: 2 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  progressText: { fontSize: 12, fontWeight: "600", marginTop: 8 },
+  question: { fontSize: 17, fontWeight: "800", letterSpacing: -0.3, lineHeight: 24, marginBottom: 18 },
+  option: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14, borderWidth: 1 },
+  letter: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  explain: { borderRadius: 14, borderWidth: 1, padding: 14, marginTop: 14 },
+  primaryBtn: { width: "100%", alignItems: "center", justifyContent: "center", borderRadius: 14, paddingVertical: 14, marginTop: 16 },
+  primaryText: { color: "#fff", fontSize: 14.5, fontWeight: "700" },
+  secondaryBtn: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: 14, paddingVertical: 14, borderWidth: 1 },
+  resultTitle: { fontSize: 20, fontWeight: "800", letterSpacing: -0.3, marginBottom: 4 },
+  resultSub: { fontSize: 13.5, marginBottom: 18, textAlign: "center" },
+  notice: { width: "100%", flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1, padding: 14 },
+  review: { borderRadius: 14, borderWidth: 1, padding: 14 },
+  reviewRow: { flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 3 },
+});
