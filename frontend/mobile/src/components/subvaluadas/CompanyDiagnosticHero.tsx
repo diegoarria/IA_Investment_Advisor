@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import Svg, { Circle } from "react-native-svg";
+import { LinearGradient } from "expo-linear-gradient";
+import { GlowCard, RingGauge } from "./companyDiagnosticShared";
 import { useTranslation } from "react-i18next";
 import { valuationStatus, VERDICT_COLOR, VERDICT_EMOJI, SCENARIO_COLOR, fmtPrice } from "../../lib/types/companyDiagnostic";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
@@ -71,148 +72,172 @@ export function CompanyDiagnosticHero({ data, colors }: { data: CompanyDiagnosti
     : t("companyDiagnostic.hero.whySummaryFallback");
   const fairPeBreakdown = data.valuation.fairPeBreakdown;
 
+  const vColor = status ? VERDICT_COLOR[status.verdict] : _GOLD;
+  const vIcon: keyof typeof Ionicons.glyphMap =
+    status?.verdict === "undervalued" ? "trending-up" : status?.verdict === "overvalued" ? "trending-down" : "remove";
+
   return (
-    <View>
-      {/* ── Score — ring gauge + label + badges. Ticker/name/sector are
-          no longer repeated here: the company card right above this one
-          (app/subvaluadas/index.tsx) already shows them (Nuvos Radar
-          redesign, 2026-09-27). ── */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 18 }}>
-        <ScoreRing score={data.score} colors={colors} />
-        <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
-          <Text style={{ fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.6, color: _GOLD }} numberOfLines={2}>
-            {data.scoreLabel}
-          </Text>
-          {data.badges.length > 0 && (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-              {data.badges.map((b) => (
-                <View key={b} style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: `${_GOLD}1f`, borderWidth: 1, borderColor: `${_GOLD}59` }}>
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: _GOLD }}>{b}</Text>
-                </View>
-              ))}
+    <View style={{ gap: 16 }}>
+      {/* ── 1. Verdict — the one answer this screen exists for, first and
+          biggest, tinted by the verdict itself. The bars and the scenario
+          switch live here because they're what move the verdict
+          (Nuvos Radar redesign v2, 2026-09-27). ── */}
+      <GlowCard colors={colors} tint={vColor} strong>
+        {status && (
+          <View style={{ alignItems: "center", marginBottom: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: `${vColor}2e` }}>
+                <Ionicons name={vIcon} size={22} color={vColor} />
+              </View>
+              {status.verdict !== "fair" && (
+                <Text style={{ fontSize: 54, lineHeight: 60, fontWeight: "900", color: vColor, letterSpacing: -2, fontVariant: ["tabular-nums"] }}>
+                  {status.pct.toFixed(0)}%
+                </Text>
+              )}
             </View>
-          )}
-        </View>
-      </View>
+            <View style={{ marginTop: 10, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, backgroundColor: `${vColor}24` }}>
+              <Text style={{ fontSize: 13.5, fontWeight: "900", color: vColor, letterSpacing: 0.2 }} numberOfLines={1} adjustsFontSizeToFit>
+                {VERDICT_EMOJI[status.verdict]} {t(`companyDiagnostic.hero.verdict.${status.verdict}`, { pct: status.pct.toFixed(0) })}
+              </Text>
+            </View>
+          </View>
+        )}
 
-      <View style={{ height: 1, backgroundColor: colors.border, marginBottom: 18 }} />
-
-      {/* ── Verdict ── */}
-      {status && (
-        <View style={{ alignItems: "center", marginBottom: 12 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: `${VERDICT_COLOR[status.verdict]}1f`, borderWidth: 1, borderColor: `${VERDICT_COLOR[status.verdict]}4d` }}>
-            <Text style={{ fontSize: 13 }}>{VERDICT_EMOJI[status.verdict]}</Text>
-            <Text style={{ fontSize: 14, fontWeight: "900", color: VERDICT_COLOR[status.verdict] }} numberOfLines={1} adjustsFontSizeToFit>
+        <Text style={{ fontSize: 15, lineHeight: 22, textAlign: "center", color: colors.text, marginBottom: 6 }}>
+          {t("companyDiagnostic.hero.sentence", { price: fmtPrice(currentPrice), ticker: data.ticker, fairValue: fmtPrice(activeValue) })}{" "}
+          {status && (
+            <Text style={{ fontWeight: "900", color: vColor }}>
               {t(`companyDiagnostic.hero.verdict.${status.verdict}`, { pct: status.pct.toFixed(0) })}
             </Text>
+          )}.
+        </Text>
+        <Text style={{ fontSize: 10.5, textAlign: "center", color: colors.textMuted, marginBottom: 20 }}>
+          {t("companyDiagnostic.hero.disclaimer")}
+        </Text>
+
+        {/* Comparison bars — gradient fills */}
+        <View style={{ gap: 14, marginBottom: 20 }}>
+          {bars.map((bar) => {
+            const pct = Math.max(4, Math.min(100, (bar.value / maxVal) * 100));
+            return (
+              <View key={bar.label}>
+                <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: 7 }}>
+                  <Text style={{ fontSize: 12.5, fontWeight: "700", color: colors.textSub }} numberOfLines={1}>{bar.label}</Text>
+                  <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, fontVariant: ["tabular-nums"] }} numberOfLines={1}>
+                    {fmtPrice(bar.value)}
+                  </Text>
+                </View>
+                <View style={{ height: 12, borderRadius: 6, backgroundColor: "rgba(127,127,127,0.14)", overflow: "hidden" }}>
+                  <LinearGradient
+                    colors={[`${bar.color}99`, bar.color]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={{ height: "100%", width: `${pct}%`, borderRadius: 6 }}
+                  />
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Scenario switch — segmented, the active one filled with its color */}
+        <View style={{ flexDirection: "row", gap: 6, padding: 5, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.22)" }}>
+          {(["bear", "base", "bull"] as ScenarioKey[]).map((key) => {
+            const active = scenario === key;
+            const sc = SCENARIO_COLOR[key];
+            return (
+              <TouchableOpacity key={key} onPress={() => setScenario(key)} activeOpacity={0.85} style={{ flex: 1, borderRadius: 14, overflow: "hidden" }}>
+                <LinearGradient
+                  colors={active ? [sc, `${sc}b3`] : ["transparent", "transparent"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={{ paddingVertical: 11, alignItems: "center" }}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase", color: active ? "#0A0F1A" : sc }}>
+                    {t(`companyDiagnostic.hero.scenario.${key}`)}
+                  </Text>
+                  <Text style={{ fontSize: 15, fontWeight: "900", color: active ? "#0A0F1A" : colors.text, marginTop: 3, fontVariant: ["tabular-nums"] }} numberOfLines={1} adjustsFontSizeToFit>
+                    {fmtPrice(scenarioValue[key])}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={{ fontSize: 11, textAlign: "center", color: colors.textMuted, marginTop: 10 }}>
+          {t("companyDiagnostic.hero.scenarioHint")}
+        </Text>
+      </GlowCard>
+
+      {/* ── 2. Nuvos score — big gradient ring ── */}
+      <GlowCard colors={colors} tint={_GOLD}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 18 }}>
+          <View>
+            <View style={{ position: "absolute", top: 10, left: 10, right: 10, bottom: 10, borderRadius: 60, backgroundColor: `${_GOLD}22` }} />
+            <RingGauge score={data.score} size={116} stroke={11} track="rgba(127,127,127,0.18)">
+              <Text style={{ fontSize: 36, lineHeight: 40, fontWeight: "900", color: colors.text, fontVariant: ["tabular-nums"] }}>{data.score}</Text>
+              <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted, marginTop: -2 }}>/100</Text>
+            </RingGauge>
+          </View>
+          <View style={{ flex: 1, minWidth: 0, gap: 10 }}>
+            <Text style={{ fontSize: 15, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.6, lineHeight: 20, color: _GOLD }} numberOfLines={3}>
+              {data.scoreLabel}
+            </Text>
+            {data.badges.length > 0 && (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {data.badges.map((b) => (
+                  <View key={b} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: `${_GOLD}1f`, borderWidth: 1, borderColor: `${_GOLD}55` }}>
+                    <Text style={{ fontSize: 11, fontWeight: "800", color: _GOLD }}>{b}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         </View>
-      )}
 
-      <Text style={{ fontSize: 14, lineHeight: 21, textAlign: "center", color: colors.textSub, marginBottom: 6, paddingHorizontal: 4 }}>
-        {t("companyDiagnostic.hero.sentence", { price: fmtPrice(currentPrice), ticker: data.ticker, fairValue: fmtPrice(activeValue) })}{" "}
-        {status && (
-          <Text style={{ fontWeight: "800", color: VERDICT_COLOR[status.verdict] }}>
-            {t(`companyDiagnostic.hero.verdict.${status.verdict}`, { pct: status.pct.toFixed(0) })}
-          </Text>
-        )}.
-      </Text>
-      <Text style={{ fontSize: 10.5, textAlign: "center", color: colors.textDim, marginBottom: 18 }}>
-        {t("companyDiagnostic.hero.disclaimer")}
-      </Text>
+        {/* Diego, 2026-09-07 — mirrors web: shown ONLY when real quality
+            >=70 AND today's verdict is overvalued — never a generic
+            disclaimer on every card. */}
+        {status?.verdict === "overvalued" && data.pillarScores.quality >= 70 && (
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 16, padding: 14, marginTop: 18, backgroundColor: "rgba(0,0,0,0.18)" }}>
+            <Ionicons name="shield-checkmark" size={17} color={_GOLD} style={{ marginTop: 1 }} />
+            <Text style={{ flex: 1, fontSize: 12.5, lineHeight: 18, color: colors.textSub }}>
+              {t("companyDiagnostic.hero.qualityOvervaluedNote", { ticker: data.ticker, score: data.pillarScores.quality })}
+            </Text>
+          </View>
+        )}
+      </GlowCard>
 
-      {/* Diego, 2026-09-07 — mirrors web: a real, narrowly-scoped guard
-          against "overvalued reads as bad company" for a genuinely high-
-          quality business. Shown ONLY when real quality >=70 AND today's
-          verdict is overvalued — never a generic disclaimer on every
-          card. */}
-      {status?.verdict === "overvalued" && data.pillarScores.quality >= 70 && (
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 18, backgroundColor: `${_GOLD}14`, borderWidth: 1, borderColor: `${_GOLD}4d` }}>
-          <Ionicons name="shield-outline" size={16} color={_GOLD} style={{ marginTop: 1 }} />
-          <Text style={{ flex: 1, fontSize: 12.5, lineHeight: 18, color: colors.textSub }}>
-            {t("companyDiagnostic.hero.qualityOvervaluedNote", { ticker: data.ticker, score: data.pillarScores.quality })}
-          </Text>
-        </View>
-      )}
-
-      {/* ── Comparison bars — label + value on one line, bar under it ── */}
-      <View style={{ gap: 14, marginBottom: 18 }}>
-        {bars.map((bar) => {
-          const pct = Math.min(100, (bar.value / maxVal) * 100);
-          return (
-            <View key={bar.label}>
-              <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flexShrink: 1 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: bar.color }} />
-                  <Text style={{ fontSize: 12.5, fontWeight: "700", color: colors.textSub }} numberOfLines={1}>{bar.label}</Text>
-                </View>
-                <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text, fontVariant: ["tabular-nums"] }} numberOfLines={1}>
-                  {fmtPrice(bar.value)}
-                </Text>
-              </View>
-              <View style={{ height: 10, borderRadius: 5, backgroundColor: colors.bgRaised, overflow: "hidden" }}>
-                <View style={{ height: "100%", width: `${pct}%`, borderRadius: 5, backgroundColor: bar.color }} />
-              </View>
-            </View>
-          );
-        })}
-      </View>
-
-      {/* ── Scenario — one segmented control ── */}
-      <View style={{ flexDirection: "row", gap: 4, padding: 4, borderRadius: 16, backgroundColor: colors.bgRaised, marginBottom: 8 }}>
-        {(["bear", "base", "bull"] as ScenarioKey[]).map((key) => {
-          const active = scenario === key;
-          return (
-            <TouchableOpacity
-              key={key}
-              onPress={() => setScenario(key)}
-              activeOpacity={0.8}
-              style={{
-                flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: "center",
-                backgroundColor: active ? colors.card : "transparent",
-                borderWidth: 1, borderColor: active ? `${SCENARIO_COLOR[key]}80` : "transparent",
-              }}
-            >
-              <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.4, textTransform: "uppercase", color: active ? SCENARIO_COLOR[key] : colors.textMuted }}>
-                {t(`companyDiagnostic.hero.scenario.${key}`)}
-              </Text>
-              <Text style={{ fontSize: 14.5, fontWeight: "900", color: active ? colors.text : colors.textSub, marginTop: 3, fontVariant: ["tabular-nums"] }} numberOfLines={1} adjustsFontSizeToFit>
-                {fmtPrice(scenarioValue[key])}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      <Text style={{ fontSize: 10.5, textAlign: "center", color: colors.textDim, marginBottom: 18 }}>
-        {t("companyDiagnostic.hero.scenarioHint")}
-      </Text>
-
-      {/* ── Why this value ── */}
-      <View style={{ borderRadius: 16, padding: 16, backgroundColor: colors.bgRaised }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <Ionicons name="help-circle-outline" size={16} color={_GOLD} />
-          <Text style={{ fontSize: 11, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase", color: colors.textMuted }}>
+      {/* ── 3. Why this number ── */}
+      <GlowCard colors={colors}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <View style={{ width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: `${_GOLD}1f` }}>
+            <Ionicons name="bulb" size={19} color={_GOLD} />
+          </View>
+          <Text style={{ flex: 1, fontSize: 16, fontWeight: "800", color: colors.text, letterSpacing: -0.2 }}>
             {t("companyDiagnostic.hero.whyTitle")}
           </Text>
         </View>
-        <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textSub }}>
+        <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.textSub }}>
           {t(
             data.valuation.shadowDualTrack?.applicable ? "companyDiagnostic.hero.whySummary" : "companyDiagnostic.hero.whySummarySingleTrack",
             { classification: classificationLabel },
           )}
         </Text>
-        <TouchableOpacity onPress={() => setWhyOpen((v) => !v)} style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Text style={{ fontSize: 12, fontWeight: "800", color: _GOLD }}>
+        <TouchableOpacity
+          onPress={() => setWhyOpen((v) => !v)}
+          activeOpacity={0.8}
+          style={{ marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 14, borderWidth: 1, borderColor: `${_GOLD}55`, backgroundColor: `${_GOLD}12` }}
+        >
+          <Text style={{ fontSize: 13, fontWeight: "800", color: _GOLD }}>
             {whyOpen ? t("companyDiagnostic.hero.whyHide") : t("companyDiagnostic.hero.whyShow")}
           </Text>
-          <Ionicons name={whyOpen ? "chevron-up" : "chevron-down"} size={13} color={_GOLD} />
+          <Ionicons name={whyOpen ? "chevron-up" : "chevron-down"} size={14} color={_GOLD} />
         </TouchableOpacity>
         {whyOpen && (
-          <View style={{ marginTop: 12, gap: 12 }}>
+          <View style={{ marginTop: 14, gap: 14 }}>
             {data.valuation.waccDetails?.wacc_pct != null && (
-              <Text style={{ fontSize: 12.5, color: colors.textSub }}>
+              <Text style={{ fontSize: 13, color: colors.textSub }}>
                 {t("companyDiagnostic.modelAssumptions.wacc")}:{" "}
-                <Text style={{ fontWeight: "800", color: colors.text }}>{data.valuation.waccDetails.wacc_pct.toFixed(1)}%</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>{data.valuation.waccDetails.wacc_pct.toFixed(1)}%</Text>
               </Text>
             )}
             {fairPeBreakdown?.base_multiple != null && (
@@ -223,34 +248,7 @@ export function CompanyDiagnosticHero({ data, colors }: { data: CompanyDiagnosti
             )}
           </View>
         )}
-      </View>
-    </View>
-  );
-}
-
-// Circular score gauge (0-100). The number and its /100 are the same
-// values the old plain-text header showed.
-function ScoreRing({ score, colors }: { score: number; colors: any }) {
-  const size = 84;
-  const stroke = 7;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const pct = Math.max(0, Math.min(100, score)) / 100;
-  return (
-    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      <Svg width={size} height={size} style={{ position: "absolute" }}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke={colors.bgRaised} strokeWidth={stroke} fill="none" />
-        <Circle
-          cx={size / 2} cy={size / 2} r={r}
-          stroke={_GOLD} strokeWidth={stroke} fill="none" strokeLinecap="round"
-          strokeDasharray={`${c * pct} ${c}`}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </Svg>
-      <View style={{ flexDirection: "row", alignItems: "baseline" }}>
-        <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text, fontVariant: ["tabular-nums"] }}>{score}</Text>
-        <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted }}>/100</Text>
-      </View>
+      </GlowCard>
     </View>
   );
 }

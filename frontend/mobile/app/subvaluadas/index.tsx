@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, TextInput,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -193,6 +194,12 @@ export default function SubvaluadasScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: viColors.bg }}>
+      {/* Ambient gold glow behind the header + company hero (redesign v2). */}
+      <LinearGradient
+        colors={["rgba(212,162,76,0.22)", "rgba(212,162,76,0.06)", "rgba(212,162,76,0)"]}
+        style={{ position: "absolute", top: 0, left: 0, right: 0, height: 380 }}
+        pointerEvents="none"
+      />
       {/* Header — round back button + one search field with "Buscar" built
           in (Nuvos Radar redesign, 2026-09-27). */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 }}>
@@ -255,22 +262,29 @@ export default function SubvaluadasScreen() {
           </View>
         ) : (
           <>
-            {/* Company card — the one place name, sector, price and today's
-                move live (the diagnostic below no longer repeats them). */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 16, padding: 16, borderRadius: 22, backgroundColor: viColors.card, borderWidth: 1, borderColor: viColors.border }}>
-              <StockAvatar ticker={data.ticker} size={52} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontSize: 17, fontWeight: "800", color: viColors.text, letterSpacing: -0.3 }} numberOfLines={1}>{data.company_name}</Text>
-                <Text style={{ fontSize: 12.5, color: viColors.textMuted, marginTop: 3 }} numberOfLines={1}>
+            {/* Company hero — no box: big logo with a glowing ring, name,
+                sector · exchange, and the price as the headline number. The
+                diagnostic below no longer repeats name/sector. */}
+            <View style={{ alignItems: "center", paddingTop: 10, paddingBottom: 24 }}>
+              <View style={{ padding: 4, borderRadius: 44, backgroundColor: "rgba(212,162,76,0.18)", borderWidth: 1, borderColor: "rgba(212,162,76,0.45)", marginBottom: 14 }}>
+                <StockAvatar ticker={data.ticker} size={72} />
+              </View>
+              <Text style={{ fontSize: 24, fontWeight: "900", color: viColors.text, letterSpacing: -0.6, textAlign: "center" }} numberOfLines={2}>{data.company_name}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
+                <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: "rgba(212,162,76,0.16)" }}>
+                  <Text style={{ fontSize: 12, fontWeight: "900", color: GOLD, letterSpacing: 0.5 }}>{data.ticker}</Text>
+                </View>
+                <Text style={{ fontSize: 13, color: viColors.textSub }} numberOfLines={1}>
                   {data.sector}{data.exchange ? ` · ${data.exchange}` : ""}
                 </Text>
               </View>
               {data.price !== null && (
-                <View style={{ alignItems: "flex-end", gap: 5 }}>
-                  <Text style={{ fontSize: 20, fontWeight: "800", color: viColors.text, fontVariant: ["tabular-nums"] }}>${data.price.toFixed(2)}</Text>
+                <View style={{ alignItems: "center", marginTop: 18 }}>
+                  <Text style={{ fontSize: 44, lineHeight: 50, fontWeight: "900", color: viColors.text, letterSpacing: -1.5, fontVariant: ["tabular-nums"] }}>${data.price.toFixed(2)}</Text>
                   {data.change_pct !== null && (
-                    <View style={{ borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: data.change_pct >= 0 ? "rgba(79,166,149,0.16)" : "rgba(221,110,99,0.16)" }}>
-                      <Text style={{ fontSize: 11.5, fontWeight: "800", color: data.change_pct >= 0 ? TEAL : CORAL, fontVariant: ["tabular-nums"] }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: data.change_pct >= 0 ? "rgba(79,166,149,0.18)" : "rgba(221,110,99,0.18)" }}>
+                      <Ionicons name={data.change_pct >= 0 ? "arrow-up" : "arrow-down"} size={13} color={data.change_pct >= 0 ? TEAL : CORAL} />
+                      <Text style={{ fontSize: 13, fontWeight: "800", color: data.change_pct >= 0 ? TEAL : CORAL, fontVariant: ["tabular-nums"] }}>
                         {data.change_pct >= 0 ? "+" : ""}{data.change_pct.toFixed(2)}% {t("subvaluadas.detail.today")}
                       </Text>
                     </View>

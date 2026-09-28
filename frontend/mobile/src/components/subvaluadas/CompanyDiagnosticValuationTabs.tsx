@@ -4,7 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { fmtPrice, SCENARIO_COLOR, scoreColor } from "../../lib/types/companyDiagnostic";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
-import { ExplainableValue } from "./companyDiagnosticShared";
+import { ExplainableValue, RingGauge } from "./companyDiagnosticShared";
+import { LinearGradient } from "expo-linear-gradient";
 import { CompanyDiagnosticQualityPillar } from "./CompanyDiagnosticQualityPillar";
 import { CompanyDiagnosticTrustPillar } from "./CompanyDiagnosticTrustPillar";
 import { CompanyDiagnosticValuePillar } from "./CompanyDiagnosticValuePillar";
@@ -406,7 +407,8 @@ export function CompanyDiagnosticValuationTabs({ data, colors }: { data: Company
   );
 
   return (
-    <View style={{ marginTop: 16, borderRadius: 22, overflow: "hidden", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
+    <View style={{ marginTop: 16, borderRadius: 24, overflow: "hidden", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
+      <LinearGradient colors={["rgba(255,255,255,0.05)", "rgba(255,255,255,0)"]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: 220 }} />
       {/* Group 1 — why this valuation: pill chips (Nuvos Radar redesign, 2026-09-27) */}
       <View style={{ paddingTop: 16, paddingHorizontal: 16 }}>
         <GroupLabel>{t("companyDiagnostic.diagTabs.whyGroupLabel")}</GroupLabel>
@@ -420,13 +422,15 @@ export function CompanyDiagnosticValuationTabs({ data, colors }: { data: Company
               disabled={!tb.available}
               onPress={() => setTab(tb.key)}
               activeOpacity={0.8}
-              style={{
-                paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999,
-                backgroundColor: active ? _GOLD : colors.bgRaised,
-                opacity: tb.available ? 1 : 0.4,
-              }}
+              style={{ borderRadius: 999, overflow: "hidden", opacity: tb.available ? 1 : 0.4 }}
             >
-              <Text style={{ fontSize: 12, fontWeight: "800", color: active ? "#0A0F1A" : colors.textSub }}>{tb.label}</Text>
+              <LinearGradient
+                colors={active ? ["#F5C76B", _GOLD] : [colors.bgRaised, colors.bgRaised]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={{ paddingHorizontal: 16, paddingVertical: 10 }}
+              >
+                <Text style={{ fontSize: 12.5, fontWeight: "800", color: active ? "#0A0F1A" : colors.textSub }}>{tb.label}</Text>
+              </LinearGradient>
             </TouchableOpacity>
           );
         })}
@@ -444,24 +448,22 @@ export function CompanyDiagnosticValuationTabs({ data, colors }: { data: Company
               <TouchableOpacity
                 key={tb.key}
                 onPress={() => setTab(tb.key)}
-                activeOpacity={0.8}
-                style={{
-                  width: "48.5%", flexGrow: 1, borderRadius: 16, padding: 12, gap: 10,
-                  backgroundColor: active ? `${pc}14` : colors.bgRaised,
-                  borderWidth: 1, borderColor: active ? `${pc}80` : "transparent",
-                }}
+                activeOpacity={0.85}
+                style={{ width: "48.5%", flexGrow: 1, borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: active ? `${pc}99` : colors.border }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <View style={{ width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: `${pc}22` }}>
-                    {tb.icon && <Ionicons name={tb.icon} size={15} color={pc} />}
+                <LinearGradient
+                  colors={active ? [`${pc}38`, `${pc}0d`] : [`${pc}12`, colors.bgRaised]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={{ padding: 14, flexDirection: "row", alignItems: "center", gap: 12 }}
+                >
+                  <RingGauge score={score ?? 0} size={50} stroke={5} from={pc} to={`${pc}aa`} track="rgba(127,127,127,0.18)">
+                    <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text, fontVariant: ["tabular-nums"] }}>{score ?? "—"}</Text>
+                  </RingGauge>
+                  <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+                    {tb.icon && <Ionicons name={tb.icon} size={14} color={pc} />}
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: active ? colors.text : colors.textSub }} numberOfLines={2}>{tb.label}</Text>
                   </View>
-                  {score != null && (
-                    <Text style={{ fontSize: 17, fontWeight: "900", color: scoreColor(score), fontVariant: ["tabular-nums"] }}>
-                      {score}<Text style={{ fontSize: 10.5, fontWeight: "700", color: colors.textMuted }}>/100</Text>
-                    </Text>
-                  )}
-                </View>
-                <Text style={{ fontSize: 12.5, fontWeight: "800", color: active ? colors.text : colors.textSub }} numberOfLines={1}>{tb.label}</Text>
+                </LinearGradient>
               </TouchableOpacity>
             );
           })}

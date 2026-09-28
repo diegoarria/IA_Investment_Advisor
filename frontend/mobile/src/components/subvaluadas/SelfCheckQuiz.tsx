@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from "reac
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { decisionsApi } from "../../lib/api";
+import { GlowCard } from "./companyDiagnosticShared";
 
 // Self-Check mini-quiz — hasta abajo de la pantalla de Oportunidades
 // (Diego). 5 preguntas de comprensión libres, todas opcionales; lo que el
@@ -48,7 +49,7 @@ export function SelfCheckQuiz({ ticker, colors }: { ticker: string; colors: any 
   };
 
   return (
-    <View style={{ marginTop: 16, padding: 18, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
+    <GlowCard colors={colors} style={{ marginTop: 16 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <View style={{ width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgRaised }}>
           <Ionicons name="clipboard-outline" size={18} color={colors.textSub} />
@@ -108,6 +109,6 @@ export function SelfCheckQuiz({ ticker, colors }: { ticker: string; colors: any 
           <Text style={{ fontSize: 12, color: "#ef4444", textAlign: "center" }}>{t("subvaluadas.selfCheckQuiz.saveError")}</Text>
         )}
       </View>
-    </View>
+    </GlowCard>
   );
 }

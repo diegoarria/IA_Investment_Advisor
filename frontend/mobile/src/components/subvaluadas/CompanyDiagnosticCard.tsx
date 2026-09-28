@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { CompanyDiagnosticHero } from "./CompanyDiagnosticHero";
 import { CompanyDiagnosticValuationTabs } from "./CompanyDiagnosticValuationTabs";
 import { SelfCheckQuiz } from "./SelfCheckQuiz";
+import { GlowCard } from "./companyDiagnosticShared";
 import { CompanyDiagnosticBacktestPanel } from "./CompanyDiagnosticBacktestPanel";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
@@ -42,8 +43,6 @@ function DiagSectionHeader({ title, subtitle, icon, colors, tint }: { title: str
   );
 }
 
-const CARD = { borderRadius: 22, padding: 18, borderWidth: 1 } as const;
-
 export function CompanyDiagnosticCard({
   data, colors, locked, onUnlock,
 }: {
@@ -66,11 +65,12 @@ export function CompanyDiagnosticCard({
   const content = (
     <View>
       {/* Capa 1 — Hero (simplificado, ver CompanyDiagnosticHero.tsx) */}
-      <View style={{ ...CARD, backgroundColor: colors.card, borderColor: colors.border }}>
-        <CompanyDiagnosticHero data={data} colors={colors} />
+      <CompanyDiagnosticHero data={data} colors={colors} />
 
+      {(data.sectorModelNote || data.valuation.fcfAssumptions || data.valuation.waccDetails) && (
+      <GlowCard colors={colors} style={{ marginTop: 16 }}>
         {data.sectorModelNote && (
-          <View style={{ borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginTop: 16, backgroundColor: "rgba(212,162,76,0.07)", borderLeftWidth: 3, borderLeftColor: "#D4A24C" }}>
+          <View style={{ borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "rgba(212,162,76,0.08)", borderLeftWidth: 3, borderLeftColor: "#D4A24C" }}>
             <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.accentLight, marginBottom: 3 }}>
               {t("companyDiagnostic.sectorModelNoteTitle")}
             </Text>
@@ -79,7 +79,7 @@ export function CompanyDiagnosticCard({
         )}
 
         {(data.valuation.fcfAssumptions || data.valuation.waccDetails) && (
-          <View style={{ marginTop: 14 }}>
+          <View style={{ marginTop: data.sectorModelNote ? 14 : 0 }}>
             <TouchableOpacity onPress={() => setAssumptionsOpen((o) => !o)} style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
               <Ionicons name="options-outline" size={13} color={colors.textMuted} />
               <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>
@@ -122,7 +122,8 @@ export function CompanyDiagnosticCard({
             )}
           </View>
         )}
-      </View>
+      </GlowCard>
+      )}
 
       {/* Capa 2 — pestañas Valuación/Escenarios/Comparables/Historial (incluye
           el gráfico precio vs. valor razonable) + los 4 pilares como pestañas,
@@ -131,7 +132,7 @@ export function CompanyDiagnosticCard({
 
       {/* Tesis Final */}
       {data.investmentThesis && (
-        <View style={{ ...CARD, marginTop: 16, backgroundColor: colors.card, borderColor: colors.border, borderLeftWidth: 4, borderLeftColor: colors.accent }}>
+        <GlowCard colors={colors} tint={colors.accent} strong style={{ marginTop: 16 }}>
           <DiagSectionHeader
             title={t("companyDiagnostic.thesis.title")}
             subtitle={t("companyDiagnostic.thesis.subtitle")}
@@ -142,11 +143,11 @@ export function CompanyDiagnosticCard({
           <Text style={{ fontSize: 14.5, lineHeight: 22, color: colors.textSub }}>
             {renderWithBoldNumbers(data.investmentThesis, colors)}
           </Text>
-        </View>
+        </GlowCard>
       )}
 
       {/* Guía de metodología */}
-      <View style={{ ...CARD, marginTop: 16, backgroundColor: colors.card, borderColor: colors.border }}>
+      <GlowCard colors={colors} style={{ marginTop: 16 }}>
         <DiagSectionHeader
           title={t("companyDiagnostic.methodology.title")}
           subtitle={t("companyDiagnostic.methodology.subtitle")}
@@ -161,7 +162,7 @@ export function CompanyDiagnosticCard({
             </View>
           ))}
         </View>
-      </View>
+      </GlowCard>
 
       {/* "What $10,000 became" — ticker-independent, moved here from the
           bottom of app/subvaluadas/index.tsx (Diego, 2026-08-19): sits

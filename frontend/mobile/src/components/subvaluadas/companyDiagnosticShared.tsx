@@ -1,6 +1,8 @@
 import React, { useState, type ReactNode } from "react";
 import { View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from "react-native-svg";
 import { useTranslation } from "react-i18next";
 import { scoreColor } from "../../lib/types/companyDiagnostic";
 
@@ -14,6 +16,51 @@ import { scoreColor } from "../../lib/types/companyDiagnostic";
 export function DiagCard({ children, colors, style }: { children: ReactNode; colors: any; style?: any }) {
   return (
     <View style={[{ borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }, style]}>
+      {children}
+    </View>
+  );
+}
+
+// Nuvos Radar card surface (redesign v2, 2026-09-27): a diagonal gradient
+// from a faint tint of `tint` (or a white sheen) into the card color, a
+// hairline border, generous radius. Every card on the screen uses this.
+export function GlowCard({ children, colors, tint, style, strong }: { children: ReactNode; colors: any; tint?: string; style?: any; strong?: boolean }) {
+  const from = tint ? `${tint}${strong ? "40" : "1c"}` : "rgba(255,255,255,0.05)";
+  return (
+    <View style={[{ borderRadius: 24, overflow: "hidden", borderWidth: 1, borderColor: tint ? `${tint}${strong ? "66" : "33"}` : colors.border }, style]}>
+      <LinearGradient colors={[from, colors.card]} start={{ x: 0, y: 0 }} end={{ x: 0.9, y: 0.9 }} style={{ padding: 20 }}>
+        {children}
+      </LinearGradient>
+    </View>
+  );
+}
+
+// Circular 0-100 gauge with a two-stop gradient stroke. `size` scales the
+// whole thing; the center shows the same score + /100 the old text showed.
+export function RingGauge({
+  score, size = 112, stroke = 10, from = "#F5C76B", to = "#D4A24C", track, children,
+}: { score: number; size?: number; stroke?: number; from?: string; to?: string; track: string; children?: ReactNode }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, score)) / 100;
+  const id = `ring-${from}-${to}-${size}`.replace(/[^a-zA-Z0-9-]/g, "");
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Svg width={size} height={size} style={{ position: "absolute" }}>
+        <Defs>
+          <SvgGradient id={id} x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={from} />
+            <Stop offset="1" stopColor={to} />
+          </SvgGradient>
+        </Defs>
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={track} strokeWidth={stroke} fill="none" />
+        <Circle
+          cx={size / 2} cy={size / 2} r={r}
+          stroke={`url(#${id})`} strokeWidth={stroke} fill="none" strokeLinecap="round"
+          strokeDasharray={`${c * pct} ${c}`}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
       {children}
     </View>
   );

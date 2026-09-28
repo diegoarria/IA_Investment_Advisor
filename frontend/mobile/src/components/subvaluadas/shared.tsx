@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import Markdown from "react-native-markdown-display";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
 
 export interface ChecklistItem {
@@ -630,17 +631,23 @@ export function ActionButtons({ watchlisted, onFollow, onAnalyze, colors }: {
   return (
     <View style={{ flexDirection: "row", gap: 10 }}>
       <TouchableOpacity onPress={onFollow} disabled={watchlisted} activeOpacity={0.8}
-                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 15, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
+                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
         <Ionicons name={watchlisted ? "checkmark-circle" : "star-outline"} size={16} color={watchlisted ? "#22c55e" : colors.text} />
         <Text style={{ fontSize: 13.5, fontWeight: "800", color: colors.text }}>
           {watchlisted ? t("subvaluadas.follow.following") : t("subvaluadas.follow.button")}
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={onAnalyze} activeOpacity={0.85} style={{ flex: 1.3, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 15, borderRadius: 16, backgroundColor: colors.brandGreen ?? colors.accent }}>
-        <Ionicons name="chatbubble-ellipses-outline" size={16} color="#000" />
-        <Text style={{ fontSize: 13.5, fontWeight: "900", color: "#000" }}>
-          {t("subvaluadas.analyze.button")}
-        </Text>
+      <TouchableOpacity onPress={onAnalyze} activeOpacity={0.85} style={{ flex: 1.3, borderRadius: 16, overflow: "hidden" }}>
+        <LinearGradient
+          colors={[colors.brandGreenLight ?? "#00e887", colors.brandGreen ?? colors.accent]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 16 }}
+        >
+          <Ionicons name="chatbubble-ellipses" size={16} color="#04150e" />
+          <Text style={{ fontSize: 14, fontWeight: "900", color: "#04150e" }}>
+            {t("subvaluadas.analyze.button")}
+          </Text>
+        </LinearGradient>
       </TouchableOpacity>
     </View>
   );
