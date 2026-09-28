@@ -22,6 +22,7 @@ import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
 import PremiumToolCard from "../../src/components/PremiumToolCard";
 import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
+import { isNYSEOpen, readPriceCache, writePriceCache, needsPriceRefresh, type PriceCache } from "../../src/lib/marketHours";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
@@ -1280,30 +1281,52 @@ export default function PortfolioScreen() {
   const [portfolioAnalysis, setPortfolioAnalysis] = useState<PortfolioAnalysis | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
 
+  // Diego, 2026-09-27: the portfolio value only moves during market hours.
+  // Outside them it's shown from the last saved prices, instantly, with no
+  // loader and no polling — the only call is one silent fetch right after
+  // the close to lock in the final prices (see lib/marketHours.ts).
+  const priceCacheRef = useRef<PriceCache | null>(null);
+  const [priceCacheLoaded, setPriceCacheLoaded] = useState(false);
+  useEffect(() => {
+    readPriceCache().then((c) => {
+      priceCacheRef.current = c;
+      if (c) setPrices((prev: any) => ({ ...c.prices, ...prev }));
+      setPriceCacheLoaded(true);
+    });
+  }, []);
+
   const fetchPrices = useCallback(async (silent = false) => {
-    if (!positions.length) return;
-    if (!silent) setLoadingPrices(true);
+    if (!positions.length || !priceCacheLoaded) return;
+    const tickers = positions.map((p) => p.ticker);
+    if (!needsPriceRefresh(priceCacheRef.current, tickers)) return;
+    const haveAll = tickers.every((t) => priceCacheRef.current?.prices?.[t]);
+    if (!silent && !haveAll) setLoadingPrices(true);
     try {
-      const res = await marketApi.getPrices(positions.map((p) => p.ticker));
-      setPrices(res.data);
+      const res = await marketApi.getPrices(tickers);
+      setPrices((prev: any) => ({ ...prev, ...res.data }));
       setPriceError(false);
+      await writePriceCache(res.data);
+      priceCacheRef.current = await readPriceCache();
     } catch {
-      if (!silent) setPriceError(true);
+      if (!silent && !haveAll) setPriceError(true);
     }
     setLoadingPrices(false);
-  }, [positions]);
+  }, [positions, priceCacheLoaded]);
 
-  // Refresh on tab focus
+  // Refresh on tab focus — every 30s, but fetchPrices itself skips the call
+  // whenever the market is closed and the saved close is already current.
   useFocusEffect(useCallback(() => {
     fetchPrices(true);
     const interval = setInterval(() => fetchPrices(true), 30_000);
     return () => clearInterval(interval);
   }, [fetchPrices]));
 
-  // Re-fetch whenever positions are added/removed so new entries get prices immediately
+  // Re-fetch whenever positions are added/removed so new entries get prices
+  // immediately (a new ticker isn't in the saved prices, so this fetches even
+  // with the market closed).
   useEffect(() => {
     if (positions.length > 0) fetchPrices(true);
-  }, [positions.length]);
+  }, [positions.length, priceCacheLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cargar portafolio del servidor al montar Y cada vez que el tab recibe foco.
   // Esto garantiza que los cambios hechos en web (u otro dispositivo) siempre
@@ -1420,11 +1443,12 @@ export default function PortfolioScreen() {
   useEffect(() => { fetchReturns(true); }, [positionsKey]);
   useEffect(() => { fetchChart(true); }, [selectedPeriod, positionsKey]);
 
-  // Auto-refresh en tiempo real — returns cada 30s, chart cada 60s
+  // Auto-refresh en tiempo real — returns cada 30s, chart cada 60s — only
+  // while the market is open (Diego, 2026-09-27: fixed number outside hours).
   useFocusEffect(useCallback(() => {
     if (positions.length === 0) return;
-    const ri = setInterval(() => fetchReturns(false), 30_000);
-    const ci = setInterval(() => fetchChart(false), 60_000);
+    const ri = setInterval(() => { if (isNYSEOpen()) fetchReturns(false); }, 30_000);
+    const ci = setInterval(() => { if (isNYSEOpen()) fetchChart(false); }, 60_000);
     return () => { clearInterval(ri); clearInterval(ci); };
   }, [positions.length, fetchReturns, fetchChart]));
 

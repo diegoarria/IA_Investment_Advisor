@@ -25,7 +25,7 @@ import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenP
 import { useCombinedPositions, useCombinedCurrency, useCombinedClosedPositions, useCombinedInceptionDate } from "@/lib/portfolioStore";
 import { usePaperStore } from "@/lib/paperStore";
 import { useFxRate } from "@/lib/useFxRate";
-import { isNYSEOpen } from "@/lib/marketHours";
+import { isNYSEOpen, readPriceCache, writePriceCache, needsPriceRefresh } from "@/lib/marketHours";
 import { registerWebPush } from "@/lib/webPush";
 import { getUserLevel } from "@/lib/userLevel";
 import { isDismissedToday, dismissToday, isWeekdayET } from "@/lib/dailyDismiss";
@@ -321,12 +321,22 @@ export default function HomePage() {
       // something real and live instead of an empty "Mercados en vivo"
       // section (Diego: "esa pantalla de Inicio realmente no muestra nada").
       const guest = typeof window !== "undefined" && localStorage.getItem("nuvos_guest") === "1";
+      // Diego, 2026-09-27: the portfolio value only moves during market
+      // hours — show the last saved prices instantly and only hit the
+      // network when the market is open (or the saved close is stale).
+      const priceUid = useAuthStore.getState().userId;
+      const priceCache = readPriceCache(priceUid);
+      if (priceCache) setPrices((prev) => ({ ...priceCache.prices, ...prev }));
+      const refreshPrices = tickers.length > 0 && needsPriceRefresh(priceCache, tickers);
       const [priceRes, idxRes, notifRes] = await Promise.allSettled([
-        tickers.length ? marketApi.getPrices(tickers) : Promise.resolve({ data: {} }),
+        refreshPrices ? marketApi.getPrices(tickers) : Promise.resolve({ data: null }),
         guest ? marketApi.getIndicesPublic() : marketApi.getIndices(),
         guest ? Promise.resolve({ data: {} }) : notifApi.getAll(),
       ]);
-      if (priceRes.status === "fulfilled")  setPrices(priceRes.value.data ?? {});
+      if (priceRes.status === "fulfilled" && priceRes.value.data) {
+        setPrices((prev) => ({ ...prev, ...priceRes.value.data }));
+        writePriceCache(priceUid, priceRes.value.data);
+      }
       if (idxRes.status  === "fulfilled") { setIndices(idxRes.value.data ?? []); setLastRefresh(new Date()); }
       if (notifRes.status === "fulfilled") {
         const d = notifRes.value.data;
@@ -422,13 +432,16 @@ export default function HomePage() {
 
   // Refresh prices + indices every 30s (no news/notifs to avoid hammering API)
   useEffect(() => {
+    // Market hours only — outside them the numbers stay fixed (Diego, 2026-09-27).
     const tick = () => {
       const tickers = positions.map((p) => p.ticker);
-      if (tickers.length) {
+      const uid = useAuthStore.getState().userId;
+      if (tickers.length && needsPriceRefresh(readPriceCache(uid), tickers)) {
         marketApi.getPrices(tickers)
-          .then((res) => { if (res?.data) setPrices(res.data ?? {}); })
+          .then((res) => { if (res?.data) { setPrices((prev) => ({ ...prev, ...res.data })); writePriceCache(uid, res.data); } })
           .catch(() => {});
       }
+      if (!isNYSEOpen()) return;
       marketApi.getIndices()
         .then((res) => { if (res?.data) { setIndices(res.data ?? []); setLastRefresh(new Date()); } })
         .catch(() => {});

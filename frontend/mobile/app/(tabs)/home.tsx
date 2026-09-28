@@ -34,6 +34,7 @@ import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggl
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
 import ExplainButton from "../../src/components/ExplainButton";
 import { isDismissedToday, dismissToday, isWeekdayET } from "../../src/lib/dailyDismiss";
+import { isNYSEOpen, readPriceCache, writePriceCache, needsPriceRefresh } from "../../src/lib/marketHours";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -675,12 +676,21 @@ export default function HomeScreen() {
     if (!silent) setLoading(true);
     try {
       const tickers = positions.map((p) => p.ticker);
+      // Diego, 2026-09-27: the portfolio value only moves during market
+      // hours — show the last saved prices instantly, and only hit the
+      // network when the market is open (or the saved close is stale).
+      const priceCache = await readPriceCache();
+      if (priceCache) setPrices((prev: any) => ({ ...priceCache.prices, ...prev }));
+      const refreshPrices = tickers.length > 0 && needsPriceRefresh(priceCache, tickers);
       const [priceRes, notifRes, idxRes] = await Promise.allSettled([
-        tickers.length ? marketApi.getPrices(tickers) : Promise.resolve({ data: {} }),
+        refreshPrices ? marketApi.getPrices(tickers) : Promise.resolve({ data: null }),
         notificationsApi.getAll(),
         marketApi.getIndices(),
       ]);
-      if (priceRes.status === "fulfilled") setPrices(priceRes.value.data ?? {});
+      if (priceRes.status === "fulfilled" && priceRes.value.data) {
+        setPrices((prev: any) => ({ ...prev, ...priceRes.value.data }));
+        writePriceCache(priceRes.value.data);
+      }
       if (notifRes.status === "fulfilled") {
         const d = notifRes.value.data;
         setUnread(d?.unread_count ?? 0);
@@ -791,14 +801,16 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => {
     loadData(true);
-    // Refresh prices + indices every 30s while screen is focused
-    const id = setInterval(() => {
+    // Refresh prices + indices every 30s while screen is focused — market
+    // hours only; outside them the numbers stay fixed (Diego, 2026-09-27).
+    const id = setInterval(async () => {
       const tickers = positions.map((p) => p.ticker);
-      if (tickers.length) {
+      if (tickers.length && needsPriceRefresh(await readPriceCache(), tickers)) {
         marketApi.getPrices(tickers)
-          .then((res: any) => { if (res?.data) setPrices(res.data ?? {}); })
+          .then((res: any) => { if (res?.data) { setPrices((prev: any) => ({ ...prev, ...res.data })); writePriceCache(res.data); } })
           .catch(() => {});
       }
+      if (!isNYSEOpen()) return;
       marketApi.getIndices()
         .then((res: any) => { if (res?.data) { setIndices(res.data ?? []); setIdxRefresh(new Date()); } })
         .catch(() => {});
@@ -848,17 +860,7 @@ export default function HomeScreen() {
   };
 
   // NYSE trading hours: Mon–Fri 09:30–16:00 ET (UTC-4 in summer, UTC-5 in winter)
-  const isMarketOpen = React.useMemo(() => {
-    const now = new Date();
-    const day = now.getUTCDay(); // 0=Sun, 6=Sat
-    if (day === 0 || day === 6) return false;
-    // Rough ET offset (no DST precision needed for a UI hint)
-    const etOffset = -4; // EDT; use -5 for EST
-    const etH = now.getUTCHours() + etOffset;
-    const etM = now.getUTCMinutes();
-    const minutesSinceMidnight = etH * 60 + etM;
-    return minutesSinceMidnight >= 9 * 60 + 30 && minutesSinceMidnight < 16 * 60;
-  }, []);
+  const isMarketOpen = React.useMemo(() => isNYSEOpen(), []);
 
   const firstName = profile?.name?.split(" ")[0] ?? t("home.investorFallback");
 

@@ -6,6 +6,7 @@ import StockAvatar from "@/components/StockAvatar";
 import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
+import { isNYSEOpen, readPriceCache, writePriceCache, needsPriceRefresh } from "@/lib/marketHours";
 import type { TFunction } from "i18next";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
@@ -1285,20 +1286,38 @@ export default function PortfolioPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncStatus]);
 
-  const fetchPrices = useCallback(async () => {
+  // Diego, 2026-09-27: the portfolio value only moves during market hours.
+  // Outside them it's shown from the last saved prices, instantly, with no
+  // loader and no polling — the only call is one silent fetch right after
+  // the close to lock in the final prices (see lib/marketHours.ts). The
+  // "Actualizando precios…" loader only appears when there's nothing saved
+  // yet (it used to flash on every 30s refresh).
+  useEffect(() => {
+    const cached = readPriceCache(userId);
+    if (cached) setPrices((prev) => ({ ...cached.prices, ...prev }));
+  }, [userId]);
+
+  const fetchPrices = useCallback(async (force = false) => {
     if (!positions.length) return;
-    setLoadingPrices(true);
-    setPriceError(false);
+    const tickers = positions.map((p) => p.ticker);
+    const cache = readPriceCache(userId);
+    if (!force && !needsPriceRefresh(cache, tickers)) return;
+    const haveAll = tickers.every((t) => cache?.prices?.[t]);
+    if (!haveAll) { setLoadingPrices(true); setPriceError(false); }
     try {
-      const res = await marketApi.getPrices(positions.map((p) => p.ticker));
-      setPrices(res.data);
+      const res = await marketApi.getPrices(tickers);
+      setPrices((prev) => ({ ...prev, ...res.data }));
+      writePriceCache(userId, res.data);
+      setPriceError(false);
     } catch {
-      setPriceError(true);
+      if (!haveAll) setPriceError(true);
     }
     setLoadingPrices(false);
-  }, [positions]);
+  }, [positions, userId]);
 
-  // Fetch on mount and whenever positions change; auto-refresh every 30s
+  // Fetch on mount and whenever positions change; every 30s after that —
+  // fetchPrices itself skips the call while the market is closed and the
+  // saved close is already current.
   useEffect(() => {
     fetchPrices();
     const interval = setInterval(() => fetchPrices(), 30_000);
@@ -1414,9 +1433,10 @@ export default function PortfolioPage() {
   // Auto-refresh en tiempo real — returns cada 30s, chart cada 60s
   useEffect(() => {
     if (positions.length === 0) return;
-    const ri = setInterval(() => fetchReturns(false), 30_000);
-    const ci = setInterval(() => fetchChart(false), 60_000);
-    const oi = setInterval(() => fetchChartOverrides(), 60_000);
+    // Market hours only (Diego, 2026-09-27: fixed numbers outside them).
+    const ri = setInterval(() => { if (isNYSEOpen()) fetchReturns(false); }, 30_000);
+    const ci = setInterval(() => { if (isNYSEOpen()) fetchChart(false); }, 60_000);
+    const oi = setInterval(() => { if (isNYSEOpen()) fetchChartOverrides(); }, 60_000);
     return () => { clearInterval(ri); clearInterval(ci); clearInterval(oi); };
   }, [positions.length, fetchReturns, fetchChart, fetchChartOverrides]);
 
@@ -2436,7 +2456,7 @@ export default function PortfolioPage() {
               style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
             />
             <PremiumBadge />
-            <button onClick={fetchPrices}
+            <button onClick={() => fetchPrices(true)}
                     className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
                     style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
                     title={t("portfolio.header.refreshPrices") ?? undefined}>
@@ -2902,7 +2922,7 @@ export default function PortfolioPage() {
                           <span className="text-sm" style={{ color: "var(--muted)" }}>
                             {t("portfolio.summary.pricesUnavailable")}{" "}
                           </span>
-                          <button onClick={fetchPrices}
+                          <button onClick={() => fetchPrices(true)}
                                   className="text-sm font-semibold underline hover:opacity-70 transition-opacity"
                                   style={{ color: "var(--accent-l)" }}>
                             {t("portfolio.summary.retry")}
