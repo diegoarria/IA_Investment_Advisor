@@ -2673,7 +2673,41 @@
     "tourCta": "Got it, back to home ✓",
     "imageSentOne": "📷 Image sent",
     "imageSentMany": "📷 {{count}} images sent",
-    "online": "Online"
+    "online": "Online",
+    "welcome": {
+      "hello": "Hi, {{name}} 👋",
+      "helloNoName": "Hi 👋",
+      "iam": "I'm Arthur.",
+      "tagline": "Your partner for making better decisions with your money.",
+      "body": "I analyze companies, review your portfolio and turn complex financial information into clear explanations.",
+      "notTell": "I don't tell you what to buy, sell or do.",
+      "helpPre": "I help you understand ",
+      "helpBold": "what's happening, why it matters and what scenarios are in front of you.",
+      "decision": "The decision is always yours.",
+      "analyzeTitle": "What do you want to analyze today?",
+      "cats": [
+        {
+          "emoji": "📊",
+          "label": "Companies",
+          "prompt": "Analyze the free cash flow of MSFT vs. GOOGL"
+        },
+        {
+          "emoji": "💼",
+          "label": "Your portfolio",
+          "prompt": "What risks and concentrations does my portfolio have?"
+        },
+        {
+          "emoji": "🌎",
+          "label": "Market",
+          "prompt": "Which macro indicators are moving the market today?"
+        },
+        {
+          "emoji": "⚖️",
+          "label": "Comparisons",
+          "prompt": "Compare NVDA vs. AMD on valuation and growth"
+        }
+      ]
+    }
   },
   "paper": {
     "title": "Simulator",

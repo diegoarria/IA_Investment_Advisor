@@ -940,18 +940,28 @@ Instrucciones críticas:
                   </View>
 
                   <Text style={styles.heroTitle}>
-                    {mentor ? mentor.name : profile?.name ? t("chat.helloName", { name: profile.name.split(" ")[0] }) : t("chat.mentorAiFallback")}
+                    {mentor ? mentor.name : profile?.name ? t("chat.welcome.hello", { name: profile.name.split(" ")[0] }) : t("chat.welcome.helloNoName")}
                   </Text>
-                  <Text style={styles.heroSub}>
-                    {mentor ? mentor.title : t("chat.mentorSub")}
-                  </Text>
-
-                  {!mentor && (
-                    <Text style={styles.heroDetail}>
-                      {getUserLevel(profile) === "basico"
-                        ? t("chat.welcomeSubtitleBasic")
-                        : t("chat.welcomeSubtitleDefault")}
-                    </Text>
+                  {mentor ? (
+                    <Text style={styles.heroSub}>{mentor.title}</Text>
+                  ) : (
+                    // Diego, 2026-09-28 — Arthur's opening message, verbatim.
+                    <>
+                      <Text style={styles.heroIam}>{t("chat.welcome.iam")}</Text>
+                      <Text style={styles.heroTagline}>{t("chat.welcome.tagline")}</Text>
+                      <Text style={styles.heroDetail}>{t("chat.welcome.body")}</Text>
+                      <View style={styles.heroPromise}>
+                        <Text style={styles.heroPromiseTitle}>{t("chat.welcome.notTell")}</Text>
+                        <Text style={styles.heroPromiseText}>
+                          {t("chat.welcome.helpPre")}
+                          <Text style={{ fontWeight: "800", color: "#fff" }}>{t("chat.welcome.helpBold")}</Text>
+                        </Text>
+                        <View style={styles.heroDecision}>
+                          <Ionicons name="shield-checkmark" size={14} color="#00D47E" />
+                          <Text style={styles.heroDecisionText}>{t("chat.welcome.decision")}</Text>
+                        </View>
+                      </View>
+                    </>
                   )}
 
                   {mentor && (
@@ -994,48 +1004,33 @@ Instrucciones críticas:
                 </View>
               </View>
 
-              {/* ── Suggestions ── */}
-              {(() => {
-                const obj = profile?.investment_goal as string | undefined;
-                const level = getUserLevel(profile);
-                const objectiveGreeting = getObjectiveGreeting(t);
-                const suggestionsByObjective = getSuggestionsByObjective(t);
-                const suggestionsByLevel = getSuggestionsByLevel(t);
-                const suggestionsDefault = getSuggestionsDefault(t);
-                const greeting = obj ? objectiveGreeting[obj] : null;
-                const suggestions = obj && suggestionsByObjective[obj]
-                  ? suggestionsByObjective[obj]
-                  : (suggestionsByLevel[level] ?? suggestionsDefault);
-                return (
-                  <>
-                    {greeting && !mentor && (
-                      <Text style={[styles.greetingText, { color: colors.textSub }]}>{greeting}</Text>
-                    )}
-                    <View style={styles.suggestHeader}>
-                      <View style={[styles.suggestHeaderIcon, { backgroundColor: colors.accent + "1A" }]}>
-                        <Ionicons name="sparkles" size={13} color={colors.accentLight} />
-                      </View>
-                      <Text style={[styles.suggestLabel, { color: colors.text }]}>{t("chat.suggestedQuestions")}</Text>
+              {/* ── "¿Qué quieres analizar hoy?" — Diego's 4 starter categories;
+                  tapping one sends its example question. ── */}
+              <View style={styles.suggestHeader}>
+                <View style={[styles.suggestHeaderIcon, { backgroundColor: colors.accent + "1A" }]}>
+                  <Ionicons name="sparkles" size={13} color={colors.accentLight} />
+                </View>
+                <Text style={[styles.suggestLabel, { color: colors.text }]}>{t("chat.welcome.analyzeTitle")}</Text>
+              </View>
+              <View style={styles.suggestGrid}>
+                {(t("chat.welcome.cats", { returnObjects: true }) as { emoji: string; label: string; prompt: string }[]).map((c, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    activeOpacity={0.8}
+                    style={[styles.suggestCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => sendMessage(c.prompt)}
+                  >
+                    <View style={[styles.suggestIcon, { backgroundColor: colors.accent + "1A" }]}>
+                      <Text style={{ fontSize: 19 }}>{c.emoji}</Text>
                     </View>
-                    <View style={styles.suggestGrid}>
-                      {suggestions.map((s, i) => (
-                        <TouchableOpacity
-                          key={i}
-                          activeOpacity={0.8}
-                          style={[styles.suggestCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                          onPress={() => sendMessage(s)}
-                        >
-                          <View style={[styles.suggestIcon, { backgroundColor: colors.accent + "1A" }]}>
-                            <Ionicons name={SUGGESTION_ICONS[i % SUGGESTION_ICONS.length]} size={17} color={colors.accentLight} />
-                          </View>
-                          <Text style={[styles.suggestCardText, { color: colors.text }]}>{s}</Text>
-                          <Ionicons name="arrow-forward" size={15} color={colors.accentLight} />
-                        </TouchableOpacity>
-                      ))}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.catLabel, { color: colors.text }]}>{c.label}</Text>
+                      <Text style={[styles.catPrompt, { color: colors.textSub }]}>{c.prompt}</Text>
                     </View>
-                  </>
-                );
-              })()}
+                    <Ionicons name="arrow-forward" size={15} color={colors.accentLight} />
+                  </TouchableOpacity>
+                ))}
+              </View>
             </ScrollView>
           ) : (
             <FlatList
@@ -1520,6 +1515,22 @@ function makeStyles(c: Colors) {
       fontSize: 14, lineHeight: 21, textAlign: "center" as const, color: "rgba(255,255,255,0.72)",
       paddingHorizontal: 4,
     },
+    heroIam: { fontSize: 19, fontWeight: "800" as const, color: "#00D47E", letterSpacing: -0.3, textAlign: "center" as const, marginBottom: 6 },
+    heroTagline: { fontSize: 16, fontWeight: "800" as const, color: "#fff", lineHeight: 22, textAlign: "center" as const, marginBottom: 10, paddingHorizontal: 4 },
+    heroPromise: {
+      width: "100%" as const, marginTop: 16, borderRadius: 18, borderWidth: 1, padding: 16,
+      backgroundColor: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.12)",
+    },
+    heroPromiseTitle: { fontSize: 15, fontWeight: "800" as const, color: "#fff", marginBottom: 6 },
+    heroPromiseText: { fontSize: 14, lineHeight: 21, color: "rgba(255,255,255,0.75)" },
+    heroDecision: {
+      flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginTop: 12, alignSelf: "flex-start" as const,
+      borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6,
+      backgroundColor: "rgba(0,212,126,0.14)", borderWidth: 1, borderColor: "rgba(0,212,126,0.4)",
+    },
+    heroDecisionText: { fontSize: 13, fontWeight: "800" as const, color: "#00D47E" },
+    catLabel: { fontSize: 15, fontWeight: "800" as const, letterSpacing: -0.2 },
+    catPrompt: { fontSize: 13, lineHeight: 18, marginTop: 2 },
     glassChip: {
       flexDirection: "row" as const, alignItems: "center" as const, gap: 5,
       borderRadius: 999, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 6,

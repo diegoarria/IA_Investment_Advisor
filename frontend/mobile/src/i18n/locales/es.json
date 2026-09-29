@@ -2279,7 +2279,41 @@
     "transcribeErrorTitle": "Error al transcribir",
     "unknownError": "Error desconocido",
     "micPermissionError": "Necesito permiso de micrófono para grabar. Actívalo en Ajustes.",
-    "online": "En línea"
+    "online": "En línea",
+    "welcome": {
+      "hello": "Hola, {{name}} 👋",
+      "helloNoName": "Hola 👋",
+      "iam": "Soy Arthur.",
+      "tagline": "Tu compañero para tomar mejores decisiones con tu dinero.",
+      "body": "Analizo empresas, reviso tu portafolio y convierto información financiera compleja en explicaciones claras.",
+      "notTell": "No te digo qué comprar, vender o hacer.",
+      "helpPre": "Te ayudo a entender ",
+      "helpBold": "qué está pasando, por qué importa y qué escenarios tienes frente a ti.",
+      "decision": "La decisión siempre es tuya.",
+      "analyzeTitle": "¿Qué quieres analizar hoy?",
+      "cats": [
+        {
+          "emoji": "📊",
+          "label": "Empresas",
+          "prompt": "Analiza el flujo de caja libre de MSFT vs. GOOGL"
+        },
+        {
+          "emoji": "💼",
+          "label": "Tu portafolio",
+          "prompt": "¿Qué riesgos y concentraciones tiene mi portafolio?"
+        },
+        {
+          "emoji": "🌎",
+          "label": "Mercado",
+          "prompt": "¿Qué indicadores macro están moviendo el mercado hoy?"
+        },
+        {
+          "emoji": "⚖️",
+          "label": "Comparaciones",
+          "prompt": "Compara NVDA vs. AMD en valoración y crecimiento"
+        }
+      ]
+    }
   },
   "paper": {
     "sellModal": {

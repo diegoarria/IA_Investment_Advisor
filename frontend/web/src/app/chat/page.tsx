@@ -861,11 +861,11 @@ export default function ChatPage() {
                     </div>
 
                     <h2 className="text-[30px] sm:text-[34px] font-extrabold tracking-[-1px] leading-tight text-white">
-                      {mentor ? mentor.name : profile?.name ? t("chat.greeting", { name: profile.name.split(" ")[0] }) : t("chat.mentorFallbackName")}
+                      {mentor ? mentor.name : profile?.name ? t("chat.welcome.hello", { name: profile.name.split(" ")[0] }) : t("chat.welcome.helloNoName")}
                     </h2>
-                    <p className="text-[15px] font-bold mt-2 max-w-md mx-auto leading-snug" style={{ color: mentor ? "#fff" : "#00D47E" }}>
-                      {mentor ? mentor.title : t("chat.defaultMentorTitle")}
-                    </p>
+                    {mentor && (
+                      <p className="text-[15px] font-bold mt-2 max-w-md mx-auto leading-snug text-white">{mentor.title}</p>
+                    )}
 
                     {mentor && (
                       <div className="flex flex-wrap justify-center gap-2 mt-4">
@@ -878,16 +878,25 @@ export default function ChatPage() {
                       </div>
                     )}
 
-                    {!mentor && (() => {
-                      const obj = profile?.quiz_answers?.objective as string | undefined;
-                      return (
-                        <p className="text-[14.5px] leading-relaxed max-w-md mx-auto mt-3" style={{ color: "rgba(255,255,255,0.72)" }}>
-                          {obj
-                            ? (OBJECTIVE_GREETING[obj] ?? t("chat.defaultGreetingQuestion"))
-                            : (!isAuthenticated || getUserLevel(profile) === "basico" ? t("chat.welcomeSubtitleBasic") : t("chat.welcomeSubtitleDefault"))}
-                        </p>
-                      );
-                    })()}
+                    {/* Diego, 2026-09-28 — Arthur's opening message, verbatim. */}
+                    {!mentor && (
+                      <>
+                        <p className="text-[20px] font-extrabold tracking-tight mt-2" style={{ color: "#00D47E" }}>{t("chat.welcome.iam")}</p>
+                        <p className="text-[16.5px] font-extrabold text-white mt-1.5 max-w-md mx-auto leading-snug">{t("chat.welcome.tagline")}</p>
+                        <p className="text-[14.5px] leading-relaxed max-w-md mx-auto mt-2.5" style={{ color: "rgba(255,255,255,0.72)" }}>{t("chat.welcome.body")}</p>
+                        <div className="mt-5 max-w-md mx-auto text-left rounded-[18px] border p-4"
+                             style={{ background: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.12)" }}>
+                          <p className="text-[15px] font-extrabold text-white">{t("chat.welcome.notTell")}</p>
+                          <p className="text-sm leading-relaxed mt-1.5" style={{ color: "rgba(255,255,255,0.75)" }}>
+                            {t("chat.welcome.helpPre")}<strong className="font-extrabold text-white">{t("chat.welcome.helpBold")}</strong>
+                          </p>
+                          <span className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full border text-[13px] font-extrabold"
+                                style={{ background: "rgba(0,212,126,0.14)", borderColor: "rgba(0,212,126,0.4)", color: "#00D47E" }}>
+                            <ShieldCheck className="w-3.5 h-3.5" />{t("chat.welcome.decision")}
+                          </span>
+                        </div>
+                      </>
+                    )}
 
                     {/* Context chips */}
                     {profile && (
@@ -923,43 +932,34 @@ export default function ChatPage() {
                   </div>
                 </div>
 
-                {/* Suggestion cards */}
-                {(() => {
-                  const obj = profile?.quiz_answers?.objective as string | undefined;
-                  const level = getUserLevel(profile);
-                  const effectiveLevel = !isAuthenticated ? "basico" : level;
-                  const suggestions = obj && SUGGESTIONS_BY_OBJECTIVE[obj]
-                    ? SUGGESTIONS_BY_OBJECTIVE[obj]
-                    : (SUGGESTIONS_BY_LEVEL[effectiveLevel] ?? SUGGESTIONS_DEFAULT);
-                  return (
-                    <div className="w-full">
-                      <p className="flex items-center gap-2 text-[17px] font-extrabold tracking-tight mb-3.5" style={{ color: "var(--text)" }}>
-                        <span className="w-7 h-7 rounded-[9px] flex items-center justify-center" style={{ background: "rgba(0,185,109,0.12)" }}>
-                          <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+                {/* "¿Qué quieres analizar hoy?" — Diego's 4 starter categories;
+                    clicking one sends its example question. */}
+                <div className="w-full">
+                  <p className="flex items-center gap-2 text-[17px] font-extrabold tracking-tight mb-3.5" style={{ color: "var(--text)" }}>
+                    <span className="w-7 h-7 rounded-[9px] flex items-center justify-center" style={{ background: "rgba(0,185,109,0.12)" }}>
+                      <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+                    </span>
+                    {t("chat.welcome.analyzeTitle")}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {(t("chat.welcome.cats", { returnObjects: true }) as { emoji: string; label: string; prompt: string }[]).map((c, ci) => (
+                      <button key={ci} onClick={() => sendMessage(c.prompt)}
+                              className="text-left p-4 rounded-[18px] border transition-all hover:-translate-y-0.5 group flex items-center gap-3.5"
+                              style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = accentCol + "80"; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}>
+                        <span className="w-11 h-11 rounded-[12px] flex items-center justify-center shrink-0 text-xl" style={{ background: "rgba(0,185,109,0.12)" }}>
+                          {c.emoji}
                         </span>
-                        {t("chat.suggestedQuestions")}
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {suggestions.map((s, si) => {
-                          const SIcon = SUGGESTION_ICONS[si % SUGGESTION_ICONS.length];
-                          return (
-                            <button key={si} onClick={() => sendMessage(s)}
-                                    className="text-left p-4 rounded-[18px] border transition-all hover:-translate-y-0.5 group flex items-center gap-3.5"
-                                    style={{ background: "var(--card)", borderColor: "var(--border)" }}
-                                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = accentCol + "80"; }}
-                                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}>
-                              <span className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.12)" }}>
-                                <SIcon className="w-[18px] h-[18px]" style={{ color: "var(--accent-l)" }} />
-                              </span>
-                              <p className="flex-1 text-[14px] font-semibold leading-snug" style={{ color: "var(--text)" }}>{s}</p>
-                              <ArrowRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--accent-l)" }} />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[15px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{c.label}</span>
+                          <span className="block text-[13px] leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{c.prompt}</span>
+                        </span>
+                        <ArrowRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--accent-l)" }} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
