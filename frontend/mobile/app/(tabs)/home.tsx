@@ -1246,7 +1246,7 @@ export default function HomeScreen() {
                 </View>
                 <Text style={[ss.heroCcyText, { color: colors.accentLight }]}>{portfolioCurrency}</Text>
               </View>
-              <BalanceVisibilityToggle color={colors.textSub} size={15} />
+              <BalanceVisibilityToggle color={colors.textSub} size={19} />
             </View>
           </View>
 
