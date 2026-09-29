@@ -1235,35 +1235,15 @@ export default function HomeScreen() {
           />
           <View pointerEvents="none" style={[ss.heroGlow, { backgroundColor: colors.accentLight + "14" }]} />
 
-          <View style={ss.heroTop}>
-            <View style={{ flexShrink: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 8 }}>
-                <View style={[ss.heroDot, { backgroundColor: colors.accentLight }]} />
-                <Text style={[ss.heroLabel, { color: colors.textSub }]}>{t("home.portfolio.label")}</Text>
-                <View style={[ss.heroCcy, { borderColor: colors.border, backgroundColor: colors.bg + "99" }]}>
-                  <Text style={[ss.heroCcyText, { color: colors.textSub }]}>{portfolioCurrency}</Text>
-                </View>
-                <BalanceVisibilityToggle color={colors.textSub} size={15} />
+          {/* Label row + today's badge; the value gets the full width below. */}
+          <View style={[ss.heroTop, { alignItems: "center" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flexShrink: 1 }}>
+              <View style={[ss.heroDot, { backgroundColor: colors.accentLight }]} />
+              <Text style={[ss.heroLabel, { color: colors.textSub }]} numberOfLines={1}>{t("home.portfolio.label")}</Text>
+              <View style={[ss.heroCcy, { borderColor: colors.border, backgroundColor: colors.bg + "99" }]}>
+                <Text style={[ss.heroCcyText, { color: colors.textSub }]}>{portfolioCurrency}</Text>
               </View>
-              {loading
-                ? <Skeleton w={160} h={36} r={8} />
-                : <Text
-                    style={[ss.heroBalance, { color: colors.text }]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.5}
-                  >
-                    {mask(fmt((total + cashTotalUSD + dividendTotalUSD) * fxRate, portfolioCurrency))}
-                  </Text>
-              }
-              {!balanceHidden && (cashTotalUSD > 0 || dividendTotalUSD > 0) && (
-                <Text style={{ fontSize: 11, color: colors.textSub, marginTop: 3 }} numberOfLines={1}>
-                  {[
-                    cashTotalUSD > 0 ? `${fmt(cashTotalUSD * fxRate, portfolioCurrency)} en efectivo` : null,
-                    dividendTotalUSD > 0 ? `${fmt(dividendTotalUSD * fxRate, portfolioCurrency)} en dividendos recibidos` : null,
-                  ].filter(Boolean).join(" + ")}
-                </Text>
-              )}
+              <BalanceVisibilityToggle color={colors.textSub} size={15} />
             </View>
             <View style={[ss.heroGainBadge, {
               backgroundColor: (dayGain >= 0 ? colors.up : colors.down) + "1F",
@@ -1282,6 +1262,38 @@ export default function HomeScreen() {
               }
             </View>
           </View>
+
+          {loading
+            ? <View style={{ marginTop: 14 }}><Skeleton w={200} h={44} r={10} /></View>
+            : <Text
+                style={[ss.heroBalance, { color: colors.text }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.5}
+              >
+                {mask(fmt((total + cashTotalUSD + dividendTotalUSD) * fxRate, portfolioCurrency))}
+              </Text>
+          }
+          {!balanceHidden && (cashTotalUSD > 0 || dividendTotalUSD > 0) && (
+            <View style={{ marginTop: 8, gap: 4 }}>
+              {cashTotalUSD > 0 && (
+                <View style={ss.heroExtraRow}>
+                  <Ionicons name="wallet-outline" size={14} color={colors.accentLight} />
+                  <Text style={[ss.heroExtraText, { color: colors.textSub }]} numberOfLines={1}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(cashTotalUSD * fxRate, portfolioCurrency)}</Text> en efectivo
+                  </Text>
+                </View>
+              )}
+              {dividendTotalUSD > 0 && (
+                <View style={ss.heroExtraRow}>
+                  <Ionicons name="cash-outline" size={14} color={colors.accentLight} />
+                  <Text style={[ss.heroExtraText, { color: colors.textSub }]} numberOfLines={1}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(dividendTotalUSD * fxRate, portfolioCurrency)}</Text> en dividendos recibidos
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {!loading && positions.length > 0 && (() => {
             const cols: { label: string; pct: number | null; amt: number | null }[] = [
@@ -2145,7 +2157,9 @@ const ss = StyleSheet.create({
   heroLabel:    { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1 },
   heroCcy:      { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
   heroCcyText:  { fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
-  heroBalance:  { fontSize: 34, fontWeight: "800", letterSpacing: -1 },
+  heroBalance:  { fontSize: 44, fontWeight: "800", letterSpacing: -1.5, marginTop: 14 },
+  heroExtraRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  heroExtraText: { fontSize: 13, fontWeight: "500", flexShrink: 1 },
   heroGainBadge: {
     flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1,
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
