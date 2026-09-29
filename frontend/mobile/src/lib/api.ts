@@ -140,6 +140,10 @@ export const chatApi = {
     });
   },
   speak: (text: string) => api.post("/api/chat/speak", { text }),
+  // Arthur proactivo — conversations Arthur starts on his own.
+  proactivePending: () => api.get("/api/chat/proactive/pending"),
+  proactiveActions: (sessionId: string) => api.get("/api/chat/proactive/actions", { params: { session_id: sessionId } }),
+  proactiveOpened: (body: { thread_id?: string | null; session_id?: string | null }) => api.post("/api/chat/proactive/opened", body),
   stream: async (
     message: string,
     history: Array<{ role: string; content: string }>,

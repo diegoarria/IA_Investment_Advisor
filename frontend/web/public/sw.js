@@ -33,6 +33,7 @@ self.addEventListener("notificationclick", (event) => {
   // Friday 1:1-call upsell -> straight into the session checkout on the web app.
   if (screen === "products_session") url = self.location.origin + "/products?open=session";
   if (screen === "watchlist" && eventId) url += `?macroEventId=${encodeURIComponent(eventId)}`;
+  else if (screen === "chat" && event.notification.data?.arthur_session_id) url += `?arthur=${encodeURIComponent(event.notification.data.arthur_session_id)}`;
   else if (screen === "chat" && msg) url += `?msg=${encodeURIComponent(msg)}`;
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {

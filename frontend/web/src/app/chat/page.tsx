@@ -191,6 +191,41 @@ export default function ChatPage() {
   const [isTour, setIsTour] = useState(false);
   const [notificationContext, setNotificationContext] = useState<string | null>(null);
   const [pendingActions, setPendingActions] = useState<Array<{ type: string; label: string; data: Record<string, unknown> }> | null>(null);
+
+  // Arthur proactivo (2026-09-29): if Arthur started a conversation the user
+  // hasn't seen (or a push deep-linked one via ?arthur=), open it — with its
+  // suggested follow-ups as chips — instead of an empty chat.
+  const openProactive = async (explicitSid?: string) => {
+    if (!useAuthStore.getState().isAuthenticated || isGuestUser()) return;
+    try {
+      let sid = explicitSid;
+      let actions: Array<{ type: string; label: string; data: Record<string, unknown> }> = [];
+      let threadId: string | null = null;
+      let message: string | null = null;
+      if (sid) {
+        const r = await chatApi.proactiveActions(sid);
+        actions = r.data?.actions ?? [];
+      } else {
+        const r = await chatApi.proactivePending();
+        const th = r.data?.thread;
+        if (!th) return;
+        sid = th.session_id; actions = th.actions ?? []; threadId = th.id; message = th.message;
+      }
+      if (!sid) return;
+      const store = useChatStore.getState();
+      if (!store.sessions.find((x) => x.id === sid)) await store.loadFromServer();
+      if (!useChatStore.getState().sessions.find((x) => x.id === sid) && message) {
+        useChatStore.getState().syncSessionMessages(sid, [{ role: "assistant", content: message }]);
+      }
+      if (message) localFingerprintsRef.current.add(`assistant:${message.slice(0, 60)}`);
+      useChatStore.getState().loadSession(sid);
+      if (actions.length) { setPendingActions(actions); setCommittedActions(new Set()); }
+      chatApi.proactiveOpened({ thread_id: threadId, session_id: sid }).catch(() => {});
+      if (explicitSid) window.history.replaceState(null, "", "/chat");
+    } catch {}
+  };
+  const openProactiveRef = useRef(openProactive);
+  openProactiveRef.current = openProactive;
   const [committedActions, setCommittedActions] = useState<Set<number>>(new Set());
 
   // ── Guided tour & 1:1 suggestion ─────────────────────────────────────────
@@ -533,17 +568,19 @@ export default function ChatPage() {
           const msgs: { created_at?: string }[] = res.data?.messages ?? [];
           syncCursorRef.current = msgs[msgs.length - 1]?.created_at ?? new Date().toISOString();
           resumeOrCreateSession();
+          openProactiveRef.current(new URLSearchParams(window.location.search).get("arthur") ?? undefined);
         })
         .catch(() => {
           syncCursorRef.current = new Date().toISOString();
           resumeOrCreateSession();
+          openProactiveRef.current(new URLSearchParams(window.location.search).get("arthur") ?? undefined);
         });
     });
 
     // Same resume-or-expire check whenever the user returns to this tab after
     // having it hidden (matches mobile's AppState inactive→active behavior).
     const onVisibility = () => {
-      if (document.visibilityState === "visible") resumeOrCreateSession();
+      if (document.visibilityState === "visible") { resumeOrCreateSession(); openProactiveRef.current(); }
     };
     document.addEventListener("visibilitychange", onVisibility);
 

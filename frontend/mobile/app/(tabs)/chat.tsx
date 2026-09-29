@@ -125,7 +125,7 @@ function getObjectiveGreeting(t: TFunction): Record<string, string> {
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 104;
-  const { ctx, msg: msgParam, autosend } = useLocalSearchParams<{ ctx?: string; msg?: string; autosend?: string }>();
+  const { ctx, msg: msgParam, autosend, arthur: arthurParam } = useLocalSearchParams<{ ctx?: string; msg?: string; autosend?: string; arthur?: string }>();
   const { colors } = useTheme();
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -232,6 +232,41 @@ export default function ChatScreen() {
   const localFingerprintsRef = useRef<Set<string>>(new Set());
   const fp = (role: string, content: string) => `${role}:${content.slice(0, 60)}`;
 
+  // Arthur proactivo (2026-09-29): if Arthur started a conversation the user
+  // hasn't seen (or a push deep-linked one via ?arthur=), open it — with its
+  // suggested follow-ups as chips — instead of an empty chat.
+  const openProactive = async (explicitSid?: string) => {
+    try {
+      let sid = explicitSid;
+      let actions: any[] = [];
+      let threadId: string | null = null;
+      let message: string | null = null;
+      if (sid) {
+        const r = await chatApi.proactiveActions(sid);
+        actions = r.data?.actions ?? [];
+      } else {
+        const r = await chatApi.proactivePending();
+        const th = r.data?.thread;
+        if (!th) return;
+        sid = th.session_id; actions = th.actions ?? []; threadId = th.id; message = th.message;
+      }
+      if (!sid) return;
+      if (!useChatStore.getState().sessions.find((x) => x.id === sid)) await restoreFromServer();
+      if (!useChatStore.getState().sessions.find((x) => x.id === sid) && message) {
+        syncSessionMessages(sid, [{ role: "assistant", content: message, timestamp: Date.now() }]);
+      }
+      if (message) localFingerprintsRef.current.add(fp("assistant", message));
+      useChatStore.getState().loadSession(sid);
+      if (actions.length) { setPendingActions(actions); setCommittedActions(new Set()); }
+      chatApi.proactiveOpened({ thread_id: threadId, session_id: sid }).catch(() => {});
+    } catch {}
+  };
+  const openProactiveRef = useRef(openProactive);
+  openProactiveRef.current = openProactive;
+  useEffect(() => {
+    if (arthurParam) openProactiveRef.current(String(arthurParam));
+  }, [arthurParam]);
+
   // On first load: restore history from server then resume the last session —
   // only start a fresh one once it's expired (CHAT_SESSION_TTL_MS since the last
   // message). Same resume-or-expire check when the app returns from background.
@@ -240,6 +275,7 @@ export default function ChatScreen() {
     const appStateSub = AppState.addEventListener("change", (nextState) => {
       if (appStateRef.current.match(/inactive|background/) && nextState === "active") {
         resumeOrCreateSession();
+        openProactiveRef.current();
       }
       appStateRef.current = nextState;
     });
@@ -247,6 +283,7 @@ export default function ChatScreen() {
     const init = async () => {
       await restoreFromServer();
       resumeOrCreateSession();
+      await openProactiveRef.current(arthurParam ? String(arthurParam) : undefined);
       try {
         const res = await chatApi.getHistory();
         const msgs: { created_at?: string }[] = res.data?.messages ?? [];

@@ -120,7 +120,10 @@ function AppStack() {
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<string, string> | undefined;
       if (!data) return;
-      if (data.screen === "chat") {
+      if (data.arthur_session_id) {
+        // Arthur proactivo: open the conversation Arthur started.
+        router.navigate({ pathname: "/(tabs)/chat", params: { arthur: String(data.arthur_session_id) } });
+      } else if (data.screen === "chat") {
         const params: Record<string, string> = {};
         if (data.chat_context) params.ctx = encodeURIComponent(data.chat_context);
         const autoMsg = data.suggested_message || data.msg;

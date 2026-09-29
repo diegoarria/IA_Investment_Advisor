@@ -1290,6 +1290,27 @@ async def delete_history_session(
     return {"deleted": True}
 
 
+@router.get("/proactive/pending")
+async def proactive_pending(user_id: str = Depends(get_current_user_id)):
+    """The newest conversation Arthur started that this user hasn't opened
+    yet — the chat opens straight into it (web + mobile)."""
+    from app.services import arthur_proactive
+    return {"thread": await arthur_proactive.pending_thread(user_id)}
+
+
+@router.get("/proactive/actions")
+async def proactive_actions(session_id: str, user_id: str = Depends(get_current_user_id)):
+    from app.services import arthur_proactive
+    return {"actions": await arthur_proactive.thread_actions(user_id, session_id)}
+
+
+@router.post("/proactive/opened")
+async def proactive_opened(body: dict, user_id: str = Depends(get_current_user_id)):
+    from app.services import arthur_proactive
+    await arthur_proactive.mark_opened(user_id, body.get("thread_id"), body.get("session_id"))
+    return {"ok": True}
+
+
 @router.get("/history")
 async def get_history(
     limit: int = 500,

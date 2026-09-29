@@ -223,6 +223,17 @@ async def send_push(user_id: str, category: str, title: str, body: str, data: di
         await _log_notification(db, user_id, "push", category, title, body, data, "skipped", error_text=skip_reason)
         return
 
+    # Arthur proactivo (2026-09-29): pushes about the user's own money start
+    # a conversation with Arthur; the push then opens that conversation.
+    try:
+        from app.services import arthur_proactive
+        if arthur_proactive.is_proactive_category(category):
+            sid = await arthur_proactive.maybe_start_for_push(user_id, category, title, body, data or {})
+            if sid:
+                data = {**(data or {}), "screen": "chat", "arthur_session_id": sid}
+    except Exception as e:
+        logger.warning("arthur proactive hook failed for %s/%s: %s", user_id, category, e)
+
     today = _today_et()
     dedup_key = f"{user_id}:{category}:{today}"
     status, error_text = "sent", None
