@@ -8,7 +8,8 @@ import type { TFunction } from "i18next";
 import {
   TrendingUp, TrendingDown, Sparkles, BookOpen,
   Bell, ChevronRight, GraduationCap, Newspaper, Target, Flame, X, Eye, EyeOff, Zap,
-  Wallet, Banknote,
+  Wallet, Banknote, ArrowRight, Gamepad2, Rocket, Flag, Lightbulb, CheckCircle2,
+  BarChart3, DollarSign, Briefcase, type LucideIcon,
 } from "lucide-react";
 import { InsightCallout } from "@/components/ui";
 import AppSidebar from "@/components/AppSidebar";
@@ -20,7 +21,7 @@ import ExplainButton from "@/components/ExplainButton";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, billing, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
 import PricingModal from "@/components/PricingModal";
 import EmbeddedCheckout, { type CheckoutSummary } from "@/components/EmbeddedCheckout";
-import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore, hasPremiumAccess } from "@/lib/store";
+import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore, hasPremiumAccess, getNextMilestone } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
 import { useCombinedPositions, useCombinedCurrency, useCombinedClosedPositions, useCombinedInceptionDate } from "@/lib/portfolioStore";
@@ -57,13 +58,28 @@ function greeting(t: TFunction): string {
   return t("home.greeting.evening");
 }
 
-function notifIcon(type: string): string {
-  if (type === "price_alert") return "📈";
-  if (type === "earnings")    return "📊";
-  if (type === "news")        return "📰";
-  if (type === "portfolio")   return "💼";
-  if (type === "dividend")    return "💰";
-  return "🔔";
+function notifIcon(type: string): LucideIcon {
+  if (type === "price_alert") return TrendingUp;
+  if (type === "earnings")    return BarChart3;
+  if (type === "news")        return Newspaper;
+  if (type === "portfolio")   return Briefcase;
+  if (type === "dividend")    return DollarSign;
+  return Bell;
+}
+
+// Small SVG progress ring (streak → next milestone), same as mobile's MiniRing.
+function MiniRing({ pct, size = 44, stroke = 4, color, children }: { pct: number; size?: number; stroke?: number; color: string; children?: React.ReactNode }) {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  return (
+    <div className="relative shrink-0 flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="absolute inset-0">
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--border)" strokeWidth={stroke} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={stroke} fill="none" strokeLinecap="round"
+                strokeDasharray={`${c * Math.max(0, Math.min(1, pct))} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+      </svg>
+      <div className="relative flex items-center justify-center">{children}</div>
+    </div>
+  );
 }
 
 function timeAgo(ts: string | number, t: TFunction): string {
@@ -809,11 +825,11 @@ export default function HomePage() {
             {/* pl-9 clears AppSidebar's floating mobile menu button (fixed
                 top-1.5 left-1.5, ~34px wide) on mobile widths. */}
             <div className="pl-9 lg:pl-0">
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-                {t("home.todaySummary")}
+              <p className="text-[11px] font-bold uppercase tracking-[1.1px]" style={{ color: "var(--muted)" }}>
+                {greeting(t)}
               </p>
-              <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>
-                {greeting(t)}, {firstName} 👋
+              <h1 className="text-2xl font-extrabold tracking-tight leading-tight" style={{ color: "var(--text)" }}>
+                {firstName} 👋
               </h1>
             </div>
             <div className="flex items-center gap-3">
@@ -824,7 +840,7 @@ export default function HomePage() {
                      background: marketOpen ? "rgba(34,197,94,0.06)" : "transparent",
                    }}>
                 <span className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: marketOpen ? "#22c55e" : "var(--dim)" }} />
+                      style={{ background: marketOpen ? "#22c55e" : "var(--dim)", boxShadow: marketOpen ? "0 0 0 3px rgba(34,197,94,0.18)" : "none" }} />
                 {marketOpen ? t("home.marketOpen") : t("home.marketClosed")}
               </div>
               <ExplainButton
@@ -846,14 +862,14 @@ export default function HomePage() {
               {isBeginnerMode && beginnerCardDismissed && (
                 <button onClick={reopenBeginnerCard}
                         title={t("home.showGuideTooltip")}
-                        className="relative w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
-                        style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+                        className="relative w-9 h-9 flex items-center justify-center rounded-full border transition-colors hover:border-[var(--accent)]"
+                        style={{ borderColor: "var(--border)", background: "var(--card)" }}>
                   <GraduationCap className="w-4 h-4" style={{ color: "var(--sub)" }} />
                 </button>
               )}
               <button onClick={() => router.push("/notifications")}
-                      className="relative w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
-                      style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+                      className="relative w-9 h-9 flex items-center justify-center rounded-full border transition-colors hover:border-[var(--accent)]"
+                      style={{ borderColor: "var(--border)", background: "var(--card)" }}>
                 <Bell className="w-4 h-4" style={{ color: "var(--sub)" }} />
                 {unread > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-black text-white flex items-center justify-center"
@@ -865,10 +881,10 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="px-6 py-5 space-y-5 max-w-5xl mx-auto">
+          <div className="px-6 py-6 space-y-7 max-w-5xl mx-auto">
 
             {!welcomeCardDismissed && isAuthenticated && (
-              <div className="rounded-2xl border overflow-hidden relative"
+              <div className="rounded-[20px] border overflow-hidden relative"
                    style={{ borderColor: "rgba(0,212,126,0.3)", background: "linear-gradient(135deg, rgba(0,185,109,0.08), rgba(0,100,200,0.04))" }}>
                 <button onClick={dismissWelcomeCard}
                         aria-label={t("common.close")}
@@ -889,9 +905,10 @@ export default function HomePage() {
                       {t("home.welcomeCard.body")}
                     </p>
                     <button onClick={() => router.push("/chat")}
-                            className="text-xs font-bold transition-opacity hover:opacity-80"
+                            className="inline-flex items-center gap-1 text-xs font-bold transition-opacity hover:opacity-80"
                             style={{ color: "var(--accent-l)" }}>
-                      {t("home.welcomeCard.cta")} →
+                      {t("home.welcomeCard.cta")}
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -907,9 +924,8 @@ export default function HomePage() {
 
             {/* ── Guía para principiantes / modo guest ─────────────────── */}
             {isBeginnerMode && !beginnerCardDismissed && (
-              <div className="rounded-2xl border overflow-hidden relative"
-                   style={{ borderColor: "rgba(0,212,126,0.25)", background: "var(--card)" }}>
-                <div className="h-1" style={{ background: "linear-gradient(90deg,#00d47e,#00a8ff)" }} />
+              <div className="rounded-[20px] border overflow-hidden relative"
+                   style={{ borderColor: "rgba(0,212,126,0.25)", background: "linear-gradient(135deg, rgba(0,185,109,0.08), var(--card) 55%)" }}>
                 <button onClick={dismissBeginnerCard}
                         aria-label={t("common.close")}
                         className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-lg transition-opacity hover:opacity-70"
@@ -917,9 +933,9 @@ export default function HomePage() {
                   <X className="w-4 h-4" />
                 </button>
                 <div className="p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1"
+                  <p className="text-[11px] font-bold uppercase tracking-[1.1px] mb-1"
                      style={{ color: "var(--accent-l)" }}>{t("home.beginnerCard.eyebrow")}</p>
-                  <h3 className="text-base font-black mb-1 pr-8" style={{ color: "var(--text)" }}>
+                  <h3 className="text-[17px] font-extrabold tracking-tight mb-1 pr-8" style={{ color: "var(--text)" }}>
                     {t("home.beginnerCard.title")}
                   </h3>
                   <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>
@@ -928,24 +944,27 @@ export default function HomePage() {
 
                   <div className="grid grid-cols-3 gap-2 mb-4">
                     {([
-                      { icon: "📚", title: t("home.beginnerCard.step1Title"), desc: t("home.beginnerCard.step1Desc"), href: "/learn" },
-                      { icon: "🎮", title: t("home.beginnerCard.step2Title"), desc: t("home.beginnerCard.step2Desc"), href: "/paper" },
-                      { icon: "🚀", title: t("home.beginnerCard.step3Title"), desc: t("home.beginnerCard.step3Desc"), href: "/screener" },
+                      { icon: BookOpen, title: t("home.beginnerCard.step1Title"), desc: t("home.beginnerCard.step1Desc"), href: "/learn" },
+                      { icon: Gamepad2, title: t("home.beginnerCard.step2Title"), desc: t("home.beginnerCard.step2Desc"), href: "/paper" },
+                      { icon: Rocket,   title: t("home.beginnerCard.step3Title"), desc: t("home.beginnerCard.step3Desc"), href: "/screener" },
                     ] as const).map((s) => (
                       <button key={s.href} onClick={() => router.push(s.href)}
-                              className="flex flex-col items-start p-3 rounded-xl border transition-all hover:opacity-80 text-left"
-                              style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-                        <span className="text-xl mb-1.5">{s.icon}</span>
-                        <p className="text-[11px] font-black mb-0.5" style={{ color: "var(--text)" }}>{s.title}</p>
-                        <p className="text-[10px] leading-tight" style={{ color: "var(--muted)" }}>{s.desc}</p>
+                              className="flex flex-col items-start p-3.5 rounded-[14px] border transition-all hover:border-[var(--accent)] text-left"
+                              style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                        <span className="w-8 h-8 rounded-[10px] flex items-center justify-center mb-2" style={{ background: "rgba(0,185,109,0.12)" }}>
+                          <s.icon className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
+                        </span>
+                        <p className="text-xs font-bold mb-0.5" style={{ color: "var(--text)" }}>{s.title}</p>
+                        <p className="text-[11px] leading-snug" style={{ color: "var(--muted)" }}>{s.desc}</p>
                       </button>
                     ))}
                   </div>
 
                   <button onClick={() => router.push("/chat")}
-                          className="w-full py-2.5 rounded-xl text-sm font-black transition-all hover:opacity-90"
-                          style={{ background: "var(--accent)", color: "#000" }}>
+                          className="w-full py-3 rounded-[14px] text-sm font-bold transition-all hover:opacity-90 inline-flex items-center justify-center gap-1.5"
+                          style={{ background: "var(--accent)", color: "#fff" }}>
                     {t("home.beginnerCard.askMentor")}
+                    <ArrowRight className="w-4 h-4" />
                   </button>
 
                   {isGuest && (
@@ -968,42 +987,48 @@ export default function HomePage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 lg:grid-cols-4">
               {/* Portfolio day */}
               <button onClick={() => router.push("/patrimonio")}
-                      className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:border-[var(--accent)]"
+                      className="flex items-center gap-3 px-3.5 py-3 rounded-[16px] border transition-all hover:border-[var(--accent)]"
                       style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                {dayGain >= 0
-                  ? <TrendingUp className="w-5 h-5 shrink-0" style={{ color: "#22c55e" }} />
-                  : <TrendingDown className="w-5 h-5 shrink-0" style={{ color: "#ef4444" }} />
-                }
+                <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: dayGain >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)" }}>
+                  {dayGain >= 0
+                    ? <TrendingUp className="w-4 h-4" style={{ color: "#22c55e" }} />
+                    : <TrendingDown className="w-4 h-4" style={{ color: "#ef4444" }} />}
+                </span>
                 <div className="text-left min-w-0">
                   <p className="text-sm font-black leading-none"
                      style={{ color: dayGain >= 0 ? "#22c55e" : "#ef4444" }}>
                     {loading ? "—" : fmtPct(dayGainPct)}
                   </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{t("home.stats.portfolioToday")}</p>
+                  <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>{t("home.stats.portfolioToday")}</p>
                 </div>
               </button>
 
               {/* Racha */}
               <button onClick={() => router.push("/learn")}
-                      className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:border-[var(--accent)]"
+                      className="flex items-center gap-3 px-3.5 py-3 rounded-[16px] border transition-all hover:border-[var(--accent)]"
                       style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                <span className="text-xl shrink-0">{streak >= 7 ? "🔥" : streak >= 3 ? "⚡" : "✨"}</span>
+                <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(245,158,11,0.12)" }}>
+                  <Flame className="w-4 h-4" style={{ color: "#f59e0b" }} />
+                </span>
                 <div className="text-left min-w-0">
                   <p className="text-sm font-black leading-none"
                      style={{ color: streak > 0 ? "#f59e0b" : "var(--text)" }}>
                     {t("home.streakCard.days", { count: streak })}
                   </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{t("home.stats.streak")}</p>
+                  <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>{t("home.stats.streak")}</p>
                 </div>
               </button>
 
               {/* Meta */}
               <button onClick={openGoalModal}
-                      className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:border-[var(--accent)]"
+                      className="flex items-center gap-3 px-3.5 py-3 rounded-[16px] border transition-all hover:border-[var(--accent)]"
                       style={{ background: "var(--card)", borderColor: goalInfo ? "rgba(0,212,126,0.25)" : "var(--border)" }}>
-                {goalInfo
-                  ? <span className="text-xl shrink-0 leading-none">{goalInfo.emoji}</span>
-                  : <Target className="w-5 h-5 shrink-0" style={{ color: "var(--accent-l)" }} />}
+                <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.12)" }}>
+                  {goalInfo
+                    ? <Flag className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
+                    : <Target className="w-4 h-4" style={{ color: "var(--accent-l)" }} />}
+                </span>
                 <div className="text-left min-w-0">
                   <p className="text-sm font-black leading-none truncate" style={{ color: "var(--text)" }}>
                     {goalInfo ? goalInfo.label : t("home.stats.noGoal")}
@@ -1018,16 +1043,18 @@ export default function HomePage() {
 
               {/* Alertas */}
               <button onClick={() => router.push("/notifications")}
-                      className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:border-[var(--accent)]"
+                      className="flex items-center gap-3 px-3.5 py-3 rounded-[16px] border transition-all hover:border-[var(--accent)]"
                       style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                <Bell className="w-5 h-5 shrink-0"
-                      style={{ color: unread > 0 ? "#ef4444" : "var(--sub)" }} />
+                <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: unread > 0 ? "rgba(239,68,68,0.12)" : "var(--raised)" }}>
+                  <Bell className="w-4 h-4" style={{ color: unread > 0 ? "#ef4444" : "var(--sub)" }} />
+                </span>
                 <div className="text-left min-w-0">
                   <p className="text-sm font-black leading-none"
                      style={{ color: unread > 0 ? "#ef4444" : "var(--text)" }}>
                     {unread > 0 ? t("home.stats.newAlerts", { count: unread }) : totalNotifs > 0 ? t("home.stats.alertsCount", { count: totalNotifs }) : t("home.stats.noAlerts")}
                   </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{t("home.stats.notifications")}</p>
+                  <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>{t("home.stats.notifications")}</p>
                 </div>
               </button>
             </div>
@@ -1241,17 +1268,16 @@ export default function HomePage() {
 
                 {/* 🎯 Meta */}
                 <button onClick={openGoalModal}
-                        className="flex-1 flex items-center gap-3 px-4 py-4 rounded-xl border transition-all hover:border-[var(--accent)] text-left"
-                        style={{ background: "var(--card)", borderColor: goalInfo ? "rgba(0,212,126,0.25)" : "var(--border)" }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                       style={{ background: goalInfo ? "rgba(0,212,126,0.12)" : "var(--raised)" }}>
+                        className="flex-1 flex items-center gap-3.5 px-4 py-4 rounded-[18px] border transition-all hover:border-[var(--accent)] text-left"
+                        style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                  <MiniRing pct={goalPct / 100} color="var(--accent-l)">
                     {goalInfo
-                      ? <span className="text-xl leading-none">{goalInfo.emoji}</span>
-                      : <Target className="w-5 h-5" style={{ color: "var(--accent-l)" }} />}
-                  </div>
+                      ? <Flag className="w-[18px] h-[18px]" style={{ color: "var(--accent-l)" }} />
+                      : <Target className="w-[18px] h-[18px]" style={{ color: "var(--accent-l)" }} />}
+                  </MiniRing>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>{t("home.goalCard.myGoal")}</p>
-                    <p className="text-sm font-black truncate" style={{ color: "var(--text)" }}>
+                    <p className="text-[11px] font-bold uppercase tracking-[1px] mb-0.5" style={{ color: "var(--muted)" }}>{t("home.goalCard.myGoal")}</p>
+                    <p className="text-[15px] font-extrabold tracking-tight truncate" style={{ color: "var(--text)" }}>
                       {goalInfo ? goalInfo.label : t("home.goalCard.configureGoal")}
                     </p>
                     {goalAmount > 0 && (
@@ -1272,15 +1298,19 @@ export default function HomePage() {
 
                 {/* 🔥 Racha */}
                 <button onClick={() => router.push("/learn")}
-                        className="flex-1 flex items-center gap-3 px-4 py-4 rounded-xl border transition-all hover:border-[var(--accent)] text-left"
-                        style={{ background: "var(--card)", borderColor: streak > 0 ? "rgba(245,158,11,0.3)" : "var(--border)" }}>
-                  <div className="w-10 h-10 rounded-full border-2 flex items-center justify-center text-xl shrink-0"
-                       style={{ borderColor: streak > 0 ? "#f59e0b" : "var(--border)" }}>
-                    {streak >= 7 ? "🔥" : streak >= 3 ? "⚡" : "✨"}
-                  </div>
+                        className="flex-1 flex items-center gap-3.5 px-4 py-4 rounded-[18px] border transition-all hover:border-[var(--accent)] text-left"
+                        style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                  {(() => {
+                    const next = getNextMilestone(streak);
+                    return (
+                      <MiniRing pct={next ? streak / next.days : 1} color="#f59e0b">
+                        <Flame className="w-[18px] h-[18px]" style={{ color: "#f59e0b" }} />
+                      </MiniRing>
+                    );
+                  })()}
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>{t("home.stats.streak")}</p>
-                    <p className="text-xl font-black leading-none" style={{ color: streak > 0 ? "#f59e0b" : "var(--text)" }}>
+                    <p className="text-[11px] font-bold uppercase tracking-[1px] mb-0.5" style={{ color: "var(--muted)" }}>{t("home.stats.streak")}</p>
+                    <p className="text-xl font-extrabold tracking-tight leading-none" style={{ color: "var(--text)" }}>
                       {t("home.streakCard.days", { count: streak })}
                     </p>
                     <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
@@ -1291,34 +1321,38 @@ export default function HomePage() {
 
                 {/* 📚 Lección del día */}
                 <button onClick={() => router.push("/learn")}
-                        className="flex-1 flex items-center gap-3 px-4 py-4 rounded-xl border transition-all hover:border-[var(--accent)] text-left"
+                        className="flex-1 flex items-center gap-3.5 px-4 py-4 rounded-[18px] border transition-all hover:border-[var(--accent)] text-left"
                         style={{
-                          background: completedToday ? "rgba(34,197,94,0.06)" : "var(--card)",
+                          background: "var(--card)",
                           borderColor: completedToday ? "rgba(34,197,94,0.35)" : "var(--border)",
                         }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-                       style={{ background: completedToday ? "rgba(34,197,94,0.14)" : "rgba(124,58,237,0.1)" }}>
-                    {completedToday ? "✅" : dailyLesson.emoji}
+                  <div className="w-11 h-11 rounded-[12px] flex items-center justify-center shrink-0"
+                       style={{ background: completedToday ? "rgba(34,197,94,0.12)" : "rgba(0,185,109,0.10)" }}>
+                    {completedToday
+                      ? <CheckCircle2 className="w-5 h-5" style={{ color: "#22c55e" }} />
+                      : <GraduationCap className="w-5 h-5" style={{ color: "var(--accent-l)" }} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5"
+                    <p className="text-[11px] font-bold uppercase tracking-[1px] mb-0.5"
                        style={{ color: completedToday ? "#22c55e" : "var(--muted)" }}>
                       {completedToday ? t("home.lessonCard.completedToday") : t("home.lessonCard.lessonOfDay")}
                     </p>
-                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>{dailyLesson.title}</p>
+                    <p className="text-[15px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{dailyLesson.title}</p>
                     {"body" in dailyLesson && !completedToday && (
                       <p className="text-[10px] mt-1 line-clamp-2 leading-relaxed" style={{ color: "var(--muted)" }}>
                         {(dailyLesson as { body: string }).body}
                       </p>
                     )}
                     {"tip" in dailyLesson && !completedToday && (
-                      <p className="text-[10px] mt-1 font-semibold" style={{ color: "var(--accent-l)" }}>
-                        💡 {(dailyLesson as { tip: string }).tip}
+                      <p className="flex items-start gap-1 text-[11px] mt-1 font-semibold" style={{ color: "var(--accent-l)" }}>
+                        <Lightbulb className="w-3 h-3 shrink-0 mt-px" />
+                        {(dailyLesson as { tip: string }).tip}
                       </p>
                     )}
                     {completedToday && (
-                      <p className="text-[10px] mt-0.5 font-semibold" style={{ color: "#16a34a" }}>
+                      <p className="inline-flex items-center gap-1 text-[11px] mt-0.5 font-semibold" style={{ color: "#16a34a" }}>
                         {t("home.lessonCard.viewAnother")}
+                        <ChevronRight className="w-3 h-3" />
                       </p>
                     )}
                   </div>
@@ -1330,26 +1364,33 @@ export default function HomePage() {
             {topNotifs.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
-                    <Bell className="w-4 h-4" style={{ color: "var(--muted)" }} />
+                  <h2 className="text-[17px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>
                     {t("home.mostImportantToday")}
                   </h2>
                   <button onClick={() => router.push("/notifications")}
-                          className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
+                          className="inline-flex items-center gap-0.5 text-[13px] font-semibold hover:opacity-80" style={{ color: "var(--accent-l)" }}>
                     {t("home.viewAll")}
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <div className="rounded-xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                <div className="rounded-[18px] border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                   {topNotifs.map((n: any, i: number) => (
                     <button key={n.id ?? i}
                             onClick={() => router.push("/notifications")}
-                            className={`w-full flex items-start gap-3 px-4 py-3 text-left hover:opacity-80 transition-opacity ${i > 0 ? "border-t" : ""}`}
+                            className={`w-full flex items-start gap-3 px-4 py-3.5 text-left hover:opacity-80 transition-opacity ${i > 0 ? "border-t" : ""}`}
                             style={{ borderColor: "var(--border)" }}>
-                      <span className="text-lg shrink-0 mt-0.5">{notifIcon(n.type)}</span>
+                      {(() => {
+                        const NIcon = notifIcon(n.type);
+                        return (
+                          <span className="w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.10)" }}>
+                            <NIcon className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
+                          </span>
+                        );
+                      })()}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{n.title}</p>
+                        <p className="text-[13.5px] font-bold" style={{ color: "var(--text)" }}>{n.title}</p>
                         {n.body && (
-                          <p className="text-[11px] mt-0.5 line-clamp-2" style={{ color: "var(--muted)" }}>{n.body}</p>
+                          <p className="text-xs mt-0.5 line-clamp-2 leading-relaxed" style={{ color: "var(--muted)" }}>{n.body}</p>
                         )}
                       </div>
                       {n.created_at && (
@@ -1367,7 +1408,7 @@ export default function HomePage() {
             <HomeMarketOverview indices={indices} lastRefresh={lastRefresh} />
 
             {/* ── Quick Actions ────────────────────────────────────────────── */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { icon: BookOpen,       label: t("home.quickActions.askSomething"), sub: t("home.quickActions.aiMentor"),   href: "/chat",       accent: true  },
                 { icon: Sparkles,       label: t("home.quickActions.myMoney"),      sub: t("home.quickActions.patrimonio"), href: "/patrimonio", accent: false },
@@ -1376,14 +1417,17 @@ export default function HomePage() {
               ].map(({ icon: Icon, label, sub, href, accent }) => (
                 <button key={href}
                         onClick={() => router.push(href)}
-                        className="flex flex-col items-start p-3.5 rounded-xl border transition-all hover:scale-[1.02]"
+                        className="flex flex-col items-start p-4 rounded-[18px] border transition-all hover:border-[var(--accent)] hover:-translate-y-0.5"
                         style={{
-                          background: accent ? "rgba(0,212,126,0.07)" : "var(--card)",
-                          borderColor: accent ? "rgba(0,212,126,0.3)" : "var(--border)",
+                          background: accent ? "linear-gradient(135deg, rgba(0,185,109,0.12), var(--card) 70%)" : "var(--card)",
+                          borderColor: accent ? "rgba(0,185,109,0.3)" : "var(--border)",
                         }}>
-                  <Icon className="w-5 h-5 mb-2" style={{ color: accent ? "var(--accent-l)" : "var(--sub)" }} />
-                  <p className="text-xs font-bold leading-tight" style={{ color: "var(--text)" }}>{label}</p>
-                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>{sub}</p>
+                  <span className="w-10 h-10 rounded-[12px] flex items-center justify-center mb-3"
+                        style={{ background: accent ? "var(--accent)" : "rgba(0,185,109,0.10)" }}>
+                    <Icon className="w-[18px] h-[18px]" style={{ color: accent ? "#fff" : "var(--accent-l)" }} />
+                  </span>
+                  <p className="text-[13.5px] font-bold leading-tight" style={{ color: "var(--text)" }}>{label}</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>{sub}</p>
                 </button>
               ))}
             </div>
@@ -1392,13 +1436,19 @@ export default function HomePage() {
             {positions.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("home.risingToday")}</h2>
+                  <h2 className="text-[17px] font-extrabold tracking-tight flex items-center gap-2" style={{ color: "var(--text)" }}>
+                    <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "rgba(34,197,94,0.12)" }}>
+                      <TrendingUp className="w-3.5 h-3.5" style={{ color: "#22c55e" }} />
+                    </span>
+                    {t("home.risingToday")}
+                  </h2>
                   <button onClick={() => router.push("/patrimonio")}
-                          className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
+                          className="inline-flex items-center gap-0.5 text-[13px] font-semibold hover:opacity-80" style={{ color: "var(--accent-l)" }}>
                     {t("home.viewAll")}
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <div className="rounded-xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                <div className="rounded-[18px] border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                   {loading
                     ? [0,1,2].map((i) => (
                         <div key={i} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 animate-pulse"
@@ -1421,7 +1471,7 @@ export default function HomePage() {
                       )
                     : movers.map((m) => (
                         <div key={m.ticker}
-                             className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 cursor-pointer hover:opacity-80 transition-opacity"
+                             className="flex items-center gap-3 px-4 py-3.5 border-b last:border-b-0 cursor-pointer hover:opacity-80 transition-opacity"
                              style={{ borderColor: "var(--border)" }}
                              onClick={() => router.push("/patrimonio")}>
                           <StockAvatar ticker={m.ticker} size="sm" />
@@ -1447,16 +1497,22 @@ export default function HomePage() {
             {losers.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("home.fallingToday")}</h2>
+                  <h2 className="text-[17px] font-extrabold tracking-tight flex items-center gap-2" style={{ color: "var(--text)" }}>
+                    <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "rgba(239,68,68,0.12)" }}>
+                      <TrendingDown className="w-3.5 h-3.5" style={{ color: "#ef4444" }} />
+                    </span>
+                    {t("home.fallingToday")}
+                  </h2>
                   <button onClick={() => router.push("/patrimonio")}
-                          className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
+                          className="inline-flex items-center gap-0.5 text-[13px] font-semibold hover:opacity-80" style={{ color: "var(--accent-l)" }}>
                     {t("home.viewAll")}
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <div className="rounded-xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                <div className="rounded-[18px] border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                   {losers.map((m) => (
                     <div key={m.ticker}
-                         className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 cursor-pointer hover:opacity-80 transition-opacity"
+                         className="flex items-center gap-3 px-4 py-3.5 border-b last:border-b-0 cursor-pointer hover:opacity-80 transition-opacity"
                          style={{ borderColor: "var(--border)" }}
                          onClick={() => router.push("/patrimonio")}>
                       <StockAvatar ticker={m.ticker} size="sm" />
@@ -1481,18 +1537,18 @@ export default function HomePage() {
             {news.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
-                    <Newspaper className="w-4 h-4" style={{ color: "var(--muted)" }} />
+                  <h2 className="text-[17px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>
                     {t("home.portfolioNews")}
                   </h2>
                   <button onClick={() => router.push("/notifications")}
-                          className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
+                          className="inline-flex items-center gap-0.5 text-[13px] font-semibold hover:opacity-80" style={{ color: "var(--accent-l)" }}>
                     {t("home.viewMore")}
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {news.map((item: any, idx: number) => (
-                    <div key={idx} className="rounded-xl border overflow-hidden"
+                    <div key={idx} className="rounded-[18px] border overflow-hidden transition-all hover:border-[var(--accent)]"
                          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                       {(item.thumbnail_url || item.thumbnail) ? (
                         <img src={item.thumbnail_url ?? item.thumbnail} alt=""
@@ -1503,17 +1559,18 @@ export default function HomePage() {
                           <Newspaper className="w-6 h-6" style={{ color: "var(--dim)" }} />
                         </div>
                       )}
-                      <div className="p-3">
+                      <div className="p-3.5">
                         {item.ticker && (
-                          <span className="text-[10px] font-bold" style={{ color: "var(--accent-l)" }}>
+                          <span className="inline-block text-[10.5px] font-extrabold tracking-[0.5px] px-2 py-0.5 rounded-full"
+                                style={{ color: "var(--accent-l)", background: "rgba(0,185,109,0.10)" }}>
                             {item.ticker}
                           </span>
                         )}
-                        <p className="text-xs font-semibold leading-snug mt-0.5 line-clamp-3"
+                        <p className="text-[13px] font-bold leading-snug mt-1.5 line-clamp-3"
                            style={{ color: "var(--text)" }}>
                           {item.title}
                         </p>
-                        <p className="text-[10px] mt-1.5 truncate" style={{ color: "var(--muted)" }}>
+                        <p className="text-[11px] mt-2 truncate" style={{ color: "var(--muted)" }}>
                           {item.publisher ?? item.source}
                         </p>
                       </div>
@@ -1525,21 +1582,23 @@ export default function HomePage() {
 
             {/* ── AI Mentor CTA ────────────────────────────────────────────── */}
             <button onClick={() => router.push("/chat")}
-                    className="w-full flex items-center gap-4 p-5 rounded-2xl border transition-all hover:opacity-90"
-                    style={{ background: "rgba(0,212,126,0.06)", borderColor: "rgba(0,212,126,0.25)" }}>
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                   style={{ background: "rgba(0,212,126,0.15)" }}>
-                <Sparkles className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
+                    className="w-full flex items-center gap-4 p-5 rounded-[20px] border transition-all hover:border-[var(--accent)]"
+                    style={{ background: "linear-gradient(135deg, rgba(0,185,109,0.14), var(--card) 65%)", borderColor: "rgba(0,185,109,0.3)" }}>
+              <div className="w-12 h-12 rounded-[14px] flex items-center justify-center shrink-0"
+                   style={{ background: "var(--accent)" }}>
+                <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("home.mentorCta.title")}</p>
-                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                <p className="text-[16px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("home.mentorCta.title")}</p>
+                <p className="text-[13px] mt-0.5" style={{ color: "var(--sub)" }}>
                   {distinctPositionsCount
                     ? t("home.mentorCta.withPositions", { count: distinctPositionsCount })
                     : t("home.mentorCta.withoutPositions")}
                 </p>
               </div>
-              <ChevronRight className="w-5 h-5 shrink-0" style={{ color: "var(--dim)" }} />
+              <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.12)" }}>
+                <ArrowRight className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
+              </span>
             </button>
 
             <div className="h-6" />

@@ -211,7 +211,7 @@
       "step2Desc": "Opera con $10,000 virtuales antes de arriesgar el tuyo",
       "step3Title": "Tu primera inversión",
       "step3Desc": "Los mejores ETFs para empezar con poco dinero",
-      "askMentor": "Pregúntale a tu mentor IA →",
+      "askMentor": "Pregúntale a tu mentor IA",
       "createFreeAccount": "Crear mi cuenta gratis — es totalmente gratis"
     },
     "monthlyReport": {
@@ -247,7 +247,7 @@
       "lastMonth": "Último mes ({{amount}})",
       "addFirstStock": "Agrega tu primera acción",
       "addFirstStockDesc": "Registra tus posiciones y Nuvos te dará análisis IA, alertas de precio y seguimiento en tiempo real.",
-      "addPosition": "+ Agregar posición →",
+      "addPosition": "Agregar posición",
       "todaySuffix": "hoy"
     },
     "goalCard": {
@@ -261,15 +261,15 @@
       "consecutive": "seguidos"
     },
     "lessonCard": {
-      "completedToday": "Completada hoy ✓",
+      "completedToday": "Completada hoy",
       "lessonOfDay": "Lección del día",
-      "viewAnother": "Ver otra lección →"
+      "viewAnother": "Ver otra lección"
     },
     "mostImportantToday": "Lo más importante hoy",
-    "viewAll": "Ver todo →",
-    "viewMore": "Ver más →",
-    "risingToday": "📈 Subiendo hoy",
-    "fallingToday": "📉 Cayendo hoy",
+    "viewAll": "Ver todo",
+    "viewMore": "Ver más",
+    "risingToday": "Subiendo hoy",
+    "fallingToday": "Cayendo hoy",
     "noPositionsUp": "Sin posiciones al alza hoy",
     "portfolioNews": "Noticias de tu portafolio",
     "quickActions": {
@@ -283,9 +283,9 @@
       "stats": "Stats"
     },
     "mentorCta": {
-      "title": "Habla con Arthur",
-      "withPositions": "Analiza tus {{count}} posiciones o pide consejo de inversión",
-      "withoutPositions": "Chatea sobre inversiones, acciones o estrategias"
+      "title": "Pregúntale a Arthur",
+      "withPositions": "Analiza tus {{count}} posiciones o resuelve tus dudas de inversión",
+      "withoutPositions": "Conversa sobre inversiones, empresas o estrategias"
     },
     "saveError": "Error al guardar",
     "onboarding": {

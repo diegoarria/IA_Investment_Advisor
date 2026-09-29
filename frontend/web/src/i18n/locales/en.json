@@ -211,7 +211,7 @@
       "step2Desc": "Trade with $10,000 in virtual cash before risking your own",
       "step3Title": "Your first investment",
       "step3Desc": "The best ETFs to start with a small amount of money",
-      "askMentor": "Ask your AI mentor →",
+      "askMentor": "Ask your AI mentor",
       "createFreeAccount": "Create my free account — it's completely free"
     },
     "monthlyReport": {
@@ -247,7 +247,7 @@
       "lastMonth": "Last month ({{amount}})",
       "addFirstStock": "Add your first stock",
       "addFirstStockDesc": "Log your positions and Nuvos will give you AI analysis, price alerts, and real-time tracking.",
-      "addPosition": "+ Add position →",
+      "addPosition": "Add position",
       "todaySuffix": "today"
     },
     "goalCard": {
@@ -261,15 +261,15 @@
       "consecutive": "in a row"
     },
     "lessonCard": {
-      "completedToday": "Completed today ✓",
+      "completedToday": "Completed today",
       "lessonOfDay": "Lesson of the day",
-      "viewAnother": "View another lesson →"
+      "viewAnother": "View another lesson"
     },
     "mostImportantToday": "What matters most today",
-    "viewAll": "View all →",
-    "viewMore": "View more →",
-    "risingToday": "📈 Rising today",
-    "fallingToday": "📉 Falling today",
+    "viewAll": "View all",
+    "viewMore": "View more",
+    "risingToday": "Rising today",
+    "fallingToday": "Falling today",
     "noPositionsUp": "No positions up today",
     "portfolioNews": "News about your portfolio",
     "quickActions": {
@@ -283,9 +283,9 @@
       "stats": "Stats"
     },
     "mentorCta": {
-      "title": "Talk to Arthur",
-      "withPositions": "Analyze your {{count}} positions or get investment advice",
-      "withoutPositions": "Chat about investing, stocks, or strategies"
+      "title": "Ask Arthur",
+      "withPositions": "Analyze your {{count}} positions or clear up your investing questions",
+      "withoutPositions": "Talk about investing, companies or strategies"
     },
     "saveError": "Error saving",
     "onboarding": {

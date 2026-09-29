@@ -89,7 +89,7 @@ function vixSentiment(price: number | null, t: TFunction): { label: string; desc
 // ─── Skeleton card ─────────────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
-    <div className="flex-shrink-0 rounded-2xl border overflow-hidden animate-pulse"
+    <div className="flex-shrink-0 rounded-[18px] border overflow-hidden animate-pulse"
          style={{ minWidth: 160, background: "var(--card)", borderColor: "var(--border)" }}>
       <div className="p-3 space-y-2">
         <div className="h-2.5 w-16 rounded" style={{ background: "var(--raised)" }} />
@@ -131,7 +131,7 @@ function IndexCard({ idx, prices, loading, isBest, period, periods, t }: {
   const gradId = `hmo-grad-${idx.symbol.replace(/[^a-z0-9]/gi, "")}`;
 
   return (
-    <div className="flex-shrink-0 rounded-2xl border flex flex-col overflow-hidden transition-all hover:scale-[1.02]"
+    <div className="flex-shrink-0 rounded-[18px] border flex flex-col overflow-hidden transition-all hover:scale-[1.02]"
          style={{ minWidth: 165, background: "var(--card)", borderColor: `${col}30`, position: "relative" }}>
 
       {/* Best performer badge */}
@@ -281,9 +281,9 @@ export default function HomeMarketOverview({ indices, lastRefresh }: Props) {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--muted)" }}>
+          <h2 className="text-[17px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>
             {t("homeMarketOverview.markets")}
-          </p>
+          </h2>
           {updLabel && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full"
                   style={{ background: "var(--raised)", color: "var(--dim)" }}>
@@ -326,7 +326,7 @@ export default function HomeMarketOverview({ indices, lastRefresh }: Props) {
 
       {/* ── VIX Sentiment ──────────────────────────────────────────────────── */}
       {vixIdx?.price != null && (
-        <div className="mt-2.5 px-3 py-2 rounded-xl flex items-center gap-3"
+        <div className="mt-3 px-3.5 py-2.5 rounded-[14px] flex items-center gap-3"
              style={{ background: `${sentiment.color}0d`, border: `1px solid ${sentiment.color}25` }}>
           <div className="shrink-0">
             <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
