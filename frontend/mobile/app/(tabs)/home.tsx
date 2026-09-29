@@ -1086,7 +1086,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <View>
             <Text style={[ss.greeting, { color: colors.textMuted }]}>{greeting()}</Text>
-            <Text style={[ss.name, { color: colors.text }]} numberOfLines={1}>{firstName}</Text>
+            <Text style={[ss.name, { color: colors.text }]} numberOfLines={1}>{firstName} 👋</Text>
           </View>
         </View>
         <View style={ss.headerRight}>
