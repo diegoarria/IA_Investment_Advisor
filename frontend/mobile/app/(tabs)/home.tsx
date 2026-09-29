@@ -1235,7 +1235,7 @@ export default function HomeScreen() {
           />
           <View pointerEvents="none" style={[ss.heroGlow, { backgroundColor: colors.accentLight + "14" }]} />
 
-          {/* Label row + today's badge; the value gets the full width below. */}
+          {/* Label row; the value gets the full width below, today's badge under it. */}
           <View style={[ss.heroTop, { alignItems: "center" }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flexShrink: 1 }}>
               <View style={[ss.heroDot, { backgroundColor: colors.accentLight }]} />
@@ -1244,22 +1244,6 @@ export default function HomeScreen() {
                 <Text style={[ss.heroCcyText, { color: colors.textSub }]}>{portfolioCurrency}</Text>
               </View>
               <BalanceVisibilityToggle color={colors.textSub} size={15} />
-            </View>
-            <View style={[ss.heroGainBadge, {
-              backgroundColor: (dayGain >= 0 ? colors.up : colors.down) + "1F",
-              borderColor: (dayGain >= 0 ? colors.up : colors.down) + "59",
-            }]}>
-              <Ionicons
-                name={dayGain >= 0 ? "trending-up" : "trending-down"}
-                size={14}
-                color={dayGain >= 0 ? colors.up : colors.down}
-              />
-              {loading
-                ? <Skeleton w={60} h={14} r={4} />
-                : <Text style={[ss.heroGainText, { color: dayGain >= 0 ? colors.up : colors.down }]}>
-                    {fmtPct(dayGainPct)} {t("home.portfolio.todaySuffix")}
-                  </Text>
-              }
             </View>
           </View>
 
@@ -1274,8 +1258,24 @@ export default function HomeScreen() {
                 {mask(fmt((total + cashTotalUSD + dividendTotalUSD) * fxRate, portfolioCurrency))}
               </Text>
           }
+          <View style={[ss.heroGainBadge, { alignSelf: "flex-start", marginTop: 10,
+            backgroundColor: (dayGain >= 0 ? colors.up : colors.down) + "1F",
+            borderColor: (dayGain >= 0 ? colors.up : colors.down) + "59",
+          }]}>
+            <Ionicons
+              name={dayGain >= 0 ? "trending-up" : "trending-down"}
+              size={14}
+              color={dayGain >= 0 ? colors.up : colors.down}
+            />
+            {loading
+              ? <Skeleton w={60} h={14} r={4} />
+              : <Text style={[ss.heroGainText, { color: dayGain >= 0 ? colors.up : colors.down }]}>
+                  {fmtPct(dayGainPct)} {t("home.portfolio.todaySuffix")}
+                </Text>
+            }
+          </View>
           {!balanceHidden && (cashTotalUSD > 0 || dividendTotalUSD > 0) && (
-            <View style={{ marginTop: 8, gap: 4 }}>
+            <View style={{ marginTop: 12, gap: 4 }}>
               {cashTotalUSD > 0 && (
                 <View style={ss.heroExtraRow}>
                   <Ionicons name="wallet-outline" size={14} color={colors.accentLight} />
