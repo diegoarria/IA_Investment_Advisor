@@ -2204,6 +2204,42 @@ async def job_monthly_report_email():
         logger.error("job_monthly_report_email failed: %s", e)
 
 
+async def job_sync_connected_brokers():
+    """8:10 AM ET daily — for every user with a broker connected by API
+    (Plaid: IBKR/Schwab/Robinhood; IOL), pull holdings and, if they differ
+    from the Nuvos portfolio, Arthur offers a one-tap update
+    (inbound_import.reconcile_broker_holdings)."""
+    from app.core.database import get_supabase, run_query
+    from app.core.request_context import current_user_id
+    from app.api.routes import brokerage
+    from app.services import inbound_import
+    try:
+        res = await run_query(get_supabase().table("brokerage_connections").select("user_id, provider, institution_name"))
+        by_user: dict[str, set] = {}
+        for r in res.data or []:
+            by_user.setdefault(r["user_id"], set()).add(r["provider"])
+        for uid, providers in by_user.items():
+            current_user_id.set(uid)
+            for provider in providers:
+                try:
+                    if provider == "plaid":
+                        data = await brokerage.get_plaid_holdings(user_id=uid)
+                        name = "tu broker"
+                    elif provider == "iol":
+                        data = await brokerage.get_iol_holdings(user_id=uid)
+                        name = "Invertir Online"
+                    else:
+                        continue
+                    positions = data.get("positions") or []
+                    if positions and positions[0].get("institutionName"):
+                        name = positions[0]["institutionName"]
+                    await inbound_import.reconcile_broker_holdings(uid, name, positions)
+                except Exception as e:
+                    logger.warning("job_sync_connected_brokers: %s/%s failed: %s", uid, provider, e)
+    except Exception as e:
+        logger.error("job_sync_connected_brokers failed: %s", e)
+
+
 async def job_apply_stock_splits():
     """7:05 AM ET daily — adjust users' lots for recent stock splits of
     holdings and let Arthur tell them (app/services/corporate_actions.py)."""
@@ -6986,6 +7022,7 @@ async def main():
     scheduler.add_job(job_monthly_report_notify_available, "cron", day=1, hour=8, minute=50, timezone="America/New_York")
     scheduler.add_job(job_bill_usage_overage, "cron", day=1, hour=0, minute=30, timezone="UTC")
     scheduler.add_job(job_apply_stock_splits, "cron", hour=7, minute=5, timezone="America/New_York")
+    scheduler.add_job(job_sync_connected_brokers, "cron", hour=8, minute=10, timezone="America/New_York")
     # Dec 15, 9:00am ET — same moment job_wrapped_notify_available pushes its
     # opt-in users, but this email reaches every user (see docstring).
     # ── 13:00 ET weekdays: rotating nudge for users WITHOUT a portfolio

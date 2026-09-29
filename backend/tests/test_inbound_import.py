@@ -45,3 +45,13 @@ def test_trades_map_one_to_one():
 def test_forwarding_verification_detection():
     assert ii._is_forwarding_verification("forwarding-noreply@google.com", "Confirmación de reenvío de Gmail")
     assert not ii._is_forwarding_verification("notificaciones@gbm.com", "Confirmación de operación")
+
+
+def test_partial_sync_never_sells_other_brokers_positions(monkeypatch):
+    async def last_price(t):
+        return 100.0
+    monkeypatch.setattr(ii, "_last_price", last_price)
+    payload = {"kind": "statement", "partial": True, "positions": [{"ticker": "AAPL", "shares": 12, "avg_price": 150.0}]}
+    parsed = {"positions": [{"ticker": "AAPL", "shares": 10}, {"ticker": "WALMEX", "shares": 50}]}
+    ops = run(ii.operations_for(payload, parsed))
+    assert ops == [{"action": "BUY", "ticker": "AAPL", "name": None, "quantity": 2, "price": 150.0, "date": ops[0]["date"]}]

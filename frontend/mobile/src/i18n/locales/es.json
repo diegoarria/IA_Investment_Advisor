@@ -3084,7 +3084,10 @@
     "addBroker": "AGREGAR BROKER",
     "selectYourBroker": "SELECCIONA TU BROKER",
     "comingSoon": "Próximamente",
-    "disclaimer": "Solo lectura — Nuvos AI nunca puede ejecutar operaciones en tu cuenta."
+    "disclaimer": "Solo lectura — Nuvos AI nunca puede ejecutar operaciones en tu cuenta.",
+    "connectOnWebTitle": "Conecta {{brokerName}} una sola vez",
+    "connectOnWebMsg": "La conexión con {{brokerName}} se hace de forma segura desde nuvosai.com. Después, Nuvos se sincroniza solo cada día y Arthur te avisa aquí en la app cuando haya cambios.",
+    "openWeb": "Abrir nuvosai.com"
   },
   "tutorialModal": {
     "steps": {

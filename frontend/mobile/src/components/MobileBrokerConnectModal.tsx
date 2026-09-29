@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
+import { Linking,
   View, Text, Modal, TouchableOpacity, ScrollView,
   StyleSheet, ActivityIndicator, Alert, Image,
 } from "react-native";
@@ -116,11 +116,17 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
     setSyncing(false);
   };
 
+  // Plaid Link (IBKR/Schwab/Robinhood) runs on the web — connect once at
+  // nuvosai.com and, from then on, Nuvos syncs every day by itself and
+  // Arthur offers the updates here in the app too (2026-09-29).
   const handleBrokerTap = (brokerName: string) => {
     Alert.alert(
-      t("mobileBrokerConnectModal.comingSoonTitle"),
-      t("mobileBrokerConnectModal.comingSoonMsg", { brokerName }),
-      [{ text: t("mobileBrokerConnectModal.understood"), style: "default" }]
+      t("mobileBrokerConnectModal.connectOnWebTitle", { brokerName }),
+      t("mobileBrokerConnectModal.connectOnWebMsg", { brokerName }),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("mobileBrokerConnectModal.openWeb"), onPress: () => Linking.openURL("https://www.nuvosai.com/portfolio?connect=1") },
+      ]
     );
   };
 

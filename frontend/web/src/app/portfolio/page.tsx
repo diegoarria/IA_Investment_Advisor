@@ -942,6 +942,13 @@ export default function PortfolioPage() {
   useEffect(() => { screenshotCurrencyRef.current = screenshotCurrency; }, [screenshotCurrency]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [brokerModalOpen, setBrokerModalOpen] = useState(false);
+  // Mobile's "Conectar broker" sends users here (?connect=1) — Plaid Link is web-only.
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("connect") === "1") {
+      setBrokerModalOpen(true);
+      window.history.replaceState(null, "", "/portfolio");
+    }
+  }, []);
 
   // Cash held outside of stock positions (CETES, parked in a bank, bonds,
   // etc.) — counts toward the portfolio total alongside stock positions.

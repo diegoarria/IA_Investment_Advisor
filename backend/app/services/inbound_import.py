@@ -224,7 +224,9 @@ async def operations_for(payload: dict, parsed_portfolio: dict) -> list[dict]:
             price = await _last_price(ticker) or p.get("avg_price")
             if price:
                 ops.append({"action": "SELL", "ticker": ticker, "name": p.get("name"), "quantity": -delta, "price": price, "date": today})
-    for ticker, shares in current.items():
+    # A broker API sync only knows ITS OWN holdings — never "sell" a ticker
+    # the user holds at another broker just because this one doesn't list it.
+    for ticker, shares in ([] if payload.get("partial") else current.items()):
         if ticker not in stated and shares > 1e-6:
             price = await _last_price(ticker)
             if price:
@@ -433,3 +435,34 @@ async def handle_shared(user_id: str, attachments: list[dict]) -> dict:
         return {"ok": True, "kind": "none"}
     sid = await announce(user_id, import_id, payload, push=False)
     return {"ok": True, "kind": payload["kind"], "import_id": import_id, "session_id": sid}
+
+
+async def reconcile_broker_holdings(user_id: str, broker: str, positions: list[dict]) -> str | None:
+    """Daily API-broker sync (Plaid/IOL): if the broker's holdings differ from
+    the user's Nuvos portfolio, Arthur starts a conversation to update it
+    with one tap. Only tickers the broker reports are touched (partial), and
+    the same difference is never announced twice (dedup on the operations)."""
+    from app.api.routes.sync import _parse_portfolio
+    portfolios = await _portfolios(user_id)
+    if len(portfolios) > 1 or not positions:
+        return None  # ambiguous target / nothing reported — never guess
+    parsed = _parse_portfolio(portfolios[0]["positions"]) if portfolios else {"positions": [], "closed_positions": [], "currency": "USD", "inception_date": None}
+    currency = (positions[0].get("currency") or "USD").upper()
+    if parsed.get("currency") and currency != (parsed["currency"] or "").upper():
+        return None
+    payload = {"kind": "statement", "broker": broker, "currency": currency, "partial": True, "trades": [],
+               "positions": [{"ticker": p["ticker"], "name": p.get("name"), "shares": float(p.get("shares") or 0),
+                              "avg_price": float(p.get("avgPrice") or 0)} for p in positions]}
+    ops = await operations_for(payload, parsed)
+    if not ops:
+        return None
+    dedup = hashlib.md5(json.dumps(sorted((o["action"], o["ticker"], round(o["quantity"], 4)) for o in ops)).encode()).hexdigest()
+    db = get_supabase()
+    try:
+        ins = await run_query(db.table("inbound_imports").insert({
+            "user_id": user_id, "source": "broker_sync", "sender": broker, "subject": f"Sincronización {broker}",
+            "kind": "statement", "payload": payload, "status": "parsed", "dedup_key": f"sync-{dedup}",
+        }))
+    except Exception:
+        return None  # already announced this exact difference
+    return await announce(user_id, ins.data[0]["id"], payload)

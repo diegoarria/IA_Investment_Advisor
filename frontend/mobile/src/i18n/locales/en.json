@@ -3084,7 +3084,10 @@
     "addBroker": "ADD BROKER",
     "selectYourBroker": "SELECT YOUR BROKER",
     "comingSoon": "Coming soon",
-    "disclaimer": "Read-only — Nuvos AI can never execute trades in your account."
+    "disclaimer": "Read-only — Nuvos AI can never execute trades in your account.",
+    "connectOnWebTitle": "Connect {{brokerName}} once",
+    "connectOnWebMsg": "The {{brokerName}} connection is done securely at nuvosai.com. After that, Nuvos syncs by itself every day and Arthur tells you here in the app when something changes.",
+    "openWeb": "Open nuvosai.com"
   },
   "tutorialModal": {
     "steps": {
