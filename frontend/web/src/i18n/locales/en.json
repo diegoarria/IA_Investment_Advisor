@@ -247,7 +247,8 @@
       "lastMonth": "Last month ({{amount}})",
       "addFirstStock": "Add your first stock",
       "addFirstStockDesc": "Log your positions and Nuvos will give you AI analysis, price alerts, and real-time tracking.",
-      "addPosition": "+ Add position →"
+      "addPosition": "+ Add position →",
+      "todaySuffix": "today"
     },
     "goalCard": {
       "myGoal": "My goal",

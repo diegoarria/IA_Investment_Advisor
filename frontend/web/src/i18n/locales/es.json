@@ -247,7 +247,8 @@
       "lastMonth": "Último mes ({{amount}})",
       "addFirstStock": "Agrega tu primera acción",
       "addFirstStockDesc": "Registra tus posiciones y Nuvos te dará análisis IA, alertas de precio y seguimiento en tiempo real.",
-      "addPosition": "+ Agregar posición →"
+      "addPosition": "+ Agregar posición →",
+      "todaySuffix": "hoy"
     },
     "goalCard": {
       "myGoal": "Mi meta",

@@ -60,7 +60,6 @@ function buildArea(prices: number[], w = CW, h = CH): string {
 // ─── Formatting helpers ─────────────────────────────────────────────────────────
 function fmtPrice(price: number, symbol: string): string {
   if (symbol === "^VIX")  return price.toFixed(2);
-  if (price >= 10_000)    return price.toLocaleString("en-US", { maximumFractionDigits: 0 });
   if (price >= 1_000)     return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return price.toFixed(2);
 }

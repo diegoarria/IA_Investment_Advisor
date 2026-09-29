@@ -8,6 +8,7 @@ import type { TFunction } from "i18next";
 import {
   TrendingUp, TrendingDown, Sparkles, BookOpen,
   Bell, ChevronRight, GraduationCap, Newspaper, Target, Flame, X, Eye, EyeOff, Zap,
+  Wallet, Banknote,
 } from "lucide-react";
 import { InsightCallout } from "@/components/ui";
 import AppSidebar from "@/components/AppSidebar";
@@ -1064,180 +1065,175 @@ export default function HomePage() {
             {/* ── Main grid: Portfolio hero + Key stats ───────────────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-              {/* Portfolio hero (2/3) — a <div role="button"> rather than a
-                  real <button>, since it now needs to contain the eye-toggle
-                  <button> as a real nested interactive element (invalid to
-                  nest a <button> inside a <button>). */}
+              {/* Portfolio hero (2/3) — polished 2026-09-28, same as mobile:
+                  subtle brand-green gradient + glow, high-contrast labels,
+                  currency pill, big value with today's badge under it,
+                  readable cash/dividend lines and the three returns in an
+                  inset panel. A <div role="button"> since it contains the
+                  eye-toggle <button> (a <button> can't nest a <button>). */}
               <div role="button" tabIndex={0}
                       onClick={() => router.push("/patrimonio")}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/patrimonio"); }}
-                      className="lg:col-span-2 flex flex-col justify-center text-left rounded-2xl p-5 border transition-all hover:border-[var(--accent)] group relative overflow-hidden cursor-pointer"
-                      style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                      className="lg:col-span-2 flex flex-col justify-center text-left rounded-[22px] p-6 border transition-all hover:-translate-y-0.5 relative overflow-hidden cursor-pointer"
+                      style={{
+                        background: "linear-gradient(135deg, rgba(0,185,109,0.14) 0%, rgba(0,185,109,0.03) 45%, var(--card) 100%), var(--card)",
+                        borderColor: "rgba(0,185,109,0.25)",
+                        boxShadow: "0 14px 34px -18px rgba(0,185,109,0.45)",
+                      }}>
+                <div aria-hidden className="pointer-events-none absolute -top-24 -right-20 w-64 h-64 rounded-full"
+                     style={{ background: "radial-gradient(circle, rgba(0,232,135,0.12), transparent 70%)" }} />
 
-                {/* Top row: label + amount LEFT, avatar RIGHT */}
-                <div className="flex items-start justify-between gap-4">
+                <div className="relative flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-wide mb-1 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                      {t("home.portfolioHero.myPortfolio")}
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md"
-                            style={{ background: "var(--raised)", color: "var(--sub)" }}>
-                        {portfolioCurrency}
+                    {/* Label row */}
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent-l)" }} />
+                      <span className="text-xs font-bold uppercase tracking-[1px]" style={{ color: "var(--sub)" }}>
+                        {t("home.portfolioHero.myPortfolio")}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 pl-[3px] pr-2 py-[3px] rounded-full border"
+                            style={{ background: "rgba(0,185,109,0.10)", borderColor: "rgba(0,185,109,0.35)" }}>
+                        <span className="min-w-4 h-4 px-[3px] rounded-full flex items-center justify-center text-[10px] font-black"
+                              style={{ background: "var(--accent-l)", color: "var(--bg)" }}>
+                          {sym}
+                        </span>
+                        <span className="text-[11px] font-extrabold tracking-[0.8px]" style={{ color: "var(--accent-l)" }}>
+                          {portfolioCurrency}
+                        </span>
                       </span>
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleBalanceHidden(); }}
                         className="p-0.5 rounded-md transition-opacity hover:opacity-70"
-                        style={{ color: "var(--muted)" }}
+                        style={{ color: "var(--sub)" }}
                         aria-label={balanceHidden ? t("home.portfolioHero.showBalance") : t("home.portfolioHero.hideBalance")}
                         title={balanceHidden ? t("home.portfolioHero.showBalance") : t("home.portfolioHero.hideBalance")}
                       >
-                        {balanceHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        {balanceHidden ? <EyeOff className="w-[19px] h-[19px]" /> : <Eye className="w-[19px] h-[19px]" />}
                       </button>
-                    </p>
+                    </div>
+
+                    {/* Value */}
                     {loading ? (
-                      <div className="h-10 w-44 rounded-lg animate-pulse" style={{ background: "var(--raised)" }} />
+                      <div className="h-11 w-52 rounded-lg animate-pulse mt-3.5" style={{ background: "var(--raised)" }} />
                     ) : (() => {
                       const heroTotal = total + cashTotal + dividendTotal;
                       const heroValueStr = balanceHidden ? "••••••" : fmt(heroTotal, portfolioCurrency);
-                      // Guards against very large portfolio values overflowing this
-                      // card next to the avatar — shrinks proportionally to length
-                      // instead of wrapping or clipping.
+                      // Shrinks very large values proportionally instead of wrapping/clipping.
                       const heroValueSize =
-                        heroValueStr.length > 16 ? "1.5rem" :
-                        heroValueStr.length > 13 ? "1.8rem" :
-                        heroValueStr.length > 10 ? "2.1rem" : undefined;
+                        heroValueStr.length > 16 ? "1.9rem" :
+                        heroValueStr.length > 13 ? "2.3rem" : undefined;
                       return (
-                        <>
-                          <p
-                            className="text-4xl font-black tracking-tight leading-none whitespace-nowrap"
-                            style={{ color: "var(--text)", fontSize: heroValueSize }}
-                          >
-                            {heroValueStr}
-                          </p>
-                          {!balanceHidden && (cashTotal > 0 || dividendTotal > 0) && (
-                            <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
-                              {[
-                                cashTotal > 0 ? `${fmt(cashTotal, portfolioCurrency)} en efectivo` : null,
-                                dividendTotal > 0 ? `${fmt(dividendTotal, portfolioCurrency)} en dividendos recibidos` : null,
-                              ].filter(Boolean).join(" + ")}
-                            </p>
-                          )}
-                        </>
+                        <p className="text-[44px] font-extrabold tracking-[-1.5px] leading-none whitespace-nowrap mt-3.5"
+                           style={{ color: "var(--text)", fontSize: heroValueSize }}>
+                          {heroValueStr}
+                        </p>
                       );
                     })()}
+
+                    {/* Today's badge */}
+                    {!loading && (
+                      <span className="inline-flex items-center gap-1 mt-2.5 px-2.5 py-[5px] rounded-full border text-[13px] font-extrabold"
+                            style={{
+                              color: dayGain >= 0 ? "var(--up)" : "var(--down)",
+                              background: `color-mix(in srgb, ${dayGain >= 0 ? "var(--up)" : "var(--down)"} 12%, transparent)`,
+                              borderColor: `color-mix(in srgb, ${dayGain >= 0 ? "var(--up)" : "var(--down)"} 35%, transparent)`,
+                            }}>
+                        {dayGain >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                        {fmtPct(dayGainPct)} {t("home.portfolioHero.todaySuffix")}
+                      </span>
+                    )}
+
+                    {/* Cash / dividends */}
+                    {!loading && !balanceHidden && (cashTotal > 0 || dividendTotal > 0) && (
+                      <div className="mt-3 space-y-1">
+                        {cashTotal > 0 && (
+                          <p className="flex items-center gap-1.5 text-[13px]" style={{ color: "var(--sub)" }}>
+                            <Wallet className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--accent-l)" }} />
+                            <span><b className="font-bold" style={{ color: "var(--text)" }}>{fmt(cashTotal, portfolioCurrency)}</b> en efectivo</span>
+                          </p>
+                        )}
+                        {dividendTotal > 0 && (
+                          <p className="flex items-center gap-1.5 text-[13px]" style={{ color: "var(--sub)" }}>
+                            <Banknote className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--accent-l)" }} />
+                            <span><b className="font-bold" style={{ color: "var(--text)" }}>{fmt(dividendTotal, portfolioCurrency)}</b> en dividendos recibidos</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Profile avatar */}
                   <div className="shrink-0 w-20 h-20 rounded-full overflow-hidden border-2"
-                       style={{ borderColor: "var(--border)" }}>
+                       style={{ borderColor: "rgba(0,185,109,0.35)" }}>
                     {profile?.avatar_url ? (
                       <img src={profile.avatar_url} className="w-full h-full object-cover" alt="avatar" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-2xl font-black"
-                           style={{ background: "var(--accent)22", color: "var(--accent-l)" }}>
+                           style={{ background: "rgba(0,185,109,0.14)", color: "var(--accent-l)" }}>
                         {profile?.name?.charAt(0)?.toUpperCase() ?? "?"}
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Stats row — full width, vertical-line dividers, no boxes */}
-                {!loading && positions.length > 0 && (
-                  <div className="flex items-stretch mt-4 pt-4 border-t"
-                       style={{ borderColor: "var(--border)" }}>
-                    {/* Hoy */}
-                    <div className="flex-1 pr-4">
-                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>{t("home.portfolioHero.today")}</p>
-                      <p className="text-xl font-black tracking-tight leading-none" style={{ color: dayGain >= 0 ? "#22c55e" : "#ef4444" }}>
-                        {fmtPct(dayGainPct)}
-                        <span className="text-sm font-semibold ml-1">
-                          ({balanceHidden ? "••••" : `${dayGain >= 0 ? "+" : ""}${fmt(dayGain, portfolioCurrency)}`})
-                        </span>
-                      </p>
-                      <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                        {t("home.portfolioHero.todayReturn")}
-                      </p>
+                {/* Returns — inset panel */}
+                {!loading && positions.length > 0 && (() => {
+                  const cols: { label: string; pct: number | null; amt: number | null }[] = [
+                    { label: t("home.portfolioHero.today"), pct: dayGainPct, amt: dayGain },
+                    { label: isPremium ? "YTD" : "5D", pct: ytdGain !== null ? (ytdPct ?? 0) : null, amt: ytdGain !== null ? ytdGain * fxRate : null },
+                    isPremium
+                      ? { label: "Total", pct: maxGain !== null ? (maxPct ?? 0) : null, amt: maxGain !== null ? maxGain * fxRate : null }
+                      : { label: "1M", pct: shortGain !== null ? (shortPct ?? 0) : null, amt: shortGain !== null ? shortGain * fxRate : null },
+                  ];
+                  return (
+                    <div className="relative flex items-stretch mt-5 px-4 py-3.5 rounded-[14px] border"
+                         style={{ background: "color-mix(in srgb, var(--bg) 70%, transparent)", borderColor: "var(--border)" }}>
+                      {cols.map((c, i) => {
+                        const pos = (c.amt ?? 0) >= 0;
+                        return (
+                          <div key={c.label} className="flex-1 min-w-0 flex">
+                            {i > 0 && <div className="w-px self-stretch mx-4" style={{ background: "var(--border)" }} />}
+                            <div className="min-w-0">
+                              <p className="text-[11.5px] font-bold uppercase tracking-[0.8px] mb-1.5" style={{ color: "var(--sub)" }}>{c.label}</p>
+                              <p className="text-xl font-extrabold tracking-tight leading-none truncate"
+                                 style={{ color: c.pct === null ? "var(--sub)" : pos ? "var(--up)" : "var(--down)" }}>
+                                {c.pct === null ? "—" : fmtPct(c.pct)}
+                              </p>
+                              {c.amt !== null && (
+                                <p className="text-[13.5px] font-semibold mt-1 truncate" style={{ color: "var(--text)" }}>
+                                  {balanceHidden ? "••••" : `${pos ? "+" : ""}${fmt(c.amt, portfolioCurrency)}`}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    {/* Divider */}
-                    <div className="w-px self-stretch" style={{ background: "var(--border)" }} />
-                    {/* YTD (premium) / 5D (free) */}
-                    <div className="flex-1 px-4">
-                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>{isPremium ? "YTD" : "5D"}</p>
-                      {ytdGain !== null ? (
-                        <>
-                          <p className="text-xl font-black tracking-tight leading-none" style={{ color: (ytdPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
-                            {fmtPct(ytdPct ?? 0)}
-                            <span className="text-sm font-semibold ml-1">
-                              ({balanceHidden ? "••••" : `${ytdGain >= 0 ? "+" : ""}${fmt(ytdGain * fxRate, portfolioCurrency)}`})
-                            </span>
-                          </p>
-                          <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                            {isPremium ? t("home.portfolioHero.ytd") : t("home.portfolioHero.last5Days")}
-                          </p>
-                        </>
-                      ) : (
-                        <p className="text-xl font-black" style={{ color: "var(--muted)" }}>—</p>
-                      )}
-                    </div>
-                    {/* Divider */}
-                    <div className="w-px self-stretch" style={{ background: "var(--border)" }} />
-                    {/* Total (premium) / 1M (free) */}
-                    <div className="flex-1 pl-4">
-                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>{isPremium ? "Total" : "1M"}</p>
-                      {isPremium ? (
-                        maxGain !== null ? (
-                          <>
-                            <p className="text-xl font-black tracking-tight leading-none" style={{ color: (maxPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
-                              {fmtPct(maxPct ?? 0)}
-                              <span className="text-sm font-semibold ml-1">
-                                ({balanceHidden ? "••••" : `${maxGain >= 0 ? "+" : ""}${fmt(maxGain * fxRate, portfolioCurrency)}`})
-                              </span>
-                            </p>
-                            <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>{t("home.portfolioHero.total")}</p>
-                          </>
-                        ) : (
-                          <p className="text-xl font-black" style={{ color: "var(--muted)" }}>—</p>
-                        )
-                      ) : shortGain !== null ? (
-                        <>
-                          <p className="text-xl font-black tracking-tight leading-none" style={{ color: (shortPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
-                            {fmtPct(shortPct ?? 0)}
-                          </p>
-                          <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                            {t("home.portfolioHero.lastMonth", { amount: balanceHidden ? "••••" : `${shortGain >= 0 ? "+" : ""}${fmt(shortGain * fxRate, portfolioCurrency)}` })}
-                          </p>
-                        </>
-                      ) : (
-                        <p className="text-xl font-black" style={{ color: "var(--muted)" }}>—</p>
-                      )}
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {!loading && !positions.length && (
-                  <div className="mt-4 pt-4 border-t border-dashed" style={{ borderColor: "var(--border)" }}>
+                  <div className="relative mt-4 pt-4 border-t border-dashed" style={{ borderColor: "var(--border)" }}>
                     <p className="text-sm font-black mb-1" style={{ color: "var(--text)" }}>{t("home.portfolioHero.addFirstStock")}</p>
                     <p className="text-xs mb-3 leading-relaxed" style={{ color: "var(--muted)" }}>
                       {t("home.portfolioHero.addFirstStockDesc")}
                     </p>
                     <div className="flex flex-wrap gap-1.5 mb-3">
                       {["AAPL", "NVDA", "MSFT", "TSLA", "GOOGL"].map((ticker) => (
-                        <button key={ticker} onClick={() => router.push("/portfolio")}
+                        <button key={ticker} onClick={(e) => { e.stopPropagation(); router.push("/portfolio"); }}
                                 className="text-xs font-bold px-2.5 py-1 rounded-lg border transition-colors hover:border-[var(--accent)]"
                                 style={{ borderColor: "var(--border)", color: "var(--accent-l)", background: "var(--raised)" }}>
                           {ticker}
                         </button>
                       ))}
                     </div>
-                    <button onClick={() => router.push("/portfolio")}
+                    <button onClick={(e) => { e.stopPropagation(); router.push("/portfolio"); }}
                             className="w-full py-2 rounded-xl text-xs font-bold transition-colors"
                             style={{ background: "var(--accent)", color: "#fff" }}>
                       {t("home.portfolioHero.addPosition")}
                     </button>
                   </div>
                 )}
-
-                <ChevronRight className="absolute right-4 top-5 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                              style={{ color: "var(--dim)" }} />
               </div>
 
               {/* Right column: 3 key stat cards */}

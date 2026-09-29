@@ -30,7 +30,6 @@ const ABBR: Record<string, string> = {
 
 
 function fmtPrice(p: number): string {
-  if (p >= 10000) return p.toLocaleString("en-US", { maximumFractionDigits: 0 });
   if (p >= 1000)  return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return p.toFixed(2);
 }
