@@ -125,7 +125,8 @@
       "total": "Total",
       "emptyTitle": "Agrega tu primera acción",
       "emptyBody": "Registra tus posiciones y Nuvos te dará análisis IA, alertas de precio y seguimiento en tiempo real.",
-      "addPosition": "+ Agregar posición →"
+      "addPosition": "Agregar posición",
+      "viewPortfolio": "Ver portafolio"
     },
     "broker": {
       "noUrl": "Sin URL: {{details}}",
@@ -257,7 +258,7 @@
     "markets": {
       "title": "Mercados",
       "updatedAgo": "Hace {{time}}",
-      "best": "★ MEJOR",
+      "best": "MEJOR",
       "sentiment": "Sentimiento de mercado",
       "sentimentLabels": {
         "calm": "Calma",
@@ -277,13 +278,13 @@
     },
     "sections": {
       "risingToday": "Subiendo hoy",
-      "fallingToday": "📉 Cayendo hoy",
+      "fallingToday": "Cayendo hoy",
       "topToday": "Lo más importante hoy",
       "news": "Noticias de tu portafolio"
     },
     "streakCard": {
       "title": "Racha",
-      "start": "¡Empieza hoy!",
+      "start": "Empieza hoy",
       "oneDay": "1 día seguido",
       "days": "{{count}} días seguidos"
     },
@@ -300,9 +301,9 @@
       "seeLessons": "Ver lecciones"
     },
     "aiCta": {
-      "title": "Pregúntale a la IA",
-      "withPositions": "Analiza tus {{count}} posiciones o pide consejo de inversión",
-      "noPositions": "Chatea sobre inversiones, acciones o estrategias"
+      "title": "Pregúntale a Arthur",
+      "withPositions": "Analiza tus {{count}} posiciones o resuelve tus dudas de inversión",
+      "noPositions": "Conversa sobre inversiones, empresas o estrategias"
     },
     "feedback": {
       "thanksTitle": "¡Gracias por tu feedback!",

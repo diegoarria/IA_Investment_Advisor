@@ -125,7 +125,8 @@
       "total": "Total",
       "emptyTitle": "Add your first stock",
       "emptyBody": "Register your positions and Nuvos will give you AI analysis, price alerts, and real-time tracking.",
-      "addPosition": "+ Add position →"
+      "addPosition": "Add position",
+      "viewPortfolio": "View portfolio"
     },
     "broker": {
       "noUrl": "No URL: {{details}}",
@@ -257,7 +258,7 @@
     "markets": {
       "title": "Markets",
       "updatedAgo": "{{time}} ago",
-      "best": "★ BEST",
+      "best": "BEST",
       "sentiment": "Market sentiment",
       "sentimentLabels": {
         "calm": "Calm",
@@ -277,13 +278,13 @@
     },
     "sections": {
       "risingToday": "Rising today",
-      "fallingToday": "📉 Falling today",
+      "fallingToday": "Falling today",
       "topToday": "Top news today",
       "news": "News about your portfolio"
     },
     "streakCard": {
       "title": "Streak",
-      "start": "Start today!",
+      "start": "Start today",
       "oneDay": "1 day in a row",
       "days": "{{count}} days in a row"
     },
@@ -300,9 +301,9 @@
       "seeLessons": "See lessons"
     },
     "aiCta": {
-      "title": "Ask the AI",
-      "withPositions": "Analyze your {{count}} positions or ask for investment advice",
-      "noPositions": "Chat about investing, stocks or strategies"
+      "title": "Ask Arthur",
+      "withPositions": "Analyze your {{count}} positions or get your investing questions answered",
+      "noPositions": "Talk about investing, companies or strategies"
     },
     "feedback": {
       "thanksTitle": "Thanks for your feedback!",

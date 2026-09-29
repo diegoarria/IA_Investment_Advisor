@@ -5,7 +5,8 @@ import {
   Modal, Pressable, ActivityIndicator, Linking, TextInput, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Path, Defs, LinearGradient, Stop } from "react-native-svg";
+import Svg, { Path, Defs, LinearGradient, Stop, Circle } from "react-native-svg";
+import { LinearGradient as ExpoLinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -14,7 +15,7 @@ import { useAppStore } from "../../src/lib/profileStore";
 import { profileApi, syncApi, billingApi, feedbackApi, learnApi } from "../../src/lib/api";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useFxRate } from "../../src/lib/useFxRate";
-import { useLearnStore, getUnclaimedMilestones, type StreakMilestone } from "../../src/lib/learnStore";
+import { useLearnStore, getUnclaimedMilestones, type StreakMilestone, getNextMilestone } from "../../src/lib/learnStore";
 import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -326,16 +327,29 @@ function Skeleton({ w, h, r = 8 }: { w: number | string; h: number; r?: number }
 }
 
 // ── Streak Ring ───────────────────────────────────────────────────────────────
-function StreakRing({ streak }: { streak: number }) {
-  const { t } = useTranslation();
+// Progress ring (0-1) with content in the middle — streak, maturity.
+function MiniRing({ pct, color, children }: { pct: number; color: string; children: React.ReactNode }) {
   const { colors } = useTheme();
-  const fire = streak >= 7 ? "🔥" : streak >= 3 ? "⚡" : "✨";
+  const size = 56, stroke = 5, r = (size - stroke) / 2, c = 2 * Math.PI * r;
   return (
-    <View style={[ss.streakRing, { borderColor: streak > 0 ? "#f59e0b" : colors.border }]}>
-      <Text style={ss.streakEmoji}>{fire}</Text>
-      <Text style={[ss.streakNum, { color: streak > 0 ? "#f59e0b" : colors.textMuted }]}>{streak}</Text>
-      <Text style={[ss.streakLabel, { color: colors.textMuted }]}>{t("common.daysShort")}</Text>
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Svg width={size} height={size} style={{ position: "absolute" }}>
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={colors.border} strokeWidth={stroke} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={stroke} fill="none" strokeLinecap="round"
+                strokeDasharray={`${c * Math.max(0, Math.min(1, pct))} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+      </Svg>
+      {children}
     </View>
+  );
+}
+
+function StreakRing({ streak }: { streak: number }) {
+  const { colors } = useTheme();
+  const next = getNextMilestone(streak);
+  return (
+    <MiniRing pct={next ? streak / next.days : 1} color="#f59e0b">
+      <Text style={[ss.streakNum, { color: streak > 0 ? colors.text : colors.textMuted }]}>{streak}</Text>
+    </MiniRing>
   );
 }
 
@@ -344,14 +358,13 @@ function ActionChip({ icon, label, onPress, accent = false, colors }: any) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.75}
-      style={[ss.chip, {
-        backgroundColor: accent ? colors.accent + "18" : colors.bgRaised,
-        borderColor:     accent ? colors.accent + "50" : colors.border,
-      }]}
+      activeOpacity={0.8}
+      style={[ss.chip, { backgroundColor: colors.card, borderColor: colors.border }]}
     >
-      <Ionicons name={icon} size={18} color={accent ? colors.accentLight : colors.textSub} />
-      <Text style={[ss.chipLabel, { color: accent ? colors.accentLight : colors.textSub }]}>{label}</Text>
+      <View style={[ss.chipIcon, { backgroundColor: accent ? colors.accent : colors.bgRaised }]}>
+        <Ionicons name={icon} size={19} color={accent ? "#fff" : colors.text} />
+      </View>
+      <Text style={[ss.chipLabel, { color: colors.text }]} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -1072,13 +1085,13 @@ export default function HomeScreen() {
             <View style={{ height: 2, borderRadius: 1, width: 14, backgroundColor: colors.accentLight }} />
           </TouchableOpacity>
           <View>
-            <Text style={[ss.greeting, { color: colors.textMuted }]}>{greeting()},</Text>
-            <Text style={[ss.name, { color: colors.text }]}>{firstName} 👋</Text>
+            <Text style={[ss.greeting, { color: colors.textMuted }]}>{greeting()}</Text>
+            <Text style={[ss.name, { color: colors.text }]} numberOfLines={1}>{firstName}</Text>
           </View>
         </View>
         <View style={ss.headerRight}>
           {/* Market open/closed dot */}
-          <View style={ss.marketDotWrap}>
+          <View style={[ss.marketDotWrap, { backgroundColor: isMarketOpen ? "rgba(34,197,94,0.1)" : colors.bgRaised, borderColor: isMarketOpen ? "rgba(34,197,94,0.3)" : colors.border }]}>
             <View style={[ss.marketDot, { backgroundColor: isMarketOpen ? "#22c55e" : colors.textDim }]} />
             <Text style={[ss.marketDotLabel, { color: isMarketOpen ? "#22c55e" : colors.textDim }]}>
               {isMarketOpen ? t("home.marketOpen") : t("home.marketClosed")}
@@ -1191,23 +1204,22 @@ export default function HomeScreen() {
         )}
 
         {/* ── Hero cards row (portfolio + broker) ─────────────────────────── */}
-        <ScrollView
-          horizontal
-          pagingEnabled={false}
-          showsHorizontalScrollIndicator={false}
-          decelerationRate="fast"
-          snapToInterval={W - 16}
-          snapToAlignment="start"
-          contentContainerStyle={{ paddingLeft: 16, paddingRight: 8, gap: 10, flexDirection: "row", marginTop: 16 }}
-        >
-        {/* ── Portfolio Hero Card ──────────────────────────────────────────── */}
+        {/* ── Portfolio Hero Card — redesign 2026-09-27 (corporate AAA): subtle
+            accent gradient, value first, today's change under it, three clean
+            columns, explicit footer link. ── */}
         <TouchableOpacity
           activeOpacity={0.92}
           onPress={() => router.navigate("/(tabs)/portfolio")}
-          style={[ss.heroCard, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 0, marginTop: 0, width: W - 48 }]}
+          style={[ss.heroCard, { borderColor: colors.border }]}
         >
+          <ExpoLinearGradient
+            colors={[colors.accent + "26", colors.card, colors.card]}
+            locations={[0, 0.55, 1]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
           <View style={ss.heroTop}>
-            <View style={{ flexShrink: 1 }}>
+            <View style={{ flexShrink: 1, flex: 1 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Text style={[ss.heroLabel, { color: colors.textMuted }]}>{t("home.portfolio.label")}</Text>
                 <View style={{ backgroundColor: colors.bgRaised ?? colors.card, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
@@ -1235,21 +1247,21 @@ export default function HomeScreen() {
                 </Text>
               )}
             </View>
-            <View style={[ss.heroGainBadge, {
-              backgroundColor: dayGain >= 0 ? colors.up + "18" : colors.down + "18",
-            }]}>
-              <Ionicons
-                name={dayGain >= 0 ? "trending-up" : "trending-down"}
-                size={14}
-                color={dayGain >= 0 ? colors.up : colors.down}
-              />
-              {loading
-                ? <Skeleton w={60} h={14} r={4} />
-                : <Text style={[ss.heroGainText, { color: dayGain >= 0 ? colors.up : colors.down }]}>
-                    {fmtPct(dayGainPct)} {t("home.portfolio.todaySuffix")}
-                  </Text>
-              }
-            </View>
+          </View>
+          <View style={[ss.heroGainBadge, {
+            backgroundColor: dayGain >= 0 ? colors.up + "18" : colors.down + "18",
+          }]}>
+            <Ionicons
+              name={dayGain >= 0 ? "trending-up" : "trending-down"}
+              size={14}
+              color={dayGain >= 0 ? colors.up : colors.down}
+            />
+            {loading
+              ? <Skeleton w={60} h={14} r={4} />
+              : <Text style={[ss.heroGainText, { color: dayGain >= 0 ? colors.up : colors.down }]}>
+                  {fmtPct(dayGainPct)} {t("home.portfolio.todaySuffix")}
+                </Text>
+            }
           </View>
 
           {!loading && (
@@ -1341,14 +1353,13 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* Chevron hint */}
-          <View style={ss.heroChevron}>
-            <Ionicons name="chevron-forward" size={14} color={colors.textDim} />
-          </View>
+          {positions.length > 0 && (
+            <View style={[ss.heroFooter, { borderTopColor: colors.border }]}>
+              <Text style={[ss.heroFooterText, { color: colors.accentLight }]}>{t("home.portfolio.viewPortfolio")}</Text>
+              <Ionicons name="arrow-forward" size={14} color={colors.accentLight} />
+            </View>
+          )}
         </TouchableOpacity>
-
-
-        </ScrollView>
 
         {/* ── Stat Strip ───────────────────────────────────────────────────── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -1356,8 +1367,10 @@ export default function HomeScreen() {
           <TouchableOpacity activeOpacity={0.8}
             onPress={() => router.navigate("/(tabs)/patrimonio")}
             style={[ss.statChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Ionicons name={dayGain >= 0 ? "trending-up" : "trending-down"} size={16}
-              color={dayGain >= 0 ? colors.up : colors.down} />
+            <View style={[ss.statIcon, { backgroundColor: (dayGain >= 0 ? colors.up : colors.down) + "18" }]}>
+              <Ionicons name={dayGain >= 0 ? "trending-up" : "trending-down"} size={16}
+                color={dayGain >= 0 ? colors.up : colors.down} />
+            </View>
             <View>
               <Text style={{ fontSize: 13, fontWeight: "800", color: dayGain >= 0 ? colors.up : colors.down }}>
                 {fmtPct(dayGainPct)}
@@ -1368,10 +1381,12 @@ export default function HomeScreen() {
 
           <TouchableOpacity activeOpacity={0.8}
             onPress={() => router.navigate("/(tabs)/academy")}
-            style={[ss.statChip, { backgroundColor: colors.card, borderColor: streak > 0 ? "#f59e0b50" : colors.border }]}>
-            <Text style={{ fontSize: 18 }}>{streak >= 7 ? "🔥" : streak >= 3 ? "⚡" : "✨"}</Text>
+            style={[ss.statChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[ss.statIcon, { backgroundColor: "rgba(245,158,11,0.14)" }]}>
+              <Ionicons name="flame-outline" size={16} color="#f59e0b" />
+            </View>
             <View>
-              <Text style={{ fontSize: 13, fontWeight: "800", color: streak > 0 ? "#f59e0b" : colors.text }}>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>
                 {t("home.stats.days", { count: streak })}
               </Text>
               <Text style={{ fontSize: 10, color: colors.textMuted }}>{t("home.stats.streak")}</Text>
@@ -1380,10 +1395,12 @@ export default function HomeScreen() {
 
           <TouchableOpacity activeOpacity={0.8}
             onPress={openGoalModal}
-            style={[ss.statChip, { backgroundColor: colors.card, borderColor: goalName ? "rgba(0,212,126,0.30)" : colors.border }]}>
-            <Text style={{ fontSize: 18 }}>🎯</Text>
+            style={[ss.statChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[ss.statIcon, { backgroundColor: colors.accentLight + "18" }]}>
+              <Ionicons name="flag-outline" size={16} color={colors.accentLight} />
+            </View>
             <View>
-              <Text style={{ fontSize: 13, fontWeight: "800", color: goalName ? "#00d47e" : colors.text }} numberOfLines={1}>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }} numberOfLines={1}>
                 {goalName ? (GOAL_OPTIONS.find(g => g.key === goalName)?.label ?? goalName) : t("home.stats.noGoal")}
               </Text>
               <Text style={{ fontSize: 10, color: colors.textMuted }}>
@@ -1394,8 +1411,10 @@ export default function HomeScreen() {
 
           <TouchableOpacity activeOpacity={0.8}
             onPress={() => router.navigate("/(tabs)/notifications")}
-            style={[ss.statChip, { backgroundColor: colors.card, borderColor: unread > 0 ? "#ef444450" : colors.border }]}>
-            <Ionicons name="notifications-outline" size={16} color={unread > 0 ? "#ef4444" : colors.textSub} />
+            style={[ss.statChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[ss.statIcon, { backgroundColor: unread > 0 ? "rgba(239,68,68,0.14)" : colors.bgRaised }]}>
+              <Ionicons name="notifications-outline" size={16} color={unread > 0 ? "#ef4444" : colors.textSub} />
+            </View>
             <View>
               <Text style={{ fontSize: 13, fontWeight: "800", color: unread > 0 ? "#ef4444" : colors.text }}>
                 {unread > 0 ? t("home.stats.newAlerts", { count: unread }) : totalNotifs > 0 ? t("home.stats.alertsCount", { count: totalNotifs }) : t("home.stats.noAlerts")}
@@ -1425,12 +1444,8 @@ export default function HomeScreen() {
           return (
             <View>
               {/* Section header */}
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                             paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 }}>
-                <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted,
-                               textTransform: "uppercase", letterSpacing: 1.2 }}>
-                  {t("home.markets.title")}
-                </Text>
+              <View style={[ss.sectionHeader, { marginTop: 28 }]}>
+                <Text style={[ss.sectionTitle, { color: colors.text }]}>{t("home.markets.title")}</Text>
                 {updLabel && (
                   <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
                                  backgroundColor: colors.bgRaised ?? colors.card }}>
@@ -1467,17 +1482,13 @@ export default function HomeScreen() {
                       key={idx.symbol}
                       activeOpacity={0.75}
                       onPress={() => setSelectedIdx(idx)}
-                      style={[ss.idxChip, {
-                        backgroundColor: colors.card,
-                        borderColor: up ? colors.up + "45" : colors.down + "45",
-                      }]}
+                      style={[ss.idxChip, { backgroundColor: colors.card, borderColor: colors.border }]}
                     >
                       {/* Best performer badge */}
                       {isBest && (
-                        <View style={{ position: "absolute", top: 0, right: 0,
-                                       backgroundColor: "#f59e0b", borderBottomLeftRadius: 8,
-                                       paddingHorizontal: 5, paddingVertical: 2, zIndex: 1 }}>
-                          <Text style={{ fontSize: 8, fontWeight: "900", color: "#000" }}>{t("home.markets.best")}</Text>
+                        <View style={{ position: "absolute", top: 10, right: 10, borderRadius: 999,
+                                       backgroundColor: "rgba(245,158,11,0.14)", paddingHorizontal: 6, paddingVertical: 2, zIndex: 1 }}>
+                          <Text style={{ fontSize: 8.5, fontWeight: "800", color: "#f59e0b", letterSpacing: 0.4 }}>{t("home.markets.best")}</Text>
                         </View>
                       )}
                       <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -1499,9 +1510,11 @@ export default function HomeScreen() {
                               : displayPrice.toFixed(2)}
                         </Text>
                       )}
-                      <Text style={[ss.idxChange, { color: col }]}>
-                        {up ? "+" : ""}{displayPct.toFixed(2)}%
-                      </Text>
+                      <View style={{ alignSelf: "flex-start", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: col + "18" }}>
+                        <Text style={[ss.idxChange, { color: col }]}>
+                          {up ? "+" : ""}{displayPct.toFixed(2)}%
+                        </Text>
+                      </View>
                       {/* Sparkline */}
                       <View style={{ marginTop: 6 }}>
                         {prices && prices.length > 1 ? (
@@ -1518,11 +1531,11 @@ export default function HomeScreen() {
 
               {/* VIX sentiment */}
               {sentiment && vixPrice != null && (
-                <View style={{ marginHorizontal: 16, marginTop: 10, borderRadius: 14,
-                               paddingHorizontal: 14, paddingVertical: 9, flexDirection: "row",
-                               alignItems: "center", gap: 10,
-                               backgroundColor: sentiment.color + "12",
-                               borderWidth: StyleSheet.hairlineWidth, borderColor: sentiment.color + "30" }}>
+                <View style={{ marginHorizontal: 16, marginTop: 10, borderRadius: 16,
+                               paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row",
+                               alignItems: "center", gap: 12,
+                               backgroundColor: colors.card,
+                               borderWidth: 1, borderColor: colors.border }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted,
                                    textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>
@@ -1564,14 +1577,14 @@ export default function HomeScreen() {
           activeOpacity={0.88}
           onPress={() => router.navigate({ pathname: "/(tabs)/learn", params: { topicId: dailyLesson.topicId } })}
           style={[ss.lessonCard, {
-            backgroundColor: completedToday ? "rgba(34,197,94,0.06)" : colors.card,
+            backgroundColor: colors.card,
             borderColor: completedToday ? "rgba(34,197,94,0.35)" : colors.border,
           }]}>
-          <View style={[ss.lessonIcon, { backgroundColor: completedToday ? "rgba(34,197,94,0.14)" : "#7c3aed18", alignSelf: "flex-start", marginTop: 2 }]}>
-            <Text style={{ fontSize: 22 }}>{completedToday ? "✅" : dailyLesson.emoji}</Text>
+          <View style={[ss.lessonIcon, { backgroundColor: completedToday ? "rgba(34,197,94,0.14)" : colors.accentLight + "14", alignSelf: "flex-start", marginTop: 2 }]}>
+            <Ionicons name={completedToday ? "checkmark-circle-outline" : "school-outline"} size={22} color={completedToday ? "#22c55e" : colors.accentLight} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 11, fontWeight: "600", marginBottom: 2,
+            <Text style={{ fontSize: 11, fontWeight: "700", marginBottom: 3, textTransform: "uppercase", letterSpacing: 1,
               color: completedToday ? "#22c55e" : colors.textMuted }}>
               {completedToday ? t("home.lessonCard.completedToday") : t("home.lessonCard.lessonOfDay")}
             </Text>
@@ -1582,17 +1595,15 @@ export default function HomeScreen() {
               </Text>
             )}
             {"tip" in dailyLesson && !completedToday && (
-              <Text style={{ fontSize: 11, color: colors.accentLight, marginTop: 3, fontWeight: "600" }} numberOfLines={1}>
-                💡 {(dailyLesson as { tip: string }).tip}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 5 }}>
+                <Ionicons name="bulb-outline" size={13} color={colors.accentLight} />
+                <Text style={{ flex: 1, fontSize: 11.5, color: colors.accentLight, fontWeight: "600" }} numberOfLines={1}>
+                  {(dailyLesson as { tip: string }).tip}
+                </Text>
+              </View>
             )}
           </View>
-          {completedToday
-            ? <View style={{ backgroundColor: "rgba(34,197,94,0.14)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(34,197,94,0.3)", alignSelf: "flex-start" }}>
-                <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "700" }}>✓</Text>
-              </View>
-            : <Text style={{ fontSize: 16, fontWeight: "700", color: colors.accentLight, alignSelf: "flex-start", marginTop: 2 }}>→</Text>
-          }
+          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ alignSelf: "center" }} />
         </TouchableOpacity>
 
         {/* ── Quick Actions ────────────────────────────────────────────────── */}
@@ -1701,18 +1712,18 @@ export default function HomeScreen() {
             </View>
             <View style={[ss.moversCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {topNotifs.map((n: any, i: number) => {
-                const icon =
-                  n.type === "price_alert" ? "📈" :
-                  n.type === "earnings"    ? "📊" :
-                  n.type === "news"        ? "📰" :
-                  n.type === "portfolio"   ? "💼" : "🔔";
+                const icon: any =
+                  n.type === "price_alert" ? "trending-up-outline" :
+                  n.type === "earnings"    ? "bar-chart-outline" :
+                  n.type === "news"        ? "newspaper-outline" :
+                  n.type === "portfolio"   ? "briefcase-outline" : "notifications-outline";
                 return (
                   <TouchableOpacity key={n.id ?? i}
                     activeOpacity={0.8}
                     onPress={() => router.navigate("/(tabs)/notifications")}
                     style={[ss.moverRow, i > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
-                    <View style={[ss.lessonIcon, { backgroundColor: colors.bgRaised }]}>
-                      <Text style={{ fontSize: 18 }}>{icon}</Text>
+                    <View style={[ss.lessonIcon, { width: 38, height: 38, backgroundColor: colors.bgRaised }]}>
+                      <Ionicons name={icon} size={18} color={colors.textSub} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}
@@ -1750,13 +1761,9 @@ export default function HomeScreen() {
             onPress={() => router.navigate("/(tabs)/profile")}
             style={[ss.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
-            <View style={[ss.maturityRing, {
-              borderColor: maturity >= 70 ? colors.up : maturity >= 40 ? "#f59e0b" : colors.info,
-            }]}>
-              <Text style={[ss.maturityScore, {
-                color: maturity >= 70 ? colors.up : maturity >= 40 ? "#f59e0b" : colors.info,
-              }]}>{maturity}</Text>
-            </View>
+            <MiniRing pct={maturity / 100} color={maturity >= 70 ? colors.up : maturity >= 40 ? "#f59e0b" : colors.info}>
+              <Text style={[ss.maturityScore, { color: colors.text }]}>{maturity}</Text>
+            </MiniRing>
             <Text style={[ss.statCardTitle, { color: colors.text }]}>{t("home.maturityCard.title")}</Text>
             <Text style={[ss.statCardSub, { color: colors.textMuted }]}>
               {maturity >= 70 ? t("home.maturityCard.mature") : maturity >= 40 ? t("home.maturityCard.inProgress") : t("home.maturityCard.developing")}
@@ -1771,11 +1778,11 @@ export default function HomeScreen() {
               : router.navigate("/(tabs)/learn")
             }
             style={[ss.statCard, {
-              backgroundColor: !isPremium ? "#7c3aed18" : colors.card,
-              borderColor: !isPremium ? "#7c3aed50" : colors.border,
+              backgroundColor: colors.card,
+              borderColor: !isPremium ? "rgba(167,139,250,0.4)" : colors.border,
             }]}
           >
-            <View style={[ss.maturityRing, { borderColor: !isPremium ? "#7c3aed" : colors.accentLight }]}>
+            <View style={[ss.maturityRing, { borderWidth: 0, backgroundColor: !isPremium ? "rgba(124,58,237,0.14)" : colors.accentLight + "14" }]}>
               <Ionicons
                 name={!isPremium ? "diamond-outline" : "school-outline"}
                 size={20}
@@ -1834,10 +1841,15 @@ export default function HomeScreen() {
         <TouchableOpacity
           activeOpacity={0.88}
           onPress={() => router.navigate("/(tabs)/chat")}
-          style={[ss.insightCard, { backgroundColor: colors.accent + "12", borderColor: colors.accent + "40" }]}
+          style={[ss.insightCard, { borderColor: colors.accent + "40" }]}
         >
-          <View style={[ss.insightIcon, { backgroundColor: colors.accent + "20" }]}>
-            <Ionicons name="sparkles" size={22} color={colors.accentLight} />
+          <ExpoLinearGradient
+            colors={[colors.accent + "24", colors.card]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={[ss.insightIcon, { backgroundColor: colors.accent }]}>
+            <Ionicons name="sparkles" size={21} color="#fff" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[ss.insightTitle, { color: colors.text }]}>{t("home.aiCta.title")}</Text>
@@ -2093,11 +2105,11 @@ const ss = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  greeting: { fontSize: 13, fontWeight: "500" },
-  name:     { fontSize: 20, fontWeight: "800", letterSpacing: -0.4, marginTop: 1 },
+  greeting: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.1 },
+  name:     { fontSize: 22, fontWeight: "800", letterSpacing: -0.5, marginTop: 1, maxWidth: 170 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
   iconBtn: {
-    width: 38, height: 38, borderRadius: 12, borderWidth: 1,
+    width: 38, height: 38, borderRadius: 19, borderWidth: 1,
     alignItems: "center", justifyContent: "center",
   },
   badge: {
@@ -2109,18 +2121,18 @@ const ss = StyleSheet.create({
   badgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
 
   // Market status dot
-  marketDotWrap: { flexDirection: "row", alignItems: "center", gap: 5 },
-  marketDot: { width: 7, height: 7, borderRadius: 4 },
-  marketDotLabel: { fontSize: 11, fontWeight: "600" },
+  marketDotWrap: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 999, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
+  marketDot: { width: 6, height: 6, borderRadius: 3 },
+  marketDotLabel: { fontSize: 11, fontWeight: "700" },
 
   // Index chips
   idxChip: {
-    borderRadius: 14, borderWidth: 1,
-    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10,
-    gap: 2, alignItems: "flex-start", minWidth: 112,
+    borderRadius: 18, borderWidth: 1,
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 12,
+    gap: 4, alignItems: "flex-start", minWidth: 124,
   },
-  idxName:   { fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4 },
-  idxPrice:  { fontSize: 14, fontWeight: "800", letterSpacing: -0.3 },
+  idxName:   { fontSize: 10.5, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 },
+  idxPrice:  { fontSize: 16, fontWeight: "800", letterSpacing: -0.4 },
   idxChange: { fontSize: 11, fontWeight: "700" },
 
   avatar: {
@@ -2135,23 +2147,25 @@ const ss = StyleSheet.create({
   // Hero card
   heroCard: {
     marginHorizontal: 16, marginTop: 16,
-    borderRadius: 20, borderWidth: 1,
-    padding: 20,
+    borderRadius: 24, borderWidth: 1,
+    padding: 22, overflow: "hidden",
   },
   heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  heroLabel:    { fontSize: 13, fontWeight: "500", marginBottom: 6 },
-  heroBalance:  { fontSize: 34, fontWeight: "800", letterSpacing: -1 },
+  heroLabel:    { fontSize: 11, fontWeight: "700", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1.1 },
+  heroBalance:  { fontSize: 38, fontWeight: "800", letterSpacing: -1.2 },
   heroGainBadge: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10,
+    flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", marginTop: 12,
+    paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999,
   },
   heroGainText: { fontSize: 13, fontWeight: "700" },
-  heroStats: { flexDirection: "row", marginTop: 16, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#162035" },
+  heroStats: { flexDirection: "row", marginTop: 18, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(127,127,127,0.25)" },
   heroStat:      { flex: 1 },
-  heroStatLabel: { fontSize: 11, fontWeight: "500", marginBottom: 3 },
-  heroStatVal:   { fontSize: 11, fontWeight: "700" },
-  heroDivider:   { width: 1, marginHorizontal: 16 },
+  heroStatLabel: { fontSize: 10.5, fontWeight: "700", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.8 },
+  heroStatVal:   { fontSize: 11.5, fontWeight: "700", marginTop: 1 },
+  heroDivider:   { width: StyleSheet.hairlineWidth, marginHorizontal: 14 },
   heroChevron:   { position: "absolute", right: 14, top: "50%" },
+  heroFooter:    { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 5, marginTop: 16, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth },
+  heroFooterText: { fontSize: 13, fontWeight: "700" },
   emptyPortfolio: {
     marginTop: 12, paddingVertical: 14, paddingHorizontal: 14,
     borderRadius: 12, borderWidth: 1, borderStyle: "dashed",
@@ -2166,24 +2180,24 @@ const ss = StyleSheet.create({
 
   // Quick actions
   actions: {
-    flexDirection: "row", paddingHorizontal: 16, marginTop: 14, gap: 8, flexWrap: "wrap",
+    flexDirection: "row", paddingHorizontal: 16, marginTop: 12, gap: 10,
   },
   chip: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 9,
-    borderRadius: 12, borderWidth: 1,
+    flex: 1, alignItems: "center", gap: 8,
+    paddingVertical: 14, borderRadius: 18, borderWidth: 1,
   },
-  chipLabel: { fontSize: 13, fontWeight: "600" },
+  chipIcon: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  chipLabel: { fontSize: 12.5, fontWeight: "700" },
 
   // Sections
-  section:       { marginTop: 24 },
+  section:       { marginTop: 28 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, marginBottom: 12 },
-  sectionTitle:  { fontSize: 16, fontWeight: "700", letterSpacing: -0.3 },
-  sectionLink:   { fontSize: 13, fontWeight: "600" },
+  sectionTitle:  { fontSize: 17, fontWeight: "800", letterSpacing: -0.4 },
+  sectionLink:   { fontSize: 13, fontWeight: "700" },
 
   // Movers card
-  moversCard: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-  moverRow:   { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 13 },
+  moversCard: { marginHorizontal: 16, borderRadius: 20, borderWidth: 1, overflow: "hidden" },
+  moverRow:   { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
   moverDot:   { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   moverDotText:    { fontSize: 12, fontWeight: "800", color: "#fff" },
   moverTicker:     { fontSize: 14, fontWeight: "700" },
@@ -2193,12 +2207,12 @@ const ss = StyleSheet.create({
   moverBadgeText:  { fontSize: 11, fontWeight: "700" },
 
   // Stats row
-  statsRow: { flexDirection: "row", paddingHorizontal: 16, marginTop: 24, gap: 10 },
+  statsRow: { flexDirection: "row", paddingHorizontal: 16, marginTop: 28, gap: 10 },
   statCard: {
-    flex: 1, borderRadius: 16, borderWidth: 1,
-    alignItems: "center", paddingVertical: 16, paddingHorizontal: 8, gap: 6,
+    flex: 1, borderRadius: 20, borderWidth: 1,
+    alignItems: "center", paddingVertical: 18, paddingHorizontal: 8, gap: 7,
   },
-  statCardTitle: { fontSize: 13, fontWeight: "700", textAlign: "center" },
+  statCardTitle: { fontSize: 13, fontWeight: "800", textAlign: "center", marginTop: 2 },
   statCardSub:   { fontSize: 10, fontWeight: "500", textAlign: "center" },
 
   // Streak ring
@@ -2207,12 +2221,12 @@ const ss = StyleSheet.create({
     alignItems: "center", justifyContent: "center", gap: 0,
   },
   streakEmoji: { fontSize: 18, lineHeight: 22 },
-  streakNum:   { fontSize: 14, fontWeight: "800", lineHeight: 18 },
+  streakNum:   { fontSize: 18, fontWeight: "800" },
   streakLabel: { fontSize: 9, fontWeight: "600" },
 
   // Maturity ring
   maturityRing: {
-    width: 52, height: 52, borderRadius: 26, borderWidth: 2,
+    width: 56, height: 56, borderRadius: 28, borderWidth: 2,
     alignItems: "center", justifyContent: "center",
   },
   maturityScore: { fontSize: 18, fontWeight: "800" },
@@ -2220,7 +2234,7 @@ const ss = StyleSheet.create({
   // News
   newsScroll: { paddingLeft: 16 },
   newsCard: {
-    width: W * 0.62, borderRadius: 16, borderWidth: 1,
+    width: W * 0.64, borderRadius: 20, borderWidth: 1,
     marginRight: 10, overflow: "hidden",
   },
   newsThumb:     { width: "100%", height: 110 },
@@ -2231,9 +2245,9 @@ const ss = StyleSheet.create({
 
   // Insight CTA
   insightCard: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    marginHorizontal: 16, marginTop: 24,
-    borderRadius: 16, borderWidth: 1, padding: 16,
+    flexDirection: "row", alignItems: "center", gap: 14,
+    marginHorizontal: 16, marginTop: 28,
+    borderRadius: 20, borderWidth: 1, padding: 18, overflow: "hidden",
   },
   insightIcon:  { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   insightTitle: { fontSize: 15, fontWeight: "700", marginBottom: 3 },
@@ -2241,16 +2255,17 @@ const ss = StyleSheet.create({
 
   // Stat strip chips
   statChip: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 14, borderWidth: 1, minWidth: 110,
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingLeft: 10, paddingRight: 16, paddingVertical: 10,
+    borderRadius: 16, borderWidth: 1, minWidth: 128,
   },
+  statIcon: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
 
   // Lesson card
   lessonCard: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    marginHorizontal: 16, marginTop: 14,
-    borderRadius: 16, borderWidth: 1, padding: 14,
+    flexDirection: "row", alignItems: "center", gap: 14,
+    marginHorizontal: 16, marginTop: 28,
+    borderRadius: 20, borderWidth: 1, padding: 16,
   },
   lessonIcon: {
     width: 44, height: 44, borderRadius: 12,
