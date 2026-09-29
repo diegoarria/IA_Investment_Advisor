@@ -2672,7 +2672,8 @@
     "tourDesc": "Ask any question about investing. Nuvos remembers your portfolio and profile to give you personalized answers.",
     "tourCta": "Got it, back to home ✓",
     "imageSentOne": "📷 Image sent",
-    "imageSentMany": "📷 {{count}} images sent"
+    "imageSentMany": "📷 {{count}} images sent",
+    "online": "Online"
   },
   "paper": {
     "title": "Simulator",

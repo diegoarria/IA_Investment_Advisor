@@ -276,6 +276,17 @@ body {
   white-space: pre-wrap;
   box-shadow: 0 1px 4px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.06);
 }
+.bubble-user-brand {
+  background: linear-gradient(135deg, #00c878 0%, #00a862 100%);
+  border-radius: 22px 22px 6px 22px;
+  color: #fff;
+  padding: 11px 16px;
+  font-size: 1rem;
+  line-height: 1.6;
+  word-break: break-word;
+  white-space: pre-wrap;
+  box-shadow: 0 10px 24px -12px rgba(0,185,109,0.7);
+}
 .bubble-ai {
   background: var(--card);
   border: 1px solid var(--border);

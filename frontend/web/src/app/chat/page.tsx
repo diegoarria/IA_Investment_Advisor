@@ -23,8 +23,11 @@ import VoiceCallModal from "@/components/VoiceCallModal";
 import { unlockAudioPlayback, getUnlockedAudioElement } from "@/lib/audioUnlock";
 import { useTutorialStore } from "@/lib/store";
 import {
-  Send, X,
-  ChevronRight, Square, Pencil, ImagePlus, Plus, Mic, Play, Copy, Phone,
+  X,
+  Square, Pencil, ImagePlus, Plus, Mic, Play, Copy, Phone,
+  ArrowUp, ArrowRight, Sparkles, PieChart, TrendingUp, Lightbulb, ShieldCheck, Compass, MessagesSquare,
+  Gauge, GraduationCap, Briefcase, MessageCircle, BadgeCheck, NotebookPen, Eye, Bell, BookOpen, Check, HelpCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { getUserLevel, getLevelLabel, LEVEL_COLOR } from "@/lib/userLevel";
 import { useTranslation } from "react-i18next";
@@ -144,6 +147,8 @@ function TypingDots() {
     </div>
   );
 }
+
+const SUGGESTION_ICONS: LucideIcon[] = [PieChart, TrendingUp, Lightbulb, ShieldCheck, Compass, MessagesSquare];
 
 export default function ChatPage() {
   const router = useRouter();
@@ -779,18 +784,38 @@ export default function ChatPage() {
 
           {/* Page-specific controls — new chat / remaining free messages /
               Premium badge — inline in content, not a shared header. */}
-          <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-8 py-2.5 border-b"
-               style={{ borderColor: "var(--border)" }}>
+          <div className="shrink-0 flex items-center justify-end gap-2 pl-12 pr-4 lg:pl-8 md:pr-8 py-3 border-b"
+               style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+            {/* Arthur identity + online status (redesign 2026-09-28) */}
+            <div className="flex items-center gap-3 mr-auto min-w-0">
+              <div className="relative shrink-0">
+                {mentor ? (
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-extrabold"
+                       style={{ background: mentor.color + "22", color: mentor.color }}>{mentor.name.charAt(0)}</div>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src="/mentors/arthur.jpg" alt="Arthur" className="w-10 h-10 rounded-full object-cover" />
+                )}
+                <span className="absolute -right-0.5 -bottom-0.5 w-3.5 h-3.5 rounded-full border-[2.5px]" style={{ background: "#22c55e", borderColor: "var(--bg)" }} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[15.5px] font-extrabold tracking-tight leading-tight truncate" style={{ color: "var(--text)" }}>
+                  {mentor ? mentor.name : t("chat.mentorFallbackName")}
+                </p>
+                <p className="text-xs font-semibold truncate" style={{ color: "var(--accent-l)" }}>{mentor ? mentor.badge : t("chat.online")}</p>
+              </div>
+            </div>
             {!isPremium && remaining > 0 && !isGuestUser() && (
-              <span className="hidden md:block text-[10px] font-semibold px-2 py-1 rounded-full"
-                    style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
+              <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-full border"
+                    style={{ background: "rgba(245,158,11,0.10)", color: "#f59e0b", borderColor: "rgba(245,158,11,0.3)" }}>
+                <MessageCircle className="w-3 h-3" />
                 {t("chat.msgCount", { count: remaining })}
               </span>
             )}
             <button onClick={() => { createSession(); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold hover:bg-white/5 transition-colors"
-                    style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
-              <Plus className="w-3 h-3" />
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-[13px] font-bold transition-opacity hover:opacity-80"
+                    style={{ color: "var(--accent-l)", borderColor: "rgba(0,185,109,0.35)", background: "rgba(0,185,109,0.10)" }}>
+              <Plus className="w-3.5 h-3.5" />
               {t("chat.newChat")}
             </button>
             <PremiumBadge />
@@ -805,43 +830,48 @@ export default function ChatPage() {
             {messages.length === 0 && (
               <div className="min-h-full flex flex-col items-center justify-center gap-5 animate-fade-in py-8 max-w-2xl mx-auto w-full">
 
-                {/* Hero card */}
-                <div className="w-full rounded-2xl border overflow-hidden"
-                     style={{ background: "var(--card)", borderColor: mentor ? mentor.color + "35" : "var(--border)" }}>
+                {/* Hero card — redesign 2026-09-28: emerald gradient, glowing
+                    photo with online badge, big greeting, glass context chips */}
+                <div className="w-full rounded-[28px] border overflow-hidden relative"
+                     style={{
+                       background: mentor ? `linear-gradient(150deg, ${mentor.color}55 0%, #0A1C1D 55%, #080E16 100%)` : "linear-gradient(150deg, #0F3326 0%, #0A1C1D 55%, #080E16 100%)",
+                       borderColor: "rgba(0,212,126,0.35)",
+                       boxShadow: "0 30px 70px -34px rgba(0,212,126,0.55)",
+                     }}>
+                  <div aria-hidden className="pointer-events-none absolute -top-32 -right-24 w-96 h-96 rounded-full" style={{ background: "radial-gradient(circle, rgba(0,232,135,0.20), transparent 70%)" }} />
+                  <div aria-hidden className="pointer-events-none absolute -bottom-36 -left-24 w-80 h-80 rounded-full" style={{ background: "radial-gradient(circle, rgba(59,130,246,0.14), transparent 70%)" }} />
 
-                  {/* Color strip */}
-                  <div className="h-1.5"
-                       style={{ background: mentor ? `linear-gradient(90deg, ${mentor.color}, ${mentor.color}70)` : "var(--grad-green)" }} />
-
-                  <div className="p-6 text-center">
-                    {/* Avatar */}
-                    {mentor ? (
-                      <div className="mx-auto mb-4 w-20 h-20 rounded-2xl flex items-center justify-center text-4xl"
-                           style={{ background: mentor.color + "18", border: `2px solid ${mentor.color}35` }}>
-                        {mentor.emoji}
+                  <div className="relative px-6 pt-9 pb-7 text-center">
+                    {/* Avatar with breathing halo */}
+                    <div className="relative mx-auto mb-5 w-[124px] h-[124px] flex items-center justify-center">
+                      <span className="absolute inset-0 rounded-full animate-pulse" style={{ background: (mentor?.color ?? "#00D47E") + "40", animationDuration: "2.6s" }} />
+                      <div className="relative w-[106px] h-[106px] rounded-full p-[3px] border-[3px]" style={{ borderColor: mentor?.color ?? "#00D47E" }}>
+                        {mentor ? (
+                          <div className="w-full h-full rounded-full flex items-center justify-center text-4xl font-extrabold text-white"
+                               style={{ background: mentor.color + "40" }}>{mentor.name.charAt(0)}</div>
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src="/mentors/arthur.jpg" alt="Arthur" className="w-full h-full rounded-full object-cover" />
+                        )}
                       </div>
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src="/mentors/arthur.jpg" alt="Arthur"
-                           className="mx-auto mb-4 w-20 h-20 rounded-2xl object-cover"
-                           style={{ border: "2px solid rgba(0,212,126,0.35)" }} />
-                    )}
+                      <span className="absolute -bottom-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10.5px] font-extrabold tracking-wide"
+                            style={{ background: "#06120D", borderColor: "rgba(34,197,94,0.5)", color: "#86EFAC" }}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />{t("chat.online")}
+                      </span>
+                    </div>
 
-                    <h2 className="text-2xl font-black tracking-tight mb-1"
-                        style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    <h2 className="text-[30px] sm:text-[34px] font-extrabold tracking-[-1px] leading-tight text-white">
                       {mentor ? mentor.name : profile?.name ? t("chat.greeting", { name: profile.name.split(" ")[0] }) : t("chat.mentorFallbackName")}
                     </h2>
-                    <p className="text-sm font-semibold mb-4"
-                       style={{ color: mentor ? mentor.color : "var(--accent-l)" }}>
+                    <p className="text-[15px] font-bold mt-2 max-w-md mx-auto leading-snug" style={{ color: mentor ? "#fff" : "#00D47E" }}>
                       {mentor ? mentor.title : t("chat.defaultMentorTitle")}
                     </p>
 
-                    {mentor && <span className="badge-green inline-block mb-4">{mentor.badge}</span>}
                     {mentor && (
-                      <div className="flex flex-wrap justify-center gap-1.5 mb-2">
-                        {mentor.principles.map((p) => (
-                          <span key={p} className="text-xs px-2.5 py-1 rounded-full border font-medium"
-                                style={{ borderColor: (mentor as NonNullable<typeof mentor>).color + "40", background: (mentor as NonNullable<typeof mentor>).color + "0e", color: (mentor as NonNullable<typeof mentor>).color }}>
+                      <div className="flex flex-wrap justify-center gap-2 mt-4">
+                        {[mentor.badge, ...mentor.principles].map((p) => (
+                          <span key={p} className="text-xs font-bold px-3 py-1.5 rounded-full border"
+                                style={{ background: "rgba(255,255,255,0.07)", borderColor: "rgba(255,255,255,0.14)", color: "rgba(255,255,255,0.9)" }}>
                             {p}
                           </span>
                         ))}
@@ -850,54 +880,47 @@ export default function ChatPage() {
 
                     {!mentor && (() => {
                       const obj = profile?.quiz_answers?.objective as string | undefined;
-                      if (obj) return (
-                        <p className="text-sm leading-relaxed max-w-sm mx-auto" style={{ color: "var(--muted)" }}>
-                          {OBJECTIVE_GREETING[obj] ?? t("chat.defaultGreetingQuestion")}
-                        </p>
-                      );
                       return (
-                        <p className="text-sm leading-relaxed max-w-sm mx-auto" style={{ color: "var(--muted)" }}>
-                          {!isAuthenticated || getUserLevel(profile) === "basico"
-                            ? t("chat.welcomeSubtitleBasic")
-                            : t("chat.welcomeSubtitleDefault")}
+                        <p className="text-[14.5px] leading-relaxed max-w-md mx-auto mt-3" style={{ color: "rgba(255,255,255,0.72)" }}>
+                          {obj
+                            ? (OBJECTIVE_GREETING[obj] ?? t("chat.defaultGreetingQuestion"))
+                            : (!isAuthenticated || getUserLevel(profile) === "basico" ? t("chat.welcomeSubtitleBasic") : t("chat.welcomeSubtitleDefault"))}
                         </p>
                       );
                     })()}
-                  </div>
 
-                  {/* Context chips strip */}
-                  {profile && (
-                    <div className="border-t px-5 py-3 flex flex-wrap gap-2"
-                         style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
-                      {profile.risk_tolerance && (
-                        <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
-                              style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--card)" }}>
-                          🎯 {RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance}
-                        </span>
-                      )}
-                      {(() => {
-                        const level = getUserLevel(profile);
-                        return (
-                          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border"
-                                style={{ borderColor: "var(--border)", color: LEVEL_COLOR[level], background: "var(--card)" }}>
-                            📊 {getLevelLabel(t, level)}
+                    {/* Context chips */}
+                    {profile && (
+                      <div className="flex flex-wrap justify-center gap-2 mt-5">
+                        {profile.risk_tolerance && (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border"
+                                style={{ background: "rgba(255,255,255,0.07)", borderColor: "rgba(255,255,255,0.14)", color: "rgba(255,255,255,0.9)" }}>
+                            <Gauge className="w-3.5 h-3.5" style={{ color: "#00D47E" }} />
+                            {RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance}
                           </span>
-                        );
-                      })()}
-                      {distinctPositionsCount > 0 && (
-                        <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
-                              style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--card)" }}>
-                          💼 {distinctPositionsCount !== 1 ? t("chat.positionsCount", { count: distinctPositionsCount }) : t("chat.positionsCountSingular", { count: distinctPositionsCount })}
+                        )}
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border"
+                              style={{ background: "rgba(255,255,255,0.07)", borderColor: "rgba(255,255,255,0.14)", color: "rgba(255,255,255,0.9)" }}>
+                          <GraduationCap className="w-3.5 h-3.5" style={{ color: "#00D47E" }} />
+                          {getLevelLabel(t, getUserLevel(profile))}
                         </span>
-                      )}
-                      {!isPremium && !isGuestUser() && (
-                        <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border ml-auto"
-                              style={{ borderColor: "rgba(244,63,94,0.25)", color: "var(--down)", background: "rgba(244,63,94,0.05)" }}>
-                          {t("chat.msgToday", { count: remaining })}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                        {distinctPositionsCount > 0 && (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border"
+                                style={{ background: "rgba(255,255,255,0.07)", borderColor: "rgba(255,255,255,0.14)", color: "rgba(255,255,255,0.9)" }}>
+                            <Briefcase className="w-3.5 h-3.5" style={{ color: "#00D47E" }} />
+                            {distinctPositionsCount !== 1 ? t("chat.positionsCount", { count: distinctPositionsCount }) : t("chat.positionsCountSingular", { count: distinctPositionsCount })}
+                          </span>
+                        )}
+                        {!isPremium && !isGuestUser() && (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border"
+                                style={{ background: "rgba(245,158,11,0.16)", borderColor: "rgba(245,158,11,0.4)", color: "#FDE68A" }}>
+                            <MessageCircle className="w-3.5 h-3.5" style={{ color: "#FBBF24" }} />
+                            {t("chat.msgToday", { count: remaining })}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Suggestion cards */}
@@ -910,23 +933,29 @@ export default function ChatPage() {
                     : (SUGGESTIONS_BY_LEVEL[effectiveLevel] ?? SUGGESTIONS_DEFAULT);
                   return (
                     <div className="w-full">
-                      <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--muted)" }}>
+                      <p className="flex items-center gap-2 text-[17px] font-extrabold tracking-tight mb-3.5" style={{ color: "var(--text)" }}>
+                        <span className="w-7 h-7 rounded-[9px] flex items-center justify-center" style={{ background: "rgba(0,185,109,0.12)" }}>
+                          <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+                        </span>
                         {t("chat.suggestedQuestions")}
                       </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {suggestions.map((s, si) => (
-                          <button key={si} onClick={() => sendMessage(s)}
-                                  className="text-left p-4 rounded-xl border transition-all hover:scale-[1.01] group"
-                                  style={{ background: "var(--card)", borderColor: "var(--border)" }}
-                                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = accentCol + "60"; }}
-                                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}>
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-sm leading-relaxed" style={{ color: "var(--sub)" }}>{s}</p>
-                              <ChevronRight className="w-3.5 h-3.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            style={{ color: "var(--accent-l)" }} />
-                            </div>
-                          </button>
-                        ))}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {suggestions.map((s, si) => {
+                          const SIcon = SUGGESTION_ICONS[si % SUGGESTION_ICONS.length];
+                          return (
+                            <button key={si} onClick={() => sendMessage(s)}
+                                    className="text-left p-4 rounded-[18px] border transition-all hover:-translate-y-0.5 group flex items-center gap-3.5"
+                                    style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = accentCol + "80"; }}
+                                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}>
+                              <span className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.12)" }}>
+                                <SIcon className="w-[18px] h-[18px]" style={{ color: "var(--accent-l)" }} />
+                              </span>
+                              <p className="flex-1 text-[14px] font-semibold leading-snug" style={{ color: "var(--text)" }}>{s}</p>
+                              <ArrowRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--accent-l)" }} />
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -944,15 +973,15 @@ export default function ChatPage() {
                   {/* AI avatar */}
                   {msg.role === "assistant" && (
                     mentor ? (
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 text-sm overflow-hidden"
-                           style={{ background: mentor.color + "20", border: `1px solid ${mentor.color}35` }}>
-                        {mentor.emoji}
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-sm font-extrabold"
+                           style={{ background: mentor.color + "22", color: mentor.color, border: `2px solid ${mentor.color}55` }}>
+                        {mentor.name.charAt(0)}
                       </div>
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src="/mentors/arthur.jpg" alt="Arthur"
-                           className="w-8 h-8 rounded-xl object-cover shrink-0 mt-0.5"
-                           style={{ border: "1px solid rgba(0,185,109,0.25)" }} />
+                           className="w-9 h-9 rounded-full object-cover shrink-0 mt-0.5"
+                           style={{ border: "2px solid rgba(0,212,126,0.5)" }} />
                     )
                   )}
 
@@ -961,13 +990,7 @@ export default function ChatPage() {
                     <>
                       {/* ── User message column ── */}
                       <div className="flex flex-col items-end" style={{ maxWidth: "72%" }}>
-                        {/* Sender label */}
-                        <span className="text-[10px] font-semibold tracking-wide mb-1.5 mr-0.5 select-none"
-                              style={{ color: "var(--dim)" }}>
-                          {t("chat.you")}
-                        </span>
-                        {/* Bubble */}
-                        <div className="bubble-user">
+                        <div className="bubble-user-brand">
                           {msg.images && msg.images.length > 0 && (
                             <div className={`flex flex-wrap gap-1.5${msg.content ? " mb-2.5" : ""}`}>
                               {msg.images.map((img, idx) => (
@@ -999,7 +1022,7 @@ export default function ChatPage() {
                         </div>
                       </div>
                       {/* User avatar */}
-                      <div className="w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-[11px] font-bold mt-[26px]"
+                      <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-[12px] font-bold mt-0.5"
                            style={{
                              background: "linear-gradient(135deg, rgba(0,185,109,0.20) 0%, rgba(0,90,200,0.12) 100%)",
                              border: "1px solid rgba(0,185,109,0.25)",
@@ -1011,6 +1034,10 @@ export default function ChatPage() {
                     </>
                   ) : (
                     <div className="flex-1 min-w-0 px-1 py-1">
+                      <p className="flex items-center gap-1.5 text-[13.5px] font-extrabold mb-1.5" style={{ color: "var(--text)" }}>
+                        {mentor ? mentor.name : t("chat.mentorFallbackName")}
+                        <BadgeCheck className="w-3.5 h-3.5" style={{ color: mentor?.color ?? "var(--accent-l)" }} />
+                      </p>
                       {/* ── AI message — plain text, no card, ChatGPT-style ── */}
                       <div className="overflow-hidden">
                         {voiceAudio && msg.content && msg.content.slice(0, 80) === voiceAudio.content && !(isStreaming && i === messages.length - 1) ? (
@@ -1085,7 +1112,7 @@ export default function ChatPage() {
                         className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold border transition-all hover:opacity-80 active:scale-95"
                         style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--sub)" }}
                       >
-                        {ci === 0 ? "📊" : ci === 1 ? "🌱" : "🎯"} {chip.label}
+                        {ci === 0 ? <PieChart className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} /> : ci === 1 ? <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} /> : <Compass className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />} {chip.label}
                       </button>
                     ))}
                   </div>
@@ -1093,7 +1120,7 @@ export default function ChatPage() {
 
                 {/* Action chips */}
                 {msg.role === "assistant" && i === messages.length - 1 && pendingActions && !isStreaming && (
-                  <div className="flex flex-wrap gap-2 mt-2 ml-11">
+                  <div className="flex flex-wrap gap-2 mt-2.5 ml-12">
                     {pendingActions.map((action, ai) => (
                       <div key={ai} className="flex items-center gap-1">
                         <button
@@ -1133,16 +1160,17 @@ export default function ChatPage() {
                               router.push(`/portfolio?${params.toString()}`);
                             }
                           }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all hover:opacity-80 active:scale-95"
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold border transition-all hover:opacity-80 active:scale-95"
                           style={{
                             background: action.type === "decision" || action.type === "add_position" ? "rgba(0,185,109,0.10)" : "var(--raised)",
                             borderColor: action.type === "decision" || action.type === "add_position" ? "rgba(0,185,109,0.35)" : "var(--border)",
                             color: action.type === "decision" || action.type === "add_position" ? "var(--accent-l)" : "var(--sub)",
                           }}
                         >
-                          <span>
-                            {action.type === "decision" ? "📝" : action.type === "add_position" ? "💼" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : action.type === "learn" ? "📚" : "→"}
-                          </span>
+                          {(() => {
+                            const AIcon = action.type === "decision" ? NotebookPen : action.type === "add_position" ? Briefcase : action.type === "watchlist" ? Eye : action.type === "alert" ? Bell : action.type === "learn" ? BookOpen : ArrowRight;
+                            return <AIcon className="w-3.5 h-3.5" />;
+                          })()}
                           {action.label}
                         </button>
                         {action.type !== "chat" && action.type !== "add_position" && (
@@ -1163,7 +1191,7 @@ export default function ChatPage() {
                               color: committedActions.has(ai) ? "var(--accent-l)" : "var(--muted)",
                             }}
                           >
-                            {committedActions.has(ai) ? "✓" : "🔔"}
+                            {committedActions.has(ai) ? <Check className="w-3 h-3" /> : <Bell className="w-3 h-3" />}
                           </button>
                         )}
                       </div>
@@ -1261,7 +1289,9 @@ export default function ChatPage() {
             <div className="shrink-0 px-4 pt-3 pb-0 max-w-3xl mx-auto w-full">
               <div className="rounded-2xl border p-4 flex gap-3"
                    style={{ background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.25)" }}>
-                <div className="text-2xl shrink-0">🎯</div>
+                <span className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0" style={{ background: "rgba(99,102,241,0.14)" }}>
+                  <Compass className="w-5 h-5" style={{ color: "#818cf8" }} />
+                </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-black mb-0.5" style={{ color: "var(--text)" }}>
                     {t("chat.oneOnOneTitle")}
@@ -1301,7 +1331,7 @@ export default function ChatPage() {
 
           {/* ─── Input bar ─────────────────────────────────────────────────── */}
           <div className="shrink-0 px-4 pb-4 pt-3"
-               style={{ borderTop: "1px solid var(--border)", background: "var(--card)" }}>
+               style={{ borderTop: "1px solid var(--border)", background: "var(--bg)" }}>
 
             {/* Paywall banner */}
             {remaining === 0 && !isPremium && (
@@ -1329,8 +1359,8 @@ export default function ChatPage() {
               )}
 
               {/* Input card */}
-              <div className="rounded-2xl border overflow-hidden"
-                   style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
+              <div className="rounded-[24px] border-[1.5px] overflow-hidden transition-colors focus-within:border-[var(--accent)]"
+                   style={{ background: "var(--card)", borderColor: input.trim() ? "rgba(0,185,109,0.5)" : "var(--border)", boxShadow: "0 10px 30px -18px rgba(0,0,0,0.5)" }}>
 
                 {/* Image thumbnails */}
                 {pendingImages.length > 0 && (
@@ -1362,12 +1392,12 @@ export default function ChatPage() {
                   <div className="mx-3 mb-1 px-3 py-2 rounded-xl text-xs flex items-center gap-2"
                        style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                     <span className="flex-1">{sendError}</span>
-                    <button onClick={() => setSendError(null)} className="shrink-0 opacity-60 hover:opacity-100">✕</button>
+                    <button onClick={() => setSendError(null)} className="shrink-0 opacity-60 hover:opacity-100"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 )}
 
                 {/* Textarea + send */}
-                <div className="flex items-end gap-2 px-3 pt-3 pb-2">
+                <div className="flex items-end gap-2 px-4 pt-3.5 pb-2">
                   <textarea
                     id="tour-chat-input"
                     ref={inputRef}
@@ -1383,41 +1413,41 @@ export default function ChatPage() {
                     }
                     rows={1}
                     disabled={isStreaming || (remaining === 0 && !isPremium)}
-                    className="flex-1 resize-none bg-transparent text-sm py-1.5 outline-none leading-relaxed placeholder:text-sm"
+                    className="flex-1 resize-none bg-transparent text-[15px] py-2 outline-none leading-relaxed placeholder:text-[15px]"
                     style={{ color: "var(--text)", maxHeight: 120, overflowY: "auto", caretColor: "var(--accent-l)" }}
                   />
                   <button
                     onClick={isStreaming ? handleStop : () => sendMessage()}
                     disabled={!isStreaming && ((!input.trim() && pendingImages.length === 0) || (remaining === 0 && !isPremium))}
-                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
+                    className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-all disabled:opacity-30 enabled:hover:scale-105"
                     style={{
-                      background: isStreaming ? "rgba(244,63,94,0.15)" : "var(--grad-green)",
+                      background: isStreaming ? "rgba(244,63,94,0.15)" : "linear-gradient(135deg, #00e887, #00b96d)",
                       border: isStreaming ? "1px solid rgba(244,63,94,0.3)" : "none",
-                      boxShadow: isStreaming ? "none" : "var(--shadow-accent-sm)",
+                      boxShadow: isStreaming ? "none" : "0 8px 20px -8px rgba(0,212,126,0.8)",
                     }}>
                     {isStreaming
-                      ? <Square className="w-3.5 h-3.5" style={{ color: "#f87171" }} />
-                      : <Send className="w-3.5 h-3.5 text-white" />}
+                      ? <Square className="w-4 h-4" style={{ color: "#f87171" }} />
+                      : <ArrowUp className="w-5 h-5 text-white" strokeWidth={2.6} />}
                   </button>
                 </div>
 
                 {/* Action toolbar */}
-                <div className="flex items-center gap-0.5 px-2 pb-2.5">
+                <div className="flex items-center gap-2 px-3 pb-3 pt-1">
                   <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageSelect} />
 
                   <button onClick={() => fileInputRef.current?.click()} disabled={isStreaming}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5 disabled:opacity-30 transition-colors"
-                          style={{ color: "var(--muted)" }}>
-                    <ImagePlus className="w-3.5 h-3.5" />
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold hover:border-[var(--accent)] disabled:opacity-30 transition-colors"
+                          style={{ color: "var(--sub)", borderColor: "var(--border)" }}>
+                    <ImagePlus className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
                     <span className="hidden sm:inline">{t("chat.toolbarImage")}</span>
                   </button>
 
                   <button onClick={startRecording} disabled={isStreaming || isTranscribing || showVoiceModal}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5 disabled:opacity-30 transition-colors"
-                          style={{ color: isTranscribing ? "#818cf8" : "var(--muted)" }}>
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold hover:border-[var(--accent)] disabled:opacity-30 transition-colors"
+                          style={{ color: isTranscribing ? "#818cf8" : "var(--sub)", borderColor: "var(--border)" }}>
                     {isTranscribing
                       ? <span className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                      : <Mic className="w-3.5 h-3.5" />}
+                      : <Mic className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
                     <span className="hidden sm:inline">{isTranscribing ? t("chat.toolbarTranscribing") : t("chat.toolbarVoice")}</span>
                   </button>
 
@@ -1436,8 +1466,8 @@ export default function ChatPage() {
                       setShowCallModal(true);
                     }}
                     disabled={isStreaming}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5 disabled:opacity-30 transition-colors"
-                    style={{ color: "var(--muted)" }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold hover:border-[var(--accent)] disabled:opacity-30 transition-colors"
+                    style={{ color: "var(--accent-l)", borderColor: "rgba(0,185,109,0.35)", background: "rgba(0,185,109,0.10)" }}
                   >
                     <Phone className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">{t("chat.toolbarCall")}</span>
@@ -1445,13 +1475,13 @@ export default function ChatPage() {
 
                   <div className="flex-1" />
 
-                  <span className="text-[9px] hidden md:block" style={{ color: "var(--dim)" }}>
+                  <span className="text-[11px] hidden md:block" style={{ color: "var(--muted)" }}>
                     {t("chat.enterToSend")}
                   </span>
                 </div>
               </div>
 
-              <p className="text-center text-[10px] mt-2" style={{ color: "var(--dim)" }}>
+              <p className="text-center text-[11px] mt-2.5" style={{ color: "var(--muted)" }}>
                 {t("chat.eduFooter")}
               </p>
             </div>

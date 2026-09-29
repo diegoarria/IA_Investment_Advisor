@@ -2249,7 +2249,7 @@
     "mentorSub": "I'm Arthur — I help you decide better with your money, I never decide for you.",
     "welcomeSubtitleBasic": "Tell me how much you have to invest and what you want to achieve. I'll explain everything in plain language, step by step, no jargon — so you understand your options and decide with confidence.",
     "welcomeSubtitleDefault": "I analyze companies, review your portfolio, and explain the reasoning behind every number — so you can decide with more clarity and less noise. The decision is always yours.",
-    "positionsCount": "💼 {{count}} positions",
+    "positionsCount": "{{count}} positions",
     "msgRemaining": "{{count}} msgs left",
     "suggestedQuestions": "Suggested questions",
     "imagesSentOne": "📷 Screenshot sent",
@@ -2278,7 +2278,8 @@
     "noVoiceDetected": "No voice detected in the audio",
     "transcribeErrorTitle": "Transcription error",
     "unknownError": "Unknown error",
-    "micPermissionError": "I need microphone permission to record. Enable it in Settings."
+    "micPermissionError": "I need microphone permission to record. Enable it in Settings.",
+    "online": "Online"
   },
   "paper": {
     "sellModal": {

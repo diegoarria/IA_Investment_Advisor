@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import Markdown from "react-native-markdown-display";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -71,6 +72,31 @@ function TypingIndicator({ color }: { color: string }) {
     </View>
   );
 }
+
+// Soft breathing halo behind Arthur's photo (redesign 2026-09-28).
+function PulseHalo({ size, color }: { size: number; color: string }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(v, { toValue: 1, duration: 1800, useNativeDriver: true }),
+      Animated.timing(v, { toValue: 0, duration: 1800, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: "absolute", width: size, height: size, borderRadius: size / 2, backgroundColor: color,
+        opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.4] }),
+        transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.08] }) }],
+      }}
+    />
+  );
+}
+
+const SUGGESTION_ICONS = ["pie-chart-outline", "trending-up-outline", "bulb-outline", "shield-checkmark-outline", "compass-outline", "chatbubbles-outline"] as const;
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -658,10 +684,9 @@ Instrucciones críticas:
 
     if (isUser) {
       return (
-        <View style={{ alignItems: "flex-end", marginBottom: 8 }}>
-          <Text style={styles.senderNameUser}>{t("chat.you")}</Text>
+        <View style={{ alignItems: "flex-end", marginBottom: 14 }}>
         <View style={styles.userRow}>
-          <View style={styles.userBubble}>
+          <View style={[styles.userBubble, { backgroundColor: colors.accent }]}>
             {item.images && item.images.length > 0 && (
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginBottom: item.content ? 6 : 0 }}>
                 {item.images.map((img, idx) => (
@@ -674,12 +699,12 @@ Instrucciones críticas:
             {!!timeStr && (
               <View style={styles.timeRowUser}>
                 <Text style={styles.timeUser}>{timeStr}</Text>
-                <Ionicons name="checkmark-done-outline" size={12} color={colors.textDim} />
+                <Ionicons name="checkmark-done-outline" size={12} color="rgba(255,255,255,0.75)" />
               </View>
             )}
           </View>
-          <TouchableOpacity style={styles.editBtn} onPress={() => handleEditMessage(index, item.content)}>
-            <Ionicons name="pencil" size={14} color={colors.textSub} />
+          <TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => handleEditMessage(index, item.content)}>
+            <Ionicons name="pencil" size={12} color={colors.textSub} />
           </TouchableOpacity>
         </View>
         </View>
@@ -688,7 +713,19 @@ Instrucciones críticas:
 
     return (
       <View style={styles.aiRow}>
-        <Text style={[styles.senderName, { color: mentor?.color ?? colors.accentLight }]}>{mentor?.name ?? t("chat.mentorAiFallback")}</Text>
+        <View style={styles.aiHeader}>
+          {mentor && mentorPhoto ? (
+            <Image source={mentorPhoto} style={styles.aiAvatar} />
+          ) : !mentor ? (
+            <Image source={ARTHUR_PHOTO} style={styles.aiAvatar} />
+          ) : (
+            <View style={[styles.aiAvatar, { backgroundColor: mentor.color + "22", alignItems: "center", justifyContent: "center" }]}>
+              <Text style={{ fontSize: 11, fontWeight: "800", color: mentor.color }}>{mentor.name.charAt(0)}</Text>
+            </View>
+          )}
+          <Text style={[styles.senderName, { color: colors.text }]}>{mentor?.name ?? t("chat.mentorAiFallback")}</Text>
+          <Ionicons name="checkmark-circle" size={13} color={mentor?.color ?? colors.accentLight} />
+        </View>
         <View style={styles.aiBubble}>
           <Markdown style={markdownStyles} rules={markdownRules}>{item.content || ""}</Markdown>
           {streaming && isLastAssistant && item.content === "" && (
@@ -752,17 +789,19 @@ Instrucciones críticas:
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 4,
-                    paddingHorizontal: 12,
-                    paddingVertical: 7,
+                    paddingHorizontal: 13,
+                    paddingVertical: 8,
                     borderRadius: 20,
                     borderWidth: 1,
                     borderColor: action.type === "decision" || action.type === "add_position" ? "rgba(0,185,109,0.4)" : colors.border,
                     backgroundColor: action.type === "decision" || action.type === "add_position" ? "rgba(0,185,109,0.10)" : colors.bgRaised,
                   }}
                 >
-                  <Text style={{ fontSize: 12 }}>
-                    {action.type === "decision" ? "📝" : action.type === "add_position" ? "💼" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : "→"}
-                  </Text>
+                  <Ionicons
+                    name={action.type === "decision" ? "create-outline" : action.type === "add_position" ? "briefcase-outline" : action.type === "watchlist" ? "eye-outline" : action.type === "alert" ? "notifications-outline" : "arrow-forward"}
+                    size={13}
+                    color={action.type === "decision" || action.type === "add_position" ? colors.accentLight : colors.textSub}
+                  />
                   <Text style={{ fontSize: 12, fontWeight: "600", color: action.type === "decision" || action.type === "add_position" ? colors.accentLight : colors.textSub }}>
                     {action.label}
                   </Text>
@@ -788,7 +827,7 @@ Instrucciones críticas:
                       backgroundColor: committedActions.has(ai) ? "rgba(0,185,109,0.10)" : colors.bgRaised,
                     }}
                   >
-                    <Text style={{ fontSize: 11 }}>{committedActions.has(ai) ? "✓" : "🔔"}</Text>
+                    <Ionicons name={committedActions.has(ai) ? "checkmark" : "notifications-outline"} size={13} color={committedActions.has(ai) ? colors.accentLight : colors.textSub} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -817,42 +856,46 @@ Instrucciones críticas:
           logo that didn't belong here. Removed so this screen matches the
           rest of the app; mentor pill + actions now just space-between
           across the row. */}
-      <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
-        {/* Center: mentor identity pill */}
-        <View style={[styles.mentorPill, {
-          backgroundColor: mentor ? mentor.color + "12" : colors.card,
-          borderColor: mentor ? mentor.color + "30" : colors.border,
-        }]}>
-          {mentor ? (
-            <Text style={{ fontSize: 20, lineHeight: 24 }}>{mentor.emoji}</Text>
-          ) : (
-            <Image source={ARTHUR_PHOTO} style={{ width: 24, height: 24, borderRadius: 12 }} />
-          )}
-          <View style={{ gap: 1, flexShrink: 1 }}>
-            <Text numberOfLines={1} style={[styles.mentorPillName, { color: colors.text }]}>
-              {mentor ? mentor.name : profile?.name ? t("chat.helloName", { name: profile.name.split(" ")[0] }) : t("chat.mentorAiFallback")}
-            </Text>
-            {mentor && (
-              <Text style={[styles.mentorPillBadge, { color: mentor.color }]}>{mentor.badge}</Text>
+      <View style={[styles.topBar, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
+        {/* Left: Arthur identity with online dot */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 11, flexShrink: 1 }}>
+          <View>
+            {mentor && mentorPhoto ? (
+              <Image source={mentorPhoto} style={styles.headerAvatar} />
+            ) : mentor ? (
+              <View style={[styles.headerAvatar, { backgroundColor: mentor.color + "22", alignItems: "center", justifyContent: "center" }]}>
+                <Text style={{ fontSize: 16, fontWeight: "800", color: mentor.color }}>{mentor.name.charAt(0)}</Text>
+              </View>
+            ) : (
+              <Image source={ARTHUR_PHOTO} style={styles.headerAvatar} />
             )}
+            <View style={[styles.onlineDot, { borderColor: colors.bg }]} />
+          </View>
+          <View style={{ flexShrink: 1 }}>
+            <Text numberOfLines={1} style={[styles.headerName, { color: colors.text }]}>
+              {mentor ? mentor.name : t("chat.mentorAiFallback")}
+            </Text>
+            <Text numberOfLines={1} style={[styles.headerStatus, { color: colors.accentLight }]}>
+              {mentor ? mentor.badge : t("chat.online")}
+            </Text>
           </View>
         </View>
 
         {/* Right: actions */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <TouchableOpacity
             onPress={() => setTutorialVisible(true)}
-            style={[styles.iconBtn, { borderColor: colors.border }]}
+            style={[styles.iconBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
           >
-            <Ionicons name="help-circle-outline" size={17} color={colors.textSub} />
+            <Ionicons name="help-circle-outline" size={18} color={colors.textSub} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.newChatBtn, { borderColor: colors.border }]}
+            style={[styles.newChatBtn, { backgroundColor: colors.accent + "1A", borderColor: colors.accent + "40" }]}
             onPress={handleNewChat}
             disabled={streaming}
           >
-            <Ionicons name="add-outline" size={15} color={colors.textSub} />
-            <Text style={[styles.newChatBtnText, { color: colors.textSub }]}>{t("chat.newChat")}</Text>
+            <Ionicons name="create-outline" size={15} color={colors.accentLight} />
+            <Text style={[styles.newChatBtnText, { color: colors.accentLight }]}>{t("chat.newChat")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -865,40 +908,46 @@ Instrucciones críticas:
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {/* ── Hero card ── */}
-              <View style={[styles.heroCard, {
-                backgroundColor: colors.card,
-                borderColor: mentor ? mentor.color + "30" : colors.border,
-              }]}>
-                {/* Color strip */}
-                <View style={[styles.heroStrip, {
-                  backgroundColor: mentor ? mentor.color : colors.accentLight,
-                }]} />
+              {/* ── Hero card — redesign 2026-09-28: emerald gradient, glowing
+                  photo, big greeting, glass context chips ── */}
+              <View style={styles.heroCard}>
+                <LinearGradient
+                  colors={mentor ? [mentor.color + "55", "#0A1C1D", "#080E16"] : ["#0F3326", "#0A1C1D", "#080E16"]}
+                  locations={[0, 0.55, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View pointerEvents="none" style={[styles.heroGlow, { backgroundColor: "rgba(0,232,135,0.16)" }]} />
+                <View pointerEvents="none" style={[styles.heroGlow2, { backgroundColor: "rgba(59,130,246,0.12)" }]} />
 
                 <View style={styles.heroContent}>
-                  {/* Avatar */}
-                  {mentor && mentorPhoto ? (
-                    <Image source={mentorPhoto} style={styles.heroAvatar} />
-                  ) : !mentor ? (
-                    <Image source={ARTHUR_PHOTO} style={styles.heroAvatar} />
-                  ) : (
-                    <View style={[styles.heroAvatarBox, {
-                      backgroundColor: mentor.color + "18",
-                      borderColor: mentor.color + "35",
-                    }]}>
-                      <Text style={{ fontSize: 40 }}>{mentor.emoji}</Text>
+                  <View style={styles.heroAvatarWrap}>
+                    <PulseHalo size={124} color={mentor?.color ?? "#00D47E"} />
+                    <View style={[styles.heroAvatarRing, { borderColor: mentor?.color ?? "#00D47E" }]}>
+                      {mentor && mentorPhoto ? (
+                        <Image source={mentorPhoto} style={styles.heroAvatar} />
+                      ) : !mentor ? (
+                        <Image source={ARTHUR_PHOTO} style={styles.heroAvatar} />
+                      ) : (
+                        <View style={[styles.heroAvatar, { backgroundColor: mentor.color + "30", alignItems: "center", justifyContent: "center" }]}>
+                          <Text style={{ fontSize: 38, fontWeight: "800", color: "#fff" }}>{mentor.name.charAt(0)}</Text>
+                        </View>
+                      )}
                     </View>
-                  )}
+                    <View style={styles.heroOnline}>
+                      <View style={styles.heroOnlineDot} />
+                      <Text style={styles.heroOnlineText}>{t("chat.online")}</Text>
+                    </View>
+                  </View>
 
-                  <Text style={[styles.heroTitle, { color: colors.text }]}>
+                  <Text style={styles.heroTitle}>
                     {mentor ? mentor.name : profile?.name ? t("chat.helloName", { name: profile.name.split(" ")[0] }) : t("chat.mentorAiFallback")}
                   </Text>
-                  <Text style={[styles.heroSub, { color: mentor ? mentor.color : colors.accentLight }]}>
+                  <Text style={styles.heroSub}>
                     {mentor ? mentor.title : t("chat.mentorSub")}
                   </Text>
 
                   {!mentor && (
-                    <Text style={[styles.heroDetail, { color: colors.textMuted }]}>
+                    <Text style={styles.heroDetail}>
                       {getUserLevel(profile) === "basico"
                         ? t("chat.welcomeSubtitleBasic")
                         : t("chat.welcomeSubtitleDefault")}
@@ -908,50 +957,41 @@ Instrucciones críticas:
                   {mentor && (
                     <View style={styles.principlesRow}>
                       {mentor.principles.map((p, i) => (
-                        <View key={i} style={[styles.principlePill, {
-                          borderColor: mentor.color + "50",
-                          backgroundColor: mentor.color + "12",
-                        }]}>
-                          <Text style={[styles.principlePillText, { color: mentor.color }]}>{p}</Text>
+                        <View key={i} style={styles.glassChip}>
+                          <Text style={styles.glassChipText}>{p}</Text>
                         </View>
                       ))}
                     </View>
                   )}
-                </View>
 
-                {/* Context chips strip */}
-                {profile && (
-                  <View style={[styles.contextStrip, {
-                    borderTopColor: colors.border,
-                    backgroundColor: colors.bgRaised ?? colors.bg,
-                  }]}>
-                    {profile.risk_tolerance && riskCfg && (
-                      <View style={[styles.contextChip, { borderColor: colors.border }]}>
-                        <Text style={[styles.contextChipText, { color: colors.textMuted }]}>🎯 {riskCfg.label}</Text>
-                      </View>
-                    )}
-                    {(() => {
-                      const lvl = getUserLevel(profile);
-                      const lvlColor = LEVEL_COLOR[lvl];
-                      const lvlLabel = getLevelLabel(t, lvl);
-                      return (
-                        <View style={[styles.contextChip, { borderColor: lvlColor + "40", backgroundColor: lvlColor + "10" }]}>
-                          <Text style={[styles.contextChipText, { color: lvlColor }]}>📊 {lvlLabel}</Text>
+                  {/* Context chips */}
+                  {profile && (
+                    <View style={[styles.principlesRow, { marginTop: 16 }]}>
+                      {profile.risk_tolerance && riskCfg && (
+                        <View style={styles.glassChip}>
+                          <Ionicons name="speedometer-outline" size={12} color="#00D47E" />
+                          <Text style={styles.glassChipText}>{riskCfg.label}</Text>
                         </View>
-                      );
-                    })()}
-                    {distinctPositionsCount > 0 && (
-                      <View style={[styles.contextChip, { borderColor: colors.border }]}>
-                        <Text style={[styles.contextChipText, { color: colors.textMuted }]}>{t("chat.positionsCount", { count: distinctPositionsCount })}</Text>
+                      )}
+                      <View style={styles.glassChip}>
+                        <Ionicons name="school-outline" size={12} color="#00D47E" />
+                        <Text style={styles.glassChipText}>{getLevelLabel(t, getUserLevel(profile))}</Text>
                       </View>
-                    )}
-                    {!isPremiumAccess && (
-                      <View style={[styles.contextChip, { borderColor: "rgba(239,68,68,0.25)", backgroundColor: "rgba(239,68,68,0.07)" }]}>
-                        <Text style={[styles.contextChipText, { color: "#ef4444" }]}>{t("chat.msgRemaining", { count: remaining })}</Text>
-                      </View>
-                    )}
-                  </View>
-                )}
+                      {distinctPositionsCount > 0 && (
+                        <View style={styles.glassChip}>
+                          <Ionicons name="briefcase-outline" size={12} color="#00D47E" />
+                          <Text style={styles.glassChipText}>{t("chat.positionsCount", { count: distinctPositionsCount })}</Text>
+                        </View>
+                      )}
+                      {!isPremiumAccess && (
+                        <View style={[styles.glassChip, { backgroundColor: "rgba(245,158,11,0.16)", borderColor: "rgba(245,158,11,0.4)" }]}>
+                          <Ionicons name="chatbubble-ellipses-outline" size={12} color="#FBBF24" />
+                          <Text style={[styles.glassChipText, { color: "#FDE68A" }]}>{t("chat.msgRemaining", { count: remaining })}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
               </View>
 
               {/* ── Suggestions ── */}
@@ -969,18 +1009,27 @@ Instrucciones críticas:
                 return (
                   <>
                     {greeting && !mentor && (
-                      <Text style={[styles.greetingText, { color: colors.textMuted }]}>{greeting}</Text>
+                      <Text style={[styles.greetingText, { color: colors.textSub }]}>{greeting}</Text>
                     )}
-                    <Text style={[styles.suggestLabel, { color: colors.textMuted }]}>{t("chat.suggestedQuestions")}</Text>
+                    <View style={styles.suggestHeader}>
+                      <View style={[styles.suggestHeaderIcon, { backgroundColor: colors.accent + "1A" }]}>
+                        <Ionicons name="sparkles" size={13} color={colors.accentLight} />
+                      </View>
+                      <Text style={[styles.suggestLabel, { color: colors.text }]}>{t("chat.suggestedQuestions")}</Text>
+                    </View>
                     <View style={styles.suggestGrid}>
                       {suggestions.map((s, i) => (
                         <TouchableOpacity
                           key={i}
+                          activeOpacity={0.8}
                           style={[styles.suggestCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                           onPress={() => sendMessage(s)}
                         >
-                          <Text style={[styles.suggestCardText, { color: colors.textSub }]}>{s}</Text>
-                          <Ionicons name="chevron-forward" size={13} color={colors.accentLight} style={{ alignSelf: "flex-end", marginTop: 4, opacity: 0.7 }} />
+                          <View style={[styles.suggestIcon, { backgroundColor: colors.accent + "1A" }]}>
+                            <Ionicons name={SUGGESTION_ICONS[i % SUGGESTION_ICONS.length]} size={17} color={colors.accentLight} />
+                          </View>
+                          <Text style={[styles.suggestCardText, { color: colors.text }]}>{s}</Text>
+                          <Ionicons name="arrow-forward" size={15} color={colors.accentLight} />
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -1087,9 +1136,17 @@ Instrucciones críticas:
               )}
             </View>
           )}
-          {/* ── Input card ── */}
-          <View style={[styles.inputCard, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
-            <View style={[styles.inputInner, { backgroundColor: colors.bgRaised ?? colors.bg, borderColor: colors.border }]}>
+          {/* ── Input card — redesign 2026-09-28: floating rounded composer
+              with attach + mic inside, gradient send button, pill tools ── */}
+          <View style={[styles.inputCard, { borderTopColor: colors.border, backgroundColor: colors.bg }]}>
+            <View style={[styles.inputInner, { backgroundColor: colors.card, borderColor: input.trim() ? colors.accent + "66" : colors.border }]}>
+              <TouchableOpacity
+                onPress={handlePickImage}
+                disabled={streaming || pendingImages.length >= 8}
+                style={[styles.inputSideBtn, { backgroundColor: colors.bgRaised ?? colors.bg, opacity: (streaming || pendingImages.length >= 8) ? 0.4 : 1 }]}
+              >
+                <Ionicons name="add" size={20} color={colors.textSub} />
+              </TouchableOpacity>
               <TextInput
                 ref={inputRef}
                 style={[styles.input, { color: colors.text }]}
@@ -1100,42 +1157,44 @@ Instrucciones críticas:
                 multiline
                 editable={!streaming}
               />
-              <TouchableOpacity
-                style={[styles.sendButton, !streaming && !input.trim() && pendingImages.length === 0 && styles.sendDisabled]}
-                onPress={streaming ? handleStop : () => sendMessage()}
-                disabled={!streaming && !input.trim() && pendingImages.length === 0}
-              >
-                {streaming ? (
-                  <Ionicons name="stop" size={18} color="white" />
-                ) : (
-                  <Ionicons name="send" size={18} color="white" />
-                )}
-              </TouchableOpacity>
+              {!streaming && !input.trim() && pendingImages.length === 0 ? (
+                <TouchableOpacity
+                  onPress={isRecording ? stopRecording : startRecording}
+                  disabled={isTranscribing}
+                  style={[styles.sendButton, { backgroundColor: colors.bgRaised ?? colors.bg, shadowOpacity: 0 }]}
+                >
+                  <Ionicons name={isTranscribing ? "hourglass-outline" : isRecording ? "stop-circle" : "mic"} size={19} color={isRecording ? "#ef4444" : colors.accentLight} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.sendButton}
+                  onPress={streaming ? handleStop : () => sendMessage()}
+                >
+                  <LinearGradient colors={[colors.accentLight, colors.accent]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { borderRadius: 21 }]} />
+                  <Ionicons name={streaming ? "stop" : "arrow-up"} size={20} color="white" />
+                </TouchableOpacity>
+              )}
             </View>
             <View style={styles.inputToolbar}>
               <TouchableOpacity
                 onPress={handlePickImage}
                 disabled={streaming || pendingImages.length >= 8}
-                style={[styles.toolbarBtn, { opacity: (streaming || pendingImages.length >= 8) ? 0.4 : 1 }]}
+                style={[styles.toolbarBtn, { borderColor: colors.border, backgroundColor: colors.card, opacity: (streaming || pendingImages.length >= 8) ? 0.4 : 1 }]}
               >
-                <Ionicons name="image-outline" size={18} color={colors.textSub} />
-                <Text style={[styles.toolbarBtnText, { color: colors.textMuted }]}>{t("chat.toolbarImage")}</Text>
+                <Ionicons name="image-outline" size={15} color={colors.accentLight} />
+                <Text style={[styles.toolbarBtnText, { color: colors.textSub }]}>{t("chat.toolbarImage")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={isRecording ? stopRecording : startRecording}
                 disabled={streaming || isTranscribing}
-                style={[styles.toolbarBtn, { opacity: streaming ? 0.4 : 1 }]}
+                style={[styles.toolbarBtn, { borderColor: isRecording ? "rgba(239,68,68,0.4)" : colors.border, backgroundColor: colors.card, opacity: streaming ? 0.4 : 1 }]}
               >
                 {isTranscribing ? (
-                  <Ionicons name="hourglass-outline" size={18} color={colors.accentLight} />
+                  <Ionicons name="hourglass-outline" size={15} color={colors.accentLight} />
                 ) : (
-                  <Ionicons
-                    name={isRecording ? "stop-circle" : "mic-outline"}
-                    size={18}
-                    color={isRecording ? "#ef4444" : colors.textSub}
-                  />
+                  <Ionicons name={isRecording ? "stop-circle" : "mic-outline"} size={15} color={isRecording ? "#ef4444" : colors.accentLight} />
                 )}
-                <Text style={[styles.toolbarBtnText, { color: isRecording ? "#ef4444" : colors.textMuted }]}>
+                <Text style={[styles.toolbarBtnText, { color: isRecording ? "#ef4444" : colors.textSub }]}>
                   {isTranscribing ? t("chat.toolbarProcessing") : isRecording ? t("chat.toolbarStop") : t("chat.toolbarVoice")}
                 </Text>
               </TouchableOpacity>
@@ -1148,13 +1207,11 @@ Instrucciones críticas:
                   setShowCallModal(true);
                 }}
                 disabled={streaming}
-                style={[styles.toolbarBtn, { opacity: streaming ? 0.4 : 1 }]}
+                style={[styles.toolbarBtn, { borderColor: colors.accent + "40", backgroundColor: colors.accent + "14", opacity: streaming ? 0.4 : 1 }]}
               >
-                <Ionicons name="call-outline" size={18} color={colors.textSub} />
-                <Text style={[styles.toolbarBtnText, { color: colors.textMuted }]}>{t("chat.toolbarCall")}</Text>
+                <Ionicons name="call" size={14} color={colors.accentLight} />
+                <Text style={[styles.toolbarBtnText, { color: colors.accentLight }]}>{t("chat.toolbarCall")}</Text>
               </TouchableOpacity>
-              <View style={{ flex: 1 }} />
-              <Text style={[styles.toolbarBtnText, { color: colors.textDim }]}>{t("chat.toolbarSend")}</Text>
             </View>
           </View>
         </View>
@@ -1271,17 +1328,21 @@ function makeStyles(c: Colors) {
     // Top bar
     topBar: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-      paddingHorizontal: 16, paddingVertical: 11,
+      paddingHorizontal: 16, paddingVertical: 10,
       borderBottomWidth: StyleSheet.hairlineWidth,
     },
+    headerAvatar: { width: 40, height: 40, borderRadius: 20 },
+    onlineDot: { position: "absolute", right: -1, bottom: -1, width: 13, height: 13, borderRadius: 7, backgroundColor: "#22c55e", borderWidth: 2.5 },
+    headerName: { fontSize: 16.5, fontWeight: "800", letterSpacing: -0.3 },
+    headerStatus: { fontSize: 12, fontWeight: "600", marginTop: 1 },
     newChatBtn: {
       flexDirection: "row", alignItems: "center", gap: 5,
-      borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
+      borderWidth: 1, borderRadius: 20, paddingHorizontal: 13, paddingVertical: 8,
     },
-    newChatBtnText: { fontSize: 12, fontWeight: "600", letterSpacing: 0.1 },
+    newChatBtnText: { fontSize: 13, fontWeight: "700", letterSpacing: 0.1 },
 
     // Empty / welcome state
-    empty: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 20, paddingTop: 24 },
+    empty: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 16, paddingTop: 16, paddingBottom: 24 },
     emptyTitle: { fontSize: 22, fontWeight: "800", color: c.text, marginBottom: 6, letterSpacing: -0.5 },
     emptySubtitle: { fontSize: 14, color: c.textMuted, textAlign: "center", marginBottom: 32, lineHeight: 21 },
     emptyIconBox: {
@@ -1305,7 +1366,7 @@ function makeStyles(c: Colors) {
     suggestionText: { color: c.textSub, fontSize: 13, lineHeight: 19 },
 
     // Message list
-    list: { paddingHorizontal: 12, paddingVertical: 12, paddingBottom: 8 },
+    list: { paddingHorizontal: 14, paddingVertical: 16, paddingBottom: 10 },
 
     // User message row
     userRow: {
@@ -1317,15 +1378,15 @@ function makeStyles(c: Colors) {
 
     // AI message row
     aiRow: {
-      marginBottom: 10,
-      paddingHorizontal: 4,
+      marginBottom: 18,
+      paddingHorizontal: 2,
     },
+    aiHeader: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 6 },
+    aiAvatar: { width: 24, height: 24, borderRadius: 12 },
 
     // Sender name
     senderName: {
-      fontSize: 11, fontWeight: "600" as const, color: c.accentLight,
-      marginBottom: 3, marginLeft: 2, letterSpacing: 0.1,
-      fontFamily: "Inter_400Regular",
+      fontSize: 13.5, fontWeight: "800" as const, color: c.text, letterSpacing: -0.1,
     },
     mentorAvatar: { width: 96, height: 96, borderRadius: 24, marginBottom: 14 },
     mentorAvatarEmoji: {
@@ -1346,18 +1407,16 @@ function makeStyles(c: Colors) {
     },
     // User bubble — translucent glass, matches web's .bubble-user exactly
     userBubble: {
-      maxWidth: "72%" as const,
-      backgroundColor: "rgba(255,255,255,0.07)",
-      borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.10)",
-      borderRadius: 20,
+      maxWidth: "78%" as const,
+      borderRadius: 22,
+      borderBottomRightRadius: 6,
       paddingHorizontal: 16,
-      paddingVertical: 12,
-      shadowColor: "#000",
-      shadowOpacity: 0.14,
-      shadowRadius: 4,
-      shadowOffset: { width: 0, height: 1 },
-      elevation: 1,
+      paddingVertical: 11,
+      shadowColor: c.accent,
+      shadowOpacity: 0.28,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
     },
     // AI message — plain text, no card, ChatGPT-style
     aiBubble: {},
@@ -1365,42 +1424,42 @@ function makeStyles(c: Colors) {
       flexDirection: "row" as const, justifyContent: "flex-end" as const,
       alignItems: "center" as const, gap: 3, marginTop: 5,
     },
-    timeUser: { fontSize: 10, color: c.textDim, fontFamily: "Inter_400Regular" },
+    timeUser: { fontSize: 10, color: "rgba(255,255,255,0.75)", fontFamily: "Inter_400Regular" },
     timeAI: { fontSize: 10, color: c.textDim, fontFamily: "Inter_400Regular", textAlign: "right" as const, marginTop: 6 },
-    userText: { color: c.text, fontSize: 16, lineHeight: 25, flexWrap: "wrap" as const, fontFamily: "Inter_400Regular" },
+    userText: { color: "#fff", fontSize: 16, lineHeight: 24, flexWrap: "wrap" as const, fontFamily: "Inter_400Regular" },
 
     input: {
       flex: 1,
       backgroundColor: "transparent",
-      paddingHorizontal: 12, paddingVertical: 10,
-      fontSize: 15, maxHeight: 110, lineHeight: 20,
+      paddingHorizontal: 10, paddingTop: 11, paddingBottom: 11,
+      fontSize: 15.5, maxHeight: 120, lineHeight: 21,
     },
+    inputSideBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 3 },
     sendButton: {
-      width: 44, height: 44,
-      backgroundColor: c.accentLight,
-      borderRadius: 14,
+      width: 42, height: 42,
+      borderRadius: 21, overflow: "hidden",
       alignItems: "center", justifyContent: "center",
       shadowColor: c.accentLight,
-      shadowOpacity: 0.3,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.35,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 3 },
     },
     sendDisabled: { opacity: 0.35 },
     premiumBadge: {
       flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const,
-      gap: 5, marginHorizontal: 12, marginBottom: 6,
-      paddingVertical: 8, paddingHorizontal: 12,
-      borderRadius: 10, borderWidth: 1,
+      gap: 6, marginHorizontal: 14, marginBottom: 8,
+      paddingVertical: 9, paddingHorizontal: 14,
+      borderRadius: 999, borderWidth: 1,
       backgroundColor: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.25)",
     },
-    premiumBadgeText: { fontSize: 11, fontWeight: "500" as const, color: "#f59e0b" },
+    premiumBadgeText: { fontSize: 12, fontWeight: "700" as const, color: "#f59e0b" },
     msgCounter: {
       flexDirection: "row" as const, alignItems: "center" as const, gap: 6,
       marginHorizontal: 12, marginBottom: 4,
       borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
     },
     msgCounterText: { fontSize: 11, fontWeight: "500" as const, flex: 1 },
-    editBtn: { alignSelf: "flex-end", marginTop: 3, padding: 4 },
+    editBtn: { alignSelf: "flex-end", marginBottom: 2, width: 26, height: 26, borderRadius: 13, borderWidth: 1, alignItems: "center", justifyContent: "center" },
     aiDisclaimer: { fontSize: 10, lineHeight: 14, color: c.textDim, fontFamily: "Inter_400Regular" },
     aiFooter: {
       flexDirection: "row" as const, alignItems: "center" as const, gap: 6,
@@ -1425,36 +1484,48 @@ function makeStyles(c: Colors) {
     mentorPillName: { fontSize: 12, fontWeight: "700" as const, letterSpacing: -0.1 },
     mentorPillBadge: { fontSize: 9, fontWeight: "600" as const, letterSpacing: 0.2 },
     iconBtn: {
-      width: 32, height: 32, borderRadius: 10,
+      width: 36, height: 36, borderRadius: 18,
       alignItems: "center" as const, justifyContent: "center" as const,
       borderWidth: 1,
     },
 
     // ── Hero card ────────────────────────────────────────────────────────────────
     heroCard: {
-      width: "100%" as const, borderRadius: 20, borderWidth: 1,
-      overflow: "hidden" as const, marginBottom: 20,
+      width: "100%" as const, borderRadius: 28, borderWidth: 1, borderColor: "rgba(0,212,126,0.35)",
+      overflow: "hidden" as const, marginBottom: 26, backgroundColor: "#080E16",
+      shadowColor: "#00D47E", shadowOpacity: 0.22, shadowRadius: 22, shadowOffset: { width: 0, height: 10 }, elevation: 8,
     },
-    heroStrip: { height: 5 },
-    heroContent: { padding: 20, alignItems: "center" as const },
-    heroAvatar: { width: 80, height: 80, borderRadius: 20, marginBottom: 12 },
-    heroAvatarBox: {
-      width: 80, height: 80, borderRadius: 20,
-      alignItems: "center" as const, justifyContent: "center" as const,
-      marginBottom: 12, borderWidth: 2,
+    heroGlow:  { position: "absolute" as const, top: -110, right: -90, width: 280, height: 280, borderRadius: 140 },
+    heroGlow2: { position: "absolute" as const, bottom: -120, left: -90, width: 240, height: 240, borderRadius: 120 },
+    heroContent: { paddingHorizontal: 22, paddingTop: 28, paddingBottom: 24, alignItems: "center" as const },
+    heroAvatarWrap: { width: 124, height: 124, alignItems: "center" as const, justifyContent: "center" as const, marginBottom: 18 },
+    heroAvatarRing: { width: 104, height: 104, borderRadius: 52, borderWidth: 3, padding: 3, alignItems: "center" as const, justifyContent: "center" as const },
+    heroAvatar: { width: 92, height: 92, borderRadius: 46 },
+    heroOnline: {
+      position: "absolute" as const, bottom: -2, flexDirection: "row" as const, alignItems: "center" as const, gap: 5,
+      backgroundColor: "#06120D", borderRadius: 999, borderWidth: 1, borderColor: "rgba(34,197,94,0.5)",
+      paddingHorizontal: 9, paddingVertical: 3,
     },
+    heroOnlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#22c55e" },
+    heroOnlineText: { fontSize: 10.5, fontWeight: "800" as const, color: "#86EFAC", letterSpacing: 0.3 },
     heroTitle: {
-      fontSize: 20, fontWeight: "800" as const, letterSpacing: -0.4,
-      marginBottom: 4, textAlign: "center" as const,
-    },
-    heroSub: {
-      fontSize: 12, fontWeight: "600" as const, letterSpacing: 0.2,
+      fontSize: 28, fontWeight: "800" as const, letterSpacing: -0.8, color: "#fff",
       marginBottom: 6, textAlign: "center" as const,
     },
-    heroDetail: {
-      fontSize: 13, lineHeight: 19, textAlign: "center" as const,
-      marginBottom: 12, paddingHorizontal: 8,
+    heroSub: {
+      fontSize: 14.5, fontWeight: "700" as const, lineHeight: 20, color: "#00D47E",
+      marginBottom: 10, textAlign: "center" as const, paddingHorizontal: 6,
     },
+    heroDetail: {
+      fontSize: 14, lineHeight: 21, textAlign: "center" as const, color: "rgba(255,255,255,0.72)",
+      paddingHorizontal: 4,
+    },
+    glassChip: {
+      flexDirection: "row" as const, alignItems: "center" as const, gap: 5,
+      borderRadius: 999, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 6,
+      backgroundColor: "rgba(255,255,255,0.07)", borderColor: "rgba(255,255,255,0.14)",
+    },
+    glassChipText: { fontSize: 12, fontWeight: "700" as const, color: "rgba(255,255,255,0.9)" },
     principlesRow: {
       flexDirection: "row" as const, flexWrap: "wrap" as const,
       gap: 6, justifyContent: "center" as const,
@@ -1473,44 +1544,41 @@ function makeStyles(c: Colors) {
 
     // ── Suggestions ──────────────────────────────────────────────────────────────
     greetingText: {
-      fontSize: 13, textAlign: "center" as const, lineHeight: 20,
-      marginBottom: 16, paddingHorizontal: 8,
+      fontSize: 14, textAlign: "center" as const, lineHeight: 21,
+      marginBottom: 20, paddingHorizontal: 8,
     },
-    suggestLabel: {
-      fontSize: 10, fontWeight: "700" as const, letterSpacing: 0.8,
-      textTransform: "uppercase" as const,
-      marginBottom: 10, alignSelf: "flex-start" as const,
-    },
-    suggestGrid: {
-      width: "100%" as const,
-      flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8,
-    },
+    suggestHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, alignSelf: "flex-start" as const, marginBottom: 12 },
+    suggestHeaderIcon: { width: 26, height: 26, borderRadius: 8, alignItems: "center" as const, justifyContent: "center" as const },
+    suggestLabel: { fontSize: 17, fontWeight: "800" as const, letterSpacing: -0.3 },
+    suggestGrid: { width: "100%" as const, gap: 10 },
     suggestCard: {
-      borderWidth: 1, borderRadius: 16, padding: 14,
-      flexGrow: 1, flexBasis: "45%" as const, minWidth: 150,
+      flexDirection: "row" as const, alignItems: "center" as const, gap: 12,
+      borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 14,
     },
-    suggestCardText: { fontSize: 12, lineHeight: 18, flex: 1 },
+    suggestIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center" as const, justifyContent: "center" as const },
+    suggestCardText: { fontSize: 14.5, lineHeight: 20, fontWeight: "600" as const, flex: 1 },
 
     // ── Input card ───────────────────────────────────────────────────────────────
     inputCard: {
       borderTopWidth: StyleSheet.hairlineWidth,
-      paddingHorizontal: 12, paddingTop: 10, paddingBottom: 14,
+      paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12,
     },
     inputInner: {
       flexDirection: "row" as const, alignItems: "flex-end",
-      borderWidth: 1, borderRadius: 16, overflow: "hidden" as const,
-      paddingHorizontal: 4, paddingVertical: 4,
+      borderWidth: 1.5, borderRadius: 26, overflow: "hidden" as const,
+      paddingHorizontal: 5, paddingVertical: 5,
+      shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
     },
     inputToolbar: {
       flexDirection: "row" as const, alignItems: "center",
-      paddingHorizontal: 4, paddingTop: 8, gap: 4,
+      paddingHorizontal: 2, paddingTop: 9, gap: 7,
     },
     toolbarBtn: {
       flexDirection: "row" as const, alignItems: "center",
-      gap: 4, paddingHorizontal: 10, paddingVertical: 5,
-      borderRadius: 20,
+      gap: 5, paddingHorizontal: 11, paddingVertical: 6,
+      borderRadius: 999, borderWidth: 1,
     },
-    toolbarBtnText: { fontSize: 11, fontWeight: "500" as const },
+    toolbarBtnText: { fontSize: 12, fontWeight: "700" as const },
   });
 }
 

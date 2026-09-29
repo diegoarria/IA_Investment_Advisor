@@ -2672,7 +2672,8 @@
     "tourDesc": "Escribe cualquier pregunta sobre inversiones. Nuvos recuerda tu portafolio y perfil para darte respuestas personalizadas.",
     "tourCta": "Entendido, volver al inicio ✓",
     "imageSentOne": "📷 Imagen enviada",
-    "imageSentMany": "📷 {{count}} imágenes enviadas"
+    "imageSentMany": "📷 {{count}} imágenes enviadas",
+    "online": "En línea"
   },
   "paper": {
     "title": "Simulador",
