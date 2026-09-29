@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 
 export interface OneTimeProduct {
-  emoji: string;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
   title: string;
   features: string[];
   priceFree?: string;
@@ -59,7 +59,9 @@ export default function OneTimeProductModal({ visible, onClose, product }: Props
               here the ScrollView renders at full content height and never
               becomes scrollable — `sheet` just clips it. */}
           <ScrollView style={s.scrollFlex} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-            <Text style={s.emoji}>{product.emoji}</Text>
+            <View style={[s.iconWrap, { backgroundColor: colors.accent + "1A", borderColor: colors.accent + "40" }]}>
+              <Ionicons name={product.icon} size={28} color={colors.accentLight} />
+            </View>
             <Text style={[s.title, { color: colors.text }]}>{product.title}</Text>
 
             <View style={s.priceRow}>
@@ -115,7 +117,7 @@ const s = StyleSheet.create({
   scrollFlex: { flexShrink: 1 },
   scroll: { paddingHorizontal: 20, paddingBottom: 36, alignItems: "center" },
 
-  emoji: { fontSize: 44, marginTop: 8, marginBottom: 10 },
+  iconWrap: { width: 60, height: 60, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center", marginTop: 8, marginBottom: 12 },
   title: { fontSize: 19, fontWeight: "900", textAlign: "center", marginBottom: 12 },
 
   priceRow: { flexDirection: "row", alignItems: "baseline", gap: 8, marginBottom: 6 },
