@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import EmailImportCard from "../../src/components/EmailImportCard";
 import StockAvatar from "../../src/components/StockAvatar";
 import { useFocusEffect, useLocalSearchParams, router } from "expo-router";
 import {
@@ -2522,6 +2523,9 @@ export default function PortfolioScreen() {
           <Ionicons name="play-circle-outline" size={16} color={colors.accentLight} />
           <Text style={{ fontSize: 12, fontWeight: "700", color: colors.accentLight }}>{t("portfolio.buttons.watchTutorial")}</Text>
         </TouchableOpacity>
+
+        {/* Importación automática por correo (GBM, Actinver…) */}
+        <View style={{ marginBottom: 12 }}><EmailImportCard /></View>
 
         {/* Conectar broker — Premium */}
         <TouchableOpacity

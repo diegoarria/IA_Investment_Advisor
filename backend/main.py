@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, decisions, watchlist, financials, brokerage, belvo, notification_settings, price_alerts, actions, upsells, wrapped, monthly_report, push, feedback, profile_financial, library, voice_call, benchmark, admin, research_engine, investment_graph, explain, cash_holdings, dividends, checklist, weekly_rituals, morning_brief, smart_alerts, logo, telemetry
+from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, decisions, watchlist, financials, brokerage, belvo, notification_settings, price_alerts, actions, upsells, wrapped, monthly_report, push, feedback, profile_financial, library, voice_call, benchmark, admin, research_engine, investment_graph, explain, cash_holdings, dividends, checklist, weekly_rituals, morning_brief, smart_alerts, logo, telemetry, imports
 from app.core.limiter import rate_limit_exceeded_handler
 
 _is_dev = settings.environment == "development"
@@ -146,6 +146,7 @@ app.include_router(weekly_rituals.router,    prefix="/api")
 app.include_router(morning_brief.router,     prefix="/api")
 app.include_router(smart_alerts.router,      prefix="/api")
 app.include_router(telemetry.router,         prefix="/api")
+app.include_router(imports.router,           prefix="/api")
 
 # Scheduler runs in worker.py (separate process) — not here.
 # This prevents duplicate job execution when the web process scales horizontally.

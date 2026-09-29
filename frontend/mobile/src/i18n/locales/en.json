@@ -4216,5 +4216,25 @@
     "saving": "Saving...",
     "perBlock": "per block",
     "enable": "Turn on extra usage"
+  },
+  "emailImport": {
+    "title": "Update your portfolio automatically, by email",
+    "subtitle": "For brokers without a direct connection",
+    "yourAddress": "Your private Nuvos address",
+    "copy": "Copy",
+    "copied": "Copied",
+    "step1": "In your email (Gmail or Outlook), create a rule or filter for your broker's emails.",
+    "step2": "Choose \"Forward to\" and paste your Nuvos address. If Gmail asks to confirm, Arthur sends you the link right here.",
+    "step3": "Done: every trade confirmation and statement reaches Nuvos, and Arthur lets you register it with one tap.",
+    "privacy": "We only read the emails you forward to this address. Nothing is recorded without your confirmation.",
+    "gmailHelp": "How to create the filter in Gmail",
+    "loading": "Generating your address…",
+    "error": "We couldn't generate your address. Try again.",
+    "applied": "Done ✅ I recorded {{count}} trade(s) in **{{portfolio}}**. Your analysis and alerts now use your real positions.",
+    "appliedNothing": "Your portfolio was already up to date — nothing to record.",
+    "dismissed": "Got it, I didn't record anything. If you change your mind, forward me the email anytime.",
+    "choosePortfolio": "You have several portfolios. Tap the one to record it in.",
+    "currencyMismatch": "The email is in {{importCur}} and your portfolio is in {{portCur}}. I never convert currencies automatically — add it from Portfolio in the right currency.",
+    "applyError": "I couldn't record the trades. Your portfolio wasn't changed — try again in a moment."
   }
 }

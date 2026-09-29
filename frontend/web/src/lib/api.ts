@@ -265,6 +265,14 @@ async function postChatWithRetry(url: string, payload: unknown, config?: Record<
   throw lastErr;
 }
 
+// Importación automática por correo — see backend app/services/inbound_import.py.
+export const importsApi = {
+  getEmailAlias: () => api.get<{ address: string }>("/api/imports/email-alias"),
+  apply: (importId: string, portfolioId?: string | null) =>
+    api.post(`/api/imports/${encodeURIComponent(importId)}/apply`, { portfolio_id: portfolioId ?? null }),
+  dismiss: (importId: string) => api.post(`/api/imports/${encodeURIComponent(importId)}/dismiss`),
+};
+
 export const market = {
   getSummary: () => api.get("/api/market/summary"),
   getIndices: () => api.get("/api/market/indices"),

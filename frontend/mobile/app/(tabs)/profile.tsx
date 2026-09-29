@@ -16,6 +16,7 @@ import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
 import PaywallModal from "../../src/components/PaywallModal";
 import UsageMeterCard from "../../src/components/UsageMeterCard";
+import EmailImportCard from "../../src/components/EmailImportCard";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, billingApi, voiceCallsApi, wrappedApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -1271,6 +1272,11 @@ if (!profile) {
               </Text>
             </View>
           </View>
+        </View>
+
+        {/* ── IMPORTACIÓN AUTOMÁTICA POR CORREO ── */}
+        <View style={s.section}>
+          <EmailImportCard />
         </View>
 
         {/* ── USO DE TU PLAN / USO EXTRA (Diego, 2026-09-29) ── */}

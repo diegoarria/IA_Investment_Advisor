@@ -4744,5 +4744,25 @@
     "saving": "Guardando...",
     "perBlock": "por bloque",
     "enable": "Activar uso extra"
+  },
+  "emailImport": {
+    "title": "Actualiza tu portafolio solo, por correo",
+    "subtitle": "Para GBM, Actinver y cualquier casa de bolsa sin conexión directa",
+    "yourAddress": "Tu dirección privada de Nuvos",
+    "copy": "Copiar",
+    "copied": "Copiada",
+    "step1": "En tu correo (Gmail u Outlook), crea una regla o filtro para los correos de tu casa de bolsa (por ejemplo, de @gbm.com o @actinver.com).",
+    "step2": "Elige \"Reenviar a\" y pega tu dirección de Nuvos. Si Gmail pide confirmar, Arthur te manda el enlace aquí mismo.",
+    "step3": "Listo: cada confirmación de operación y estado de cuenta llega a Nuvos, y Arthur te avisa para registrarlo con un toque.",
+    "privacy": "Solo leemos los correos que tú reenvías a esta dirección. Nada se registra sin tu confirmación.",
+    "gmailHelp": "Cómo crear el filtro en Gmail",
+    "loading": "Generando tu dirección…",
+    "error": "No pudimos generar tu dirección. Intenta de nuevo.",
+    "applied": "Listo ✅ Registré {{count}} operación(es) en **{{portfolio}}**. Tus análisis y alertas ya usan tus posiciones reales.",
+    "appliedNothing": "Tu portafolio ya estaba al día — no hubo nada que registrar.",
+    "dismissed": "Entendido, no registré nada. Si cambias de opinión, reenvíame el correo cuando quieras.",
+    "choosePortfolio": "Tienes varios portafolios. Toca en cuál quieres registrarlo.",
+    "currencyMismatch": "El correo viene en {{importCur}} y tu portafolio está en {{portCur}}. No convierto monedas automáticamente — agrégalo desde Portafolio en la moneda correcta.",
+    "applyError": "No pude registrar las operaciones. Tu portafolio no fue modificado — intenta de nuevo en un momento."
   }
 }

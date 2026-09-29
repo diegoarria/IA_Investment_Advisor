@@ -5,7 +5,7 @@ import TourSpotlight from "@/components/TourSpotlight";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chat as chatApi, decisionsApi } from "@/lib/api";
+import { chat as chatApi, decisionsApi, importsApi } from "@/lib/api";
 import {
   useAuthStore, useProfileStore, useChatStore,
   useLanguageStore, useSubscriptionStore, useGuestGateStore, msgsRemaining, FREE_MSG_LIMIT,
@@ -1219,6 +1219,35 @@ export default function ChatPage() {
                             } else if (action.type === "learn") {
                               const d = action.data as Record<string, string>;
                               router.push(`/learn?topic=${d.topic}`);
+                            } else if (action.type === "import_apply" || action.type === "import_dismiss") {
+                              // Importación automática por correo — Arthur's
+                              // one-tap register / dismiss chips.
+                              const d = action.data as { import_id: string; portfolio_id?: string };
+                              setPendingActions(null);
+                              const say = (content: string) => {
+                                addMessage({ role: "assistant", content });
+                                if (!isGuestUser()) chatApi.saveMessage("assistant", content, currentId).catch(() => {});
+                              };
+                              if (action.type === "import_dismiss") {
+                                importsApi.dismiss(d.import_id).catch(() => {});
+                                say(t("emailImport.dismissed"));
+                              } else {
+                                importsApi.apply(d.import_id, d.portfolio_id).then((r) => {
+                                  const res = r.data as { ok: boolean; reason?: string; applied?: unknown[]; portfolio_name?: string; portfolios?: { portfolio_id: string; portfolio_name?: string }[]; import_currency?: string; portfolio_currency?: string };
+                                  if (res.ok) {
+                                    const n = res.applied?.length ?? 0;
+                                    say(n > 0 ? t("emailImport.applied", { count: n, portfolio: res.portfolio_name ?? "" }) : t("emailImport.appliedNothing"));
+                                    loadPortfolio();
+                                  } else if (res.reason === "choose_portfolio") {
+                                    say(t("emailImport.choosePortfolio"));
+                                    setPendingActions((res.portfolios ?? []).map((p) => ({ type: "import_apply", label: p.portfolio_name ?? p.portfolio_id, data: { import_id: d.import_id, portfolio_id: p.portfolio_id } })));
+                                  } else if (res.reason === "currency_mismatch") {
+                                    say(t("emailImport.currencyMismatch", { importCur: res.import_currency, portCur: res.portfolio_currency }));
+                                  } else {
+                                    say(t("emailImport.applyError"));
+                                  }
+                                }).catch(() => say(t("emailImport.applyError")));
+                              }
                             } else if (action.type === "add_position") {
                               // Prefills the manual add form on the portfolio page and
                               // opens it there for a final review — same "AI pre-fill +
@@ -1246,7 +1275,7 @@ export default function ChatPage() {
                           })()}
                           {action.label}
                         </button>
-                        {action.type !== "chat" && action.type !== "add_position" && (
+                        {action.type !== "chat" && action.type !== "add_position" && !action.type.startsWith("import_") && (
                           <button
                             onClick={async () => {
                               if (committedActions.has(ai)) return;

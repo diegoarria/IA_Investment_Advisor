@@ -1,5 +1,6 @@
 "use client";
 
+import EmailImportCard from "@/components/EmailImportCard";
 import AppSidebar from "@/components/AppSidebar";
 import TourSpotlight from "@/components/TourSpotlight";
 import StockAvatar from "@/components/StockAvatar";
@@ -2644,6 +2645,9 @@ export default function PortfolioPage() {
                 </span>
               </div>
             )}
+
+            {/* Importación automática por correo (GBM, Actinver…) */}
+            <EmailImportCard />
 
             {/* Conectar broker — Premium */}
             <button

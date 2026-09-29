@@ -118,6 +118,9 @@ class Settings(BaseSettings):
     posthog_project_id: str = ""
     posthog_host: str = "https://us.i.posthog.com"
     resend_api_key: str = ""
+    # Importación automática por correo (routes/imports.py)
+    inbound_email_domain: str = "import.nuvosai.com"
+    inbound_email_secret: str = ""
     perplexity_api_key: str = ""  # Perplexity sonar — real-time web search
     redis_url: str = ""  # e.g. redis://localhost:6379 — optional, falls back to in-memory
     elevenlabs_api_key: str = ""   # for TTS

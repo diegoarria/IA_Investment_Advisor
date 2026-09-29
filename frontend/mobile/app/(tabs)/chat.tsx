@@ -18,7 +18,7 @@ import Markdown from "react-native-markdown-display";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../../src/lib/LanguageContext";
-import { chatApi, marketApi, decisionsApi } from "../../src/lib/api";
+import { chatApi, marketApi, decisionsApi, importsApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
@@ -822,6 +822,34 @@ Instrucciones críticas:
                     } else if (action.type === "chat") {
                       const d = action.data as Record<string, string>;
                       sendMessage(d.message);
+                    } else if (action.type === "import_apply" || action.type === "import_dismiss") {
+                      // Importación automática por correo — one-tap register / dismiss.
+                      const d = action.data as { import_id: string; portfolio_id?: string };
+                      setPendingActions(null);
+                      const say = (content: string) => {
+                        const cur = useChatStore.getState().currentMessages();
+                        setMessages([...cur, { role: "assistant", content, timestamp: Date.now() }]);
+                        chatApi.saveMessage("assistant", content, currentId).catch(() => {});
+                      };
+                      if (action.type === "import_dismiss") {
+                        importsApi.dismiss(d.import_id).catch(() => {});
+                        say(t("emailImport.dismissed"));
+                      } else {
+                        importsApi.apply(d.import_id, d.portfolio_id).then((r) => {
+                          const res = r.data as { ok: boolean; reason?: string; applied?: unknown[]; portfolio_name?: string; portfolios?: { portfolio_id: string; portfolio_name?: string }[]; import_currency?: string; portfolio_currency?: string };
+                          if (res.ok) {
+                            const n = res.applied?.length ?? 0;
+                            say(n > 0 ? t("emailImport.applied", { count: n, portfolio: res.portfolio_name ?? "" }) : t("emailImport.appliedNothing"));
+                          } else if (res.reason === "choose_portfolio") {
+                            say(t("emailImport.choosePortfolio"));
+                            setPendingActions((res.portfolios ?? []).map((p) => ({ type: "import_apply", label: p.portfolio_name ?? p.portfolio_id, data: { import_id: d.import_id, portfolio_id: p.portfolio_id } })));
+                          } else if (res.reason === "currency_mismatch") {
+                            say(t("emailImport.currencyMismatch", { importCur: res.import_currency, portCur: res.portfolio_currency }));
+                          } else {
+                            say(t("emailImport.applyError"));
+                          }
+                        }).catch(() => say(t("emailImport.applyError")));
+                      }
                     } else if (action.type === "add_position") {
                       // Prefills the manual add form on the portfolio tab and
                       // opens it there for a final review — same "AI pre-fill +
@@ -855,7 +883,7 @@ Instrucciones críticas:
                     {action.label}
                   </Text>
                 </TouchableOpacity>
-                {action.type !== "chat" && action.type !== "add_position" && (
+                {action.type !== "chat" && action.type !== "add_position" && !action.type.startsWith("import_") && (
                   <TouchableOpacity
                     onPress={async () => {
                       if (committedActions.has(ai)) return;
