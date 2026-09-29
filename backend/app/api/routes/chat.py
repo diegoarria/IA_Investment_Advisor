@@ -261,25 +261,25 @@ _COST_PROTECTION_REPLY_EN = (
 
 
 async def _cost_guard_check(user_id: str, profile, premium: bool):
-    """Premium economic protection (app.services.cost_guard). Returns
-    (blocked_reply | None, model_override | None). Deliberately answers a
-    blocked user with a normal 200 reply, NOT a 429 — the web client maps
-    every 429 to the paywall, and a Premium user must never see the Free
-    wall. Fails open on any error."""
+    """Premium economic protection + uso extra. Returns
+    (blocked_reply | None, model_override | None).
+
+    Diego, 2026-09-29: Arthur ALWAYS answers — this never returns a blocked
+    reply anymore. Past the usage included in the plan (app.services.
+    usage_overage) the user either has uso extra on (full model, billed in
+    blocks up to their cap) or Arthur keeps answering on the cheaper model
+    until the month resets. A day-level spike past the daily cap also just
+    downgrades the model. Fails open on any error."""
     if not premium:
         return None, None
     try:
-        from app.services import cost_guard
+        from app.services import cost_guard, usage_overage
         decision = await cost_guard.evaluate(user_id)
+        economy = await usage_overage.use_economy_model(user_id, profile)
     except Exception as exc:
         logger.warning("_cost_guard_check failed open for %s: %s", user_id, exc)
         return None, None
-    if decision.block:
-        en = getattr(profile, "preferred_language", None) == "en"
-        if decision.reason == "daily_cap":
-            return (_COST_PROTECTION_DAILY_EN if en else _COST_PROTECTION_DAILY_ES), None
-        return (_COST_PROTECTION_REPLY_EN if en else _COST_PROTECTION_REPLY_ES), None
-    if decision.degrade_model:
+    if economy or decision.reason == "daily_cap":
         return None, _settings.cost_protection_model
     return None, None
 
@@ -1059,6 +1059,11 @@ async def chat_message(
     clean_reply, actions = _extract_action(clean_reply)
     if cache_key:
         store_answer(cache_key, clean_reply)
+
+    # Uso extra: 70% / 90% / 100% usage alerts (once each per month).
+    if premium:
+        from app.services import usage_overage
+        asyncio.create_task(usage_overage.maybe_notify(user_id, profile))
 
     if tickers:
         # Investment Graph — every question that mentions a ticker becomes a

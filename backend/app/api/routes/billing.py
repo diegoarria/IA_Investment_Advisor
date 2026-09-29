@@ -1469,3 +1469,37 @@ async def get_duo_partner(user_id: str = Depends(get_current_user_id)):
         "partner_summary": partner_summary,
     }
 
+
+
+# ── Uso extra (usage-based overage) — Diego, 2026-09-29 ────────────────────
+# See app/services/usage_overage.py. GET is read-only and shown on web AND
+# mobile; POST (turn uso extra on/off, change the cap) is a purchase-related
+# choice and is only offered on web — the mobile app shows the meter and can
+# only keep the economy mode (declining never charges anything).
+
+class OverageChoice(BaseModel):
+    enabled: bool
+    cap_blocks: int | None = None
+
+
+@router.get("/usage")
+async def get_usage(user_id: str = Depends(get_current_user_id)):
+    from app.api.routes.chat import _get_user_profile
+    from app.services import usage_overage
+    profile = await _get_user_profile(user_id)
+    return (await usage_overage.summary(user_id, profile)).to_dict()
+
+
+@router.post("/usage/overage")
+async def set_usage_overage(body: OverageChoice, user_id: str = Depends(get_current_user_id)):
+    from app.api.routes.chat import _get_user_profile
+    from app.services import usage_overage
+    profile = await _get_user_profile(user_id)
+    try:
+        s = await usage_overage.set_choice(user_id, profile, body.enabled, body.cap_blocks)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="El uso extra solo está disponible con una suscripción Premium activa pagada con tarjeta.")
+    except Exception as e:
+        logger.error("set_usage_overage failed for %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="No pudimos guardar tu elección. Intenta de nuevo.")
+    return s.to_dict()

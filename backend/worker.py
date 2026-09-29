@@ -2204,6 +2204,19 @@ async def job_monthly_report_email():
         logger.error("job_monthly_report_email failed: %s", e)
 
 
+async def job_bill_usage_overage():
+    """00:30 UTC on the 1st — charge last month's uso extra (Diego,
+    2026-09-29). One Stripe invoice per opted-in user who went past the
+    usage included in Premium; idempotent (see usage_overage.bill_period)."""
+    from app.services import usage_overage
+    try:
+        now = datetime.now(timezone.utc)
+        prev = now.replace(day=1) - timedelta(days=1)
+        await usage_overage.bill_period(prev.strftime("%Y-%m"))
+    except Exception as e:
+        logger.error("job_bill_usage_overage failed: %s", e)
+
+
 async def job_monthly_report_notify_available():
     """8:50 AM ET on the 1st — the Monthly Report window opens. Diego,
     2026-09-27: the closed-window screen has an "Avísame cuando abra"
@@ -6961,6 +6974,7 @@ async def main():
     scheduler.add_job(job_monthly_report_email, "cron", day="1-3",             hour=9,       minute=0,     timezone="America/New_York")
     # "Avísame cuando abra" opt-ins (push + email) — 10 minutes before the recap email so that job can skip them.
     scheduler.add_job(job_monthly_report_notify_available, "cron", day=1, hour=8, minute=50, timezone="America/New_York")
+    scheduler.add_job(job_bill_usage_overage, "cron", day=1, hour=0, minute=30, timezone="UTC")
     # Dec 15, 9:00am ET — same moment job_wrapped_notify_available pushes its
     # opt-in users, but this email reaches every user (see docstring).
     # ── 13:00 ET weekdays: rotating nudge for users WITHOUT a portfolio

@@ -53,6 +53,12 @@ async def log_llm_usage(
     breaker's counter itself; this function would otherwise double-count
     it (see the check below)."""
     try:
+        if not user_id:
+            # Deep call sites often don't know the user — fall back to the
+            # request's authenticated user (app/core/request_context.py).
+            from app.core.request_context import current_user_id
+            user_id = current_user_id.get()
+
         def _get(field):
             return getattr(usage, field, None) if not isinstance(usage, dict) else usage.get(field)
 

@@ -14,6 +14,7 @@ import {
 import { auth as authApi, billing, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi, wrapped as wrappedApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
+import UsageMeterCard from "@/components/UsageMeterCard";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, ChevronRight, NotebookPen, SlidersHorizontal, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone, Video, Lock,
@@ -1233,6 +1234,9 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </div>
+
+                {/* Uso de tu plan / uso extra (Diego, 2026-09-29) */}
+                {isPremium && <UsageMeterCard />}
 
                 {/* Incoming Duo invite — consent fix, Sep 2026. Someone else
                     invited THIS account into their Duo plan; nothing was

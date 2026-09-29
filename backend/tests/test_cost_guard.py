@@ -71,19 +71,36 @@ def test_record_spend_only_bumps_seeded_counters():
 
 
 async def test_chat_guard_returns_reply_not_429(monkeypatch):
+    """Diego, 2026-09-29: Arthur always answers — the guard never returns a
+    blocked reply anymore, it only downgrades the model (economy mode past
+    the included usage, or a daily-cap spike)."""
     from app.api.routes import chat
+    from app.services import usage_overage
     from app.services.cost_guard import GuardDecision
+
+    async def economy(_uid, _profile):
+        return True
+
+    async def not_economy(_uid, _profile):
+        return False
 
     async def blocked(_uid):
         return GuardDecision(GuardLevel.HARD_STOP, 14.0, 1.0, False, True, "hard_stop")
     monkeypatch.setattr(cg, "evaluate", blocked)
+    monkeypatch.setattr(usage_overage, "use_economy_model", economy)
     reply, model = await chat._cost_guard_check("u1", None, True)
-    assert reply and model is None
+    assert reply is None and model == settings.cost_protection_model
     # free users are never touched by the premium guard
     assert await chat._cost_guard_check("u1", None, False) == (None, None)
 
-    async def protect(_uid):
-        return GuardDecision(GuardLevel.COST_PROTECTION, 10.0, 1.0, True, False, "cost_protection")
-    monkeypatch.setattr(cg, "evaluate", protect)
+    async def daily(_uid):
+        return GuardDecision(GuardLevel.HARD_STOP, 2.0, 5.0, False, True, "daily_cap")
+    monkeypatch.setattr(cg, "evaluate", daily)
+    monkeypatch.setattr(usage_overage, "use_economy_model", not_economy)
     reply, model = await chat._cost_guard_check("u1", None, True)
     assert reply is None and model == settings.cost_protection_model
+
+    async def normal(_uid):
+        return GuardDecision(GuardLevel.NORMAL, 1.0, 0.1, False, False, "normal")
+    monkeypatch.setattr(cg, "evaluate", normal)
+    assert await chat._cost_guard_check("u1", None, True) == (None, None)

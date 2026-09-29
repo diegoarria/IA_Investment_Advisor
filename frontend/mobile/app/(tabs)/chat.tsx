@@ -27,6 +27,7 @@ import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatSt
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useSubscriptionStore, msgsRemaining, resetMinutes, FREE_MSG_LIMIT, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
+import UsageMeterCard from "../../src/components/UsageMeterCard";
 import UpsellModal from "../../src/components/UpsellModal";
 import { useUpsellStore } from "../../src/lib/upsellStore";
 import StockChart from "../../src/components/StockChart";
@@ -1069,6 +1070,9 @@ Instrucciones críticas:
               <Ionicons name="chevron-down" size={20} color={colors.text} />
             </TouchableOpacity>
           )}
+
+          {/* Uso extra choice — only while pending; Arthur answers either way. */}
+          {isPremiumAccess && <UsageMeterCard variant="banner" refreshKey={streaming ? -1 : messages.length} />}
 
           {!isPremiumAccess && (
             <TouchableOpacity

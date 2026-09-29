@@ -4718,5 +4718,31 @@
     "priceNow": "Precio hoy",
     "estimatedValue": "Valor estimado",
     "viewAnalysis": "Ver análisis completo"
+  },
+  "usage": {
+    "title": "Uso de tu plan",
+    "subtitle": "Uso de Arthur y análisis con IA este mes",
+    "percentUsed": "{{pct}}% del uso incluido",
+    "resets": "Se reinicia el {{date}}",
+    "includedDesc": "Todo va incluido en tu Premium. Te avisamos al 70%, 90% y 100%.",
+    "reachedTitle": "Llegaste al uso incluido en tu plan",
+    "reachedDesc": "Arthur sigue contestando. Elige cómo quieres continuar hasta que se reinicie tu mes:",
+    "optionOverage": "Activar uso extra",
+    "optionOverageDesc": "Arthur sigue con su modelo completo. {{price}} por bloque de uso extra, máximo {{cap}} bloques al mes. Se cobra el día 1.",
+    "optionEconomy": "Seguir en modo económico",
+    "optionEconomyDesc": "Sin costo extra. Arthur responde con un modelo más ligero hasta el {{date}}.",
+    "overageActive": "Uso extra activo",
+    "overageBlocks": "{{count}} de {{cap}} bloques este mes · {{amount}}",
+    "overageBlocksNone": "Aún no usas bloques extra este mes",
+    "capLabel": "Máximo de bloques al mes",
+    "disable": "Desactivar uso extra",
+    "economyActive": "Modo económico",
+    "economyDesc": "Arthur sigue contestando con un modelo más ligero hasta el {{date}}. Sin costo extra.",
+    "capReached": "Llegaste a tu máximo de uso extra. Arthur sigue contestando en modo económico hasta el {{date}}.",
+    "activateOnWeb": "Para activar uso extra entra a nuvosai.com desde tu navegador. Aquí no se cobra nada.",
+    "notChargeable": "El uso extra está disponible con una suscripción Premium pagada con tarjeta.",
+    "saving": "Guardando...",
+    "perBlock": "por bloque",
+    "enable": "Activar uso extra"
   }
 }

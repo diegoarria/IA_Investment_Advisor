@@ -4718,5 +4718,31 @@
     "priceNow": "Price today",
     "estimatedValue": "Estimated value",
     "viewAnalysis": "See full analysis"
+  },
+  "usage": {
+    "title": "Your plan usage",
+    "subtitle": "Arthur and AI analysis usage this month",
+    "percentUsed": "{{pct}}% of included usage",
+    "resets": "Resets on {{date}}",
+    "includedDesc": "Everything is included in your Premium. We'll notify you at 70%, 90% and 100%.",
+    "reachedTitle": "You reached your plan's included usage",
+    "reachedDesc": "Arthur keeps answering. Choose how to continue until your month resets:",
+    "optionOverage": "Turn on extra usage",
+    "optionOverageDesc": "Arthur keeps his full model. {{price}} per extra-usage block, up to {{cap}} blocks a month. Charged on the 1st.",
+    "optionEconomy": "Continue in economy mode",
+    "optionEconomyDesc": "No extra cost. Arthur answers with a lighter model until {{date}}.",
+    "overageActive": "Extra usage on",
+    "overageBlocks": "{{count}} of {{cap}} blocks this month · {{amount}}",
+    "overageBlocksNone": "No extra blocks used this month yet",
+    "capLabel": "Max blocks per month",
+    "disable": "Turn off extra usage",
+    "economyActive": "Economy mode",
+    "economyDesc": "Arthur keeps answering with a lighter model until {{date}}. No extra cost.",
+    "capReached": "You reached your extra-usage limit. Arthur keeps answering in economy mode until {{date}}.",
+    "activateOnWeb": "To turn on extra usage, go to nuvosai.com in your browser. Nothing is charged here.",
+    "notChargeable": "Extra usage is available with a card-paid Premium subscription.",
+    "saving": "Saving...",
+    "perBlock": "per block",
+    "enable": "Turn on extra usage"
   }
 }

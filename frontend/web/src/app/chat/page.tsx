@@ -16,6 +16,7 @@ import { usePortfolioStore, useCombinedPositions } from "@/lib/portfolioStore";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
+import UsageMeterCard from "@/components/UsageMeterCard";
 import { useUpsellStore } from "@/lib/upsellStore";
 import TutorialModal from "@/components/TutorialModal";
 import PremiumBadge from "@/components/PremiumBadge";
@@ -1361,6 +1362,14 @@ export default function ChatPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Uso extra choice — only while it's pending (reached the included
+              usage and hasn't chosen yet). Arthur keeps answering either way. */}
+          {isAuthenticated && isPremium && !isGuestUser() && (
+            <div className="shrink-0 px-4 pt-3 max-w-3xl mx-auto w-full">
+              <UsageMeterCard variant="banner" refreshKey={isStreaming ? -1 : messages.length} />
             </div>
           )}
 

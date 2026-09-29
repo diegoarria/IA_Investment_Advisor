@@ -15,6 +15,7 @@ import { getMentorInfo } from "../../src/lib/mentorData";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
 import PaywallModal from "../../src/components/PaywallModal";
+import UsageMeterCard from "../../src/components/UsageMeterCard";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, billingApi, voiceCallsApi, wrappedApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -1271,6 +1272,16 @@ if (!profile) {
             </View>
           </View>
         </View>
+
+        {/* ── USO DE TU PLAN / USO EXTRA (Diego, 2026-09-29) ── */}
+        {isPremium && (
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
+              <Text style={[s.sectionTitle, { color: colors.text }]}>{t("usage.title")}</Text>
+            </View>
+            <UsageMeterCard />
+          </View>
+        )}
 
         {/* ── PANTALLA DE INICIO ── */}
         <View style={s.section}>

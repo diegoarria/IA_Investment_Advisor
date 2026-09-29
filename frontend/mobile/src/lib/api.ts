@@ -260,7 +260,30 @@ export const notificationsApi = {
   getMorningBrief: () => api.get("/api/notifications/morning-brief"),
 };
 
+export interface UsageSummary {
+  period: string;
+  month_cost_usd: number;
+  included_usd: number;
+  pct_used: number;
+  reached_included: boolean;
+  opted_in: boolean;
+  declined: boolean;
+  decided: boolean;
+  cap_blocks: number;
+  blocks_used: number;
+  block_price: number;
+  currency: "usd" | "mxn";
+  extra_charge: number;
+  can_opt_in: boolean;
+  mode: "included" | "overage" | "economy";
+  resets_at: string;
+}
+
 export const billingApi = {
+  // Uso extra (usage-based overage) — see backend app/services/usage_overage.py.
+  getUsage: () => api.get<UsageSummary>("/api/billing/usage"),
+  setOverage: (enabled: boolean, capBlocks?: number) =>
+    api.post<UsageSummary>("/api/billing/usage/overage", { enabled, cap_blocks: capBlocks ?? null }),
   createCheckout: (plan: "monthly" | "yearly" = "monthly") => api.post("/api/billing/create-checkout", { plan }),
   getStatus: () => api.get("/api/billing/status"),
   getPricing: () => api.get("/api/billing/pricing"),

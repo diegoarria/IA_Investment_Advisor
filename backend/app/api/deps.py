@@ -52,6 +52,10 @@ async def get_current_user_id(
     access_token: str | None = Cookie(default=None),
 ) -> str:
     user = await _resolve_user_token(_extract_token(authorization, access_token))
+    # Attribute every LLM call made while serving this request to the user
+    # (see app/core/request_context.py).
+    from app.core.request_context import current_user_id
+    current_user_id.set(user["id"])
     return user["id"]
 
 
@@ -60,4 +64,7 @@ async def get_current_user(
     access_token: str | None = Cookie(default=None),
 ) -> dict:
     """Returns {'id': str, 'email': str | None}."""
-    return await _resolve_user_token(_extract_token(authorization, access_token))
+    user = await _resolve_user_token(_extract_token(authorization, access_token))
+    from app.core.request_context import current_user_id
+    current_user_id.set(user["id"])
+    return user
