@@ -26,11 +26,11 @@ export default function PremiumBadge() {
     return (
       <button
         onClick={() => router.push("/?auth=1")}
-        className="flex items-center gap-1 px-2.5 py-1 rounded-lg transition-opacity hover:opacity-80"
-        style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}
+        className="shrink-0 flex items-center gap-1 px-3.5 py-2 rounded-full transition-opacity hover:opacity-90"
+        style={{ background: "#00D47E", boxShadow: "0 6px 16px -8px rgba(0,212,126,0.8)" }}
         title={t("premiumBadge.login")}
       >
-        <span style={{ fontSize: 9, fontWeight: 800, color: "#818cf8", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: "#06120D", whiteSpace: "nowrap" }}>
           {t("premiumBadge.login")}
         </span>
       </button>

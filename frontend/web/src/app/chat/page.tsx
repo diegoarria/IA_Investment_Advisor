@@ -771,7 +771,11 @@ export default function ChatPage() {
   const accentCol = mentor?.color ?? "var(--accent-l)";
 
   return (
-    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
+    // 100dvh (not h-full): in phone browsers / in-app browsers (Instagram)
+    // 100% resolves to the *large* viewport, so the page was taller than
+    // what's visible and iOS scrolled it up, hiding the header (and its
+    // "Iniciar sesión" button) under the browser bar.
+    <div className="h-[100dvh] flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
 
       <MarketTickerBar />
 
@@ -792,22 +796,22 @@ export default function ChatPage() {
 
           {/* Page-specific controls — new chat / remaining free messages /
               Premium badge — inline in content, not a shared header. */}
-          <div className="shrink-0 flex items-center justify-end gap-2 pl-12 pr-4 lg:pl-8 md:pr-8 py-3 border-b"
+          <div className="shrink-0 flex items-center justify-end gap-2 pl-11 pr-3 lg:pl-8 md:pr-8 py-2.5 md:py-3 border-b"
                style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
             {/* Arthur identity + online status (redesign 2026-09-28) */}
             <div className="flex items-center gap-3 mr-auto min-w-0">
               <div className="relative shrink-0">
                 {mentor ? (
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-extrabold"
+                  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm font-extrabold"
                        style={{ background: mentor.color + "22", color: mentor.color }}>{mentor.name.charAt(0)}</div>
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src="/mentors/arthur.jpg" alt="Arthur" className="w-10 h-10 rounded-full object-cover" />
+                  <img src="/mentors/arthur.jpg" alt="Arthur" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover" />
                 )}
                 <span className="absolute -right-0.5 -bottom-0.5 w-3.5 h-3.5 rounded-full border-[2.5px]" style={{ background: "#22c55e", borderColor: "var(--bg)" }} />
               </div>
               <div className="min-w-0">
-                <p className="text-[15.5px] font-extrabold tracking-tight leading-tight truncate" style={{ color: "var(--text)" }}>
+                <p className="text-[15px] md:text-[15.5px] font-extrabold tracking-tight leading-tight truncate" style={{ color: "var(--text)" }}>
                   {mentor ? mentor.name : t("chat.mentorFallbackName")}
                 </p>
                 <p className="text-xs font-semibold truncate" style={{ color: "var(--accent-l)" }}>{mentor ? mentor.badge : t("chat.online")}</p>
@@ -821,10 +825,11 @@ export default function ChatPage() {
               </span>
             )}
             <button onClick={() => { createSession(); }}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-[13px] font-bold transition-opacity hover:opacity-80"
+                    aria-label={t("chat.newChat")}
+                    className="shrink-0 flex items-center gap-1.5 w-9 h-9 md:w-auto md:h-auto justify-center md:px-3.5 md:py-2 rounded-full border text-[13px] font-bold transition-opacity hover:opacity-80"
                     style={{ color: "var(--accent-l)", borderColor: "rgba(0,185,109,0.35)", background: "rgba(0,185,109,0.10)" }}>
-              <Plus className="w-3.5 h-3.5" />
-              {t("chat.newChat")}
+              <Plus className="w-4 h-4 md:w-3.5 md:h-3.5" />
+              <span className="hidden md:inline">{t("chat.newChat")}</span>
             </button>
             <PremiumBadge />
           </div>
@@ -1400,6 +1405,7 @@ export default function ChatPage() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
+                    onBlur={() => { if (window.scrollY !== 0) window.scrollTo(0, 0); }}
                     placeholder={
                       remaining === 0 && !isPremium
                         ? t("chat.placeholderLimitReached")
