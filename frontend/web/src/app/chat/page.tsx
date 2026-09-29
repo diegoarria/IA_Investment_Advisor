@@ -791,7 +791,10 @@ export default function ChatPage() {
     // 100% resolves to the *large* viewport, so the page was taller than
     // what's visible and iOS scrolled it up, hiding the header (and its
     // "Iniciar sesión" button) under the browser bar.
-    <div className="h-[100dvh] flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
+    // fixed inset-0: pins the screen to exactly the visible area on every
+    // phone browser (Safari, Instagram…) so the composer sits right on the
+    // bottom edge — no dead space under it, no header pushed off the top.
+    <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
 
       <MarketTickerBar />
 
@@ -1347,8 +1350,8 @@ export default function ChatPage() {
           )}
 
           {/* ─── Input bar ─────────────────────────────────────────────────── */}
-          <div className="shrink-0 px-4 pb-4 pt-3"
-               style={{ borderTop: "1px solid var(--border)", background: "var(--bg)" }}>
+          <div className="shrink-0 px-3 md:px-4 pt-2.5 md:pt-3"
+               style={{ borderTop: "1px solid var(--border)", background: "var(--bg)", paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}>
 
             {/* Paywall banner */}
             {remaining === 0 && !isPremium && (
@@ -1499,7 +1502,7 @@ export default function ChatPage() {
                 </div>
               </div>
 
-              <p className="text-center text-[11px] mt-2.5" style={{ color: "var(--muted)" }}>
+              <p className="hidden md:block text-center text-[11px] mt-2.5" style={{ color: "var(--muted)" }}>
                 {t("chat.eduFooter")}
               </p>
             </div>
