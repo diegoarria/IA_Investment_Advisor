@@ -420,8 +420,8 @@ export default function ProductsPage() {
               2026-09-15 from a real screenshot of this exact flow. Same
               fix as UpsellModal/PricingModal's checkout branches. */}
           <div
-            className={`w-full rounded-2xl shadow-2xl overflow-y-auto ${checkoutSummary ? "max-w-2xl" : "max-w-md"}`}
-            style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "90vh", minHeight: 0, WebkitOverflowScrolling: "touch" }}
+            className={`w-full rounded-[24px] shadow-2xl overflow-y-auto ${checkoutSummary ? "max-w-2xl" : "max-w-md"}`}
+            style={{ background: "var(--bg)", border: "1px solid rgba(0,212,126,0.3)", maxHeight: "90vh", minHeight: 0, WebkitOverflowScrolling: "touch" }}
           >
             <div className="pt-5">
               <EmbeddedCheckout

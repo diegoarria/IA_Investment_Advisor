@@ -36,36 +36,51 @@ export interface CheckoutSummary {
   accentColor: string;
 }
 
+// Redesign 2026-09-28 — same look as the Products page: emerald gradient
+// header (plan + price) over a clean features list and totals.
 export function OrderSummary({ summary }: { summary: CheckoutSummary }) {
   const { t } = useTranslation();
   return (
-    <div className="order-first sm:order-last rounded-2xl border p-5 h-fit" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-      <p className="text-xs font-bold mb-3" style={{ color: "var(--sub)" }}>{t("pricingModal.orderSummary")}</p>
-      <p className="text-base font-black mb-3" style={{ color: "var(--text)" }}>{summary.planName}</p>
-
-      <div className="space-y-2 mb-4">
-        {summary.features.slice(0, 5).map((f, i) => (
-          <div key={i} className="flex items-start gap-2">
-            <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: summary.accentColor }} />
-            <span className="text-xs" style={{ color: "var(--muted)" }}>{f}</span>
-          </div>
-        ))}
+    <div className="order-first sm:order-last rounded-[20px] border overflow-hidden h-fit" style={{ background: "var(--card)", borderColor: "rgba(0,212,126,0.35)" }}>
+      <div className="relative overflow-hidden p-5" style={{ background: "linear-gradient(135deg, #0F3326 0%, #0A1C1D 55%, #080E16 100%)" }}>
+        <div aria-hidden className="pointer-events-none absolute -top-16 -right-12 w-44 h-44 rounded-full"
+             style={{ background: "radial-gradient(circle, rgba(0,232,135,0.22), transparent 70%)" }} />
+        <p className="relative text-[10.5px] font-extrabold uppercase tracking-[1.2px]" style={{ color: "rgba(255,255,255,0.6)" }}>{t("pricingModal.orderSummary")}</p>
+        <p className="relative text-[17px] font-extrabold tracking-tight text-white mt-1.5 leading-snug">{summary.planName}</p>
+        <p className="relative mt-2 flex items-baseline gap-1">
+          <span className="text-[28px] font-extrabold tracking-[-0.8px] leading-none text-white">{summary.priceLabel}</span>
+          {summary.priceSuffix && <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>{summary.priceSuffix}</span>}
+        </p>
       </div>
 
-      <div className="pt-3 border-t space-y-1.5" style={{ borderColor: "var(--border)" }}>
-        <div className="flex items-center justify-between text-sm">
-          <span style={{ color: "var(--muted)" }}>{summary.planName}</span>
-          <span style={{ color: "var(--text)" }}>{summary.priceLabel}{summary.priceSuffix}</span>
+      <div className="p-5">
+        <div className="space-y-2.5 mb-4">
+          {summary.features.slice(0, 5).map((f, i) => (
+            <div key={i} className="flex items-start gap-2.5">
+              <span className="w-[18px] h-[18px] rounded-full flex items-center justify-center shrink-0 mt-px"
+                    style={{ background: `color-mix(in srgb, ${summary.accentColor} 18%, transparent)` }}>
+                <Check className="w-3 h-3" style={{ color: summary.accentColor }} strokeWidth={3} />
+              </span>
+              <span className="text-[13px] leading-5" style={{ color: "var(--sub)" }}>{f}</span>
+            </div>
+          ))}
         </div>
-        {summary.billingNote && (
-          <p className="text-[11px]" style={{ color: "var(--dim)" }}>{summary.billingNote}</p>
-        )}
-        {summary.savingsNote && (
-          <p className="text-[11px]" style={{ color: summary.accentColor }}>{summary.savingsNote}</p>
-        )}
-        <div className="flex items-center justify-between text-sm font-black pt-2 mt-1 border-t" style={{ borderColor: "var(--border)" }}>
-          <span style={{ color: "var(--text)" }}>{t("pricingModal.dueToday")}</span>
-          <span style={{ color: "var(--text)" }}>{summary.dueTodayLabel}</span>
+
+        <div className="pt-3.5 border-t space-y-1.5" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center justify-between gap-3 text-[13px]">
+            <span className="truncate" style={{ color: "var(--muted)" }}>{summary.planName}</span>
+            <span className="shrink-0" style={{ color: "var(--text)" }}>{summary.priceLabel}{summary.priceSuffix}</span>
+          </div>
+          {summary.billingNote && (
+            <p className="text-[11.5px]" style={{ color: "var(--muted)" }}>{summary.billingNote}</p>
+          )}
+          {summary.savingsNote && (
+            <p className="text-[11.5px] font-semibold" style={{ color: summary.accentColor }}>{summary.savingsNote}</p>
+          )}
+          <div className="flex items-center justify-between text-[15px] font-extrabold pt-2.5 mt-1.5 border-t" style={{ borderColor: "var(--border)" }}>
+            <span style={{ color: "var(--text)" }}>{t("pricingModal.dueToday")}</span>
+            <span style={{ color: "var(--accent-l)" }}>{summary.dueTodayLabel}</span>
+          </div>
         </div>
       </div>
     </div>
