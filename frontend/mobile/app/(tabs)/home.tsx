@@ -1213,20 +1213,37 @@ export default function HomeScreen() {
           snapToAlignment="start"
           contentContainerStyle={{ paddingLeft: 16, paddingRight: 8, gap: 10, flexDirection: "row", marginTop: 16 }}
         >
-        {/* ── Portfolio Hero Card ──────────────────────────────────────────── */}
+        {/* ── Portfolio Hero Card — polished 2026-09-28: same layout as the
+            original (label + value left, today's badge right, three stat
+            columns), with a subtle brand-green gradient, higher-contrast
+            labels (textSub instead of textMuted), a bordered badge and the
+            stats in an inset panel so every number reads clearly. ── */}
         <TouchableOpacity
           activeOpacity={0.92}
           onPress={() => router.navigate("/(tabs)/portfolio")}
-          style={[ss.heroCard, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 0, marginTop: 0, width: W - 48 }]}
+          style={[ss.heroCard, {
+            backgroundColor: colors.card, borderColor: colors.accent + "40",
+            marginHorizontal: 0, marginTop: 0, width: W - 48,
+            shadowColor: colors.accent,
+          }]}
         >
+          <ExpoLinearGradient
+            colors={[colors.accent + "24", colors.accent + "08", colors.card]}
+            locations={[0, 0.45, 1]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View pointerEvents="none" style={[ss.heroGlow, { backgroundColor: colors.accentLight + "14" }]} />
+
           <View style={ss.heroTop}>
             <View style={{ flexShrink: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={[ss.heroLabel, { color: colors.textMuted }]}>{t("home.portfolio.label")}</Text>
-                <View style={{ backgroundColor: colors.bgRaised ?? colors.card, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
-                  <Text style={{ fontSize: 9, fontWeight: "900", color: colors.textMuted, letterSpacing: 0.8 }}>{portfolioCurrency}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                <View style={[ss.heroDot, { backgroundColor: colors.accentLight }]} />
+                <Text style={[ss.heroLabel, { color: colors.textSub }]}>{t("home.portfolio.label")}</Text>
+                <View style={[ss.heroCcy, { borderColor: colors.border, backgroundColor: colors.bg + "99" }]}>
+                  <Text style={[ss.heroCcyText, { color: colors.textSub }]}>{portfolioCurrency}</Text>
                 </View>
-                <BalanceVisibilityToggle color={colors.textMuted} size={14} />
+                <BalanceVisibilityToggle color={colors.textSub} size={15} />
               </View>
               {loading
                 ? <Skeleton w={160} h={36} r={8} />
@@ -1240,7 +1257,7 @@ export default function HomeScreen() {
                   </Text>
               }
               {!balanceHidden && (cashTotalUSD > 0 || dividendTotalUSD > 0) && (
-                <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }} numberOfLines={1}>
+                <Text style={{ fontSize: 11, color: colors.textSub, marginTop: 3 }} numberOfLines={1}>
                   {[
                     cashTotalUSD > 0 ? `${fmt(cashTotalUSD * fxRate, portfolioCurrency)} en efectivo` : null,
                     dividendTotalUSD > 0 ? `${fmt(dividendTotalUSD * fxRate, portfolioCurrency)} en dividendos recibidos` : null,
@@ -1249,7 +1266,8 @@ export default function HomeScreen() {
               )}
             </View>
             <View style={[ss.heroGainBadge, {
-              backgroundColor: dayGain >= 0 ? colors.up + "18" : colors.down + "18",
+              backgroundColor: (dayGain >= 0 ? colors.up : colors.down) + "1F",
+              borderColor: (dayGain >= 0 ? colors.up : colors.down) + "59",
             }]}>
               <Ionicons
                 name={dayGain >= 0 ? "trending-up" : "trending-down"}
@@ -1265,67 +1283,39 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {!loading && (
-            <View style={ss.heroStats}>
-              {/* Hoy */}
-              <View style={ss.heroStat}>
-                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>{t("home.portfolio.today")}</Text>
-                <Text style={{ fontSize: 15, fontWeight: "800", color: dayGain >= 0 ? colors.up : colors.down }}>
-                  {fmtPct(dayGainPct)}
-                </Text>
-                <Text style={[ss.heroStatVal, { color: dayGain >= 0 ? colors.up : colors.down }]}>
-                  {mask(`${dayGain >= 0 ? "+" : ""}${fmt(dayGain * fxRate, portfolioCurrency)}`)}
-                </Text>
+          {!loading && positions.length > 0 && (() => {
+            const cols: { label: string; pct: number | null; amt: number | null }[] = [
+              { label: t("home.portfolio.today"), pct: dayGainPct, amt: dayGain },
+              { label: isPremium ? "YTD" : "5D", pct: ytdGain !== null ? (ytdPct ?? 0) : null, amt: ytdGain },
+              isPremium
+                ? { label: "Total", pct: maxGain !== null ? (maxPct ?? 0) : null, amt: maxGain }
+                : { label: "1M", pct: shortGain !== null ? (shortPct ?? 0) : null, amt: shortGain },
+            ];
+            return (
+              <View style={[ss.heroStats, { backgroundColor: colors.bg + "B3", borderColor: colors.border }]}>
+                {cols.map((c, i) => {
+                  const pos = (c.amt ?? 0) >= 0;
+                  return (
+                    <React.Fragment key={c.label}>
+                      {i > 0 && <View style={[ss.heroDivider, { backgroundColor: colors.border }]} />}
+                      <View style={ss.heroStat}>
+                        <Text style={[ss.heroStatLabel, { color: colors.textSub }]}>{c.label}</Text>
+                        <Text style={[ss.heroStatPct, { color: c.pct === null ? colors.textSub : pos ? colors.up : colors.down }]}
+                              numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                          {c.pct === null ? "—" : fmtPct(c.pct)}
+                        </Text>
+                        {c.amt !== null && (
+                          <Text style={[ss.heroStatVal, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                            {mask(`${pos ? "+" : ""}${fmt(c.amt * fxRate, portfolioCurrency)}`)}
+                          </Text>
+                        )}
+                      </View>
+                    </React.Fragment>
+                  );
+                })}
               </View>
-              <View style={[ss.heroDivider, { backgroundColor: colors.border }]} />
-              {/* YTD (premium) / 5D (free) */}
-              <View style={ss.heroStat}>
-                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>{isPremium ? "YTD" : "5D"}</Text>
-                {ytdGain !== null ? (
-                  <>
-                    <Text style={{ fontSize: 15, fontWeight: "800", color: (ytdPct ?? 0) >= 0 ? colors.up : colors.down }}>
-                      {fmtPct(ytdPct ?? 0)}
-                    </Text>
-                    <Text style={[ss.heroStatVal, { color: (ytdGain ?? 0) >= 0 ? colors.up : colors.down }]}>
-                      {mask(`${(ytdGain ?? 0) >= 0 ? "+" : ""}${fmt((ytdGain ?? 0) * fxRate, portfolioCurrency)}`)}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={[ss.heroStatVal, { color: colors.textMuted }]}>—</Text>
-                )}
-              </View>
-              <View style={[ss.heroDivider, { backgroundColor: colors.border }]} />
-              {/* Total (premium) / 1M (free) */}
-              <View style={ss.heroStat}>
-                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>{isPremium ? "Total" : "1M"}</Text>
-                {isPremium ? (
-                  maxGain !== null ? (
-                    <>
-                      <Text style={{ fontSize: 15, fontWeight: "800", color: (maxPct ?? 0) >= 0 ? colors.up : colors.down }}>
-                        {fmtPct(maxPct ?? 0)}
-                      </Text>
-                      <Text style={[ss.heroStatVal, { color: maxGain >= 0 ? colors.up : colors.down }]}>
-                        {mask(`${maxGain >= 0 ? "+" : ""}${fmt(maxGain * fxRate, portfolioCurrency)}`)}
-                      </Text>
-                    </>
-                  ) : (
-                    <Text style={[ss.heroStatVal, { color: colors.textMuted }]}>—</Text>
-                  )
-                ) : shortGain !== null ? (
-                  <>
-                    <Text style={{ fontSize: 15, fontWeight: "800", color: (shortPct ?? 0) >= 0 ? colors.up : colors.down }}>
-                      {fmtPct(shortPct ?? 0)}
-                    </Text>
-                    <Text style={[ss.heroStatVal, { color: (shortGain ?? 0) >= 0 ? colors.up : colors.down }]}>
-                      {mask(`${(shortGain ?? 0) >= 0 ? "+" : ""}${fmt((shortGain ?? 0) * fxRate, portfolioCurrency)}`)}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={[ss.heroStatVal, { color: colors.textMuted }]}>—</Text>
-                )}
-              </View>
-            </View>
-          )}
+            );
+          })()}
 
           {!positions.length && !loading && (
             <View style={[ss.emptyPortfolio, { borderColor: colors.border, gap: 10 }]}>
@@ -1354,10 +1344,6 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* Chevron hint */}
-          <View style={ss.heroChevron}>
-            <Ionicons name="chevron-forward" size={14} color={colors.textDim} />
-          </View>
         </TouchableOpacity>
 
 
@@ -2149,23 +2135,31 @@ const ss = StyleSheet.create({
   // Hero card
   heroCard: {
     marginHorizontal: 16, marginTop: 16,
-    borderRadius: 20, borderWidth: 1,
-    padding: 20,
+    borderRadius: 22, borderWidth: 1,
+    padding: 20, overflow: "hidden",
+    shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 6,
   },
+  heroGlow: { position: "absolute", top: -90, right: -70, width: 200, height: 200, borderRadius: 100 },
   heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  heroLabel:    { fontSize: 13, fontWeight: "500", marginBottom: 6 },
+  heroDot:      { width: 6, height: 6, borderRadius: 3 },
+  heroLabel:    { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1 },
+  heroCcy:      { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
+  heroCcyText:  { fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
   heroBalance:  { fontSize: 34, fontWeight: "800", letterSpacing: -1 },
   heroGainBadge: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10,
+    flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
   },
-  heroGainText: { fontSize: 13, fontWeight: "700" },
-  heroStats: { flexDirection: "row", marginTop: 16, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#162035" },
+  heroGainText: { fontSize: 13, fontWeight: "800" },
+  heroStats: {
+    flexDirection: "row", marginTop: 18, paddingVertical: 12, paddingHorizontal: 14,
+    borderRadius: 14, borderWidth: 1,
+  },
   heroStat:      { flex: 1 },
-  heroStatLabel: { fontSize: 11, fontWeight: "500", marginBottom: 3 },
-  heroStatVal:   { fontSize: 11, fontWeight: "700" },
-  heroDivider:   { width: 1, marginHorizontal: 16 },
-  heroChevron:   { position: "absolute", right: 14, top: "50%" },
+  heroStatLabel: { fontSize: 10.5, fontWeight: "700", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.8 },
+  heroStatPct:   { fontSize: 15, fontWeight: "800", letterSpacing: -0.2 },
+  heroStatVal:   { fontSize: 11.5, fontWeight: "600", marginTop: 1 },
+  heroDivider:   { width: StyleSheet.hairlineWidth, marginHorizontal: 12 },
   emptyPortfolio: {
     marginTop: 12, paddingVertical: 14, paddingHorizontal: 14,
     borderRadius: 12, borderWidth: 1, borderStyle: "dashed",
