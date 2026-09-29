@@ -2166,13 +2166,13 @@ const ss = StyleSheet.create({
   },
   heroGainText: { fontSize: 13, fontWeight: "800" },
   heroStats: {
-    flexDirection: "row", marginTop: 18, paddingVertical: 12, paddingHorizontal: 14,
+    flexDirection: "row", marginTop: 18, paddingVertical: 14, paddingHorizontal: 14,
     borderRadius: 14, borderWidth: 1,
   },
   heroStat:      { flex: 1 },
-  heroStatLabel: { fontSize: 10.5, fontWeight: "700", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.8 },
-  heroStatPct:   { fontSize: 15, fontWeight: "800", letterSpacing: -0.2 },
-  heroStatVal:   { fontSize: 11.5, fontWeight: "600", marginTop: 1 },
+  heroStatLabel: { fontSize: 11.5, fontWeight: "700", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.8 },
+  heroStatPct:   { fontSize: 20, fontWeight: "800", letterSpacing: -0.4 },
+  heroStatVal:   { fontSize: 13.5, fontWeight: "600", marginTop: 3 },
   heroDivider:   { width: StyleSheet.hairlineWidth, marginHorizontal: 12 },
   emptyPortfolio: {
     marginTop: 12, paddingVertical: 14, paddingHorizontal: 14,
