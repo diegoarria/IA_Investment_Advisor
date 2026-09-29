@@ -405,8 +405,25 @@ async def delete_connection(
     connection_id: str,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Disconnect a broker."""
+    """Disconnect a broker. For Plaid, the Item is removed at Plaid first
+    (/item/remove) — revokes the access token for real and stops Plaid's
+    per-connected-account monthly billing — then the token is deleted here
+    (docs/SECURITY_POLICY.md §10)."""
     db = get_supabase()
+    res = await run_query(
+        db.table("brokerage_connections").select("provider, access_token")
+        .eq("id", connection_id).eq("user_id", user_id).limit(1)
+    )
+    row = (res.data or [None])[0]
+    if row and row.get("provider") == "plaid" and row.get("access_token"):
+        try:
+            from plaid.model.item_remove_request import ItemRemoveRequest
+            client = _get_plaid_client()
+            await asyncio.to_thread(lambda: client.item_remove(ItemRemoveRequest(access_token=row["access_token"])))
+        except Exception as e:
+            # Still delete locally — the user asked to disconnect; log so an
+            # orphaned Item can be cleaned up from the Plaid dashboard.
+            logger.warning("Plaid item_remove failed for connection %s: %s", connection_id, e)
     await run_query(
         db.table("brokerage_connections")
         .delete()
