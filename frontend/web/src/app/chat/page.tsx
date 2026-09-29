@@ -175,6 +175,14 @@ export default function ChatPage() {
   // Distinct holdings, not purchase lots — buying more of a ticker you
   // already own shouldn't inflate this count.
   const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
+  // Arthur's opening message + starter questions depend on where the user
+  // is (Diego, 2026-09-28): guest / no portfolio / portfolio / advanced
+  // (many positions, or advanced level with a portfolio).
+  const welcomeSegment: "guest" | "starter" | "portfolio" | "advanced" =
+    !isAuthenticated || isGuestUser() ? "guest"
+    : distinctPositionsCount === 0 ? "starter"
+    : distinctPositionsCount >= 8 || (getUserLevel(profile) === "avanzado" && distinctPositionsCount >= 3) ? "advanced"
+    : "portfolio";
   const upsellTrigger = useUpsellStore((s) => s.trigger);
   const mentor = getMentorInfo(profile?.mentor);
   const cancelRef = useRef({ cancelled: false });
@@ -861,7 +869,7 @@ export default function ChatPage() {
                     </div>
 
                     <h2 className="text-[30px] sm:text-[34px] font-extrabold tracking-[-1px] leading-tight text-white">
-                      {mentor ? mentor.name : profile?.name ? t("chat.welcome.hello", { name: profile.name.split(" ")[0] }) : t("chat.welcome.helloNoName")}
+                      {mentor ? mentor.name : welcomeSegment !== "guest" && profile?.name ? t("chat.welcome.hello", { name: profile.name.split(" ")[0] }) : t("chat.welcome.helloNoName")}
                     </h2>
                     {mentor && (
                       <p className="text-[15px] font-bold mt-2 max-w-md mx-auto leading-snug text-white">{mentor.title}</p>
@@ -882,12 +890,7 @@ export default function ChatPage() {
                     {!mentor && (
                       <>
                         <p className="text-[20px] font-extrabold tracking-tight mt-2" style={{ color: "#00D47E" }}>{t("chat.welcome.iam")}</p>
-                        <p className="text-[16.5px] font-extrabold text-white mt-1.5 max-w-md mx-auto leading-snug">{t("chat.welcome.tagline")}</p>
-                        <p className="text-[14.5px] leading-relaxed max-w-md mx-auto mt-2.5" style={{ color: "rgba(255,255,255,0.72)" }}>{t("chat.welcome.body")}</p>
-                        <span className="inline-flex items-center gap-1.5 mt-5 px-3.5 py-2 rounded-full border text-[13.5px] font-extrabold"
-                              style={{ background: "rgba(0,212,126,0.14)", borderColor: "rgba(0,212,126,0.4)", color: "#00D47E" }}>
-                          <ShieldCheck className="w-4 h-4" />{t("chat.welcome.decision")}
-                        </span>
+                        <p className="text-[16.5px] font-extrabold text-white mt-1.5 max-w-md mx-auto leading-snug">{t(`chat.welcome.segments.${welcomeSegment}.line`)}</p>
                       </>
                     )}
 
@@ -932,22 +935,25 @@ export default function ChatPage() {
                     <span className="w-7 h-7 rounded-[9px] flex items-center justify-center" style={{ background: "rgba(0,185,109,0.12)" }}>
                       <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
                     </span>
-                    {t("chat.welcome.analyzeTitle")}
+                    {t(`chat.welcome.segments.${welcomeSegment}.question`)}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {(t("chat.welcome.cats", { returnObjects: true }) as { emoji: string; label: string }[]).map((c, ci) => (
-                      <button key={ci} onClick={() => sendMessage(c.label)}
+                    {(t(`chat.welcome.segments.${welcomeSegment}.items`, { returnObjects: true }) as string[]).map((q, ci) => {
+                      const QIcon = SUGGESTION_ICONS[ci % SUGGESTION_ICONS.length];
+                      return (
+                      <button key={ci} onClick={() => sendMessage(q)}
                               className="text-left p-4 rounded-[18px] border transition-all hover:-translate-y-0.5 group flex items-center gap-3.5"
                               style={{ background: "var(--card)", borderColor: "var(--border)" }}
                               onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = accentCol + "80"; }}
                               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}>
-                        <span className="w-11 h-11 rounded-[12px] flex items-center justify-center shrink-0 text-xl" style={{ background: "rgba(0,185,109,0.12)" }}>
-                          {c.emoji}
+                        <span className="w-11 h-11 rounded-[12px] flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.12)" }}>
+                          <QIcon className="w-[18px] h-[18px]" style={{ color: "var(--accent-l)" }} />
                         </span>
-                        <span className="flex-1 min-w-0 text-[15px] font-bold tracking-tight" style={{ color: "var(--text)" }}>{c.label}</span>
+                        <span className="flex-1 min-w-0 text-[14.5px] font-bold leading-snug" style={{ color: "var(--text)" }}>{q}</span>
                         <ArrowRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--accent-l)" }} />
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>

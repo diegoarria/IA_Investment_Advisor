@@ -165,6 +165,14 @@ export default function ChatScreen() {
   // Distinct holdings, not purchase lots — buying more of a ticker you
   // already own shouldn't inflate this count.
   const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
+  // Arthur's opening message + starter questions depend on where the user
+  // is (Diego, 2026-09-28): no profile yet / no portfolio / portfolio /
+  // advanced (many positions, or advanced level with a portfolio).
+  const welcomeSegment: "guest" | "starter" | "portfolio" | "advanced" =
+    !profile ? "guest"
+    : distinctPositionsCount === 0 ? "starter"
+    : distinctPositionsCount >= 8 || (getUserLevel(profile) === "avanzado" && distinctPositionsCount >= 3) ? "advanced"
+    : "portfolio";
 
   const subStore = useSubscriptionStore();
   const { activeOffer, userTier: upsellTier, prices: upsellPrices, triggerSource: upsellSource, trigger: upsellTrigger, dismiss: upsellDismiss } = useUpsellStore();
@@ -940,7 +948,7 @@ Instrucciones críticas:
                   </View>
 
                   <Text style={styles.heroTitle}>
-                    {mentor ? mentor.name : profile?.name ? t("chat.welcome.hello", { name: profile.name.split(" ")[0] }) : t("chat.welcome.helloNoName")}
+                    {mentor ? mentor.name : welcomeSegment !== "guest" && profile?.name ? t("chat.welcome.hello", { name: profile.name.split(" ")[0] }) : t("chat.welcome.helloNoName")}
                   </Text>
                   {mentor ? (
                     <Text style={styles.heroSub}>{mentor.title}</Text>
@@ -948,12 +956,7 @@ Instrucciones críticas:
                     // Diego, 2026-09-28 — Arthur's opening message, verbatim.
                     <>
                       <Text style={styles.heroIam}>{t("chat.welcome.iam")}</Text>
-                      <Text style={styles.heroTagline}>{t("chat.welcome.tagline")}</Text>
-                      <Text style={styles.heroDetail}>{t("chat.welcome.body")}</Text>
-                      <View style={[styles.heroDecision, { alignSelf: "center" }]}>
-                        <Ionicons name="shield-checkmark" size={14} color="#00D47E" />
-                        <Text style={styles.heroDecisionText}>{t("chat.welcome.decision")}</Text>
-                      </View>
+                      <Text style={styles.heroTagline}>{t(`chat.welcome.segments.${welcomeSegment}.line`)}</Text>
                     </>
                   )}
 
@@ -1003,20 +1006,20 @@ Instrucciones críticas:
                 <View style={[styles.suggestHeaderIcon, { backgroundColor: colors.accent + "1A" }]}>
                   <Ionicons name="sparkles" size={13} color={colors.accentLight} />
                 </View>
-                <Text style={[styles.suggestLabel, { color: colors.text }]}>{t("chat.welcome.analyzeTitle")}</Text>
+                <Text style={[styles.suggestLabel, { color: colors.text, flexShrink: 1 }]}>{t(`chat.welcome.segments.${welcomeSegment}.question`)}</Text>
               </View>
               <View style={styles.suggestGrid}>
-                {(t("chat.welcome.cats", { returnObjects: true }) as { emoji: string; label: string }[]).map((c, i) => (
+                {(t(`chat.welcome.segments.${welcomeSegment}.items`, { returnObjects: true }) as string[]).map((q, i) => (
                   <TouchableOpacity
                     key={i}
                     activeOpacity={0.8}
                     style={[styles.suggestCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                    onPress={() => sendMessage(c.label)}
+                    onPress={() => sendMessage(q)}
                   >
                     <View style={[styles.suggestIcon, { backgroundColor: colors.accent + "1A" }]}>
-                      <Text style={{ fontSize: 19 }}>{c.emoji}</Text>
+                      <Ionicons name={SUGGESTION_ICONS[i % SUGGESTION_ICONS.length]} size={17} color={colors.accentLight} />
                     </View>
-                    <Text style={[styles.catLabel, { color: colors.text, flex: 1 }]}>{c.label}</Text>
+                    <Text style={[styles.catLabel, { color: colors.text, flex: 1, fontWeight: "700" }]}>{q}</Text>
                     <Ionicons name="arrow-forward" size={15} color={colors.accentLight} />
                   </TouchableOpacity>
                 ))}

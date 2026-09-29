@@ -2678,28 +2678,49 @@
       "hello": "Hola, {{name}} 👋",
       "helloNoName": "Hola 👋",
       "iam": "Soy Arthur.",
-      "tagline": "Te ayudo a decidir mejor con tu dinero.",
-      "body": "Analizo empresas, tu portafolio y el mercado para explicarte qué está pasando, por qué importa y qué opciones tienes.",
-      "decision": "No decido por ti. La decisión siempre es tuya.",
-      "analyzeTitle": "¿Qué quieres analizar?",
-      "cats": [
-        {
-          "emoji": "📊",
-          "label": "Analiza MSFT vs. GOOGL"
+      "segments": {
+        "guest": {
+          "line": "Te ayudo a entender mejor tu dinero para que puedas decidir con más claridad.",
+          "question": "¿Qué te frena para empezar a invertir?",
+          "items": [
+            "¿No sabes por dónde empezar?",
+            "¿Qué te gustaría entender antes de invertir?",
+            "¿Cómo saber cuánto dinero invertir?",
+            "¿Qué debería considerar antes de poner mi dinero a trabajar?"
+          ]
         },
-        {
-          "emoji": "💼",
-          "label": "Revisa mi portafolio"
+        "starter": {
+          "line": "Estoy aquí para ayudarte a tomar mejores decisiones con tu dinero.",
+          "question": "¿Qué te gustaría entender antes de empezar a invertir?",
+          "items": [
+            "¿Cómo puedo empezar a construir un portafolio?",
+            "¿Qué tipo de inversiones existen?",
+            "¿Cómo evaluar una empresa antes de invertir?",
+            "¿Cómo definir mi nivel de riesgo?"
+          ]
         },
-        {
-          "emoji": "🌎",
-          "label": "¿Qué está moviendo al mercado?"
+        "portfolio": {
+          "line": "Conozco tu portafolio y puedo ayudarte a entender qué está pasando y por qué importa.",
+          "question": "¿Qué quieres analizar hoy?",
+          "items": [
+            "¿Qué riesgos tiene mi portafolio?",
+            "¿Estoy demasiado concentrado en alguna posición?",
+            "¿Cómo están evolucionando mis empresas?",
+            "¿Qué ha cambiado en mis inversiones?",
+            "¿Qué debería vigilar en mi portafolio?"
+          ]
         },
-        {
-          "emoji": "⚖️",
-          "label": "Compara NVDA vs. AMD"
+        "advanced": {
+          "line": "Conozco tu portafolio y puedo ayudarte a entender qué está pasando y por qué importa.",
+          "question": "¿Qué quieres investigar hoy?",
+          "items": [
+            "¿Qué está impulsando los resultados de mis empresas?",
+            "¿Qué riesgos no estoy considerando?",
+            "¿Qué posiciones tienen mayor exposición a un mismo factor?",
+            "¿Qué empresas de mi portafolio están cambiando fundamentalmente?"
+          ]
         }
-      ]
+      }
     }
   },
   "paper": {
