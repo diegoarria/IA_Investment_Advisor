@@ -1240,8 +1240,11 @@ export default function HomeScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flexShrink: 1 }}>
               <View style={[ss.heroDot, { backgroundColor: colors.accentLight }]} />
               <Text style={[ss.heroLabel, { color: colors.textSub }]} numberOfLines={1}>{t("home.portfolio.label")}</Text>
-              <View style={[ss.heroCcy, { borderColor: colors.border, backgroundColor: colors.bg + "99" }]}>
-                <Text style={[ss.heroCcyText, { color: colors.textSub }]}>{portfolioCurrency}</Text>
+              <View style={[ss.heroCcy, { borderColor: colors.accent + "59", backgroundColor: colors.accent + "1A" }]}>
+                <View style={[ss.heroCcySym, { backgroundColor: colors.accentLight }]}>
+                  <Text style={[ss.heroCcySymText, { color: colors.bg }]}>{sym}</Text>
+                </View>
+                <Text style={[ss.heroCcyText, { color: colors.accentLight }]}>{portfolioCurrency}</Text>
               </View>
               <BalanceVisibilityToggle color={colors.textSub} size={15} />
             </View>
@@ -2155,8 +2158,10 @@ const ss = StyleSheet.create({
   heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   heroDot:      { width: 6, height: 6, borderRadius: 3 },
   heroLabel:    { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1 },
-  heroCcy:      { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
-  heroCcyText:  { fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
+  heroCcy:      { flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 3, paddingRight: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1 },
+  heroCcySym:   { minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3, alignItems: "center", justifyContent: "center" },
+  heroCcySymText: { fontSize: 10, fontWeight: "900" },
+  heroCcyText:  { fontSize: 11, fontWeight: "800", letterSpacing: 0.8 },
   heroBalance:  { fontSize: 44, fontWeight: "800", letterSpacing: -1.5, marginTop: 14 },
   heroExtraRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   heroExtraText: { fontSize: 13, fontWeight: "500", flexShrink: 1 },
