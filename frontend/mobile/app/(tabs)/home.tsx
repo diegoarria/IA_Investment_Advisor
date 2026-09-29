@@ -170,9 +170,7 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
                   {displayPrice != null
                     ? idx.symbol === "^VIX"
                       ? displayPrice.toFixed(2)
-                      : displayPrice >= 10000
-                        ? displayPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })
-                        : displayPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : displayPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                     : "—"}
                 </Text>
                 <View style={[idxMStyles.changePill, { backgroundColor: col + "18" }]}>
@@ -1505,12 +1503,8 @@ export default function HomeScreen() {
                         )}
                       </View>
                       {displayPrice != null && (
-                        <Text style={[ss.idxPrice, { color: colors.text }]}>
-                          {displayPrice >= 10000
-                            ? displayPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })
-                            : displayPrice >= 1000
-                              ? (displayPrice / 1000).toFixed(1) + "K"
-                              : displayPrice.toFixed(2)}
+                        <Text style={[ss.idxPrice, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                          {displayPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                       )}
                       <View style={{ alignSelf: "flex-start", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: col + "18" }}>
