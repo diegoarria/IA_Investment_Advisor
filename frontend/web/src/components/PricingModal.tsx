@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { X, Check, Lock } from "lucide-react";
+import { X, Check, Lock, Leaf, Gem, Users, Sparkles, CheckCircle2, ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { billing, upsells } from "@/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
@@ -11,6 +11,21 @@ import EmbeddedCheckout, { type CheckoutSummary } from "./EmbeddedCheckout";
 interface Props {
   visible: boolean;
   onClose: () => void;
+}
+
+// Paywall redesign 2026-09-28 — same brand language as the Products page:
+// segmented billing toggle, featured emerald Premium card, indigo Duo card,
+// check-circle features.
+function PlanFeature({ text, tint, textColor, muted }: { text: string; tint: string; textColor: string; muted?: boolean }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="w-[19px] h-[19px] rounded-full border flex items-center justify-center shrink-0 mt-px"
+            style={{ background: muted ? "transparent" : `color-mix(in srgb, ${tint} 18%, transparent)`, borderColor: muted ? `color-mix(in srgb, ${tint} 40%, transparent)` : "transparent" }}>
+        <Check className="w-3 h-3" style={{ color: tint }} strokeWidth={3} />
+      </span>
+      <span className="text-[13.5px] leading-5" style={{ color: textColor }}>{text}</span>
+    </div>
+  );
 }
 
 export default function PricingModal({ visible, onClose }: Props) {
@@ -111,15 +126,20 @@ export default function PricingModal({ visible, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
-      <div className="w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col" style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "90vh" }}>
+      <div className="w-full max-w-5xl rounded-[28px] shadow-2xl flex flex-col overflow-hidden" style={{ background: "var(--bg)", border: "1px solid rgba(0,212,126,0.25)", maxHeight: "92vh" }}>
 
         {/* Header — sticky, always visible */}
-        <div className="relative flex items-center justify-center py-5 px-6 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-          <h1 className="text-xl font-black" style={{ color: "var(--text)" }}>
+        <div className="relative flex items-center justify-center gap-3 py-5 px-14 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+          <span className="hidden sm:flex w-9 h-9 rounded-[11px] items-center justify-center shrink-0" style={{ background: "var(--accent)" }}>
+            <Sparkles className="w-[18px] h-[18px] text-white" />
+          </span>
+          <h1 className="text-xl sm:text-[22px] font-extrabold tracking-tight text-center" style={{ color: "var(--text)" }}>
             {t(alreadyHadTrial ? "pricingModal.titleReturning" : "pricingModal.title")}
           </h1>
-          <button onClick={onClose} aria-label={t("common.close")} className="absolute right-5 top-1/2 -translate-y-1/2 p-2 rounded-xl hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
-            <X className="w-5 h-5" />
+          <button onClick={onClose} aria-label={t("common.close")}
+                  className="absolute right-5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full border flex items-center justify-center transition-colors hover:border-[var(--accent)]"
+                  style={{ color: "var(--sub)", borderColor: "var(--border)", background: "var(--card)" }}>
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -152,158 +172,177 @@ export default function PricingModal({ visible, onClose }: Props) {
           </div>
         ) : (
         <>
-        {/* Plan toggle */}
-        <div className="flex justify-center gap-2 py-4 px-6">
-          {(["monthly", "yearly"] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPlan(p)}
-              className="px-4 py-1.5 rounded-full text-xs font-bold border transition-all"
-              style={{
-                background: plan === p ? "var(--accent)" : "transparent",
-                borderColor: plan === p ? "var(--accent)" : "var(--border)",
-                color: plan === p ? "#000" : "var(--muted)",
-              }}
-            >
-              {p === "monthly" ? t("pricingModal.monthly") : t("pricingModal.yearly")}
-              {p === "yearly" && <span className="ml-1.5 opacity-80">−17%</span>}
-            </button>
-          ))}
+        {/* Plan toggle — segmented control */}
+        <div className="flex justify-center pt-6 pb-5 px-6">
+          <div className="inline-flex p-1 rounded-full border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+            {(["monthly", "yearly"] as const).map((p) => {
+              const active = plan === p;
+              return (
+                <button
+                  key={p}
+                  onClick={() => setPlan(p)}
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-[13px] font-extrabold transition-all"
+                  style={{
+                    background: active ? "#00D47E" : "transparent",
+                    color: active ? "#06120D" : "var(--sub)",
+                    boxShadow: active ? "0 6px 16px -8px rgba(0,212,126,0.8)" : "none",
+                  }}
+                >
+                  {p === "monthly" ? t("pricingModal.monthly") : t("pricingModal.yearly")}
+                  {p === "yearly" && (
+                    <span className="text-[10.5px] font-extrabold px-1.5 py-0.5 rounded-full"
+                          style={{ background: active ? "rgba(6,18,13,0.15)" : "rgba(0,185,109,0.14)", color: active ? "#06120D" : "var(--accent-l)" }}>
+                      −17%
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 px-6 pb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 px-6 pb-6 items-stretch">
 
           {/* Free card */}
-          <div className="rounded-2xl border p-5 flex flex-col" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <p className="text-lg font-black mb-1" style={{ color: "var(--text)" }}>{t("pricingModal.free")}</p>
-            <div className="flex items-baseline gap-1 mb-1">
-              <span className="text-3xl font-black" style={{ color: "var(--text)" }}>$0</span>
-              <span className="text-sm" style={{ color: "var(--muted)" }}>{t("pricingModal.perMonth")}</span>
+          <div className="rounded-[24px] border p-6 flex flex-col" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.10)" }}>
+                <Leaf className="w-[18px] h-[18px]" style={{ color: "var(--accent-l)" }} />
+              </span>
+              <p className="text-lg font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("pricingModal.free")}</p>
             </div>
-            <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>{t("pricingModal.freeTagline")}</p>
+            <div className="flex items-baseline gap-1.5 mt-5">
+              <span className="text-[40px] font-extrabold tracking-[-1.4px] leading-none" style={{ color: "var(--text)" }}>$0</span>
+              <span className="text-[13px] font-semibold" style={{ color: "var(--muted)" }}>{t("pricingModal.perMonth")}</span>
+            </div>
+            <p className="text-[13px] mt-2" style={{ color: "var(--muted)" }}>{t("pricingModal.freeTagline")}</p>
 
             {!isPremium && (
-              <div className="rounded-xl py-2 px-4 text-center text-sm font-bold mb-5" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+              <div className="mt-5 rounded-[14px] py-3 px-4 text-center text-sm font-bold border" style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--sub)" }}>
                 {t("pricingModal.currentPlan")}
               </div>
             )}
 
-            <div className="space-y-2.5 flex-1">
+            <div className="h-px my-5" style={{ background: "var(--border)" }} />
+            <div className="space-y-3 flex-1">
               {FREE_FEATURES.map((f, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "var(--muted)" }} />
-                  <span className="text-xs" style={{ color: "var(--muted)" }}>{f}</span>
-                </div>
+                <PlanFeature key={i} text={f} tint="var(--sub)" textColor="var(--sub)" muted />
               ))}
             </div>
           </div>
 
-          {/* Premium card */}
-          <div className="rounded-2xl border p-5 flex flex-col relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0a1a10 0%, #0d1f15 100%)", borderColor: "rgba(0,212,126,0.35)" }}>
-            {/* Glow */}
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at top right, rgba(0,212,126,0.08) 0%, transparent 60%)" }} />
+          {/* Premium card — featured */}
+          <div className="rounded-[24px] border p-6 flex flex-col relative overflow-hidden md:-my-2"
+               style={{ background: "linear-gradient(160deg, #0F3326 0%, #0A1C1D 50%, #080E16 100%)", borderColor: "rgba(0,212,126,0.5)", boxShadow: "0 26px 60px -28px rgba(0,212,126,0.65)" }}>
+            <div aria-hidden className="absolute -top-24 -right-20 w-72 h-72 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(0,232,135,0.22), transparent 70%)" }} />
 
-            <div className="flex items-center justify-between mb-1 relative">
-              <p className="text-lg font-black" style={{ color: "#fff" }}>{t("pricingModal.premium")}</p>
+            <div className="relative flex items-center gap-3">
+              <span className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0" style={{ background: "#00D47E" }}>
+                <Gem className="w-[18px] h-[18px]" style={{ color: "#06120D" }} />
+              </span>
+              <p className="text-lg font-extrabold tracking-tight text-white">{t("pricingModal.premium")}</p>
             </div>
 
-            <div className="flex items-baseline gap-2 mb-1 relative">
-              <span className="text-3xl font-black text-white">{monthlyPrice}</span>
-              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>{premiumMxn ? "MXN " : ""}{t("pricingModal.perMonthShort")}</span>
+            <div className="relative flex items-baseline gap-1.5 mt-5">
+              <span className="text-[40px] font-extrabold tracking-[-1.4px] leading-none text-white">{monthlyPrice}</span>
+              <span className="text-[13px] font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>{premiumMxn ? "MXN " : ""}{t("pricingModal.perMonthShort")}</span>
             </div>
             {pricing.adaptive && (
-              <p className="text-[11px] mb-1 relative" style={{ color: "rgba(255,255,255,0.55)" }}>{t("pricingModal.adaptiveNote")}</p>
+              <p className="relative text-xs mt-2" style={{ color: "rgba(255,255,255,0.6)" }}>{t("pricingModal.adaptiveNote")}</p>
             )}
-            {plan === "yearly" ? (
+            {plan === "yearly" && (
               <>
-                <p className="text-[11px] relative" style={{ color: "rgba(255,255,255,0.55)" }}>
-                  {t("pricingModal.billedAnnuallyAmount", { amount: "$144.99" })}
+                <p className="relative text-xs mt-2" style={{ color: "rgba(255,255,255,0.6)" }}>
+                  {t("pricingModal.billedAnnuallyAmount", { amount: premiumAnnualTotal })}
                 </p>
-                <p className="text-[10px] mb-3 relative" style={{ color: "#00d47e" }}>{t("pricingModal.premiumSavings")}</p>
+                <p className="relative text-xs font-bold mt-0.5" style={{ color: "#00D47E" }}>{t("pricingModal.premiumSavings")}</p>
               </>
-            ) : (
-              <div className="mb-3" />
             )}
 
             {isPremium && !isDuoOwner ? (
-              <div className="relative rounded-xl py-2.5 px-4 text-center text-sm font-bold mb-5" style={{ background: "rgba(0,212,126,0.12)", border: "1px solid rgba(0,212,126,0.35)", color: "#00d47e" }}>
+              <div className="relative mt-5 inline-flex items-center justify-center gap-2 rounded-[14px] py-3 px-4 text-sm font-extrabold border"
+                   style={{ background: "rgba(0,212,126,0.12)", borderColor: "rgba(0,212,126,0.4)", color: "#00D47E" }}>
+                <CheckCircle2 className="w-4 h-4" />
                 {t("pricingModal.currentPlan")}
               </div>
             ) : (
               <button
                 onClick={() => setCheckoutMode("premium")}
-                className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
-                style={{ background: "#00d47e", color: "#000" }}
+                className="relative mt-5 w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-[14px] text-sm font-extrabold transition-all hover:opacity-90 hover:-translate-y-0.5"
+                style={{ background: "#00D47E", color: "#06120D", boxShadow: "0 12px 26px -12px rgba(0,212,126,0.8)" }}
               >
                 {t("pricingModal.subscribeCta")}
+                <ArrowRight className="w-4 h-4" />
               </button>
             )}
 
-            <div className="relative space-y-2.5 flex-1">
+            <div className="relative h-px my-5" style={{ background: "rgba(255,255,255,0.1)" }} />
+            <div className="relative space-y-3 flex-1">
               {PREMIUM_FEATURES.map((f, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#00d47e" }} />
-                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.8)" }}>{f}</span>
-                </div>
+                <PlanFeature key={i} text={f} tint="#00D47E" textColor="rgba(255,255,255,0.88)" />
               ))}
             </div>
           </div>
 
           {/* Duo card */}
-          <div className="rounded-2xl border p-5 flex flex-col relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0d1020 0%, #111827 100%)", borderColor: "rgba(99,102,241,0.4)" }}>
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at top right, rgba(99,102,241,0.07) 0%, transparent 60%)" }} />
+          <div className="rounded-[24px] border p-6 flex flex-col relative overflow-hidden"
+               style={{ background: "linear-gradient(160deg, #1E2256 0%, #11142E 50%, #0A0C1C 100%)", borderColor: "rgba(129,140,248,0.45)", boxShadow: "0 22px 50px -30px rgba(129,140,248,0.6)" }}>
+            <div aria-hidden className="absolute -top-24 -right-20 w-72 h-72 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(129,140,248,0.22), transparent 70%)" }} />
 
-            <div className="flex items-center gap-2 mb-1 relative">
-              <span className="text-lg">👫</span>
-              <p className="text-lg font-black text-white">{t("pricingModal.duoPlan")}</p>
-              <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.2)", color: "#818cf8" }}>{t("pricingModal.new")}</span>
+            <div className="relative flex items-center gap-3">
+              <span className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0" style={{ background: "#818CF8" }}>
+                <Users className="w-[18px] h-[18px]" style={{ color: "#0B0E22" }} />
+              </span>
+              <p className="text-lg font-extrabold tracking-tight text-white">{t("pricingModal.duoPlan")}</p>
+              <span className="text-[10.5px] font-extrabold px-2.5 py-1 rounded-full border"
+                    style={{ background: "rgba(129,140,248,0.18)", borderColor: "rgba(129,140,248,0.45)", color: "#A5B4FC" }}>{t("pricingModal.new")}</span>
             </div>
 
-            <div className="flex items-baseline gap-1 mb-1 relative">
-              <span className="text-3xl font-black text-white">{duoPrice}</span>
-              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>{duoCurrency} {t("pricingModal.perMonthShort")}</span>
+            <div className="relative flex items-baseline gap-1.5 mt-5">
+              <span className="text-[40px] font-extrabold tracking-[-1.4px] leading-none text-white">{duoPrice}</span>
+              <span className="text-[13px] font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>{duoCurrency} {t("pricingModal.perMonthShort")}</span>
             </div>
             {plan === "yearly" ? (
               <>
-                <p className="text-[11px] relative" style={{ color: "rgba(255,255,255,0.55)" }}>
-                  {t("pricingModal.billedAnnuallyAmount", { amount: "$224.99" })}
+                <p className="relative text-xs mt-2" style={{ color: "rgba(255,255,255,0.6)" }}>
+                  {t("pricingModal.billedAnnuallyAmount", { amount: duoAnnualTotal })}
                 </p>
-                <p className="text-[10px] mb-3 relative" style={{ color: "#818cf8" }}>{t("pricingModal.duoSavings")}</p>
+                <p className="relative text-xs font-bold mt-0.5" style={{ color: "#A5B4FC" }}>{t("pricingModal.duoSavings")}</p>
               </>
             ) : (
-              <p className="text-[10px] mb-3 relative" style={{ color: "rgba(255,255,255,0.4)" }}>
-                {t("pricingModal.billedMonthly")}
-              </p>
+              <p className="relative text-xs mt-2" style={{ color: "rgba(255,255,255,0.6)" }}>{t("pricingModal.billedMonthly")}</p>
             )}
 
             {isDuoOwner ? (
-              <div className="relative rounded-xl py-2.5 px-4 text-center text-sm font-bold mb-5" style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}>
+              <div className="relative mt-5 inline-flex items-center justify-center gap-2 rounded-[14px] py-3 px-4 text-sm font-extrabold border"
+                   style={{ background: "rgba(129,140,248,0.15)", borderColor: "rgba(129,140,248,0.45)", color: "#A5B4FC" }}>
+                <CheckCircle2 className="w-4 h-4" />
                 {t("pricingModal.currentPlan")}
               </div>
             ) : (
               <button
                 onClick={() => setCheckoutMode("duo")}
-                className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
-                style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
+                className="relative mt-5 w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-[14px] text-sm font-extrabold transition-all hover:opacity-90 hover:-translate-y-0.5"
+                style={{ background: "#818CF8", color: "#0B0E22", boxShadow: "0 12px 26px -12px rgba(129,140,248,0.8)" }}
               >
                 {t("pricingModal.hireDuoPlan")}
+                <ArrowRight className="w-4 h-4" />
               </button>
             )}
 
-            <div className="relative space-y-2.5 flex-1">
+            <div className="relative h-px my-5" style={{ background: "rgba(255,255,255,0.1)" }} />
+            <div className="relative space-y-3 flex-1">
               {DUO_FEATURES.map((f, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#818cf8" }} />
-                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>{f}</span>
-                </div>
+                <PlanFeature key={i} text={f} tint="#A5B4FC" textColor="rgba(255,255,255,0.88)" />
               ))}
             </div>
           </div>
         </div>
 
         {/* Footer note */}
-        <p className="text-center text-[10px] pb-5 px-8" style={{ color: "var(--dim)" }}>
+        <p className="flex items-center justify-center gap-1.5 text-center text-xs pb-6 px-8" style={{ color: "var(--muted)" }}>
+          <Lock className="w-3.5 h-3.5 shrink-0" />
           {t(alreadyHadTrial ? "pricingModal.footerNoteReturning" : "pricingModal.footerNote", { price: monthlyPrice, billing: plan === "yearly" ? t("pricingModal.billedAnnuallySuffix") : "" })}
         </p>
         </>
