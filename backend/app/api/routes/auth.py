@@ -552,12 +552,33 @@ _USER_DATA_TABLES = [
     "user_checklist_items", "checklist_completions", "investable_marks",
     "smart_alert_state", "weekly_range_snapshots", "weekly_opportunities_history",
     "feature_notify_optins",
+    "usage_overage", "arthur_proactive_threads", "inbound_email_aliases",
+    "inbound_imports", "pending_financial_actions", "dividend_income", "cash_holdings",
 ]
 
 
 @router.delete("/account")
 async def delete_account(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
+
+    # Revoke every Plaid Item at Plaid first (docs/SECURITY_POLICY.md §10) —
+    # otherwise the access token stays valid at Plaid and Plaid keeps
+    # billing the connected account monthly after the user is gone.
+    try:
+        conns = await run_query(
+            db.table("brokerage_connections").select("id, access_token").eq("user_id", user_id).eq("provider", "plaid")
+        )
+        if conns.data:
+            from app.api.routes.brokerage import _get_plaid_client
+            from plaid.model.item_remove_request import ItemRemoveRequest
+            client = _get_plaid_client()
+            for c in conns.data:
+                try:
+                    await asyncio.to_thread(lambda tok=c["access_token"]: client.item_remove(ItemRemoveRequest(access_token=tok)))
+                except Exception as e:
+                    logger.warning("delete_account: Plaid item_remove failed for %s: %s", c["id"], e)
+    except Exception as e:
+        logger.warning("delete_account: Plaid revocation step failed for %s: %s", user_id, e)
 
     # Atomic: either every table listed above is cleared, or (on any single
     # failure) NONE of them are — Postgres rolls the whole function body
