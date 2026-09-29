@@ -650,7 +650,8 @@ export default function ChatPage() {
     // logged-in free account — a guest has their own, much smaller, weekly
     // allowance enforced server-side (see chatApi.stream's isGuest branch
     // and the 429 handler below), so this client-side gate doesn't apply.
-    if (remaining === 0 && !isGuestUser()) { setPaywallReason(undefined); setPaywallOpen(true); return; }
+    const guestLike = isGuestUser() || !isAuthenticated;
+    if (remaining === 0 && !guestLike) { setPaywallReason(undefined); setPaywallOpen(true); return; }
 
     const imagesToSend = [...pendingImages];
     setInput("");
@@ -671,7 +672,7 @@ export default function ChatPage() {
     // A guest has no session to save server-side history against (would
     // just 401) — the message still lands in the locally-persisted
     // chat store above via addMessage(), which is all a guest gets.
-    if (!isGuestUser()) chatApi.saveMessage("user", saveMsg, currentId).catch(() => {});
+    if (!guestLike) chatApi.saveMessage("user", saveMsg, currentId).catch(() => {});
     syncCursorRef.current = new Date().toISOString();
 
     // Advance guided tour to step 2 on first user message
@@ -713,7 +714,7 @@ export default function ChatPage() {
         () => {
           setStreaming(false);
           localFingerprintsRef.current.add(fp("assistant", fullResponse));
-          if (!isGuestUser()) chatApi.saveMessage("assistant", fullResponse, currentId).catch(() => {});
+          if (!guestLike) chatApi.saveMessage("assistant", fullResponse, currentId).catch(() => {});
           syncCursorRef.current = new Date().toISOString();
           if (voiceInputRef.current) {
             voiceInputRef.current = false;
@@ -745,13 +746,21 @@ export default function ChatPage() {
           setPendingActions(visible && visible.length > 0 ? visible : null);
           setCommittedActions(new Set());
         },
-        isGuestUser(),
+        guestLike,
         getGuestId(),
       );
     } catch (err: unknown) {
       setStreaming(false);
-      removeLastMessage();
       const status = (err as { response?: { status?: number } })?.response?.status;
+      // A visitor who used up the free guest messages still gets an answer
+      // from Arthur (an invitation to create a free account), never a
+      // dead-end error.
+      if (status === 429 && guestLike) {
+        appendToLastAssistant(t("chat.guestLimitReply"));
+        forceShowFlashcard();
+        return;
+      }
+      removeLastMessage();
       if (status === 429) {
         // A guest's 429 ("Ya usaste tus 5 mensajes gratis...") means "create
         // an account", not "upgrade to Premium" — they don't have an

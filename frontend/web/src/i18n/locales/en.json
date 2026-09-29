@@ -2722,7 +2722,8 @@
         }
       }
     },
-    "retry": "Retry"
+    "retry": "Retry",
+    "guestLimitReply": "I love that you keep asking 🙌 You've used the free messages without an account. **Create your free account** (takes 30 seconds) and we'll keep talking — that way I also remember your context and can help you better."
   },
   "paper": {
     "title": "Simulator",

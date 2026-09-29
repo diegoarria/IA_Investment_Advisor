@@ -2722,7 +2722,8 @@
         }
       }
     },
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "guestLimitReply": "Me encanta que sigas preguntando 🙌 Ya usaste los mensajes gratis sin cuenta. **Crea tu cuenta gratis** (toma 30 segundos) y seguimos platicando: así también recuerdo tu contexto y puedo ayudarte mejor."
   },
   "paper": {
     "title": "Simulador",

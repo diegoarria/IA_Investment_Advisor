@@ -184,9 +184,27 @@ export const chat = {
     // Arthur, same dual-routing/Haiku tier a free account gets, gated by a
     // much smaller weekly allowance (see the backend route's own
     // docstring) instead of every message just 401ing like it used to.
-    const res = isGuest && guestId
-      ? await postChatWithRetry("/api/chat/message/public", payload, { params: { guest_id: guestId } })
-      : await postChatWithRetry("/api/chat/message", payload);
+    // Diego, 2026-09-29: Arthur must answer EVERY visitor. Anyone without a
+    // working session (never logged in, not in "guest mode", or an expired
+    // session) used to hit the authenticated route and get a 401 on every
+    // try — now they're answered through the guest route instead.
+    const gid = guestId || chatGuestId();
+    const askAsGuest = () => postChatWithRetry("/api/chat/message/public", payload, { params: { guest_id: gid } });
+    let res;
+    if (isGuest) {
+      res = await askAsGuest();
+    } else {
+      try {
+        res = await postChatWithRetry("/api/chat/message", payload);
+      } catch (err: unknown) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        // 401/403 = no usable session; undefined/5xx = the full pipeline is
+        // down even after retries — the lighter guest pipeline is the last
+        // resort before ever showing an error. 429 (limits) stays a 429.
+        if (status === 429) throw err;
+        res = await askAsGuest();
+      }
+    }
     const reply: string = res.data.reply ?? "";
     const assessment = res.data.risk_assessment ?? null;
     const tickers: string[] = res.data.tickers ?? [];
@@ -205,6 +223,21 @@ export const chat = {
     onDone();
   },
 };
+
+// Stable anonymous id for the guest chat route (same localStorage key as
+// store.ts's getGuestId — duplicated here to avoid an api<->store import cycle).
+function chatGuestId(): string {
+  try {
+    let id = localStorage.getItem("nuvos_guest_id");
+    if (!id) {
+      id = (crypto as { randomUUID?: () => string }).randomUUID?.() ?? `g-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem("nuvos_guest_id", id);
+    }
+    return id;
+  } catch {
+    return `g-${Date.now()}`;
+  }
+}
 
 // Diego, 2026-09-29: "Arthur SIEMPRE tiene que contestar". A dropped
 // connection, a timeout, a 5xx or a backend redeploy swap used to surface

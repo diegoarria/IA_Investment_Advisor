@@ -108,6 +108,8 @@ export const profileApi = {
 // as "No se pudo conectar" on the very first screen ad traffic lands on.
 // Retries those automatically (the user just keeps seeing Arthur typing);
 // 4xx (429 limits, 401) are real answers and pass straight through.
+const MOBILE_CHAT_GUEST_ID = `m-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
 async function postChatWithRetry(url: string, payload: unknown, config?: Record<string, unknown>) {
   const delays = [1200, 2500, 4500, 7000];
   let lastErr: unknown;
@@ -153,7 +155,7 @@ export const chatApi = {
     notificationContext?: string | null,
     onActions?: (actions: Array<{ type: string; label: string; data: Record<string, unknown> }>) => void,
   ) => {
-    const res = await postChatWithRetry("/api/chat/message", {
+    const payload = {
       message,
       conversation_history: history,
       mentor: mentor ?? null,
@@ -161,7 +163,19 @@ export const chatApi = {
       image_type: imageType ?? null,
       images: images ?? [],
       notification_context: notificationContext ?? null,
-    });
+    };
+    let res;
+    try {
+      res = await postChatWithRetry("/api/chat/message", payload);
+    } catch (err: unknown) {
+      // Diego, 2026-09-29: Arthur must always answer. An expired session
+      // (401/403) or the full pipeline being down even after retries falls
+      // back to the lighter no-auth route before ever showing an error.
+      // 429 (message limits) is a real answer and stays as-is.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 429) throw err;
+      res = await postChatWithRetry("/api/chat/message/public", payload, { params: { guest_id: MOBILE_CHAT_GUEST_ID } });
+    }
     const reply: string = res.data.reply ?? "";
     const assessment = res.data.risk_assessment ?? null;
     const tickers: string[] = res.data.tickers ?? [];
