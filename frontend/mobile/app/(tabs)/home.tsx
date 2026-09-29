@@ -1204,22 +1204,23 @@ export default function HomeScreen() {
         )}
 
         {/* ── Hero cards row (portfolio + broker) ─────────────────────────── */}
-        {/* ── Portfolio Hero Card — redesign 2026-09-27 (corporate AAA): subtle
-            accent gradient, value first, today's change under it, three clean
-            columns, explicit footer link. ── */}
+        <ScrollView
+          horizontal
+          pagingEnabled={false}
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          snapToInterval={W - 16}
+          snapToAlignment="start"
+          contentContainerStyle={{ paddingLeft: 16, paddingRight: 8, gap: 10, flexDirection: "row", marginTop: 16 }}
+        >
+        {/* ── Portfolio Hero Card ──────────────────────────────────────────── */}
         <TouchableOpacity
           activeOpacity={0.92}
           onPress={() => router.navigate("/(tabs)/portfolio")}
-          style={[ss.heroCard, { borderColor: colors.border }]}
+          style={[ss.heroCard, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 0, marginTop: 0, width: W - 48 }]}
         >
-          <ExpoLinearGradient
-            colors={[colors.accent + "26", colors.card, colors.card]}
-            locations={[0, 0.55, 1]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
           <View style={ss.heroTop}>
-            <View style={{ flexShrink: 1, flex: 1 }}>
+            <View style={{ flexShrink: 1 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Text style={[ss.heroLabel, { color: colors.textMuted }]}>{t("home.portfolio.label")}</Text>
                 <View style={{ backgroundColor: colors.bgRaised ?? colors.card, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
@@ -1247,21 +1248,21 @@ export default function HomeScreen() {
                 </Text>
               )}
             </View>
-          </View>
-          <View style={[ss.heroGainBadge, {
-            backgroundColor: dayGain >= 0 ? colors.up + "18" : colors.down + "18",
-          }]}>
-            <Ionicons
-              name={dayGain >= 0 ? "trending-up" : "trending-down"}
-              size={14}
-              color={dayGain >= 0 ? colors.up : colors.down}
-            />
-            {loading
-              ? <Skeleton w={60} h={14} r={4} />
-              : <Text style={[ss.heroGainText, { color: dayGain >= 0 ? colors.up : colors.down }]}>
-                  {fmtPct(dayGainPct)} {t("home.portfolio.todaySuffix")}
-                </Text>
-            }
+            <View style={[ss.heroGainBadge, {
+              backgroundColor: dayGain >= 0 ? colors.up + "18" : colors.down + "18",
+            }]}>
+              <Ionicons
+                name={dayGain >= 0 ? "trending-up" : "trending-down"}
+                size={14}
+                color={dayGain >= 0 ? colors.up : colors.down}
+              />
+              {loading
+                ? <Skeleton w={60} h={14} r={4} />
+                : <Text style={[ss.heroGainText, { color: dayGain >= 0 ? colors.up : colors.down }]}>
+                    {fmtPct(dayGainPct)} {t("home.portfolio.todaySuffix")}
+                  </Text>
+              }
+            </View>
           </View>
 
           {!loading && (
@@ -1353,13 +1354,14 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {positions.length > 0 && (
-            <View style={[ss.heroFooter, { borderTopColor: colors.border }]}>
-              <Text style={[ss.heroFooterText, { color: colors.accentLight }]}>{t("home.portfolio.viewPortfolio")}</Text>
-              <Ionicons name="arrow-forward" size={14} color={colors.accentLight} />
-            </View>
-          )}
+          {/* Chevron hint */}
+          <View style={ss.heroChevron}>
+            <Ionicons name="chevron-forward" size={14} color={colors.textDim} />
+          </View>
         </TouchableOpacity>
+
+
+        </ScrollView>
 
         {/* ── Stat Strip ───────────────────────────────────────────────────── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -2147,25 +2149,23 @@ const ss = StyleSheet.create({
   // Hero card
   heroCard: {
     marginHorizontal: 16, marginTop: 16,
-    borderRadius: 24, borderWidth: 1,
-    padding: 22, overflow: "hidden",
+    borderRadius: 20, borderWidth: 1,
+    padding: 20,
   },
   heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  heroLabel:    { fontSize: 11, fontWeight: "700", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1.1 },
-  heroBalance:  { fontSize: 38, fontWeight: "800", letterSpacing: -1.2 },
+  heroLabel:    { fontSize: 13, fontWeight: "500", marginBottom: 6 },
+  heroBalance:  { fontSize: 34, fontWeight: "800", letterSpacing: -1 },
   heroGainBadge: {
-    flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", marginTop: 12,
-    paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10,
   },
   heroGainText: { fontSize: 13, fontWeight: "700" },
-  heroStats: { flexDirection: "row", marginTop: 18, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(127,127,127,0.25)" },
+  heroStats: { flexDirection: "row", marginTop: 16, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#162035" },
   heroStat:      { flex: 1 },
-  heroStatLabel: { fontSize: 10.5, fontWeight: "700", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.8 },
-  heroStatVal:   { fontSize: 11.5, fontWeight: "700", marginTop: 1 },
-  heroDivider:   { width: StyleSheet.hairlineWidth, marginHorizontal: 14 },
+  heroStatLabel: { fontSize: 11, fontWeight: "500", marginBottom: 3 },
+  heroStatVal:   { fontSize: 11, fontWeight: "700" },
+  heroDivider:   { width: 1, marginHorizontal: 16 },
   heroChevron:   { position: "absolute", right: 14, top: "50%" },
-  heroFooter:    { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 5, marginTop: 16, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth },
-  heroFooterText: { fontSize: 13, fontWeight: "700" },
   emptyPortfolio: {
     marginTop: 12, paddingVertical: 14, paddingHorizontal: 14,
     borderRadius: 12, borderWidth: 1, borderStyle: "dashed",
