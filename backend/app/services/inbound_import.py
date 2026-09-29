@@ -299,7 +299,7 @@ def _fmt_op(op: dict, currency: str | None) -> str:
     return f"• **{verb}** de {qs} {op['ticker']} a ${op['price']:,.2f}{cur} ({op['date']})"
 
 
-async def announce(user_id: str, import_id: str, payload: dict) -> None:
+async def announce(user_id: str, import_id: str, payload: dict, push: bool = True) -> str | None:
     """Arthur starts the conversation + push for a parsed import."""
     from app.services import arthur_proactive
     from app.services.notification_engine import send_push
@@ -338,12 +338,14 @@ async def announce(user_id: str, import_id: str, payload: dict) -> None:
         actions.append({"type": "import_dismiss", "label": "No registrar", "data": {"import_id": import_id}})
 
     sid = await arthur_proactive.create_thread(user_id, "import_email", title, message, actions)
-    try:
-        body = ("Toca para revisarla y registrarla con un toque." if ops else "Tu portafolio está al día.")
-        await send_push(user_id, "import_email", title, body,
-                        {"screen": "chat", "arthur_session_id": sid or "", "import_id": import_id}, get_supabase())
-    except Exception as e:
-        logger.warning("inbound_import.announce push failed for %s: %s", user_id, e)
+    if push:
+        try:
+            body = ("Toca para revisarla y registrarla con un toque." if ops else "Tu portafolio está al día.")
+            await send_push(user_id, "import_email", title, body,
+                            {"screen": "chat", "arthur_session_id": sid or "", "import_id": import_id}, get_supabase())
+        except Exception as e:
+            logger.warning("inbound_import.announce push failed for %s: %s", user_id, e)
+    return sid
 
 
 async def announce_forwarding_verification(user_id: str, subject: str, text: str, html: str) -> None:
@@ -407,3 +409,27 @@ async def handle_inbound(sender: str, recipients: list[str], subject: str, text:
     if payload["kind"] != "none":
         await announce(user_id, import_id, payload)
     return {"ok": True, "kind": payload["kind"], "import_id": import_id}
+
+
+async def handle_shared(user_id: str, attachments: list[dict]) -> dict:
+    """Share-sheet import (mobile): a screenshot/PDF shared from the broker's
+    app straight to Nuvos goes through the same extraction + reconciliation
+    + Arthur conversation as a forwarded email (no push — the user is in
+    the app and is taken straight into the conversation)."""
+    db = get_supabase()
+    ins = await run_query(db.table("inbound_imports").insert({
+        "user_id": user_id, "source": "share", "subject": "Archivo compartido", "status": "processing",
+    }))
+    import_id = ins.data[0]["id"]
+    try:
+        payload = await extract("", "Captura o estado de cuenta compartido desde la app de la casa de bolsa", "", "", attachments, user_id)
+    except Exception as e:
+        logger.error("inbound_import.handle_shared extract failed for %s: %s", user_id, e)
+        await run_query(db.table("inbound_imports").update({"status": "failed", "error": str(e)[:500]}).eq("id", import_id))
+        return {"ok": False, "reason": "extract_failed"}
+    status = "parsed" if payload["kind"] != "none" else "nothing"
+    await run_query(db.table("inbound_imports").update({"status": status, "kind": payload["kind"], "payload": payload}).eq("id", import_id))
+    if payload["kind"] == "none":
+        return {"ok": True, "kind": "none"}
+    sid = await announce(user_id, import_id, payload, push=False)
+    return {"ok": True, "kind": payload["kind"], "import_id": import_id, "session_id": sid}

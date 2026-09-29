@@ -1,4 +1,5 @@
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import ShareIntentHandler from "../src/components/ShareIntentHandler";
 import { Stack, usePathname, useGlobalSearchParams, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, Platform, Modal, Text, TouchableOpacity, StyleSheet, Alert, Linking } from "react-native";
@@ -324,6 +325,8 @@ function AppStack() {
           persisted profile without a phone made this modal (+ number pad) cover the
           login screen (2026-09-23 bug report). */}
       {showSidebar && <PhoneNumberPromptCard />}
+      {/* Share-sheet import from the broker's app (only inside the app, logged in). */}
+      {showSidebar && <ShareIntentHandler />}
     </View>
   );
 }

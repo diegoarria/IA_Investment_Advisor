@@ -4236,5 +4236,13 @@
     "choosePortfolio": "You have several portfolios. Tap the one to record it in.",
     "currencyMismatch": "The email is in {{importCur}} and your portfolio is in {{portCur}}. I never convert currencies automatically — add it from Portfolio in the right currency.",
     "applyError": "I couldn't record the trades. Your portfolio wasn't changed — try again in a moment."
+  },
+  "shareImport": {
+    "reading": "Arthur is reading your file…",
+    "readingSub": "I'm comparing it with your portfolio so you can record it with one tap.",
+    "nothingTitle": "No trades found",
+    "nothingBody": "I didn't see positions or trades in that file. Try a screenshot of your portfolio or of the trade confirmation.",
+    "errorTitle": "Couldn't read the file",
+    "errorBody": "Please try again in a moment."
   }
 }

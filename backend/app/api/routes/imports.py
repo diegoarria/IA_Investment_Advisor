@@ -92,3 +92,20 @@ async def apply_import(import_id: str, body: ApplyBody, user_id: str = Depends(g
 async def dismiss_import(import_id: str, user_id: str = Depends(get_current_user_id)):
     await inbound_import.dismiss_import(user_id, import_id)
     return {"ok": True}
+
+
+class SharedBody(BaseModel):
+    files: list[dict]  # [{filename, content_type, content(base64)}]
+
+
+@router.post("/shared")
+async def shared_import(body: SharedBody, user_id: str = Depends(get_current_user_id)):
+    """Mobile share-sheet import — see inbound_import.handle_shared."""
+    files = [f for f in body.files if f.get("content")][:5]
+    if not files:
+        raise HTTPException(status_code=400, detail="No llegó ningún archivo.")
+    try:
+        return await inbound_import.handle_shared(user_id, files)
+    except Exception as e:
+        logger.error("shared_import failed for %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="No pude leer el archivo. Intenta de nuevo.")

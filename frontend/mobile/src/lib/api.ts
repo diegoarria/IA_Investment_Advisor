@@ -205,6 +205,8 @@ export const importsApi = {
   apply: (importId: string, portfolioId?: string | null) =>
     api.post(`/api/imports/${encodeURIComponent(importId)}/apply`, { portfolio_id: portfolioId ?? null }),
   dismiss: (importId: string) => api.post(`/api/imports/${encodeURIComponent(importId)}/dismiss`),
+  shared: (files: Array<{ filename: string; content_type: string; content: string }>) =>
+    api.post("/api/imports/shared", { files }, { timeout: 120000 }),
 };
 
 export const marketApi = {

@@ -57,6 +57,19 @@ export default {
       "expo-status-bar",
       "expo-audio",
       "expo-video",
+      // Compartir captura/PDF desde la app del broker directo a Nuvos
+      // (Diego, 2026-09-29). Native — only active in EAS builds, not Expo Go.
+      [
+        "expo-share-intent",
+        {
+          iosActivationRules: {
+            NSExtensionActivationSupportsImageWithMaxCount: 5,
+            NSExtensionActivationSupportsFileWithMaxCount: 1,
+          },
+          androidIntentFilters: ["image/*", "application/pdf"],
+          androidMultiIntentFilters: ["image/*"],
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,

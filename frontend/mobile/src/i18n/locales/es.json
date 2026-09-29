@@ -4236,5 +4236,13 @@
     "choosePortfolio": "Tienes varios portafolios. Toca en cuál quieres registrarlo.",
     "currencyMismatch": "El correo viene en {{importCur}} y tu portafolio está en {{portCur}}. No convierto monedas automáticamente — agrégalo desde Portafolio en la moneda correcta.",
     "applyError": "No pude registrar las operaciones. Tu portafolio no fue modificado — intenta de nuevo en un momento."
+  },
+  "shareImport": {
+    "reading": "Arthur está leyendo tu archivo…",
+    "readingSub": "Lo comparo con tu portafolio para que lo registres con un toque.",
+    "nothingTitle": "No encontré operaciones",
+    "nothingBody": "No vi posiciones ni operaciones en ese archivo. Prueba con una captura de tu portafolio o de la confirmación de la operación.",
+    "errorTitle": "No pude leer el archivo",
+    "errorBody": "Intenta de nuevo en un momento."
   }
 }
