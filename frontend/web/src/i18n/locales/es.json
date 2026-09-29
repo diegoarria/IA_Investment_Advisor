@@ -2991,14 +2991,15 @@
     "welcomeTitle": "¡Bienvenido a Nuvos Premium!",
     "sessionBookedDesc": "Tu pago fue procesado. Ahora elige el horario de tu sesión.",
     "welcomeDesc": "Tu cuenta ya está activa. Redirigiendo...",
-    "bookSlot": "Reservar mi horario en Calendly →",
+    "bookSlot": "Reservar mi horario en Calendly",
     "features": {
-      "unlimitedChat": "Chat ilimitado con tu asesor IA",
+      "unlimitedChat": "Chat ilimitado con Arthur, tu mentor IA",
       "advancedAnalysis": "Análisis avanzado de portafolio",
       "premiumScreener": "Screener premium sin límites",
       "weeklyEmails": "Emails semanales personalizados"
     },
-    "activating": "Activando tu cuenta premium..."
+    "activating": "Activando tu cuenta premium...",
+    "eyebrow": "Pago confirmado"
   },
   "upsellSuccess": {
     "offers": {

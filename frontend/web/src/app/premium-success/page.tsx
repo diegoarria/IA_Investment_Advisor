@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { useSubscriptionStore } from "@/lib/store";
 import { billing } from "@/lib/api";
-import { CheckCircle, Loader2 } from "lucide-react";
+import { Check, Loader2, Calendar, ExternalLink, MessageCircle, PieChart, Filter, Mail, Clock, RefreshCw, type LucideIcon } from "lucide-react";
+import { SuccessShell, SuccessHero } from "@/components/SuccessShell";
 
 const CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai";
 
@@ -50,104 +51,80 @@ export default function PremiumSuccessPage() {
     poll();
   }, [fetchStatus, router]);
 
+  // Redesign 2026-09-28 — same brand language as Products: an emerald
+  // gradient hero card over a clean body; theme-aware (was hardcoded white
+  // text that disappeared on the light theme).
+  const features: { icon: LucideIcon; text: string }[] = [
+    { icon: MessageCircle, text: t("premiumSuccess.features.unlimitedChat") },
+    { icon: PieChart, text: t("premiumSuccess.features.advancedAnalysis") },
+    { icon: Filter, text: t("premiumSuccess.features.premiumScreener") },
+    { icon: Mail, text: t("premiumSuccess.features.weeklyEmails") },
+  ];
+
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "var(--bg, #0f1117)",
-        gap: "24px",
-        padding: "40px 20px",
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      }}
-    >
+    <SuccessShell>
       {ready ? (
         <>
-          <CheckCircle size={64} color="#22c55e" strokeWidth={1.5} />
-          <div style={{ textAlign: "center" }}>
-            <h1 style={{ color: "#fff", fontSize: "28px", fontWeight: 800, margin: "0 0 8px" }}>
-              {isSession ? t("premiumSuccess.sessionBookedTitle") : t("premiumSuccess.welcomeTitle")}
-            </h1>
-            <p style={{ color: "#9ca3af", fontSize: "15px", margin: 0 }}>
-              {isSession
-                ? t("premiumSuccess.sessionBookedDesc")
-                : t("premiumSuccess.welcomeDesc")}
-            </p>
-          </div>
-
-          {isSession ? (
-            <a
-              href={CALENDLY_URL}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "10px",
-                background: "#00d47e",
-                color: "#fff",
-                fontWeight: 800,
-                fontSize: "16px",
-                padding: "16px 32px",
-                borderRadius: "16px",
-                textDecoration: "none",
-                marginTop: "8px",
-              }}
-            >
-              {t("premiumSuccess.bookSlot")}
-            </a>
-          ) : (
-            <div
-              style={{
-                background: "rgba(34,197,94,0.08)",
-                border: "1px solid rgba(34,197,94,0.3)",
-                borderRadius: "16px",
-                padding: "20px 28px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-                maxWidth: "360px",
-                width: "100%",
-              }}
-            >
-              {[
-                t("premiumSuccess.features.unlimitedChat"),
-                t("premiumSuccess.features.advancedAnalysis"),
-                t("premiumSuccess.features.premiumScreener"),
-                t("premiumSuccess.features.weeklyEmails"),
-              ].map((feat) => (
-                <div key={feat} style={{ display: "flex", alignItems: "center", gap: "10px", color: "#d1fae5", fontSize: "14px" }}>
-                  <CheckCircle size={16} color="#22c55e" />
-                  {feat}
+          <SuccessHero
+            icon={isSession ? Calendar : Check}
+            eyebrow={t("premiumSuccess.eyebrow")}
+            title={isSession ? t("premiumSuccess.sessionBookedTitle") : t("premiumSuccess.welcomeTitle")}
+            subtitle={isSession ? t("premiumSuccess.sessionBookedDesc") : t("premiumSuccess.welcomeDesc")}
+          />
+          <div className="p-6">
+            {isSession ? (
+              <a href={CALENDLY_URL}
+                 className="w-full inline-flex items-center justify-center gap-2 py-4 rounded-[16px] text-[15px] font-extrabold transition-all hover:opacity-90 hover:-translate-y-0.5"
+                 style={{ background: "#00D47E", color: "#06120D", boxShadow: "0 12px 28px -12px rgba(0,212,126,0.75)" }}>
+                <Calendar className="w-[18px] h-[18px]" />
+                {t("premiumSuccess.bookSlot")}
+                <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+              </a>
+            ) : (
+              <>
+                <div className="space-y-2.5">
+                  {features.map(({ icon: Icon, text }) => (
+                    <div key={text} className="flex items-center gap-3 rounded-[14px] border px-3.5 py-3"
+                         style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+                      <span className="w-9 h-9 rounded-[11px] flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.12)" }}>
+                        <Icon className="w-[17px] h-[17px]" style={{ color: "var(--accent-l)" }} />
+                      </span>
+                      <span className="flex-1 text-sm font-semibold" style={{ color: "var(--text)" }}>{text}</span>
+                      <Check className="w-4 h-4 shrink-0" style={{ color: "var(--accent-l)" }} strokeWidth={3} />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+                {/* Visual cue for the automatic redirect to chat (2.5s). */}
+                <div className="mt-5 h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                  <div className="h-full rounded-full" style={{ background: "var(--accent)", animation: "nuvosFill 2.5s linear forwards" }} />
+                </div>
+                <style>{`@keyframes nuvosFill { from { width: 0% } to { width: 100% } }`}</style>
+              </>
+            )}
+          </div>
         </>
       ) : timedOut ? (
         <>
-          <div style={{ textAlign: "center", maxWidth: "380px" }}>
-            <h1 style={{ color: "#fff", fontSize: "22px", fontWeight: 800, margin: "0 0 8px" }}>{t("premiumSuccess.pendingTitle")}</h1>
-            <p style={{ color: "#9ca3af", fontSize: "15px", margin: "0 0 16px" }}>{t("premiumSuccess.pendingDesc")}</p>
+          <SuccessHero icon={Clock} tone="amber" title={t("premiumSuccess.pendingTitle")} subtitle={t("premiumSuccess.pendingDesc")} />
+          <div className="p-6">
             <button
               onClick={() => window.location.reload()}
-              style={{ background: "#00d47e", color: "#000", fontWeight: 800, fontSize: "15px", padding: "12px 24px", borderRadius: "14px", border: "none", cursor: "pointer" }}
+              className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-[16px] text-[15px] font-extrabold transition-opacity hover:opacity-90"
+              style={{ background: "#00D47E", color: "#06120D" }}
             >
+              <RefreshCw className="w-4 h-4" />
               {t("premiumSuccess.retry")}
             </button>
           </div>
         </>
       ) : (
-        <>
-          <Loader2 size={48} color="#22c55e" strokeWidth={1.5} className="animate-spin" style={{ animation: "spin 1s linear infinite" }} />
-          <p style={{ color: "#9ca3af", fontSize: "15px", margin: 0 }}>
-            {t("premiumSuccess.activating")}
-          </p>
-        </>
+        <div className="flex flex-col items-center gap-4 px-6 py-14">
+          <span className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "rgba(0,185,109,0.12)" }}>
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} />
+          </span>
+          <p className="text-[15px] font-semibold" style={{ color: "var(--sub)" }}>{t("premiumSuccess.activating")}</p>
+        </div>
       )}
-
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-    </main>
+    </SuccessShell>
   );
 }

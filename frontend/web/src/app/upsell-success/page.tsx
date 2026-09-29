@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { CheckCircle, Calendar, ExternalLink, ArrowRight, Loader2, Users, AlertTriangle } from "lucide-react";
+import { Check, Calendar, ExternalLink, ArrowRight, Loader2, Users, AlertTriangle, CreditCard, Video, PlayCircle, type LucideIcon } from "lucide-react";
+import { SuccessShell, SuccessHero } from "@/components/SuccessShell";
 import { billing, upsells } from "@/lib/api";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -14,15 +15,17 @@ const CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nu
 function getOfferMeta(t: TFunction) {
   return {
     session: {
-      emoji: "🎯",
+      icon: Calendar as LucideIcon,
+      tone: "emerald" as const,
       color: "#00d47e",
       title: t("upsellSuccess.offers.session.title"),
       subtitle: t("upsellSuccess.offers.session.subtitle"),
       cta: true,
     },
     family_plan: {
-      emoji: "👫",
-      color: "#3b82f6",
+      icon: Users as LucideIcon,
+      tone: "indigo" as const,
+      color: "#818CF8",
       title: t("upsellSuccess.offers.family_plan.title"),
       subtitle: t("upsellSuccess.offers.family_plan.subtitle"),
       cta: false,
@@ -48,7 +51,6 @@ function UpsellSuccessContent() {
   // here's your booking link" story, no separate translated content exists.
   const meta = OFFER_META[offer === "broker_call" ? "session" : offer] ?? OFFER_META.session;
 
-  const [visible, setVisible] = useState(false);
   // Duo plan setup state
   const [myEmail, setMyEmail] = useState("");
   const [secondaryEmail, setSecondaryEmail] = useState("");
@@ -62,14 +64,12 @@ function UpsellSuccessContent() {
   const [payState, setPayState] = useState<"idle" | "verifying" | "ready" | "error">("idle");
 
   useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 100);
     // If duo plan, pre-fill user email from Supabase session
     if (offer === "family_plan") {
       getSupabaseClient().auth.getUser().then(({ data }) => {
         if (data?.user?.email) setMyEmail(data.user.email);
       });
     }
-    return () => clearTimeout(timer);
   }, [offer]);
 
   useEffect(() => {
@@ -108,285 +108,143 @@ function UpsellSuccessContent() {
     }
   };
 
+  const is1on1 = PAID_1ON1_OFFERS.includes(offer);
+  const heroTone = is1on1 && payState === "error" ? "red" : meta.tone;
+  const heroIcon = is1on1 && payState === "error" ? AlertTriangle : meta.icon;
+  const inputOk = secondaryEmail.includes("@");
+
+  // Redesign 2026-09-28 — same brand language as Products (see
+  // components/SuccessShell). Logic unchanged: the Calendly CTA still only
+  // renders once the payment is verified (payState === "ready").
   return (
-    <main style={{
-      minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "var(--bg, #0f1117)",
-      padding: "40px 20px",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      transition: "opacity 0.4s ease",
-      opacity: visible ? 1 : 0,
-    }}>
-      <div style={{
-        width: "100%",
-        maxWidth: "420px",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "24px",
-      }}>
+    <SuccessShell>
+      <SuccessHero
+        icon={heroIcon}
+        tone={heroTone}
+        eyebrow={is1on1 && payState === "error" ? undefined : t("premiumSuccess.eyebrow")}
+        title={is1on1 && payState === "error" ? t("upsellSuccess.session.verifyError") : meta.title}
+        subtitle={is1on1 && payState === "error" ? t("upsellSuccess.session.verifyErrorDesc") : meta.subtitle}
+        tagline={is1on1 && payState === "error" ? undefined : t("upsellSuccess.tagline")}
+      />
 
-        {/* Icon */}
-        <div style={{
-          width: 80, height: 80, borderRadius: 24,
-          background: `${meta.color}18`,
-          border: `1.5px solid ${meta.color}35`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 36,
-        }}>
-          {meta.emoji}
-        </div>
-
-        {/* Title */}
-        <div style={{ textAlign: "center" }}>
-          <h1 style={{ color: "#fff", fontSize: 26, fontWeight: 900, margin: "0 0 6px" }}>
-            {meta.title}
-          </h1>
-          <p style={{ color: "#9ca3af", fontSize: 14, margin: "0 0 8px" }}>
-            {meta.subtitle}
-          </p>
-          <p style={{ color: "#00d47e", fontSize: 13, fontWeight: 600, margin: 0, letterSpacing: "0.02em" }}>
-            {t("upsellSuccess.tagline")}
-          </p>
-        </div>
-
-        {/* Content card */}
-        <div style={{
-          width: "100%",
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 20,
-          padding: "24px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-        }}>
-          {PAID_1ON1_OFFERS.includes(offer) && (
-            payState === "error" ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "8px 0", textAlign: "center" }}>
-                <AlertTriangle size={32} color="#f87171" />
-                <p style={{ color: "#fecaca", fontSize: 15, fontWeight: 700, margin: 0 }}>
-                  {t("upsellSuccess.session.verifyError")}
-                </p>
-                <p style={{ color: "#9ca3af", fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                  {t("upsellSuccess.session.verifyErrorDesc")}
-                </p>
-              </div>
-            ) : payState !== "ready" ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "16px 0" }}>
-                <Loader2 size={28} color={meta.color} style={{ animation: "spin 1s linear infinite" }} />
-                <p style={{ color: "#d1d5db", fontSize: 14, margin: 0 }}>{t("upsellSuccess.session.verifying")}</p>
-                <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-              </div>
-            ) : (
-              <>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <CheckCircle size={18} color="#22c55e" />
-                  <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.paymentProcessed", { amount: params.get("amount") ?? "" })}</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <CheckCircle size={18} color="#22c55e" />
-                  <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.videoCall")}</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <CheckCircle size={18} color="#22c55e" />
-                  <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.recording")}</span>
-                </div>
-
-                <div style={{
-                  marginTop: 4,
-                  padding: "14px 16px",
-                  background: `${meta.color}0d`,
-                  border: `1px solid ${meta.color}25`,
-                  borderRadius: 14,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <Calendar size={15} color={meta.color} />
-                    <span style={{ color: meta.color, fontSize: 12, fontWeight: 700 }}>{t("upsellSuccess.session.nextStep")}</span>
+      <div className="p-6 space-y-4">
+        {is1on1 && payState !== "error" && (
+          payState !== "ready" ? (
+            <div className="flex flex-col items-center gap-3 py-6">
+              <Loader2 className="w-7 h-7 animate-spin" style={{ color: "var(--accent-l)" }} />
+              <p className="text-sm font-semibold" style={{ color: "var(--sub)" }}>{t("upsellSuccess.session.verifying")}</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2.5">
+                {([
+                  { icon: CreditCard, text: t("upsellSuccess.session.paymentProcessed", { amount: params.get("amount") ?? "" }) },
+                  { icon: Video, text: t("upsellSuccess.session.videoCall") },
+                  { icon: PlayCircle, text: t("upsellSuccess.session.recording") },
+                ] as { icon: LucideIcon; text: string }[]).map(({ icon: Icon, text }) => (
+                  <div key={text} className="flex items-center gap-3 rounded-[14px] border px-3.5 py-3"
+                       style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+                    <span className="w-9 h-9 rounded-[11px] flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.12)" }}>
+                      <Icon className="w-[17px] h-[17px]" style={{ color: "var(--accent-l)" }} />
+                    </span>
+                    <span className="flex-1 text-sm font-semibold" style={{ color: "var(--text)" }}>{text}</span>
+                    <Check className="w-4 h-4 shrink-0" style={{ color: "var(--accent-l)" }} strokeWidth={3} />
                   </div>
-                  <p style={{ color: "#e5e7eb", fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                    {t("upsellSuccess.session.nextStepDesc")}
-                  </p>
-                </div>
-              </>
-            )
-          )}
-
-          {offer === "family_plan" && (
-            duoSaved ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "8px 0" }}>
-                <CheckCircle size={40} color="#22c55e" />
-                <p style={{ color: "#d1fae5", fontSize: 15, fontWeight: 700, margin: 0, textAlign: "center" }}>
-                  {t("upsellSuccess.familyPlan.savedTitle")}
-                </p>
-                <p style={{ color: "#9ca3af", fontSize: 13, margin: 0 }}>{t("upsellSuccess.familyPlan.redirecting")}</p>
+                ))}
               </div>
-            ) : (
-              <>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                  <Users size={16} color={meta.color} />
-                  <span style={{ color: meta.color, fontSize: 13, fontWeight: 700 }}>{t("upsellSuccess.familyPlan.whichAccounts")}</span>
+
+              <div className="rounded-[16px] border p-4" style={{ background: "rgba(0,185,109,0.07)", borderColor: "rgba(0,185,109,0.3)" }}>
+                <p className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[1.1px] mb-1.5" style={{ color: "var(--accent-l)" }}>
+                  <Calendar className="w-3.5 h-3.5" />{t("upsellSuccess.session.nextStep")}
+                </p>
+                <p className="text-[13.5px] leading-relaxed" style={{ color: "var(--sub)" }}>{t("upsellSuccess.session.nextStepDesc")}</p>
+              </div>
+
+              {/* Only once the payment is actually verified. */}
+              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer"
+                 className="w-full inline-flex items-center justify-center gap-2 py-4 rounded-[16px] text-[15px] font-extrabold transition-all hover:opacity-90 hover:-translate-y-0.5"
+                 style={{ background: "#00D47E", color: "#06120D", boxShadow: "0 12px 28px -12px rgba(0,212,126,0.75)" }}>
+                <Calendar className="w-[18px] h-[18px]" />
+                {t("upsellSuccess.session.scheduleCta")}
+                <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+              </a>
+            </>
+          )
+        )}
+
+        {offer === "family_plan" && (
+          duoSaved ? (
+            <div className="flex flex-col items-center gap-3 py-4 text-center">
+              <span className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "rgba(34,197,94,0.14)" }}>
+                <Check className="w-6 h-6" style={{ color: "#22c55e" }} strokeWidth={3} />
+              </span>
+              <p className="text-[15px] font-extrabold" style={{ color: "var(--text)" }}>{t("upsellSuccess.familyPlan.savedTitle")}</p>
+              <p className="text-[13px]" style={{ color: "var(--muted)" }}>{t("upsellSuccess.familyPlan.redirecting")}</p>
+            </div>
+          ) : (
+            <>
+              <p className="flex items-center gap-2 text-[15px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>
+                <span className="w-8 h-8 rounded-[10px] flex items-center justify-center" style={{ background: "rgba(129,140,248,0.14)" }}>
+                  <Users className="w-4 h-4" style={{ color: "#818CF8" }} />
+                </span>
+                {t("upsellSuccess.familyPlan.whichAccounts")}
+              </p>
+
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.8px] mb-1.5" style={{ color: "var(--muted)" }}>{t("upsellSuccess.familyPlan.account1Label")}</p>
+                <div className="px-3.5 py-3 rounded-[12px] border text-sm" style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--sub)" }}>
+                  {myEmail || t("upsellSuccess.familyPlan.loading")}
                 </div>
+              </div>
 
-                {/* Account 1 — owner (readonly) */}
-                <div>
-                  <p style={{ color: "#6b7280", fontSize: 11, fontWeight: 600, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    {t("upsellSuccess.familyPlan.account1Label")}
-                  </p>
-                  <div style={{
-                    padding: "12px 14px",
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: 12,
-                    color: "#9ca3af",
-                    fontSize: 14,
-                  }}>
-                    {myEmail || t("upsellSuccess.familyPlan.loading")}
-                  </div>
-                </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.8px] mb-1.5" style={{ color: "var(--muted)" }}>{t("upsellSuccess.familyPlan.account2Label")}</p>
+                <input
+                  type="email"
+                  placeholder={t("upsellSuccess.familyPlan.emailPlaceholder")}
+                  value={secondaryEmail}
+                  onChange={(e) => setSecondaryEmail(e.target.value)}
+                  className="w-full px-3.5 py-3 rounded-[12px] border text-sm outline-none transition-colors"
+                  style={{ background: "var(--bg)", borderColor: inputOk ? "rgba(129,140,248,0.6)" : "var(--border)", color: "var(--text)" }}
+                />
+              </div>
 
-                {/* Account 2 — secondary (input) */}
-                <div>
-                  <p style={{ color: "#6b7280", fontSize: 11, fontWeight: 600, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    {t("upsellSuccess.familyPlan.account2Label")}
-                  </p>
-                  <input
-                    type="email"
-                    placeholder={t("upsellSuccess.familyPlan.emailPlaceholder")}
-                    value={secondaryEmail}
-                    onChange={(e) => setSecondaryEmail(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "12px 14px",
-                      background: "rgba(255,255,255,0.06)",
-                      border: `1px solid ${secondaryEmail && secondaryEmail.includes("@") ? meta.color + "60" : "rgba(255,255,255,0.12)"}`,
-                      borderRadius: 12,
-                      color: "#fff",
-                      fontSize: 14,
-                      outline: "none",
-                      boxSizing: "border-box",
-                      transition: "border-color 0.2s",
-                    }}
-                  />
-                </div>
+              {duoError && (
+                <p className="flex items-start gap-1.5 text-[13px] leading-relaxed" style={{ color: "#f87171" }}>
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />{duoError}
+                </p>
+              )}
 
-                {/* Error message */}
-                {duoError && (
-                  <p style={{ margin: "0", fontSize: 13, color: "#f87171", lineHeight: 1.5 }}>
-                    ⚠️ {duoError}
-                  </p>
-                )}
+              <button
+                onClick={handleDuoSave}
+                disabled={duoSaving || !inputOk}
+                className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-[16px] text-[15px] font-extrabold transition-all enabled:hover:opacity-90 disabled:cursor-not-allowed"
+                style={{
+                  background: duoSaving || !inputOk ? "rgba(129,140,248,0.18)" : "#818CF8",
+                  color: duoSaving || !inputOk ? "var(--muted)" : "#0B0E22",
+                  boxShadow: duoSaving || !inputOk ? "none" : "0 12px 28px -12px rgba(129,140,248,0.75)",
+                }}
+              >
+                {duoSaving ? <><Loader2 className="w-4 h-4 animate-spin" />{t("upsellSuccess.familyPlan.saving")}</> : t("upsellSuccess.familyPlan.saveAccounts")}
+              </button>
 
-                {/* Save button */}
-                <button
-                  onClick={handleDuoSave}
-                  disabled={duoSaving || !secondaryEmail.includes("@")}
-                  style={{
-                    marginTop: 4,
-                    width: "100%",
-                    padding: "14px",
-                    borderRadius: 14,
-                    border: "none",
-                    background: duoSaving || !secondaryEmail.includes("@")
-                      ? "rgba(59,130,246,0.2)"
-                      : "linear-gradient(135deg, #3b82f6cc, #3b82f6)",
-                    color: duoSaving || !secondaryEmail.includes("@") ? "#6b7280" : "#fff",
-                    fontWeight: 800,
-                    fontSize: 15,
-                    cursor: duoSaving || !secondaryEmail.includes("@") ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                    boxShadow: duoSaving || !secondaryEmail.includes("@") ? "none" : "0 4px 20px #3b82f644",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  {duoSaving ? (
-                    <>
-                      <Loader2 size={17} style={{ animation: "spin 1s linear infinite" }} />
-                      {t("upsellSuccess.familyPlan.saving")}
-                    </>
-                  ) : (
-                    t("upsellSuccess.familyPlan.saveAccounts")
-                  )}
-                </button>
-
-                {/* Skip — add later from profile */}
-                <button
-                  onClick={() => router.replace("/profile")}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "#6b7280",
-                    fontSize: 13,
-                    cursor: "pointer",
-                    padding: "4px 0",
-                    textDecoration: "underline",
-                    textDecorationColor: "rgba(107,114,128,0.4)",
-                  }}
-                >
-                  {t("upsellSuccess.familyPlan.addLater")}
-                </button>
-                <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-              </>
-            )
-          )}
-        </div>
-
-        {/* CTA buttons — only once the payment is actually verified, never
-            just because offer=="session"/"broker_call" is in the URL. */}
-        {PAID_1ON1_OFFERS.includes(offer) && payState === "ready" && (
-          <a
-            href={CALENDLY_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              width: "100%",
-              padding: "16px",
-              borderRadius: 18,
-              background: `linear-gradient(135deg, ${meta.color}cc, ${meta.color})`,
-              color: "#fff",
-              fontWeight: 900,
-              fontSize: 15,
-              textAlign: "center",
-              textDecoration: "none",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              boxShadow: `0 4px 24px ${meta.color}44`,
-            }}
-          >
-            <Calendar size={18} />
-            {t("upsellSuccess.session.scheduleCta")}
-            <ExternalLink size={14} style={{ opacity: 0.7 }} />
-          </a>
+              <button onClick={() => router.replace("/profile")}
+                      className="w-full text-[13px] font-semibold py-1 hover:opacity-80 transition-opacity" style={{ color: "var(--muted)" }}>
+                {t("upsellSuccess.familyPlan.addLater")}
+              </button>
+            </>
+          )
         )}
 
         <button
           onClick={() => router.replace("/profile")}
-          style={{
-            background: "transparent",
-            border: "none",
-            color: "#6b7280",
-            fontSize: 13,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "4px 0",
-          }}
+          className="w-full inline-flex items-center justify-center gap-1.5 text-[13px] font-semibold pt-1 hover:opacity-80 transition-opacity"
+          style={{ color: "var(--muted)" }}
         >
-          {t("upsellSuccess.backToProfile")} <ArrowRight size={13} />
+          {t("upsellSuccess.backToProfile")} <ArrowRight className="w-3.5 h-3.5" />
         </button>
-
       </div>
-    </main>
+    </SuccessShell>
   );
 }
 
