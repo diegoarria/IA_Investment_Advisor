@@ -24,7 +24,7 @@ jobs:
       - run: pip install pip-audit
       - run: pip-audit -r backend/requirements.txt --progress-spinner off || true
       - run: pip-audit -r backend/requirements.txt --progress-spinner off --strict --vulnerability-service osv -f markdown > pip-audit.md || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: { name: pip-audit, path: pip-audit.md }
 
   npm:
