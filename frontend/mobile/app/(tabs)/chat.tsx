@@ -950,16 +950,9 @@ Instrucciones críticas:
                       <Text style={styles.heroIam}>{t("chat.welcome.iam")}</Text>
                       <Text style={styles.heroTagline}>{t("chat.welcome.tagline")}</Text>
                       <Text style={styles.heroDetail}>{t("chat.welcome.body")}</Text>
-                      <View style={styles.heroPromise}>
-                        <Text style={styles.heroPromiseTitle}>{t("chat.welcome.notTell")}</Text>
-                        <Text style={styles.heroPromiseText}>
-                          {t("chat.welcome.helpPre")}
-                          <Text style={{ fontWeight: "800", color: "#fff" }}>{t("chat.welcome.helpBold")}</Text>
-                        </Text>
-                        <View style={styles.heroDecision}>
-                          <Ionicons name="shield-checkmark" size={14} color="#00D47E" />
-                          <Text style={styles.heroDecisionText}>{t("chat.welcome.decision")}</Text>
-                        </View>
+                      <View style={[styles.heroDecision, { alignSelf: "center" }]}>
+                        <Ionicons name="shield-checkmark" size={14} color="#00D47E" />
+                        <Text style={styles.heroDecisionText}>{t("chat.welcome.decision")}</Text>
                       </View>
                     </>
                   )}
@@ -1013,20 +1006,17 @@ Instrucciones críticas:
                 <Text style={[styles.suggestLabel, { color: colors.text }]}>{t("chat.welcome.analyzeTitle")}</Text>
               </View>
               <View style={styles.suggestGrid}>
-                {(t("chat.welcome.cats", { returnObjects: true }) as { emoji: string; label: string; prompt: string }[]).map((c, i) => (
+                {(t("chat.welcome.cats", { returnObjects: true }) as { emoji: string; label: string }[]).map((c, i) => (
                   <TouchableOpacity
                     key={i}
                     activeOpacity={0.8}
                     style={[styles.suggestCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                    onPress={() => sendMessage(c.prompt)}
+                    onPress={() => sendMessage(c.label)}
                   >
                     <View style={[styles.suggestIcon, { backgroundColor: colors.accent + "1A" }]}>
                       <Text style={{ fontSize: 19 }}>{c.emoji}</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.catLabel, { color: colors.text }]}>{c.label}</Text>
-                      <Text style={[styles.catPrompt, { color: colors.textSub }]}>{c.prompt}</Text>
-                    </View>
+                    <Text style={[styles.catLabel, { color: colors.text, flex: 1 }]}>{c.label}</Text>
                     <Ionicons name="arrow-forward" size={15} color={colors.accentLight} />
                   </TouchableOpacity>
                 ))}
@@ -1524,7 +1514,7 @@ function makeStyles(c: Colors) {
     heroPromiseTitle: { fontSize: 15, fontWeight: "800" as const, color: "#fff", marginBottom: 6 },
     heroPromiseText: { fontSize: 14, lineHeight: 21, color: "rgba(255,255,255,0.75)" },
     heroDecision: {
-      flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginTop: 12, alignSelf: "flex-start" as const,
+      flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginTop: 16, alignSelf: "flex-start" as const,
       borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6,
       backgroundColor: "rgba(0,212,126,0.14)", borderWidth: 1, borderColor: "rgba(0,212,126,0.4)",
     },

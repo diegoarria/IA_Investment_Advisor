@@ -2284,33 +2284,26 @@
       "hello": "Hi, {{name}} 👋",
       "helloNoName": "Hi 👋",
       "iam": "I'm Arthur.",
-      "tagline": "Your partner for making better decisions with your money.",
-      "body": "I analyze companies, review your portfolio and turn complex financial information into clear explanations.",
-      "notTell": "I don't tell you what to buy, sell or do.",
-      "helpPre": "I help you understand ",
-      "helpBold": "what's happening, why it matters and what scenarios are in front of you.",
-      "decision": "The decision is always yours.",
-      "analyzeTitle": "What do you want to analyze today?",
+      "tagline": "I help you make better decisions with your money.",
+      "body": "I analyze companies, your portfolio and the market to explain what's happening, why it matters and what options you have.",
+      "decision": "I don't decide for you. The decision is always yours.",
+      "analyzeTitle": "What do you want to analyze?",
       "cats": [
         {
           "emoji": "📊",
-          "label": "Companies",
-          "prompt": "Analyze the free cash flow of MSFT vs. GOOGL"
+          "label": "Analyze MSFT vs. GOOGL"
         },
         {
           "emoji": "💼",
-          "label": "Your portfolio",
-          "prompt": "What risks and concentrations does my portfolio have?"
+          "label": "Review my portfolio"
         },
         {
           "emoji": "🌎",
-          "label": "Market",
-          "prompt": "Which macro indicators are moving the market today?"
+          "label": "What's moving the market?"
         },
         {
           "emoji": "⚖️",
-          "label": "Comparisons",
-          "prompt": "Compare NVDA vs. AMD on valuation and growth"
+          "label": "Compare NVDA vs. AMD"
         }
       ]
     }

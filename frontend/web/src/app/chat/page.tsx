@@ -884,17 +884,10 @@ export default function ChatPage() {
                         <p className="text-[20px] font-extrabold tracking-tight mt-2" style={{ color: "#00D47E" }}>{t("chat.welcome.iam")}</p>
                         <p className="text-[16.5px] font-extrabold text-white mt-1.5 max-w-md mx-auto leading-snug">{t("chat.welcome.tagline")}</p>
                         <p className="text-[14.5px] leading-relaxed max-w-md mx-auto mt-2.5" style={{ color: "rgba(255,255,255,0.72)" }}>{t("chat.welcome.body")}</p>
-                        <div className="mt-5 max-w-md mx-auto text-left rounded-[18px] border p-4"
-                             style={{ background: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.12)" }}>
-                          <p className="text-[15px] font-extrabold text-white">{t("chat.welcome.notTell")}</p>
-                          <p className="text-sm leading-relaxed mt-1.5" style={{ color: "rgba(255,255,255,0.75)" }}>
-                            {t("chat.welcome.helpPre")}<strong className="font-extrabold text-white">{t("chat.welcome.helpBold")}</strong>
-                          </p>
-                          <span className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full border text-[13px] font-extrabold"
-                                style={{ background: "rgba(0,212,126,0.14)", borderColor: "rgba(0,212,126,0.4)", color: "#00D47E" }}>
-                            <ShieldCheck className="w-3.5 h-3.5" />{t("chat.welcome.decision")}
-                          </span>
-                        </div>
+                        <span className="inline-flex items-center gap-1.5 mt-5 px-3.5 py-2 rounded-full border text-[13.5px] font-extrabold"
+                              style={{ background: "rgba(0,212,126,0.14)", borderColor: "rgba(0,212,126,0.4)", color: "#00D47E" }}>
+                          <ShieldCheck className="w-4 h-4" />{t("chat.welcome.decision")}
+                        </span>
                       </>
                     )}
 
@@ -942,8 +935,8 @@ export default function ChatPage() {
                     {t("chat.welcome.analyzeTitle")}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {(t("chat.welcome.cats", { returnObjects: true }) as { emoji: string; label: string; prompt: string }[]).map((c, ci) => (
-                      <button key={ci} onClick={() => sendMessage(c.prompt)}
+                    {(t("chat.welcome.cats", { returnObjects: true }) as { emoji: string; label: string }[]).map((c, ci) => (
+                      <button key={ci} onClick={() => sendMessage(c.label)}
                               className="text-left p-4 rounded-[18px] border transition-all hover:-translate-y-0.5 group flex items-center gap-3.5"
                               style={{ background: "var(--card)", borderColor: "var(--border)" }}
                               onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = accentCol + "80"; }}
@@ -951,10 +944,7 @@ export default function ChatPage() {
                         <span className="w-11 h-11 rounded-[12px] flex items-center justify-center shrink-0 text-xl" style={{ background: "rgba(0,185,109,0.12)" }}>
                           {c.emoji}
                         </span>
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-[15px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{c.label}</span>
-                          <span className="block text-[13px] leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{c.prompt}</span>
-                        </span>
+                        <span className="flex-1 min-w-0 text-[15px] font-bold tracking-tight" style={{ color: "var(--text)" }}>{c.label}</span>
                         <ArrowRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--accent-l)" }} />
                       </button>
                     ))}
