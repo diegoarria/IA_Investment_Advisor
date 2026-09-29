@@ -43,7 +43,18 @@ Nuvos is a read-only investment education and portfolio analysis product. It nev
 - All code lives in a private source-control repository. Changes are versioned and deployed through the hosting providers' deployment pipelines.
 - An automated test suite runs before changes are shipped.
 - Security-relevant changes are reviewed with attention to authorization, data exposure and injection risks.
-- Dependencies are kept up to date, and known-vulnerable packages are patched promptly.
+- **Vulnerability scanning:** every production dependency set (backend Python, web and mobile JavaScript) is scanned automatically on every push to main and weekly (GitHub Actions `security-scan`: pip-audit and npm audit). Dependabot monitors all components for vulnerable and outdated packages and opens update PRs weekly.
+- **Patching SLA** (from when a finding is identified):
+
+  | Severity | Deadline |
+  |---|---|
+  | Critical | 7 days |
+  | High | 30 days |
+  | Medium | 90 days |
+  | Low | Next routine update |
+
+- **End-of-life software:** runtimes and frameworks (Python, Node.js, Next.js, Expo/React Native) are kept on supported versions. Any component announced as end-of-life is scheduled for upgrade before its end-of-support date. Dependabot and the semiannual policy review track this.
+- Production servers are managed platforms (Railway, Vercel, Supabase); their operating system and runtime patching is handled by those providers.
 - Production protections include API rate limiting, security headers (CSP, HSTS, anti-framing), and an emergency switch that disables AI features instantly.
 
 ## 7. Risk assessment and monitoring

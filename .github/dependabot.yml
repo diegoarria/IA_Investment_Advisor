@@ -1,0 +1,21 @@
+# Automated dependency vulnerability + end-of-life monitoring (Sept 2026,
+# docs/SECURITY_POLICY.md §6). Weekly PRs for outdated/vulnerable packages
+# in every production component. Security alerts themselves are enabled in
+# GitHub → Settings → Code security → Dependabot alerts / security updates.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule: { interval: "weekly" }
+    open-pull-requests-limit: 5
+  - package-ecosystem: "npm"
+    directory: "/frontend/web"
+    schedule: { interval: "weekly" }
+    open-pull-requests-limit: 5
+  - package-ecosystem: "npm"
+    directory: "/frontend/mobile"
+    schedule: { interval: "weekly" }
+    open-pull-requests-limit: 5
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule: { interval: "monthly" }
