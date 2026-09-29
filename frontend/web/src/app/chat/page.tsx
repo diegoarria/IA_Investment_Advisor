@@ -263,8 +263,16 @@ export default function ChatPage() {
     setShowScrollBtn(!atBottom);
   };
 
+  // Scroll ONLY the messages container. scrollIntoView() also scrolls every
+  // scrollable ancestor — on phones that shifted the whole page up (header
+  // hidden under the browser bar, blank gap under the input).
+  const scrollContainerToBottom = (smooth: boolean) => {
+    const el = scrollContainerRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  };
+
   const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    scrollContainerToBottom(true);
     setShowScrollBtn(false);
   };
 
@@ -554,10 +562,18 @@ export default function ChatPage() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (isAtBottom.current) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isAtBottom.current && messages.length > 0) {
+      scrollContainerToBottom(true);
     }
   }, [messages]);
+
+  // Safety net: the page itself must never be scrolled (only inner panes).
+  useEffect(() => {
+    const reset = () => { if (window.scrollY !== 0 && document.activeElement?.tagName !== "TEXTAREA") window.scrollTo(0, 0); };
+    reset();
+    window.addEventListener("scroll", reset, { passive: true });
+    return () => window.removeEventListener("scroll", reset);
+  }, []);
 
   // Cross-device sync: poll for messages sent from other devices
   useEffect(() => {
