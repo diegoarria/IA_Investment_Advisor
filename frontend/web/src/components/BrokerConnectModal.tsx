@@ -181,6 +181,9 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
       const res = await brokerageApi.createLinkToken();
       const linkToken = res.data?.link_token;
       if (!linkToken) throw new Error(t("brokerConnectModal.errors.noLinkToken"));
+      // OAuth brokers (Schwab, Robinhood…) leave and come back to /plaid-oauth,
+      // which resumes Link with this same token.
+      try { localStorage.setItem("nuvos_plaid_link_token", linkToken); } catch {}
       setLoading(false);
 
       const handler = window.Plaid.create({

@@ -138,6 +138,9 @@ class Settings(BaseSettings):
     plaid_client_id: str = ""
     plaid_secret: str = ""
     plaid_env: str = "sandbox"     # sandbox | production
+    # OAuth institutions (Schwab, Robinhood…) return here in production; must
+    # also be registered in the Plaid dashboard → API → Allowed redirect URIs.
+    plaid_redirect_uri: str = ""
     # Belvo (LatAm open banking: bank accounts + brokerage, starting with
     # Mexico — GBM, Actinver) — see backend/app/api/routes/belvo.py.
     # Sandbox and production are FULLY SEPARATE Belvo accounts with their

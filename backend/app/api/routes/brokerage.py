@@ -181,13 +181,21 @@ async def create_link_token(user_id: str = Depends(get_current_user_id)):
 
     client = _get_plaid_client()
     try:
-        request = LinkTokenCreateRequest(
+        kwargs = dict(
             products=[Products("investments")],
             client_name="Nuvos AI",
             country_codes=[CountryCode("US")],
             language="es",
             user=LinkTokenCreateRequestUser(client_user_id=user_id),
         )
+        # Production OAuth institutions (Schwab, Robinhood…) send the user to
+        # their own site and back to this page (web/src/app/plaid-oauth).
+        redirect_uri = settings.plaid_redirect_uri or (
+            "https://www.nuvosai.com/plaid-oauth" if settings.plaid_env == "production" else ""
+        )
+        if redirect_uri:
+            kwargs["redirect_uri"] = redirect_uri
+        request = LinkTokenCreateRequest(**kwargs)
         response = await asyncio.to_thread(lambda: client.link_token_create(request))
         return {"link_token": response["link_token"]}
     except Exception as e:
@@ -228,6 +236,16 @@ async def exchange_plaid_token(
             on_conflict="user_id,provider,institution_id",
         )
     )
+    # Right after connecting, Arthur offers to register the real positions
+    # (same one-tap flow as the daily sync) — no waiting for tomorrow's job.
+    async def _offer_import():
+        try:
+            from app.services import inbound_import
+            data = await get_plaid_holdings(user_id=user_id)
+            await inbound_import.reconcile_broker_holdings(user_id, body.institution_name or "tu broker", data.get("positions") or [])
+        except Exception as e:
+            logger.warning("post-connect import offer failed for %s: %s", user_id, e)
+    asyncio.create_task(_offer_import())
     return {"ok": True, "institution": body.institution_name}
 
 
