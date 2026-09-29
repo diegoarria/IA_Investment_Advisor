@@ -2256,7 +2256,7 @@
     "imagesSentOther": "📷 {{count}} screenshots sent",
     "limitReached": "You reached the {{limit}}-message limit. Come back in {{mins}} min or activate Premium.",
     "limitReachedFallback": "Limit reached",
-    "errorProcessing": "There was an error processing your message. Please try again.",
+    "errorProcessing": "I couldn't reply this time. Tap **Retry** and I'll try again.",
     "disclaimer": "Educational analysis · Not financial advice · Data may be inaccurate",
     "unlimitedPremium": "Activate Premium for unlimited messages",
     "unlimitedOrWait": "Activate Premium for unlimited chats or wait {{time}}",
@@ -2327,7 +2327,8 @@
           ]
         }
       }
-    }
+    },
+    "retry": "Retry"
   },
   "paper": {
     "sellModal": {

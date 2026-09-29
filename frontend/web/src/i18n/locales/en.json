@@ -2667,7 +2667,7 @@
     "cancel": "Cancel",
     "micPermissionError": "Couldn't access the microphone. Make sure to allow permission in your browser.",
     "micUnsupportedError": "This browser can't record audio. Try text chat, or a different browser.",
-    "connectError": "Couldn't connect to the assistant. Check your connection and try again.",
+    "connectError": "Arthur couldn't reply this time. Tap Retry and we'll try again.",
     "tourTitle": "Talk to Nuvos",
     "tourDesc": "Ask any question about investing. Nuvos remembers your portfolio and profile to give you personalized answers.",
     "tourCta": "Got it, back to home ✓",
@@ -2721,7 +2721,8 @@
           ]
         }
       }
-    }
+    },
+    "retry": "Retry"
   },
   "paper": {
     "title": "Simulator",

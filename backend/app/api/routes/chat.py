@@ -44,6 +44,39 @@ MSG_WINDOW_HOURS  = _settings.msg_window_hours
 DAILY_COST_CAP_USD = _settings.free_daily_cost_cap_usd
 
 
+# Diego, 2026-09-29: "SIEMPRE tiene que contestar" — Arthur is the first
+# screen ad traffic lands on. Every model call in /message and
+# /message/public goes through this: the primary model, then one retry on
+# Haiku, then the GPT-mini generic answer, and only if ALL of them fail a
+# 503 (which the web/mobile clients auto-retry). An exception or an empty
+# reply from one provider never reaches the user as a dead end.
+_FALLBACK_MODEL = "claude-haiku-4-5-20251001"
+
+
+async def _resilient_reply(collect, model: str, message: str, history) -> str:
+    """`collect(model)` runs chat_stream with that model and returns the
+    full text. Tries `model`, then Haiku, then generate_generic_answer."""
+    # Second pass is Haiku — for a free user (already on Haiku) that's simply
+    # a retry, which is what a transient 529/timeout needs anyway.
+    for attempt, m in enumerate((model, _FALLBACK_MODEL)):
+        try:
+            full = await asyncio.wait_for(collect(m), timeout=75)
+            if full and full.strip():
+                return full
+            logger.warning("_resilient_reply: empty reply from %s (attempt %d)", m, attempt + 1)
+        except Exception as e:
+            logger.error("_resilient_reply: %s failed (attempt %d): %s", m, attempt + 1, e)
+    try:
+        generic = await asyncio.wait_for(
+            ai_service.generate_generic_answer(message, conversation_history=history), timeout=45,
+        )
+        if generic and generic.strip():
+            return generic
+    except Exception as e:
+        logger.error("_resilient_reply: generic fallback failed: %s", e)
+    raise HTTPException(status_code=503, detail="Arthur tuvo un problema temporal. Intenta de nuevo.")
+
+
 async def _check_daily_cost_cap(user_id: str) -> None:
     from datetime import datetime, timezone
     db = get_supabase()
@@ -928,9 +961,13 @@ async def chat_message(
             needs_claude = True
 
     if not needs_claude:
-        generic_answer = await ai_service.generate_generic_answer(
-            body.message, conversation_history=body.conversation_history,
-        )
+        try:
+            generic_answer = await ai_service.generate_generic_answer(
+                body.message, conversation_history=body.conversation_history,
+            )
+        except Exception as e:
+            logger.error("chat_message: generic answer failed, falling back to Claude: %s", e)
+            generic_answer = None
         if generic_answer:
             if cache_key:
                 store_answer(cache_key, generic_answer)
@@ -945,8 +982,16 @@ async def chat_message(
     chat_model = "claude-haiku-4-5-20251001" if (not premium or is_generic_question) else guard_model
 
     enrich_timeout = 4.0 if premium else 2.5
-    tickers  = await asyncio.to_thread(detect_tickers, body.message)
-    enriched = await asyncio.to_thread(_enrich_message, body.message, enrich_timeout, premium) if not has_images else body.message
+    try:
+        tickers = await asyncio.to_thread(detect_tickers, body.message)
+    except Exception as e:
+        logger.error("chat_message: detect_tickers failed: %s", e)
+        tickers = []
+    try:
+        enriched = await asyncio.to_thread(_enrich_message, body.message, enrich_timeout, premium) if not has_images else body.message
+    except Exception as e:
+        logger.error("chat_message: enrichment failed, sending raw message: %s", e)
+        enriched = body.message
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
     if not images and body.image_data:
         images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
@@ -971,30 +1016,45 @@ async def chat_message(
             return None
         return await _get_memory_context(user_id)
 
-    memory, (deep_ctx, live_ctx, positions, quotes), progress_ctx = await asyncio.gather(
+    # Context is a nice-to-have — a failure building any piece of it must
+    # never stop Arthur from answering.
+    ctx_results = await asyncio.gather(
         _memory_ctx(),
         _get_mentor_deep_context(user_id),
         _progress_ctx(),
+        return_exceptions=True,
     )
-    full = ""
-    async for chunk in ai_service.chat_stream(
-        message=enriched,
-        conversation_history=body.conversation_history,
-        profile=profile,
-        mentor=body.mentor,
-        images=images,
-        memory_context=memory,
-        notification_context=body.notification_context,
-        deep_context=deep_ctx,
-        progress_context=progress_ctx,
-        is_premium=premium,
-        model=chat_model,
-        live_market_context=live_ctx,
-        raw_message=body.message,
-        positions=positions,
-        quotes=quotes,
-    ):
-        full += chunk
+    memory = None if isinstance(ctx_results[0], BaseException) else ctx_results[0]
+    if isinstance(ctx_results[1], BaseException):
+        logger.error("chat_message: deep context failed: %s", ctx_results[1])
+        deep_ctx = live_ctx = positions = quotes = None
+    else:
+        deep_ctx, live_ctx, positions, quotes = ctx_results[1]
+    progress_ctx = None if isinstance(ctx_results[2], BaseException) else ctx_results[2]
+
+    async def _collect(model_name: str) -> str:
+        out = ""
+        async for chunk in ai_service.chat_stream(
+            message=enriched,
+            conversation_history=body.conversation_history,
+            profile=profile,
+            mentor=body.mentor,
+            images=images,
+            memory_context=memory,
+            notification_context=body.notification_context,
+            deep_context=deep_ctx,
+            progress_context=progress_ctx,
+            is_premium=premium,
+            model=model_name,
+            live_market_context=live_ctx,
+            raw_message=body.message,
+            positions=positions,
+            quotes=quotes,
+        ):
+            out += chunk
+        return out
+
+    full = await _resilient_reply(_collect, chat_model, body.message, body.conversation_history)
     clean_reply, bscore = _extract_bscore(full)
     clean_reply, actions = _extract_action(clean_reply)
     if cache_key:
@@ -1053,9 +1113,13 @@ async def chat_message_public(
             return {"reply": cached, "risk_assessment": None, "tickers": [], "actions": None}
 
     if not _needs_claude_analysis(body.message, has_images):
-        generic_answer = await ai_service.generate_generic_answer(
-            body.message, conversation_history=body.conversation_history,
-        )
+        try:
+            generic_answer = await ai_service.generate_generic_answer(
+                body.message, conversation_history=body.conversation_history,
+            )
+        except Exception as e:
+            logger.error("chat_message_public: generic answer failed, falling back to Claude: %s", e)
+            generic_answer = None
         if generic_answer:
             if cache_key:
                 store_answer(cache_key, generic_answer)
@@ -1064,27 +1128,39 @@ async def chat_message_public(
     # Free-tier tier: always Haiku, same as an authenticated free user.
     chat_model = "claude-haiku-4-5-20251001"
 
-    tickers  = await asyncio.to_thread(detect_tickers, body.message)
-    enriched = await asyncio.to_thread(_enrich_message, body.message, 2.5, False) if not has_images else body.message
+    try:
+        tickers = await asyncio.to_thread(detect_tickers, body.message)
+    except Exception as e:
+        logger.error("chat_message_public: detect_tickers failed: %s", e)
+        tickers = []
+    try:
+        enriched = await asyncio.to_thread(_enrich_message, body.message, 2.5, False) if not has_images else body.message
+    except Exception as e:
+        logger.error("chat_message_public: enrichment failed, sending raw message: %s", e)
+        enriched = body.message
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
     if not images and body.image_data:
         images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
 
-    full = ""
-    async for chunk in ai_service.chat_stream(
-        message=enriched,
-        conversation_history=body.conversation_history,
-        profile=None,
-        mentor=body.mentor,
-        images=images,
-        memory_context=None,
-        notification_context=None,
-        deep_context=None,
-        progress_context=None,
-        is_premium=False,
-        model=chat_model,
-    ):
-        full += chunk
+    async def _collect(model_name: str) -> str:
+        out = ""
+        async for chunk in ai_service.chat_stream(
+            message=enriched,
+            conversation_history=body.conversation_history,
+            profile=None,
+            mentor=body.mentor,
+            images=images,
+            memory_context=None,
+            notification_context=None,
+            deep_context=None,
+            progress_context=None,
+            is_premium=False,
+            model=model_name,
+        ):
+            out += chunk
+        return out
+
+    full = await _resilient_reply(_collect, chat_model, body.message, body.conversation_history)
     clean_reply, bscore = _extract_bscore(full)
     clean_reply, actions = _extract_action(clean_reply)
     if cache_key:

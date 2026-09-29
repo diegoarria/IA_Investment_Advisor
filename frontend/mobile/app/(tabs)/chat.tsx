@@ -666,6 +666,9 @@ Instrucciones críticas:
         const errMsg = errObj?.message ?? String(err);
         if (__DEV__) console.error("[chat] sendMessage error:", errMsg, err);
         setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: t("chat.errorProcessing") }]);
+        // One-tap resend (all automatic retries already failed) — never
+        // make the user retype the question.
+        if (msg) setPendingActions([{ type: "chat", label: t("chat.retry"), data: { message: msg } }]);
       }
       setStreaming(false);
     }

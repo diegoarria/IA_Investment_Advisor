@@ -103,6 +103,28 @@ export const profileApi = {
   markPhonePromptSeen: () => api.post("/api/profile/phone-prompt-seen"),
 };
 
+// Diego, 2026-09-29: "Arthur SIEMPRE tiene que contestar". A dropped
+// connection, a timeout, a 5xx or a backend redeploy swap used to surface
+// as "No se pudo conectar" on the very first screen ad traffic lands on.
+// Retries those automatically (the user just keeps seeing Arthur typing);
+// 4xx (429 limits, 401) are real answers and pass straight through.
+async function postChatWithRetry(url: string, payload: unknown, config?: Record<string, unknown>) {
+  const delays = [1200, 2500, 4500, 7000];
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      return await api.post(url, payload, { timeout: 90000, ...(config ?? {}) });
+    } catch (err: unknown) {
+      lastErr = err;
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const retryable = status === undefined || status === 408 || status >= 500;
+      if (!retryable || attempt === delays.length) throw err;
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
+  }
+  throw lastErr;
+}
+
 export const chatApi = {
   getHistory: (since?: string) => api.get("/api/chat/history", since ? { params: { since } } : undefined),
   deleteHistory: (sessionId: string) => api.delete(`/api/chat/history/${encodeURIComponent(sessionId)}`),
@@ -131,7 +153,7 @@ export const chatApi = {
     notificationContext?: string | null,
     onActions?: (actions: Array<{ type: string; label: string; data: Record<string, unknown> }>) => void,
   ) => {
-    const res = await api.post("/api/chat/message", {
+    const res = await postChatWithRetry("/api/chat/message", {
       message,
       conversation_history: history,
       mentor: mentor ?? null,

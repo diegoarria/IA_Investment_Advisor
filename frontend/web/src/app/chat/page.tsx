@@ -229,6 +229,7 @@ export default function ChatPage() {
   const [isDragging, setIsDragging] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const failedMsgRef = useRef<string | null>(null);
   const isAtBottom = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -759,7 +760,12 @@ export default function ChatPage() {
         if (isGuestUser()) { forceShowFlashcard(); }
         else { await subStore.fetchStatus(); upsellTrigger("msg_limit_hit"); setPaywallReason(undefined); setPaywallOpen(true); }
       }
-      else { setSendError(t("chat.connectError")); }
+      else {
+        // All automatic retries failed — put the question back so one tap
+        // resends it (never make the user retype it).
+        failedMsgRef.current = msg;
+        setSendError(t("chat.connectError"));
+      }
     }
   };
 
@@ -1412,6 +1418,14 @@ export default function ChatPage() {
                   <div className="mx-3 mb-1 px-3 py-2 rounded-xl text-xs flex items-center gap-2"
                        style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
                     <span className="flex-1">{sendError}</span>
+                    {failedMsgRef.current && (
+                      <button
+                        onClick={() => { const m = failedMsgRef.current; failedMsgRef.current = null; setSendError(null); if (m) sendMessage(m); }}
+                        className="shrink-0 px-3 py-1 rounded-full text-xs font-extrabold"
+                        style={{ background: "#00D47E", color: "#06120D" }}>
+                        {t("chat.retry")}
+                      </button>
+                    )}
                     <button onClick={() => setSendError(null)} className="shrink-0 opacity-60 hover:opacity-100"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 )}
