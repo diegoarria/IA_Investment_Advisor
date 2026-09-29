@@ -635,7 +635,9 @@
       "viewTutorial": "View app tutorial",
       "logout": "Log out",
       "deleteAccount": "Delete my account"
-    }
+    },
+    "settingsTitle": "Settings",
+    "reportsTitle": "Your reports"
   },
   "watchlist": {
     "tabs": {

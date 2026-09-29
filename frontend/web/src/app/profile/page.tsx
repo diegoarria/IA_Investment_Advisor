@@ -18,8 +18,10 @@ import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, ChevronRight, NotebookPen, SlidersHorizontal, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone, Video, Lock,
   Bell, HeadphonesIcon, Download,
+  Camera, Globe, Lightbulb, Mail, BookOpen, TrendingUp, TrendingDown, Zap, Clock, Eye, Sparkles, Compass, Flag,
+  Gem, Cake, Wallet, PiggyBank, MessageCircle, Send, type LucideIcon,
 } from "lucide-react";
-import { getUserLevel, LEVEL_COLOR, getLevelLabel, LEVEL_EMOJI } from "@/lib/userLevel";
+import { getUserLevel, LEVEL_COLOR, getLevelLabel } from "@/lib/userLevel";
 
 const _fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
@@ -51,9 +53,9 @@ function getDuoMetricDefs(t: TFunction): { key: string; label: string; format: (
 
 function getLevelOptions(t: TFunction) {
   return [
-    { key: "B", label: t("profile.levelBasic"),        emoji: "📚", desc: t("profile.levelBasicDesc") },
-    { key: "C", label: t("profile.levelIntermediate"),  emoji: "📈", desc: t("profile.levelIntermediateDesc") },
-    { key: "D", label: t("profile.levelAdvanced"),      emoji: "⚡", desc: t("profile.levelAdvancedDesc") },
+    { key: "B", label: t("profile.levelBasic"),        icon: BookOpen as LucideIcon,   desc: t("profile.levelBasicDesc") },
+    { key: "C", label: t("profile.levelIntermediate"),  icon: TrendingUp as LucideIcon, desc: t("profile.levelIntermediateDesc") },
+    { key: "D", label: t("profile.levelAdvanced"),      icon: Zap as LucideIcon,        desc: t("profile.levelAdvancedDesc") },
   ];
 }
 
@@ -528,25 +530,26 @@ export default function ProfilePage() {
           {/* pl-9 clears AppSidebar's floating mobile menu button (fixed
               top-1.5 left-1.5, ~34px wide) on mobile widths. */}
           <div className="pl-9 lg:pl-0">
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("profile.myAccount")}</p>
-            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>{t("profile.title")}</h1>
+            <p className="text-[11px] font-bold uppercase tracking-[1.1px]" style={{ color: "var(--muted)" }}>{t("profile.myAccount")}</p>
+            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("profile.title")}</h1>
           </div>
           <div className="flex items-center gap-2">
             <PremiumBadge />
             <button onClick={() => setLanguage(language === "es" ? "en" : "es")}
-                    className="h-9 px-2.5 flex items-center justify-center rounded-xl border text-[11px] font-bold transition-colors hover:border-[var(--accent)]"
-                    style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
+                    className="h-9 px-3 flex items-center justify-center gap-1.5 rounded-full border text-[11px] font-bold transition-colors hover:border-[var(--accent)]"
+                    style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--sub)" }}
                     aria-label={t("profile.languageToggle")}>
-              {language === "es" ? "ES 🇪🇸" : "EN 🇺🇸"}
+              <Globe className="w-3.5 h-3.5" />
+              {language === "es" ? "ES" : "EN"}
             </button>
             <button onClick={toggleTheme}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
-                    style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}>
+                    className="w-9 h-9 flex items-center justify-center rounded-full border transition-colors hover:border-[var(--accent)]"
+                    style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--sub)" }}>
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
             <button onClick={handleLogout}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-red-500/40"
-                    style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}>
+                    className="w-9 h-9 flex items-center justify-center rounded-full border transition-colors hover:border-red-500/40"
+                    style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--sub)" }}>
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -555,8 +558,8 @@ export default function ProfilePage() {
       <div className="flex flex-1 overflow-hidden relative">
 
         {/* Main */}
-        <main className="flex-1 overflow-y-auto scrollbar-thin p-4">
-          <div className="max-w-2xl mx-auto space-y-4 pb-8">
+        <main className="flex-1 overflow-y-auto scrollbar-thin px-4 py-6">
+          <div className="max-w-2xl mx-auto space-y-7 pb-10">
             {!profile ? (
               <div className="flex flex-col items-center justify-center h-64 gap-4">
                 <User className="w-16 h-16" style={{ color: "var(--dim)" }} />
@@ -571,11 +574,15 @@ export default function ProfilePage() {
             ) : (
               <>
                 {/* Hero card */}
-                <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: riskColor + "44" }}>
-                  <div className="h-16" style={{ background: riskColor }} />
-                  <div className="flex flex-col items-center -mt-8 pb-4 px-5">
+                <div className="rounded-[24px] border overflow-hidden" style={{ background: "var(--card)", borderColor: "rgba(0,185,109,0.3)", boxShadow: "0 18px 40px -22px rgba(0,185,109,0.45)" }}>
+                  <div className="h-24 relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0F3326 0%, #0A1C1D 55%, #080E16 100%)" }}>
+                    <div aria-hidden className="absolute -top-16 -right-10 w-48 h-48 rounded-full" style={{ background: "radial-gradient(circle, rgba(0,232,135,0.22), transparent 70%)" }} />
+                    <div aria-hidden className="absolute -bottom-20 -left-10 w-44 h-44 rounded-full" style={{ background: `radial-gradient(circle, ${riskColor}33, transparent 70%)` }} />
+                    <BarChart className="absolute right-5 top-4 w-11 h-11 text-white opacity-20" />
+                  </div>
+                  <div className="flex flex-col items-center -mt-12 pb-5 px-5">
                     <label className="relative cursor-pointer group">
-                      <div className="w-16 h-16 rounded-full border-4 flex items-center justify-center text-2xl font-black text-white overflow-hidden"
+                      <div className="w-24 h-24 rounded-full border-[5px] flex items-center justify-center text-3xl font-black text-white overflow-hidden"
                            style={{ background: riskColor, borderColor: "var(--card)" }}>
                         {avatarUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -586,24 +593,25 @@ export default function ProfilePage() {
                           profile.name.charAt(0).toUpperCase()
                         )}
                       </div>
-                      <div className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center border-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                           style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                        <span className="text-[9px]">📷</span>
+                      <div className="absolute bottom-0.5 right-0.5 w-8 h-8 rounded-full flex items-center justify-center border-[3px] transition-transform group-hover:scale-110"
+                           style={{ background: "var(--accent)", borderColor: "var(--card)" }}>
+                        <Camera className="w-3.5 h-3.5 text-white" />
                       </div>
                       <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} disabled={avatarUploading} />
                     </label>
                     {avatarError && <p className="mt-1 text-xs" style={{ color: "#ef4444" }}>{avatarError}</p>}
-                    <div className="mt-2 text-center space-y-2">
-                      <div className="text-lg font-extrabold" style={{ color: "var(--text)" }}>{profile.name}</div>
+                    <div className="mt-3 text-center space-y-2.5">
+                      <div className="text-2xl font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{profile.name}</div>
                       <div className="flex flex-wrap justify-center gap-2">
-                        <span className="text-xs font-bold px-2.5 py-1 rounded-full border"
+                        <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full border"
                               style={{ background: riskColor + "1a", borderColor: riskColor + "55", color: riskColor }}>
+                          <BarChart className="w-3 h-3" />
                           {RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance}
                         </span>
                         {mentor && (
-                          <span className="text-xs font-bold px-2.5 py-1 rounded-full border"
+                          <span className="text-xs font-bold px-3 py-1.5 rounded-full border"
                                 style={{ background: mentor.color + "1a", borderColor: mentor.color + "55", color: mentor.color }}>
-                            {mentor.emoji} {mentor.name}
+                            {mentor.name}
                           </span>
                         )}
                       </div>
@@ -611,8 +619,8 @@ export default function ProfilePage() {
                   </div>
                   <div className="border-t flex" style={{ borderColor: "var(--border)" }}>
                     <button onClick={() => router.push("/profile/edit")}
-                            className="flex-1 py-3 text-xs font-semibold text-center hover:bg-white/5 transition-colors border-r"
-                            style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
+                            className="flex-1 py-3.5 text-[13px] font-semibold text-center hover:bg-white/5 transition-colors border-r"
+                            style={{ color: "var(--sub)", borderColor: "var(--border)" }}>
                       {t("profile.editProfile")}
                     </button>
                     <button
@@ -627,7 +635,7 @@ export default function ProfilePage() {
                           setShareOpen((v) => !v);
                         }
                       }}
-                      className="flex-1 py-3 text-xs font-semibold text-center hover:bg-white/5 transition-colors flex items-center justify-center gap-1.5"
+                      className="flex-1 py-3.5 text-[13px] font-semibold text-center hover:bg-white/5 transition-colors flex items-center justify-center gap-1.5"
                       style={{ color: "var(--accent-l)" }}
                     >
                       <Share2 className="w-3.5 h-3.5" />
@@ -650,9 +658,9 @@ export default function ProfilePage() {
                             <div className="grid grid-cols-4 gap-2">
                               {[
                                 { label: "X", bg: "#000", href: `https://twitter.com/intent/tweet?text=${text}`, icon: "𝕏" },
-                                { label: "WhatsApp", bg: "#25D366", href: `https://wa.me/?text=${text}`, icon: "💬" },
+                                { label: "WhatsApp", bg: "#25D366", href: `https://wa.me/?text=${text}`, icon: <MessageCircle className="w-5 h-5" /> },
                                 { label: "LinkedIn", bg: "#0A66C2", href: `https://www.linkedin.com/sharing/share-offsite/?url=${url}&summary=${text}`, icon: "in" },
-                                { label: "Telegram", bg: "#229ED9", href: `https://t.me/share/url?url=${url}&text=${text}`, icon: "✈️" },
+                                { label: "Telegram", bg: "#229ED9", href: `https://t.me/share/url?url=${url}&text=${text}`, icon: <Send className="w-5 h-5" /> },
                               ].map(({ label, bg, href, icon }) => (
                                 <a key={label} href={href} target="_blank" rel="noopener noreferrer"
                                    className="flex flex-col items-center gap-1.5 py-3 rounded-2xl hover:opacity-80 transition-opacity"
@@ -687,11 +695,13 @@ export default function ProfilePage() {
 
                 {/* AI Insights */}
                 {insights?.ready && (
-                  <div className="rounded-2xl border p-4"
+                  <div className="rounded-[20px] border p-5"
                        style={{ background: insights.risk_match === false ? "rgba(245,158,11,0.06)" : "var(--card)", borderColor: insights.risk_match === false ? "rgba(245,158,11,0.4)" : "rgba(34,197,94,0.4)" }}>
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-lg">🧠</span>
-                      <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("profile.aiAnalyzed")}</span>
+                      <span className="w-9 h-9 rounded-[11px] flex items-center justify-center" style={{ background: insights.risk_match === false ? "rgba(245,158,11,0.14)" : "rgba(34,197,94,0.14)" }}>
+                        <Lightbulb className="w-[18px] h-[18px]" style={{ color: insights.risk_match === false ? "#f59e0b" : "#22c55e" }} />
+                      </span>
+                      <span className="text-base font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("profile.aiAnalyzed")}</span>
                     </div>
                     {insights.risk_match === false && insights.risk_note && (
                       <div className="rounded-xl p-3 mb-3 border" style={{ background: "rgba(245,158,11,0.1)", borderColor: "rgba(245,158,11,0.3)" }}>
@@ -717,19 +727,19 @@ export default function ProfilePage() {
 
                 {/* Datos personales */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.personalData")}</p>
+                  <p className="text-[18px] font-extrabold tracking-tight mb-3" style={{ color: "var(--text)" }}>{t("profile.personalData")}</p>
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { label: t("profile.age"), value: String(getAge(profile.birth_date)), sub: t("profile.years"), color: "#3b82f6" },
-                      { label: t("profile.income"), value: `$${Number(profile.monthly_income).toLocaleString()}`, sub: t("profile.perMonth"), color: "#22c55e" },
-                      { label: t("profile.contribution"), value: `$${Number(profile.monthly_contribution).toLocaleString()}`, sub: t("profile.perMonth"), color: riskColor },
+                      { label: t("profile.age"), value: String(getAge(profile.birth_date)), sub: t("profile.years"), color: "#3b82f6", icon: Cake },
+                      { label: t("profile.income"), value: `$${Number(profile.monthly_income).toLocaleString()}`, sub: t("profile.perMonth"), color: "#22c55e", icon: Wallet },
+                      { label: t("profile.contribution"), value: `$${Number(profile.monthly_contribution).toLocaleString()}`, sub: t("profile.perMonth"), color: "#00b96d", icon: PiggyBank },
                     ].map((item) => (
-                      <div key={item.label} className="rounded-2xl border p-3" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2" style={{ background: item.color + "18" }}>
-                          <div className="w-2.5 h-2.5 rounded-full" style={{ background: item.color }} />
+                      <div key={item.label} className="rounded-[18px] border p-4" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                        <div className="w-9 h-9 rounded-[11px] flex items-center justify-center mb-3" style={{ background: item.color + "18" }}>
+                          <item.icon className="w-[18px] h-[18px]" style={{ color: item.color }} />
                         </div>
-                        <div className="text-xl font-extrabold leading-tight" style={{ color: "var(--text)" }}>{item.value}</div>
-                        <div className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{item.sub} · {item.label}</div>
+                        <div className="text-[22px] font-extrabold tracking-tight leading-tight truncate" style={{ color: "var(--text)" }}>{item.value}</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.6px] mt-1" style={{ color: "var(--muted)" }}>{item.label}</div>
                       </div>
                     ))}
                   </div>
@@ -737,9 +747,9 @@ export default function ProfilePage() {
 
                 {/* Perfil de riesgo */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.riskProfile")}</p>
+                  <p className="text-[18px] font-extrabold tracking-tight mb-3" style={{ color: "var(--text)" }}>{t("profile.riskProfile")}</p>
                   <button onClick={() => setRiskExpanded((v) => !v)}
-                          className="w-full text-left rounded-2xl border p-4 transition-colors hover:opacity-90"
+                          className="w-full text-left rounded-[20px] border p-5 transition-colors hover:opacity-90"
                           style={{ background: "var(--card)", borderColor: riskColor + "55" }}>
                     <div className="flex items-start gap-3 mb-4">
                       <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: riskColor + "18" }}>
@@ -763,7 +773,7 @@ export default function ProfilePage() {
                              style={{ height: key === riskCat ? 8 : 5, background: key === riskCat ? riskColor : "var(--border)" }} />
                       ))}
                     </div>
-                    <div className="flex justify-between text-[9px]" style={{ color: "var(--dim)" }}>
+                    <div className="flex justify-between text-[11px]" style={{ color: "var(--muted)" }}>
                       <span>{t("profile.conservative")}</span><span>{t("profile.moderate")}</span><span>{t("profile.aggressive")}</span>
                     </div>
                     {riskExpanded && (
@@ -800,11 +810,11 @@ export default function ProfilePage() {
 
                 {/* Madurez inversora */}
                 <div>
-                  <div className="flex items-baseline gap-2 mb-2 ml-0.5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>{t("profile.investorMaturity")}</p>
-                    <p className="text-[9px] italic" style={{ color: "var(--dim)" }}>{t("profile.appBehavior")}</p>
+                  <div className="flex items-baseline gap-2 mb-3">
+                    <p className="text-[18px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("profile.investorMaturity")}</p>
+                    <p className="text-[11px] italic" style={{ color: "var(--muted)" }}>{t("profile.appBehavior")}</p>
                   </div>
-                  <div className="rounded-2xl border p-4" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                  <div className="rounded-[20px] border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <div className="text-5xl font-black leading-none" style={{ color: maturity.color }}>
@@ -820,13 +830,13 @@ export default function ProfilePage() {
                         <BarChart className="w-7 h-7" style={{ color: maturity.color }} />
                       </div>
                     </div>
-                    <div className="h-1.5 rounded-full mb-1.5 overflow-hidden" style={{ background: "var(--border)" }}>
+                    <div className="h-2 rounded-full mb-2 overflow-hidden" style={{ background: "var(--border)" }}>
                       <div className="h-full rounded-full transition-all" style={{ width: `${maturityScore}%`, background: maturity.color }} />
                     </div>
-                    <div className="flex justify-between text-[9px]" style={{ color: "var(--dim)" }}>
+                    <div className="flex justify-between text-[11px]" style={{ color: "var(--muted)" }}>
                       <span>{t("profile.passive")}</span><span>{t("profile.rational")}</span><span>{t("profile.speculative")}</span>
                     </div>
-                    <p className="text-[10px] mt-2 leading-relaxed" style={{ color: "var(--dim)" }}>
+                    <p className="text-xs mt-2.5 leading-relaxed" style={{ color: "var(--muted)" }}>
                       {t("profile.maturityGrowthDesc")}
                     </p>
                     {maturityHistory.length > 0 && (
@@ -856,14 +866,16 @@ export default function ProfilePage() {
                     /journal page. This is now just a discoverability link. */}
                 <button
                   onClick={() => router.push("/journal")}
-                  className="w-full flex items-center justify-between rounded-xl border p-3.5"
+                  className="w-full flex items-center justify-between rounded-[20px] border p-4 transition-colors hover:border-[var(--accent)]"
                   style={{ borderColor: "var(--border)", background: "var(--card)" }}
                 >
-                  <div className="flex items-center gap-2.5">
-                    <NotebookPen className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
+                  <div className="flex items-center gap-3.5">
+                    <span className="w-11 h-11 rounded-[13px] flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.10)" }}>
+                      <NotebookPen className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
+                    </span>
                     <div className="text-left">
-                      <p className="text-[12.5px] font-bold" style={{ color: "var(--text)" }}>{t("investmentJournal.profileLinkTitle")}</p>
-                      <p className="text-[11px]" style={{ color: "var(--muted)" }}>{t("investmentJournal.profileLinkSubtitle")}</p>
+                      <p className="text-[15px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("investmentJournal.profileLinkTitle")}</p>
+                      <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>{t("investmentJournal.profileLinkSubtitle")}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
@@ -872,12 +884,12 @@ export default function ProfilePage() {
                 {/* Mentor card */}
                 {mentor && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.yourMentor")}</p>
+                    <p className="text-[18px] font-extrabold tracking-tight mb-3" style={{ color: "var(--text)" }}>{t("profile.yourMentor")}</p>
                     <div className="rounded-2xl border overflow-hidden" style={{ borderColor: mentor.color + "40" }}>
                       <div className="flex items-center gap-4 p-4" style={{ background: mentor.color + "0d" }}>
-                        <div className="w-16 h-16 rounded-full flex items-center justify-center text-4xl shrink-0"
-                             style={{ background: mentor.color + "22" }}>
-                          {mentor.emoji}
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-extrabold shrink-0 border-2"
+                             style={{ background: mentor.color + "22", borderColor: mentor.color + "55", color: mentor.color }}>
+                          {mentor.name.charAt(0)}
                         </div>
                         <div className="flex-1">
                           <div className="font-bold text-base" style={{ color: "var(--text)" }}>{mentor.name}</div>
@@ -906,7 +918,7 @@ export default function ProfilePage() {
                            style={{ background: mentor.color + "20" }}>
                         {letterLoading
                           ? <Loader2 className="w-5 h-5 animate-spin" style={{ color: mentor.color }} />
-                          : <span className="text-xl">✉️</span>}
+                          : <Mail className="w-5 h-5" style={{ color: mentor.color }} />}
                       </div>
                       <div className="flex-1 text-left">
                         <div className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("profile.letterOf", { name: mentor.name.split(" ")[0] })}</div>
@@ -924,13 +936,17 @@ export default function ProfilePage() {
                   const currentQ3 = profile.quiz_answers?.q3 as string | undefined;
                   return (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>
+                      <p className="text-[18px] font-extrabold tracking-tight mb-3" style={{ color: "var(--text)" }}>
                         {t("profile.knowledgeLevel")}
                       </p>
-                      <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                      <div className="rounded-[20px] border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                         <div className="px-4 pt-4 pb-3">
-                          <div className="flex items-center gap-2 mb-3">
-                            <span className="text-2xl">{LEVEL_EMOJI[currentLevel]}</span>
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0" style={{ background: LEVEL_COLOR[currentLevel] + "1f" }}>
+                              {currentLevel === "basico" ? <BookOpen className="w-5 h-5" style={{ color: LEVEL_COLOR[currentLevel] }} />
+                                : currentLevel === "intermedio" ? <TrendingUp className="w-5 h-5" style={{ color: LEVEL_COLOR[currentLevel] }} />
+                                : <Zap className="w-5 h-5" style={{ color: LEVEL_COLOR[currentLevel] }} />}
+                            </span>
                             <div>
                               <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{getLevelLabel(t, currentLevel)}</p>
                               <p className="text-xs" style={{ color: "var(--muted)" }}>
@@ -939,7 +955,7 @@ export default function ProfilePage() {
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
-                            {LEVEL_OPTIONS.map(({ key, label, emoji, desc }) => {
+                            {LEVEL_OPTIONS.map(({ key, label, icon: LvIcon, desc }) => {
                               const isActive = currentQ3 === key || (!currentQ3 && key === "C");
                               const lc = LEVEL_COLOR[key === "B" ? "basico" : key === "C" ? "intermedio" : "avanzado"];
                               return (
@@ -951,10 +967,12 @@ export default function ProfilePage() {
                                           borderColor: isActive ? lc : "var(--border)",
                                           background: isActive ? `${lc}12` : "var(--raised)",
                                         }}>
-                                  <span className="text-lg shrink-0 mt-0.5">{emoji}</span>
+                                  <span className="w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0" style={{ background: lc + "1f" }}>
+                                    <LvIcon className="w-4 h-4" style={{ color: lc }} />
+                                  </span>
                                   <div className="min-w-0">
                                     <p className="text-xs font-bold leading-tight" style={{ color: isActive ? lc : "var(--text)" }}>{label}</p>
-                                    <p className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--dim)" }}>{desc}</p>
+                                    <p className="text-[11px] leading-snug mt-0.5" style={{ color: "var(--muted)" }}>{desc}</p>
                                   </div>
                                 </button>
                               );
@@ -971,15 +989,15 @@ export default function ProfilePage() {
 
                 {/* Perfil psicológico */}
                 <div>
-                  <div className="flex items-center gap-2 mb-2 ml-0.5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>{t("profile.psychProfile")}</p>
+                  <div className="flex items-center gap-2 mb-3">
+                    <p className="text-[18px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("profile.psychProfile")}</p>
                     {savingPsy && <div className="w-3 h-3 border border-t-transparent rounded-full animate-spin" style={{ borderColor: "var(--accent-l)", borderTopColor: "transparent" }} />}
                   </div>
-                  <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                  <div className="rounded-[20px] border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                     {[
-                      { key: "q2", icon: "🕐", label: t("profile.investmentHorizon"), color: "#22c55e",
+                      { key: "q2", icon: Clock as LucideIcon, label: t("profile.investmentHorizon"), color: "#22c55e",
                         value: profile.quiz_answers?.q2 as string | undefined },
-                      { key: "rt", icon: "🧠", label: t("profile.behavior"), color:
+                      { key: "rt", icon: User as LucideIcon, label: t("profile.behavior"), color:
                           (profile.risk_tolerance ?? "").startsWith("conservative") ? "#3b82f6"
                           : (profile.risk_tolerance ?? "").startsWith("aggressive") || profile.risk_tolerance === "speculative" ? "#ef4444"
                           : "#f59e0b",
@@ -990,23 +1008,23 @@ export default function ProfilePage() {
                           : (profile.risk_tolerance ?? "").startsWith("aggressive") || profile.risk_tolerance === "speculative" ? t("profile.aggressive")
                           : t("profile.moderate"),
                       },
-                      { key: "q1", icon: "📉", label: t("profile.reactionToDrops"), color: "#ef4444",
+                      { key: "q1", icon: TrendingDown as LucideIcon, label: t("profile.reactionToDrops"), color: "#ef4444",
                         value: profile.quiz_answers?.q1 as string | undefined },
-                      { key: "q5", icon: "⚙️", label: t("profile.marketFollowUp"), color: "#3b82f6",
+                      { key: "q5", icon: Eye as LucideIcon, label: t("profile.marketFollowUp"), color: "#3b82f6",
                         value: profile.quiz_answers?.q5 as string | undefined },
                     ].map((row, idx) => {
                       const displayText = row.displayOverride ?? (row.value ? QUIZ_LABELS[row.key]?.[row.value] : null);
                       return (
                         <button key={row.key} onClick={() => setPsyEditField(row.key)}
-                          className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:opacity-80 transition-opacity${idx > 0 ? " border-t" : ""}`}
+                          className={`w-full flex items-center gap-3.5 px-4 py-4 text-left hover:opacity-80 transition-opacity${idx > 0 ? " border-t" : ""}`}
                           style={{ borderColor: "var(--border)" }}>
-                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-base"
+                          <div className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0"
                                style={{ background: row.color + "18" }}>
-                            {row.icon}
+                            <row.icon className="w-[18px] h-[18px]" style={{ color: row.color }} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--dim)" }}>{row.label}</div>
-                            <div className="text-sm font-semibold truncate" style={{ color: displayText ? "var(--text)" : "var(--dim)" }}>
+                            <div className="text-[10.5px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--muted)" }}>{row.label}</div>
+                            <div className="text-[15px] font-semibold truncate" style={{ color: displayText ? "var(--text)" : "var(--dim)" }}>
                               {displayText ?? t("profile.notCompleted")}
                             </div>
                           </div>
@@ -1091,26 +1109,26 @@ export default function ProfilePage() {
 
                 {/* Suscripción */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.subscription")}</p>
+                  <p className="text-[18px] font-extrabold tracking-tight mb-3" style={{ color: "var(--text)" }}>{t("profile.subscription")}</p>
                   {isPremium ? (
-                    <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "rgba(245,158,11,0.5)" }}>
-                      <div className="h-0.5" style={{ background: "#f59e0b" }} />
-                      <div className="flex items-center gap-3 p-4">
-                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "rgba(245,158,11,0.15)" }}>
-                          <Star className="w-6 h-6 fill-current" style={{ color: "#f59e0b" }} />
+                    <div className="rounded-[22px] border overflow-hidden" style={{ background: "var(--card)", borderColor: "rgba(0,212,126,0.4)" }}>
+                      <div className="flex items-center gap-3 p-5 relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0F3326 0%, #0A1C1D 55%, #080E16 100%)" }}>
+                        <div aria-hidden className="absolute -top-16 -right-10 w-44 h-44 rounded-full" style={{ background: "radial-gradient(circle, rgba(0,232,135,0.2), transparent 70%)" }} />
+                        <div className="relative w-12 h-12 rounded-[14px] flex items-center justify-center" style={{ background: "#00D47E" }}>
+                          <Gem className="w-6 h-6" style={{ color: "#06120D" }} />
                         </div>
-                        <div className="flex-1">
-                          <div className="font-bold" style={{ color: "var(--text)" }}>Nuvos AI Premium</div>
-                          <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("profile.premiumFullAccess")}</div>
+                        <div className="relative flex-1">
+                          <div className="text-lg font-extrabold tracking-tight text-white">Nuvos AI Premium</div>
+                          <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.65)" }}>{t("profile.premiumFullAccess")}</div>
                         </div>
                         {subDetails?.cancel_at_period_end ? (
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold"
+                          <div className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold"
                                style={{ background: "rgba(239,68,68,0.12)", borderColor: "rgba(239,68,68,0.35)", color: "#ef4444" }}>
                             <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
                             {t("profile.cancelling")}
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold"
+                          <div className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold"
                                style={{ background: "rgba(34,197,94,0.15)", borderColor: "rgba(34,197,94,0.4)", color: "#22c55e" }}>
                             <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
                             {t("profile.active")}
@@ -1119,8 +1137,8 @@ export default function ProfilePage() {
                       </div>
 
                       {subDetails && (
-                        <div className="px-4 pb-3 -mt-1">
-                          <p className="text-xs" style={{ color: subDetails.cancel_at_period_end ? "#ef4444" : "var(--muted)" }}>
+                        <div className="px-5 pt-3.5 pb-1">
+                          <p className="text-[13px]" style={{ color: subDetails.cancel_at_period_end ? "#ef4444" : "var(--muted)" }}>
                             {subDetails.cancel_at_period_end
                               ? t("profile.cancelsOn", { date: subDetails.current_period_end ? new Date(subDetails.current_period_end * 1000).toLocaleDateString() : "" })
                               : t("profile.renewsOn", { date: subDetails.current_period_end ? new Date(subDetails.current_period_end * 1000).toLocaleDateString() : "" })}
@@ -1134,7 +1152,7 @@ export default function ProfilePage() {
                       )}
 
                       {subStore.hasStripeCustomer && (
-                        <div className="px-4 pb-4 space-y-2">
+                        <div className="px-5 pt-3 pb-5 space-y-2">
                           {subDetails?.cancel_at_period_end ? (
                             <button
                               onClick={handleResumeSubscription}
@@ -1188,9 +1206,9 @@ export default function ProfilePage() {
                       )}
                     </div>
                   ) : (
-                    <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                      <div className="flex items-center gap-3 p-4">
-                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "var(--raised)" }}>
+                    <div className="rounded-[22px] border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                      <div className="flex items-center gap-3 p-5">
+                        <div className="w-12 h-12 rounded-[14px] flex items-center justify-center" style={{ background: "rgba(0,185,109,0.10)" }}>
                           <User className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
                         </div>
                         <div className="flex-1">
@@ -1200,16 +1218,16 @@ export default function ProfilePage() {
                           </div>
                         </div>
                       </div>
-                      <div className="h-1 mx-4 rounded-full mb-3 overflow-hidden" style={{ background: "var(--border)" }}>
+                      <div className="h-1.5 mx-5 rounded-full mb-4 overflow-hidden" style={{ background: "var(--border)" }}>
                         <div className="h-full rounded-full" style={{
                           width: `${Math.round(((FREE_MSG_LIMIT - (remaining === Infinity ? 0 : remaining)) / FREE_MSG_LIMIT) * 100)}%`,
                           background: remaining < 5 ? "#ef4444" : "var(--accent)",
                         }} />
                       </div>
                       <button onClick={() => setPaywallOpen(true)}
-                              className="mx-4 mb-4 w-[calc(100%-2rem)] py-3 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2"
-                              style={{ background: "linear-gradient(90deg, #f59e0b, #f97316)" }}>
-                        <Star className="w-4 h-4 fill-current" />
+                              className="mx-5 mb-5 w-[calc(100%-2.5rem)] py-3.5 rounded-[14px] text-sm font-extrabold flex items-center justify-center gap-2 transition-all hover:opacity-90 hover:-translate-y-0.5"
+                              style={{ background: "#00D47E", color: "#06120D", boxShadow: "0 10px 24px -10px rgba(0,212,126,0.7)" }}>
+                        <Gem className="w-4 h-4" />
                         {t("profile.activatePremium")}
                       </button>
                     </div>
@@ -1222,10 +1240,10 @@ export default function ProfilePage() {
                     require an accept/decline before anything happens. */}
                 {duoIncomingInvite?.pending && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.duoPlan")}</p>
+                    <p className="text-[18px] font-extrabold tracking-tight mb-3" style={{ color: "var(--text)" }}>{t("profile.duoPlan")}</p>
                     <div className="rounded-2xl border p-4 flex flex-col gap-3" style={{ background: "var(--card)", borderColor: "rgba(245,158,11,0.4)" }}>
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">👫</span>
+                        <span className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0" style={{ background: "rgba(59,130,246,0.14)" }}><Users className="w-5 h-5" style={{ color: "#3b82f6" }} /></span>
                         <div className="flex-1">
                           <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("profile.duoInviteReceivedTitle")}</p>
                           <p className="text-xs" style={{ color: "var(--muted)" }}>
@@ -1258,10 +1276,10 @@ export default function ProfilePage() {
                 {/* Plan Dúo — secondary account management */}
                 {isPremium && (subStore.duoSetupPending || subStore.duoSecondaryEmail) && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.duoPlan")}</p>
+                    <p className="text-[18px] font-extrabold tracking-tight mb-3" style={{ color: "var(--text)" }}>{t("profile.duoPlan")}</p>
                     <div className="rounded-2xl border p-4 flex flex-col gap-3" style={{ background: "var(--card)", borderColor: "rgba(59,130,246,0.4)" }}>
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">👫</span>
+                        <span className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0" style={{ background: "rgba(59,130,246,0.14)" }}><Users className="w-5 h-5" style={{ color: "#3b82f6" }} /></span>
                         <div className="flex-1">
                           <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("profile.secondaryAccount")}</p>
                           <p className="text-xs" style={{ color: subStore.duoInviteStatus === "pending" ? "#f59e0b" : "var(--muted)" }}>
@@ -1297,7 +1315,7 @@ export default function ProfilePage() {
                               color: "var(--text)",
                             }}
                           />
-                          {duoError && <p className="text-xs" style={{ color: "#f87171" }}>⚠️ {duoError}</p>}
+                          {duoError && <p className="text-xs" style={{ color: "#f87171" }}>{duoError}</p>}
                           <div className="flex gap-2">
                             {duoEditing && (
                               <button
@@ -1381,7 +1399,7 @@ export default function ProfilePage() {
                       {voiceCallsOpen ? <ChevronUp className="w-4 h-4" style={{ color: "var(--muted)" }} /> : <ChevronDown className="w-4 h-4" style={{ color: "var(--muted)" }} />}
                     </button>
                     {voiceCallsOpen && (
-                      <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                      <div className="rounded-[20px] border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                         {voiceCalls.map((call, i) => {
                           const date = new Date(call.started_at);
                           const dateStr = date.toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
@@ -1442,8 +1460,8 @@ export default function ProfilePage() {
 
                 {/* Referral program */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.referralProgram")}</p>
-                  <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "rgba(245,158,11,0.3)" }}>
+                  <p className="text-[18px] font-extrabold tracking-tight mb-3" style={{ color: "var(--text)" }}>{t("profile.referralProgram")}</p>
+                  <div className="rounded-[20px] border overflow-hidden" style={{ background: "var(--card)", borderColor: "rgba(245,158,11,0.3)" }}>
                     {/* Header */}
                     <div className="p-4 border-b" style={{ borderColor: "var(--border)", background: "linear-gradient(135deg, rgba(245,158,11,0.06) 0%, rgba(251,191,36,0.04) 100%)" }}>
                       <div className="flex items-center gap-3 mb-1">
@@ -1451,8 +1469,8 @@ export default function ProfilePage() {
                           <Gift className="w-5 h-5" style={{ color: "#f59e0b" }} />
                         </div>
                         <div>
-                          <div className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("profile.inviteFriends")}</div>
-                          <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("profile.inviteFriendsDesc")}</div>
+                          <div className="font-extrabold text-base tracking-tight" style={{ color: "var(--text)" }}>{t("profile.inviteFriends")}</div>
+                          <div className="text-[13px] mt-0.5" style={{ color: "var(--muted)" }}>{t("profile.inviteFriendsDesc")}</div>
                         </div>
                       </div>
                     </div>
@@ -1556,8 +1574,8 @@ export default function ProfilePage() {
                             setTimeout(() => setCopiedLink(false), 2000);
                           }
                         }}
-                        className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-opacity hover:opacity-80"
-                        style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b" }}
+                        className="w-full py-3.5 rounded-[14px] text-sm font-extrabold flex items-center justify-center gap-2 transition-all hover:opacity-90"
+                        style={{ background: "#f59e0b", color: "#1a1003" }}
                       >
                         <Gift className="w-4 h-4" />
                         {t("profile.shareInvite")}
@@ -1579,15 +1597,15 @@ export default function ProfilePage() {
                       setWrappedLockedOpen(true);
                     }
                   }}
-                  className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
-                  style={{ background: "linear-gradient(135deg, #00d47e18, #00d47e0a)", border: "1px solid #00d47e30" }}
+                  className="w-full flex items-center gap-3.5 p-4 rounded-[20px] text-left transition-all hover:-translate-y-0.5 border"
+                  style={{ background: "linear-gradient(135deg, rgba(0,185,109,0.12), var(--card) 65%), var(--card)", borderColor: "rgba(0,185,109,0.3)" }}
                 >
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: "#00d47e18" }}>✨</div>
+                  <div className="w-11 h-11 rounded-[13px] flex items-center justify-center shrink-0" style={{ background: "var(--accent)" }}><Sparkles className="w-5 h-5 text-white" /></div>
                   <div className="flex-1">
-                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("profile.annualScoreboard", { year: new Date().getFullYear() })}</p>
+                    <p className="text-[15px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("profile.annualScoreboard", { year: new Date().getFullYear() })}</p>
                     <p className="text-xs" style={{ color: "var(--muted)" }}>{t("profile.yearAsInvestor")}</p>
                   </div>
-                  <p className="text-xs font-black shrink-0" style={{ color: "#00d47e" }}>{t("profile.view")}</p>
+                  <span className="text-xs font-extrabold shrink-0 px-3 py-1.5 rounded-full" style={{ color: "var(--accent-l)", background: "rgba(0,185,109,0.12)" }}>{t("profile.view")}</span>
                 </button>
 
                 {/* Nuvos Monthly Report — monthly counterpart, primary entry
@@ -1595,26 +1613,28 @@ export default function ProfilePage() {
                     both are the same kind of "personal report" moment. */}
                 <button
                   onClick={() => router.push("/monthly-report")}
-                  className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
-                  style={{ background: "linear-gradient(135deg, #00d47e18, #00d47e0a)", border: "1px solid #00d47e30" }}
+                  className="w-full flex items-center gap-3.5 p-4 rounded-[20px] text-left transition-all hover:-translate-y-0.5 border"
+                  style={{ background: "linear-gradient(135deg, rgba(0,185,109,0.12), var(--card) 65%), var(--card)", borderColor: "rgba(0,185,109,0.3)" }}
                 >
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: "#00d47e18" }}>🧭</div>
+                  <div className="w-11 h-11 rounded-[13px] flex items-center justify-center shrink-0" style={{ background: "var(--accent)" }}><Compass className="w-5 h-5 text-white" /></div>
                   <div className="flex-1">
-                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("home.monthlyReport.title")}</p>
+                    <p className="text-[15px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("home.monthlyReport.title")}</p>
                     <p className="text-xs" style={{ color: "var(--muted)" }}>{t("home.monthlyReport.subtitle")}</p>
                   </div>
-                  <p className="text-xs font-black shrink-0" style={{ color: "#00d47e" }}>{t("profile.view")}</p>
+                  <span className="text-xs font-extrabold shrink-0 px-3 py-1.5 rounded-full" style={{ color: "var(--accent-l)", background: "rgba(0,185,109,0.12)" }}>{t("profile.view")}</span>
                 </button>
 
                 {/* Fase 4, Incremento 12 (Personalización, Parte L) */}
                 <button onClick={() => router.push("/settings")}
-                        className="w-full flex items-center justify-between rounded-xl border p-3.5"
+                        className="w-full flex items-center justify-between rounded-[20px] border p-4 transition-colors hover:border-[var(--accent)]"
                         style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                  <div className="flex items-center gap-2.5">
-                    <SlidersHorizontal className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
+                  <div className="flex items-center gap-3.5">
+                    <span className="w-11 h-11 rounded-[13px] flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.10)" }}>
+                      <SlidersHorizontal className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
+                    </span>
                     <div className="text-left">
-                      <p className="text-[12.5px] font-bold" style={{ color: "var(--text)" }}>{t("settings.profileLinkTitle")}</p>
-                      <p className="text-[11px]" style={{ color: "var(--muted)" }}>{t("settings.profileLinkSubtitle")}</p>
+                      <p className="text-[15px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("settings.profileLinkTitle")}</p>
+                      <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>{t("settings.profileLinkSubtitle")}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
@@ -1624,8 +1644,8 @@ export default function ProfilePage() {
                     viven dentro de Perfil; el click abre la pantalla normal. */}
                 <div className="grid grid-cols-2 gap-3">
                   <button onClick={() => router.push("/notifications")}
-                          className="relative flex flex-col items-start gap-2.5 p-4 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
-                          style={{ background: "linear-gradient(135deg, #00d47e18, #00d47e0a)", border: "1px solid #00d47e30" }}>
+                          className="relative flex flex-col items-start gap-3 p-4 rounded-[20px] text-left border transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]"
+                          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                     {unreadCount > 0 && (
                       <span className="absolute top-3 right-3 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-black text-white"
                             style={{ background: "#00d47e" }}>
@@ -1641,8 +1661,8 @@ export default function ProfilePage() {
                     </div>
                   </button>
                   <button onClick={() => router.push("/support")}
-                          className="flex flex-col items-start gap-2.5 p-4 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
-                          style={{ background: "linear-gradient(135deg, #3b82f618, #3b82f60a)", border: "1px solid #3b82f630" }}>
+                          className="flex flex-col items-start gap-3 p-4 rounded-[20px] text-left border transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]"
+                          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#3b82f618" }}>
                       <HeadphonesIcon className="w-5 h-5" style={{ color: "#3b82f6" }} />
                     </div>
@@ -1734,7 +1754,9 @@ export default function ProfilePage() {
             >
               <X className="w-3.5 h-3.5" />
             </button>
-            <div className="text-3xl mb-3">✨</div>
+            <div className="w-14 h-14 rounded-[18px] mx-auto mb-3 flex items-center justify-center" style={{ background: "var(--accent)" }}>
+              <Sparkles className="w-7 h-7 text-white" />
+            </div>
             <h2 className="text-lg font-black mb-2" style={{ color: "var(--text)" }}>
               {t("profile.wrappedLocked.title", { year: new Date().getFullYear() })}
             </h2>

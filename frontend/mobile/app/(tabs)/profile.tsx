@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import * as SecureStore from "expo-secure-store";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
@@ -482,9 +483,9 @@ if (!profile) {
 
       {/* ── HEADER ── */}
       <View style={[s.header, { borderBottomColor: colors.border }]}>
-        <View>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[s.headerGreet, { color: colors.textMuted }]}>{t("profile.header")}</Text>
-          <Text style={[s.headerName, { color: colors.text }]}>{profile.name}</Text>
+          <Text style={[s.headerName, { color: colors.text }]} numberOfLines={1}>{profile.name}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: 10 }}>
           <TouchableOpacity
@@ -512,17 +513,24 @@ if (!profile) {
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
 
         {/* ── HERO CARD ── */}
-        <View style={[s.heroCard, { borderColor: riskCfg.color + "35" }]}>
+        <View style={[s.heroCard, { borderColor: colors.accent + "40" }]}>
           {/* Colored band with decorative icon */}
-          <View style={[s.heroBand, { backgroundColor: riskCfg.color }]}>
-            <View style={{ position: "absolute", right: 18, top: 14, opacity: 0.18 }}>
-              <Ionicons name={riskCfg.icon} size={46} color="white" />
+          <View style={s.heroBand}>
+            <LinearGradient
+              colors={["#0F3326", "#0A1C1D", "#080E16"]}
+              locations={[0, 0.55, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View pointerEvents="none" style={{ position: "absolute", top: -70, right: -50, width: 180, height: 180, borderRadius: 90, backgroundColor: "rgba(0,232,135,0.16)" }} />
+            <View pointerEvents="none" style={{ position: "absolute", bottom: -80, left: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: riskCfg.color + "22" }} />
+            <View style={{ position: "absolute", right: 18, top: 16, opacity: 0.22 }}>
+              <Ionicons name={riskCfg.icon} size={44} color="#fff" />
             </View>
           </View>
 
           {/* Avatar centered on band edge */}
           <View style={s.heroAvatarRow}>
-            <View style={[s.heroRing, { borderColor: colors.bg }]}>
+            <View style={[s.heroRing, { borderColor: colors.card }]}>
               {avatarUploading ? (
                 <View style={[s.heroAvatar, { backgroundColor: riskCfg.color, alignItems: "center", justifyContent: "center" }]}>
                   <ActivityIndicator color="white" size="small" />
@@ -535,11 +543,11 @@ if (!profile) {
                 </View>
               )}
               <TouchableOpacity
-                style={[s.cameraBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={[s.cameraBtn, { backgroundColor: colors.accent, borderColor: colors.card }]}
                 onPress={pickPhoto}
                 disabled={avatarUploading}
               >
-                <Ionicons name="camera" size={11} color={colors.accentLight} />
+                <Ionicons name="camera" size={12} color="#fff" />
               </TouchableOpacity>
             </View>
           </View>
@@ -569,7 +577,7 @@ if (!profile) {
             </View>
 
             {/* Stats row: age | income | contribution */}
-            <View style={[s.heroStats, { borderTopColor: riskCfg.color + "22" }]}>
+            <View style={[s.heroStats, { backgroundColor: colors.bg, borderColor: colors.border }]}>
               <View style={s.heroStat}>
                 <Text style={[s.heroStatVal, { color: colors.text }]}>{age || "—"}</Text>
                 <Text style={[s.heroStatLabel, { color: colors.textMuted }]}>{t("profile.yearsUnit")}</Text>
@@ -598,7 +606,7 @@ if (!profile) {
           <View style={s.metaCard}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
               <View style={s.metaIconBox}>
-                <Text style={{ fontSize: 26, lineHeight: 30 }}>{goalInfo.emoji}</Text>
+                <Ionicons name="flag" size={22} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.metaCaption}>{t("profile.goal.sectionLabel")}</Text>
@@ -627,7 +635,7 @@ if (!profile) {
           }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}>
               <View style={[s.insightIcon, { backgroundColor: insights.risk_match === false ? "#f59e0b18" : "#22c55e18" }]}>
-                <Text style={{ fontSize: 20 }}>🧠</Text>
+                <Ionicons name="bulb-outline" size={20} color={insights.risk_match === false ? "#f59e0b" : "#22c55e"} />
               </View>
               <Text style={[s.sectionTitle, { color: colors.text }]}>{t("profile.insights.title")}</Text>
             </View>
@@ -773,7 +781,7 @@ if (!profile) {
                   <Text style={[s.maturityBadgeText, { color: maturity.color }]}>{maturity.label}</Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
             </View>
 
             <View style={[s.progressTrack, { backgroundColor: colors.border }]}>
@@ -817,13 +825,15 @@ if (!profile) {
         <TouchableOpacity
           onPress={() => router.push("/journal" as any)}
           activeOpacity={0.7}
-          style={{ marginTop: 24, marginHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
+          style={{ marginTop: 28, marginHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
-            <Ionicons name="create-outline" size={18} color={colors.accentLight} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: colors.accent + "1A", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="create-outline" size={21} color={colors.accentLight} />
+            </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>{t("investmentJournal.profileLinkTitle")}</Text>
-              <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }} numberOfLines={1}>{t("investmentJournal.profileLinkSubtitle")}</Text>
+              <Text style={[s.linkTitle, { color: colors.text }]}>{t("investmentJournal.profileLinkTitle")}</Text>
+              <Text style={[s.linkSub, { color: colors.textMuted }]} numberOfLines={1}>{t("investmentJournal.profileLinkSubtitle")}</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
@@ -882,10 +892,10 @@ if (!profile) {
               return (
                 <View style={[s.psyRow, { borderBottomColor: colors.border }]}>
                   <View style={[s.psyRowIcon, { backgroundColor: "rgba(34,197,94,0.12)" }]}>
-                    <Text style={{ fontSize: 18 }}>🕐</Text>
+                    <Ionicons name="time-outline" size={19} color="#22c55e" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>{t("profile.psych.horizon")}</Text>
+                    <Text style={[s.psyRowCat, { color: colors.textMuted }]}>{t("profile.psych.horizon")}</Text>
                     <Text style={[s.psyRowVal, { color: label ? colors.text : colors.textDim }]}>
                       {label ?? t("profile.psych.notCompleted")}
                     </Text>
@@ -913,10 +923,10 @@ if (!profile) {
               return (
                 <View style={[s.psyRow, { borderBottomColor: colors.border }]}>
                   <View style={[s.psyRowIcon, { backgroundColor: compColor + "18" }]}>
-                    <Text style={{ fontSize: 18 }}>🧠</Text>
+                    <Ionicons name="person-outline" size={19} color={compColor} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>{t("profile.psych.behavior")}</Text>
+                    <Text style={[s.psyRowCat, { color: colors.textMuted }]}>{t("profile.psych.behavior")}</Text>
                     <Text style={[s.psyRowVal, { color: colors.text }]}>{compLabel}</Text>
                   </View>
                   <TouchableOpacity onPress={() => setPsyEditField("risk_tolerance")}
@@ -934,10 +944,10 @@ if (!profile) {
               return (
                 <View style={[s.psyRow, { borderBottomColor: colors.border }]}>
                   <View style={[s.psyRowIcon, { backgroundColor: "rgba(239,68,68,0.10)" }]}>
-                    <Text style={{ fontSize: 18 }}>📉</Text>
+                    <Ionicons name="trending-down-outline" size={19} color="#ef4444" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>{t("profile.psych.reaction")}</Text>
+                    <Text style={[s.psyRowCat, { color: colors.textMuted }]}>{t("profile.psych.reaction")}</Text>
                     <Text style={[s.psyRowVal, { color: label ? colors.text : colors.textDim }]}>
                       {label ?? t("profile.psych.notCompleted")}
                     </Text>
@@ -964,10 +974,10 @@ if (!profile) {
               return (
                 <View style={[s.psyRow, { borderBottomWidth: 0 }]}>
                   <View style={[s.psyRowIcon, { backgroundColor: "rgba(59,130,246,0.10)" }]}>
-                    <Text style={{ fontSize: 18 }}>⚙️</Text>
+                    <Ionicons name="eye-outline" size={19} color="#3b82f6" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>{t("profile.psych.marketTracking")}</Text>
+                    <Text style={[s.psyRowCat, { color: colors.textMuted }]}>{t("profile.psych.marketTracking")}</Text>
                     <Text style={[s.psyRowVal, { color: label ? colors.text : colors.textDim }]}>
                       {label ?? t("profile.psych.notCompleted")}
                     </Text>
@@ -1115,9 +1125,9 @@ if (!profile) {
           </View>
           <View style={[s.levelCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {[
-              { key: "B", label: t("profile.level.basic.label"),       emoji: "🌱", desc: t("profile.level.basic.desc"),      color: "#22c55e" },
-              { key: "C", label: t("profile.level.intermediate.label"),   emoji: "📈", desc: t("profile.level.intermediate.desc"),       color: "#3b82f6" },
-              { key: "D", label: t("profile.level.advanced.label"),     emoji: "🎯", desc: t("profile.level.advanced.desc"),       color: "#a855f7" },
+              { key: "B", label: t("profile.level.basic.label"),       emoji: "leaf-outline", desc: t("profile.level.basic.desc"),      color: "#22c55e" },
+              { key: "C", label: t("profile.level.intermediate.label"),   emoji: "trending-up-outline", desc: t("profile.level.intermediate.desc"),       color: "#3b82f6" },
+              { key: "D", label: t("profile.level.advanced.label"),     emoji: "locate-outline", desc: t("profile.level.advanced.desc"),       color: "#a855f7" },
             ].map((opt, i) => {
               const isActive = profile.quiz_answers?.q3 === opt.key || profile.knowledge_level === opt.key;
               return (
@@ -1132,7 +1142,9 @@ if (!profile) {
                   disabled={savingLevel}
                   activeOpacity={0.75}
                 >
-                  <Text style={{ fontSize: 20, marginBottom: 4 }}>{opt.emoji}</Text>
+                  <View style={{ width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", marginBottom: 8, backgroundColor: opt.color + (isActive ? "26" : "14") }}>
+                    <Ionicons name={opt.emoji as any} size={18} color={opt.color} />
+                  </View>
                   <Text style={[s.levelOptLabel, { color: isActive ? opt.color : colors.text }]}>{opt.label}</Text>
                   <Text style={[s.levelOptDesc, { color: colors.textMuted }]}>{opt.desc}</Text>
                   {isActive && (
@@ -1262,64 +1274,70 @@ if (!profile) {
 
         {/* ── PANTALLA DE INICIO ── */}
         <View style={s.section}>
+          <View style={s.sectionHeader}>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>{t("profile.settingsTitle")}</Text>
+          </View>
           <TouchableOpacity
             onPress={() => setStartScreenPickerOpen(true)}
             activeOpacity={0.85}
-            style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}
+            style={[s.linkRow, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
             <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(99,102,241,0.12)", alignItems: "center", justifyContent: "center" }}>
               <Ionicons name="home-outline" size={22} color="#6366f1" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.startScreen.sectionTitle")}</Text>
-              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+              <Text style={[s.linkTitle, { color: colors.text }]}>{t("profile.startScreen.sectionTitle")}</Text>
+              <Text style={[s.linkSub, { color: colors.textMuted }]}>
                 {START_SCREEN_OPTIONS.find((o) => o.key === (startScreen ?? "home"))?.label ?? t("profile.startScreen.options.home")}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
         {/* ── IDIOMA ── */}
-        <View style={s.section}>
+        <View style={[s.section, { marginTop: 10 }]}>
           <TouchableOpacity
             onPress={() => setLanguagePickerOpen(true)}
             activeOpacity={0.85}
-            style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}
+            style={[s.linkRow, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
             <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(0,212,126,0.12)", alignItems: "center", justifyContent: "center" }}>
               <Ionicons name="language-outline" size={22} color="#00d47e" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.language")}</Text>
-              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+              <Text style={[s.linkTitle, { color: colors.text }]}>{t("profile.language")}</Text>
+              <Text style={[s.linkSub, { color: colors.textMuted }]}>
                 {LANGUAGE_OPTIONS.find((o) => o.key === language)?.label ?? "Español"}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
         {/* ── PRODUCTOS ── */}
-        <View style={s.section}>
+        <View style={[s.section, { marginTop: 10 }]}>
           <TouchableOpacity
             onPress={() => router.push("/products")}
             activeOpacity={0.85}
-            style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
+            style={[s.linkRow, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
             <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(0,212,126,0.1)", alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 22 }}>🛍️</Text>
+              <Ionicons name="bag-handle-outline" size={21} color="#00d47e" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.products.sectionTitle")}</Text>
-              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{t("profile.products.sectionSubtitle")}</Text>
+              <Text style={[s.linkTitle, { color: colors.text }]}>{t("profile.products.sectionTitle")}</Text>
+              <Text style={[s.linkSub, { color: colors.textMuted }]}>{t("profile.products.sectionSubtitle")}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
         {/* ── NUVOS WRAPPED ── */}
         <View style={[s.section, { marginBottom: 0 }]}>
+          <View style={s.sectionHeader}>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>{t("profile.reportsTitle")}</Text>
+          </View>
           <TouchableOpacity
             onPress={() => {
               if (isWrappedWindowOpenLocal(new Date())) {
@@ -1329,16 +1347,16 @@ if (!profile) {
               }
             }}
             activeOpacity={0.85}
-            style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, backgroundColor: "rgba(0,212,126,0.06)", borderWidth: 1, borderColor: "rgba(0,212,126,0.2)" }}
+            style={[s.linkRow, { backgroundColor: colors.card, borderColor: colors.accent + "40" }]}
           >
-            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(0,212,126,0.14)", alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 22 }}>✨</Text>
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="sparkles" size={20} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.wrapped.title", { year: new Date().getFullYear() })}</Text>
-              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{t("profile.wrapped.subtitle")}</Text>
+              <Text style={[s.linkTitle, { color: colors.text }]}>{t("profile.wrapped.title", { year: new Date().getFullYear() })}</Text>
+              <Text style={[s.linkSub, { color: colors.textMuted }]}>{t("profile.wrapped.subtitle")}</Text>
             </View>
-            <Text style={{ fontSize: 13, fontWeight: "900", color: "#00d47e" }}>{t("profile.wrapped.cta")}</Text>
+            <View style={[s.linkCta, { backgroundColor: colors.accent + "1A" }]}><Text style={[s.linkCtaText, { color: colors.accentLight }]}>{t("profile.wrapped.cta")}</Text></View>
           </TouchableOpacity>
         </View>
 
@@ -1359,7 +1377,9 @@ if (!profile) {
               >
                 <Ionicons name="close" size={16} color={colors.textMuted} />
               </TouchableOpacity>
-              <Text style={{ fontSize: 30, marginBottom: 10 }}>✨</Text>
+              <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                <Ionicons name="sparkles" size={26} color="#fff" />
+              </View>
               <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, textAlign: "center", marginBottom: 8 }}>
                 {t("profile.wrappedLocked.title", { year: new Date().getFullYear() })}
               </Text>
@@ -1385,20 +1405,20 @@ if (!profile) {
         </Modal>
 
         {/* ── NUVOS MONTHLY REPORT — monthly counterpart to Wrapped ── */}
-        <View style={[s.section, { marginBottom: 0 }]}>
+        <View style={[s.section, { marginBottom: 0, marginTop: 10 }]}>
           <TouchableOpacity
             onPress={() => router.push("/monthly-report")}
             activeOpacity={0.85}
-            style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, backgroundColor: "rgba(0,212,126,0.06)", borderWidth: 1, borderColor: "rgba(0,212,126,0.2)" }}
+            style={[s.linkRow, { backgroundColor: colors.card, borderColor: colors.accent + "40" }]}
           >
-            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(0,212,126,0.14)", alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 22 }}>🧭</Text>
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="compass" size={21} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.monthlyReport.title")}</Text>
-              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{t("profile.monthlyReport.subtitle")}</Text>
+              <Text style={[s.linkTitle, { color: colors.text }]}>{t("profile.monthlyReport.title")}</Text>
+              <Text style={[s.linkSub, { color: colors.textMuted }]}>{t("profile.monthlyReport.subtitle")}</Text>
             </View>
-            <Text style={{ fontSize: 13, fontWeight: "900", color: "#00d47e" }}>{t("profile.monthlyReport.cta")}</Text>
+            <View style={[s.linkCta, { backgroundColor: colors.accent + "1A" }]}><Text style={[s.linkCtaText, { color: colors.accentLight }]}>{t("profile.monthlyReport.cta")}</Text></View>
           </TouchableOpacity>
         </View>
 
@@ -1410,10 +1430,12 @@ if (!profile) {
             <Text style={[s.plansSectionLabel, { color: colors.textMuted }]}>{t("profile.duo.sectionLabel")}</Text>
             <View style={{ backgroundColor: "rgba(245,158,11,0.08)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(245,158,11,0.35)", padding: 16, gap: 12 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <Text style={{ fontSize: 22 }}>👫</Text>
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(245,158,11,0.16)", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="people" size={20} color="#f59e0b" />
+                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.duo.inviteReceivedTitle")}</Text>
-                  <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+                  <Text style={[s.linkTitle, { color: colors.text }]}>{t("profile.duo.inviteReceivedTitle")}</Text>
+                  <Text style={[s.linkSub, { color: colors.textMuted }]}>
                     {t("profile.duo.inviteReceivedBody", { name: duoIncomingInvite.primary_name })}
                   </Text>
                 </View>
@@ -1449,9 +1471,11 @@ if (!profile) {
             <View style={{ backgroundColor: "rgba(59,130,246,0.08)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(59,130,246,0.3)", padding: 16, gap: 12 }}>
               {/* Header */}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <Text style={{ fontSize: 22 }}>👫</Text>
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(59,130,246,0.16)", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="people" size={20} color="#3b82f6" />
+                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.duo.secondaryAccount")}</Text>
+                  <Text style={[s.linkTitle, { color: colors.text }]}>{t("profile.duo.secondaryAccount")}</Text>
                   <Text style={{ fontSize: 12, color: duoInviteStatus === "pending" ? "#f59e0b" : colors.textMuted, marginTop: 2 }}>
                     {duoSecondaryEmail && duoInviteStatus === "pending"
                       ? t("profile.duo.awaitingAcceptance", { email: duoSecondaryEmail })
@@ -1492,7 +1516,7 @@ if (!profile) {
                     }}
                   />
                   {!!duoError && (
-                    <Text style={{ fontSize: 12, color: "#f87171" }}>⚠️ {duoError}</Text>
+                    <Text style={{ fontSize: 12, color: "#f87171" }}>{duoError}</Text>
                   )}
                   <View style={{ flexDirection: "row", gap: 10 }}>
                     {duoEditing && (
@@ -1635,14 +1659,14 @@ if (!profile) {
         )}
 
         {/* ── BOTTOM ── */}
-        <View style={{ marginTop: 16, gap: 10, paddingBottom: 12 }}>
+        <View style={{ marginTop: 28, gap: 10, paddingBottom: 20 }}>
           {/* Notificaciones y Soporte — movidos aquí desde el drawer, ahora
               viven dentro de Perfil; el tap abre la pantalla normal. */}
           <View style={{ flexDirection: "row", gap: 10, marginHorizontal: 16 }}>
             <TouchableOpacity
               onPress={() => router.push("/(tabs)/notifications")}
               activeOpacity={0.85}
-              style={{ flex: 1, padding: 14, borderRadius: 18, backgroundColor: "rgba(0,212,126,0.08)", borderWidth: 1, borderColor: "rgba(0,212,126,0.25)" }}
+              style={{ flex: 1, padding: 16, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
             >
               <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(0,212,126,0.15)", alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name="notifications-outline" size={18} color="#00d47e" />
@@ -1654,7 +1678,7 @@ if (!profile) {
             <TouchableOpacity
               onPress={() => router.push("/(tabs)/support")}
               activeOpacity={0.85}
-              style={{ flex: 1, padding: 14, borderRadius: 18, backgroundColor: "rgba(59,130,246,0.08)", borderWidth: 1, borderColor: "rgba(59,130,246,0.25)" }}
+              style={{ flex: 1, padding: 16, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
             >
               <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(59,130,246,0.15)", alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name="headset-outline" size={18} color="#3b82f6" />
@@ -1779,69 +1803,69 @@ function makeStyles(c: Colors) {
       paddingHorizontal: 20, paddingTop: 6, paddingBottom: 12,
       borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    headerGreet: { fontSize: 12, fontWeight: "500", letterSpacing: 0.3, marginBottom: 1 },
-    headerName: { fontSize: 20, fontWeight: "800", letterSpacing: -0.4 },
+    headerGreet: { fontSize: 11, fontWeight: "700", letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 2 },
+    headerName: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
     iconBtn: {
-      width: 38, height: 38, borderRadius: 12, borderWidth: 1,
+      width: 38, height: 38, borderRadius: 19, borderWidth: 1,
       alignItems: "center", justifyContent: "center",
     },
 
     // ── Sections ──
-    section: { marginTop: 24, paddingHorizontal: 16 },
+    section: { marginTop: 28, paddingHorizontal: 16 },
     sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-    sectionTitle: { fontSize: 16, fontWeight: "700", letterSpacing: -0.3 },
+    sectionTitle: { fontSize: 18, fontWeight: "800", letterSpacing: -0.4 },
     sectionLink: { fontSize: 13, fontWeight: "600" },
 
     // ── Hero card ──
     heroCard: {
       marginHorizontal: 16, marginTop: 16,
-      borderRadius: 22, borderWidth: 1,
+      borderRadius: 24, borderWidth: 1,
       backgroundColor: c.card, overflow: "hidden",
-      shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 5 },
+      shadowColor: "#00b96d", shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 6,
     },
-    heroBand: { height: 72, overflow: "hidden" },
-    heroAvatarRow: { alignItems: "center", marginTop: -46 },
+    heroBand: { height: 96, overflow: "hidden" },
+    heroAvatarRow: { alignItems: "center", marginTop: -50 },
     heroRing: {
-      width: 92, height: 92, borderRadius: 46, borderWidth: 5,
+      width: 100, height: 100, borderRadius: 50, borderWidth: 5,
       alignItems: "center", justifyContent: "center", position: "relative",
       backgroundColor: c.bg,
     },
-    heroAvatar: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
+    heroAvatar: { width: 90, height: 90, borderRadius: 45, alignItems: "center", justifyContent: "center" },
     heroAvatarLetter: { color: "white", fontSize: 34, fontWeight: "900", letterSpacing: -1 },
     cameraBtn: {
       position: "absolute", bottom: 2, right: 2,
-      width: 26, height: 26, borderRadius: 13, borderWidth: 1.5,
+      width: 30, height: 30, borderRadius: 15, borderWidth: 3,
       alignItems: "center", justifyContent: "center",
     },
-    heroBody: { alignItems: "center", paddingHorizontal: 16, paddingTop: 10 },
-    heroName: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5, marginBottom: 8 },
+    heroBody: { alignItems: "center", paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16 },
+    heroName: { fontSize: 24, fontWeight: "800", letterSpacing: -0.6, marginBottom: 10 },
     heroTags: { flexDirection: "row", gap: 7, flexWrap: "wrap", justifyContent: "center", marginBottom: 4 },
-    heroTag: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-    heroTagText: { fontSize: 11, fontWeight: "700" },
+    heroTag: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 6 },
+    heroTagText: { fontSize: 12, fontWeight: "700" },
     heroStats: {
       flexDirection: "row", width: "100%",
-      borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 14, marginTop: 12,
+      borderWidth: 1, borderRadius: 16, paddingVertical: 14, marginTop: 16,
     },
     heroStat: { flex: 1, alignItems: "center" },
-    heroStatVal: { fontSize: 15, fontWeight: "800", letterSpacing: -0.3, marginBottom: 2 },
-    heroStatLabel: { fontSize: 10, fontWeight: "500" },
-    heroDivider: { width: 1, marginVertical: 4 },
+    heroStatVal: { fontSize: 17, fontWeight: "800", letterSpacing: -0.4, marginBottom: 3 },
+    heroStatLabel: { fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.7 },
+    heroDivider: { width: StyleSheet.hairlineWidth, marginVertical: 2 },
 
     // ── Meta card ──
     metaCard: {
       marginHorizontal: 16, marginTop: 16,
-      borderRadius: 18, borderWidth: 1,
-      borderColor: "rgba(0,212,126,0.28)",
-      backgroundColor: "rgba(0,212,126,0.06)",
-      padding: 14,
+      borderRadius: 20, borderWidth: 1,
+      borderColor: "rgba(0,212,126,0.3)",
+      backgroundColor: "rgba(0,212,126,0.07)",
+      padding: 16,
     },
     metaIconBox: {
       width: 52, height: 52, borderRadius: 15,
-      backgroundColor: "rgba(0,212,126,0.12)",
+      backgroundColor: "#00b96d",
       alignItems: "center", justifyContent: "center",
     },
-    metaCaption: { fontSize: 9, fontWeight: "700", letterSpacing: 1.2, textTransform: "uppercase", color: "rgba(0,212,126,0.55)", marginBottom: 2 },
-    metaLabel: { fontSize: 16, fontWeight: "800", color: "#00d47e", letterSpacing: -0.3 },
+    metaCaption: { fontSize: 10, fontWeight: "700", letterSpacing: 1.2, textTransform: "uppercase", color: "rgba(0,212,126,0.55)", marginBottom: 2 },
+    metaLabel: { fontSize: 17, fontWeight: "800", color: "#00d47e", letterSpacing: -0.3 },
     metaAmount: { fontSize: 13, fontWeight: "600", marginTop: 2 },
     metaHorizonBadge: {
       alignItems: "center", justifyContent: "center",
@@ -1855,13 +1879,13 @@ function makeStyles(c: Colors) {
     // ── Insight card ──
     insightCard: {
       marginHorizontal: 16, marginTop: 16,
-      borderRadius: 18, borderWidth: 1, padding: 14,
+      borderRadius: 20, borderWidth: 1, padding: 16,
     },
     insightIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
 
     // ── Risk card ──
     riskCard: {
-      borderRadius: 18, borderWidth: 1.5, padding: 16,
+      borderRadius: 20, borderWidth: 1, padding: 18,
       shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 },
     },
     riskTopRow: { flexDirection: "row", alignItems: "flex-start", gap: 14, marginBottom: 18 },
@@ -1871,11 +1895,11 @@ function makeStyles(c: Colors) {
     riskSegments: { flexDirection: "row", gap: 5, marginBottom: 7, alignItems: "center" },
     riskSegment: { flex: 1, borderRadius: 4 },
     riskSegmentLabels: { flexDirection: "row" },
-    riskSegmentLabel: { flex: 1, fontSize: 9, letterSpacing: 0.3, textAlign: "center" },
+    riskSegmentLabel: { flex: 1, fontSize: 10.5, letterSpacing: 0.3, textAlign: "center" },
 
     // ── Maturity card ──
     maturityCard: {
-      borderRadius: 18, borderWidth: 1, padding: 16,
+      borderRadius: 20, borderWidth: 1, padding: 18,
       shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
     },
     maturityRow: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 16 },
@@ -1887,7 +1911,7 @@ function makeStyles(c: Colors) {
     progressTrack: { height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 6 },
     progressFill: { height: "100%", borderRadius: 3 },
     progressLabels: { flexDirection: "row", justifyContent: "space-between" },
-    progressLabel: { fontSize: 9, letterSpacing: 0.3 },
+    progressLabel: { fontSize: 10.5, letterSpacing: 0.3 },
     divider: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 14, marginBottom: 10 },
     histTitle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 },
     histRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 7 },
@@ -1897,7 +1921,7 @@ function makeStyles(c: Colors) {
     histScore: { fontSize: 12, fontWeight: "600" },
 
     // ── Mentor card ──
-    mentorCard: { borderRadius: 18, borderWidth: 1.5, overflow: "hidden" },
+    mentorCard: { borderRadius: 20, borderWidth: 1, overflow: "hidden" },
     mentorBand: { flexDirection: "row", gap: 14, alignItems: "center", padding: 16 },
     mentorPhoto: { width: 70, height: 70, borderRadius: 35 },
     mentorEmojiBox: { width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center" },
@@ -1913,32 +1937,32 @@ function makeStyles(c: Colors) {
     principleText: { fontSize: 13, flex: 1, lineHeight: 18 },
 
     // ── Psychological profile ──
-    psyTwoCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+    psyTwoCard: { borderRadius: 20, borderWidth: 1, overflow: "hidden" },
     psyRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
     psyRowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-    psyRowCat: { fontSize: 9, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 3 },
-    psyRowVal: { fontSize: 14, fontWeight: "700" },
+    psyRowCat: { fontSize: 10.5, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 3 },
+    psyRowVal: { fontSize: 15, fontWeight: "700" },
 
     // ── Knowledge level ──
-    levelCard: { borderWidth: 1, borderRadius: 18, padding: 12, flexDirection: "row", flexWrap: "wrap", gap: 0 },
+    levelCard: { borderWidth: 1, borderRadius: 20, padding: 12, flexDirection: "row", flexWrap: "wrap", gap: 0 },
     levelOption: { width: "48%", borderWidth: 1.5, borderRadius: 14, padding: 12, marginBottom: 8, alignItems: "flex-start", position: "relative" },
     levelOptLabel: { fontSize: 13, fontWeight: "700", marginBottom: 2 },
     levelOptDesc: { fontSize: 11, lineHeight: 15 },
 
     // ── Referral ──
-    referralCard: { borderRadius: 18, borderWidth: 1, overflow: "hidden" },
+    referralCard: { borderRadius: 20, borderWidth: 1, overflow: "hidden" },
     referralHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: StyleSheet.hairlineWidth },
     referralIconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-    referralTitle: { fontSize: 14, fontWeight: "700", marginBottom: 2 },
-    referralSub: { fontSize: 11, lineHeight: 16 },
+    referralTitle: { fontSize: 16, fontWeight: "800", letterSpacing: -0.2, marginBottom: 2 },
+    referralSub: { fontSize: 12.5, lineHeight: 17 },
     referralStats: { flexDirection: "row", borderBottomWidth: StyleSheet.hairlineWidth },
     referralStat: { flex: 1, alignItems: "center", paddingVertical: 12 },
     referralStatNum: { fontSize: 22, fontWeight: "800", marginBottom: 2 },
     referralStatLabel: { fontSize: 10 },
     referralLinkRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
     referralLink: { flex: 1, fontSize: 12, fontFamily: "monospace" },
-    referralShareBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 14, paddingVertical: 12 },
-    referralShareText: { fontSize: 13, fontWeight: "700" },
+    referralShareBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 14, paddingVertical: 14 },
+    referralShareText: { fontSize: 14, fontWeight: "800" },
     referralNote: { fontSize: 10, textAlign: "center", lineHeight: 15 },
 
     // ── Liked video cards ──
@@ -1961,7 +1985,12 @@ function makeStyles(c: Colors) {
     // ── Action buttons ──
     actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 14, paddingVertical: 14 },
     actionBtnText: { fontWeight: "600", fontSize: 14 },
-    legalLink: { fontSize: 11, fontWeight: "500" },
+    legalLink: { fontSize: 11.5, fontWeight: "500" },
+    linkRow: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, borderWidth: 1 },
+    linkTitle: { fontSize: 15.5, fontWeight: "800", letterSpacing: -0.2 },
+    linkSub: { fontSize: 12.5, marginTop: 2 },
+    linkCta: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+    linkCtaText: { fontSize: 12.5, fontWeight: "800" },
 
     // ── Modal ──
     modalOverlay: {
