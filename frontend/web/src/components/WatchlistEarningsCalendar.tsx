@@ -65,6 +65,9 @@ interface MacroCalendarEvent {
   speaker_name?: string | null;
 }
 
+// Last-known-good macro events, so the calendar never renders them blank.
+const MACRO_CACHE_KEY = "nuvos_macro_calendar_v1";
+
 type AnyCalendarEvent = TickerCalendarEvent | MacroCalendarEvent;
 
 interface Props {
@@ -168,7 +171,12 @@ export default function WatchlistEarningsCalendar({
   const MONTHS = getMonths(t);
   const EVENT_META = getEventMeta(t);
   const [tickerEvents, setTickerEvents] = useState<TickerCalendarEvent[]>([]);
-  const [macroEvents, setMacroEvents]   = useState<MacroCalendarEvent[]>([]);
+  const [macroEvents, setMacroEvents]   = useState<MacroCalendarEvent[]>(() => {
+    try {
+      const raw = localStorage.getItem(MACRO_CACHE_KEY);
+      return raw ? (JSON.parse(raw) as MacroCalendarEvent[]) : [];
+    } catch { return []; }
+  });
   const [loading, setLoading]     = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [viewDate, setViewDate]   = useState(() => new Date());
@@ -196,10 +204,16 @@ export default function WatchlistEarningsCalendar({
   // spinner/silently show nothing" search. Only gives up silently-to-the-
   // grid on a genuinely empty response; any real failure sets
   // macroLoadError so the legend surfaces a visible retry instead.
-  const fetchMacroEvents = async (attempt = 0): Promise<MacroCalendarEvent[]> => {
+  const fetchMacroEvents = async (attempt = 0): Promise<MacroCalendarEvent[] | null> => {
     try {
       const res = await earningsApi.getMacroCalendar(45, i18n.language);
-      return (res.data.events || []).map((e: Omit<MacroCalendarEvent, "kind">) => ({ ...e, kind: "macro" as const }));
+      const events = (res.data.events || []).map((e: Omit<MacroCalendarEvent, "kind">) => ({ ...e, kind: "macro" as const }));
+      // An empty response is never trusted over a known-good list (macro
+      // events are always present; empty means a glitch) — null = "keep
+      // whatever is on screen".
+      if (events.length === 0) return null;
+      try { localStorage.setItem(MACRO_CACHE_KEY, JSON.stringify(events)); } catch { /* storage unavailable */ }
+      return events;
     } catch (err) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       const isDefinitive = status !== undefined && status !== 503 && status !== 504;
@@ -208,7 +222,7 @@ export default function WatchlistEarningsCalendar({
         return fetchMacroEvents(attempt + 1);
       }
       setMacroLoadError(true);
-      return [];
+      return null;
     }
   };
 
@@ -232,7 +246,9 @@ export default function WatchlistEarningsCalendar({
     Promise.all([tickerPromise, macroPromise])
       .then(([tEvents, mEvents]) => {
         setTickerEvents(tEvents);
-        setMacroEvents(mEvents);
+        // Never replace good macro events with nothing: on failure/empty
+        // keep what's already shown (or the last saved copy).
+        if (mEvents) setMacroEvents(mEvents);
       })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));

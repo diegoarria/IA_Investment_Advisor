@@ -48,7 +48,7 @@ from typing import Optional
 
 import httpx
 
-from app.core.database import get_supabase, run_query
+from app.core.database import get_supabase, run_query, run_query_verified_nonempty
 from app.services.market_holidays import upcoming_holidays, upcoming_early_closes
 
 logger = logging.getLogger(__name__)
@@ -316,6 +316,29 @@ async def refresh_if_empty_on_startup() -> None:
 _SERVED_IMPACT_LEVELS = {"VERY_HIGH", "HIGH"}  # Diego, 2026-08-19: MEDIUM events (housing starts, etc.) add noise without moving markets — drop them before they ever reach a client
 
 
+_LAST_GOOD_ROWS: list[dict] = []
+
+
+def _dedupe_rescheduled(rows: list[dict]) -> list[dict]:
+    """event_id hashes the UTC timestamp, so when FMP shifts a release's
+    time (or the name's period suffix) the old row lingers next to the new
+    one — two rows for one release, which flickers as data refreshes. Keep
+    one row per (event_type, ET date, base name), preferring the one that
+    has an actual value, then the most recently created."""
+    best: dict[tuple, dict] = {}
+    for row in rows:
+        try:
+            d = datetime.fromisoformat(row["event_date_utc"]).astimezone(_ET).date()
+        except (KeyError, ValueError):
+            continue
+        base = _strip_period_suffix(row.get("event_name") or "")
+        key = (row.get("event_type"), d, base if row.get("event_type") == "fed_speaker" else "")
+        cur = best.get(key)
+        if cur is None or (row.get("actual_value") is not None, row.get("event_date_utc") or "") > (cur.get("actual_value") is not None, cur.get("event_date_utc") or ""):
+            best[key] = row
+    return sorted(best.values(), key=lambda r: r["event_date_utc"])
+
+
 async def get_macro_events(days_ahead: int = 30, lang: str = "es") -> list[dict]:
     """Always reads Supabase fresh — never a live FMP call from a request
     path (that boundary is still only crossed by fetch_and_normalize_macro_
@@ -338,15 +361,35 @@ async def get_macro_events(days_ahead: int = 30, lang: str = "es") -> list[dict]
     same fix, as app/core/subscription.py's fetch_fresh_subscription_
     fields — this table is small and indexed by date, cheap enough to
     always read fresh rather than risk that flicker again."""
-    db = get_supabase()
+    # Diego, 2026-09-29: macro events must NEVER blink in/out. Hardened read:
+    #  - bounded by date AND impact level in the query itself, so PostgREST's
+    #    1000-row default cap can never silently truncate the far end;
+    #  - verified against a fresh client when empty (stale-singleton false-
+    #    empty, see run_query_verified_nonempty);
+    #  - on any DB failure/empty result, serves the last good snapshot kept
+    #    in this process rather than an empty calendar.
+    global _LAST_GOOD_ROWS
     cutoff = (datetime.now(_ET).date() - timedelta(days=_DAYS_BEHIND)).isoformat()
-    res = await run_query(
-        db.table("macro_economic_events")
-        .select("*")
-        .gte("event_date_utc", cutoff)
-        .order("event_date_utc")
-    )
-    rows = res.data or []
+    upper = (datetime.now(_ET).date() + timedelta(days=max(days_ahead, 1) + 2)).isoformat()
+    try:
+        res = await run_query_verified_nonempty(
+            lambda c: c.table("macro_economic_events")
+            .select("*")
+            .gte("event_date_utc", cutoff)
+            .lte("event_date_utc", upper)
+            .in_("impact_level", sorted(_SERVED_IMPACT_LEVELS))
+            .order("event_date_utc")
+            .limit(5000)
+        )
+        rows = res.data or []
+    except Exception as e:
+        logger.warning("get_macro_events: DB read failed, serving last good snapshot: %s", e)
+        rows = []
+    if rows:
+        _LAST_GOOD_ROWS = rows
+    elif _LAST_GOOD_ROWS:
+        rows = _LAST_GOOD_ROWS
+    rows = _dedupe_rescheduled(rows)
 
     now_et = datetime.now(_ET)
     today_et = now_et.date()

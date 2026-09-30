@@ -152,14 +152,27 @@ export default function MobileEarningsCalendar({
         )
       : Promise.resolve<TickerCalendarEvent[]>([]);
     // Macro events are US market-wide, not tied to the user's tickers.
-    const macroPromise = earningsApi.getMacroCalendar(45, i18n.language).then((res) =>
-      (res.data.events || []).map((e: Omit<MacroCalendarEvent, "kind">) => ({ ...e, kind: "macro" as const }))
-    ).catch(() => [] as MacroCalendarEvent[]);
+    // Retries, and null (not []) on failure/empty so the events already on
+    // screen are never wiped by a glitch.
+    const fetchMacro = async (attempt = 0): Promise<MacroCalendarEvent[] | null> => {
+      try {
+        const res = await earningsApi.getMacroCalendar(45, i18n.language);
+        const events = (res.data.events || []).map((e: Omit<MacroCalendarEvent, "kind">) => ({ ...e, kind: "macro" as const }));
+        return events.length ? events : null;
+      } catch {
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+          return fetchMacro(attempt + 1);
+        }
+        return null;
+      }
+    };
+    const macroPromise = fetchMacro();
 
     Promise.all([tickerPromise, macroPromise])
       .then(([tEvents, mEvents]) => {
         setTickerEvents(tEvents);
-        setMacroEvents(mEvents);
+        if (mEvents) setMacroEvents(mEvents);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
