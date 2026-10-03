@@ -25,7 +25,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Nuvos AI — Tu mentor de inversiones",
+  title: "Nuvos AI",
   description: "Aprende a pensar como un inversor profesional",
   icons: {
     icon: [
