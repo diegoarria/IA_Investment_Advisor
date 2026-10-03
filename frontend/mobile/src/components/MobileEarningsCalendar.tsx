@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ActivityIndicator,
@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { earningsApi } from "../lib/api";
+import { MACRO_DAYS_AHEAD, MACRO_DAYS_BEHIND, mergeMacroEvents, readMacroCache, writeMacroCache } from "../lib/macroCalendarCache";
 import StockAvatar from "./StockAvatar";
 
 type TickerEventType = "earnings" | "ex_dividend" | "dividend";
@@ -45,6 +46,7 @@ interface MacroCalendarEvent {
   event_id: string;
   event_type: MacroEventType;
   event_name: string;
+  event_date_utc: string;
   date_et: string;
   time_et: string;
   country: string;
@@ -131,7 +133,17 @@ export default function MobileEarningsCalendar({
   const MONTHS = getMonths(t);
   const EVENT_META = getEventMeta(t);
   const [tickerEvents, setTickerEvents] = useState<TickerCalendarEvent[]>([]);
+  // Every macro event ever shown stays on the calendar (macroCalendarCache.ts).
   const [macroEvents, setMacroEvents]   = useState<MacroCalendarEvent[]>([]);
+  const freshMacroLang = useRef<string | null>(null); // a fresh fetch already landed for this language
+  useEffect(() => {
+    let cancelled = false;
+    const lang = i18n.language;
+    readMacroCache<MacroCalendarEvent>(lang).then((cached) => {
+      if (!cancelled && cached.length && freshMacroLang.current !== lang) setMacroEvents(cached);
+    });
+    return () => { cancelled = true; };
+  }, [i18n.language]);
   const [loading, setLoading]       = useState(false);
   const [viewDate, setViewDate]     = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -152,13 +164,17 @@ export default function MobileEarningsCalendar({
         )
       : Promise.resolve<TickerCalendarEvent[]>([]);
     // Macro events are US market-wide, not tied to the user's tickers.
-    // Retries, and null (not []) on failure/empty so the events already on
-    // screen are never wiped by a glitch.
+    // Retries, and merged into the saved list (never a blind replace): only
+    // the window this response covers is updated, and a response without
+    // macro events never removes any — null = "keep what is on screen".
     const fetchMacro = async (attempt = 0): Promise<MacroCalendarEvent[] | null> => {
       try {
-        const res = await earningsApi.getMacroCalendar(45, i18n.language);
+        const lang = i18n.language;
+        const res: any = await earningsApi.getMacroCalendar(MACRO_DAYS_AHEAD, lang, MACRO_DAYS_BEHIND);
         const events = (res.data.events || []).map((e: Omit<MacroCalendarEvent, "kind">) => ({ ...e, kind: "macro" as const }));
-        return events.length ? events : null;
+        const merged = mergeMacroEvents<MacroCalendarEvent>(await readMacroCache<MacroCalendarEvent>(lang), { ...res.data, events });
+        if (merged) writeMacroCache(lang, merged);
+        return merged;
       } catch {
         if (attempt < 2) {
           await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
@@ -167,15 +183,15 @@ export default function MobileEarningsCalendar({
         return null;
       }
     };
-    const macroPromise = fetchMacro();
+    // Independent of the ticker request: a ticker-calendar failure must
+    // never drop macro events that loaded fine.
+    const fetchLang = i18n.language;
+    const macroPromise = fetchMacro().then((mEvents) => {
+      if (mEvents) { freshMacroLang.current = fetchLang; setMacroEvents(mEvents); }
+    });
+    const tickerDone = tickerPromise.then(setTickerEvents).catch(() => {});
 
-    Promise.all([tickerPromise, macroPromise])
-      .then(([tEvents, mEvents]) => {
-        setTickerEvents(tEvents);
-        if (mEvents) setMacroEvents(mEvents);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([tickerDone, macroPromise]).finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTickers.join(","), i18n.language]);
 

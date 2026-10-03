@@ -256,6 +256,16 @@ def why_it_matters(event_type: str, lang: str) -> str:
     return entry.get(lang) or entry.get("es") or ""
 
 
+def _stamp_seen(rows: list[dict]) -> None:
+    """updated_at = when FMP last confirmed this row. Lets the read path
+    tell a release's current date apart from the stale row FMP left behind
+    when it moved that release to another day (see _dedupe_rescheduled)."""
+    from datetime import timezone as _tz
+    now = datetime.now(_tz.utc).isoformat()
+    for r in rows:
+        r["updated_at"] = now
+
+
 async def refresh_macro_calendar() -> int:
     """Fetch → normalize → upsert into Supabase (dedup via event_id).
     Called by the daily cron and the admin manual-refresh endpoint.
@@ -269,6 +279,7 @@ async def refresh_macro_calendar() -> int:
     if not rows:
         logger.warning("refresh_macro_calendar: no rows to upsert (FMP unavailable or empty response)")
         return 0
+    _stamp_seen(rows)
 
     db = get_supabase()
     await run_query(db.table("macro_economic_events").upsert(rows, on_conflict="event_id"))
@@ -292,6 +303,7 @@ async def refresh_todays_macro_events() -> int:
     rows = await asyncio.to_thread(fetch_and_normalize_macro_events, 0, 0)
     if not rows:
         return 0
+    _stamp_seen(rows)
 
     db = get_supabase()
     await run_query(db.table("macro_economic_events").upsert(rows, on_conflict="event_id"))
@@ -317,6 +329,54 @@ _SERVED_IMPACT_LEVELS = {"VERY_HIGH", "HIGH"}  # Diego, 2026-08-19: MEDIUM event
 
 
 _LAST_GOOD_ROWS: list[dict] = []
+_MAX_DAYS_BEHIND = 400  # calendar history: every release of the last year+ stays visible
+_MAX_DAYS_AHEAD = 180
+
+
+_RESCHEDULE_WINDOW_DAYS = 20  # same release name this close together = one release that FMP moved
+
+
+def _rank(row: dict) -> tuple:
+    """Which of two rows for the same release to keep: one with a released
+    actual value first, then the one FMP confirmed most recently."""
+    return (row.get("actual_value") is not None, row.get("updated_at") or "", row.get("event_date_utc") or "")
+
+
+def _collapse_moved_releases(rows: list[dict]) -> list[dict]:
+    """Diego, 2026-10-02: macro events must stay fixed, never two copies of
+    the same release on two different days. event_id hashes the timestamp,
+    so when FMP moves a release to ANOTHER DAY (e.g. a shutdown delays NFP)
+    the old row stays in the table on the old day and the calendar showed
+    the release twice. Rows sharing the exact event name with its period
+    suffix ("Non Farm Payrolls (Oct)") and the same type, within
+    _RESCHEDULE_WINDOW_DAYS of each other, are the same release — keep
+    one. Names without a period suffix (Fed speakers) are never collapsed,
+    and the window keeps next year's "(Oct)" release separate."""
+    groups: dict[tuple, list[dict]] = {}
+    passthrough: list[dict] = []
+    for row in rows:
+        name = row.get("event_name") or ""
+        if row.get("event_type") == "fed_speaker" or not re.search(r"\([^)]*\)\s*$", name):
+            passthrough.append(row)
+            continue
+        groups.setdefault((row.get("event_type"), name.strip().lower()), []).append(row)
+    out = passthrough
+    for group in groups.values():
+        group.sort(key=lambda r: r.get("event_date_utc") or "")
+        cluster: list[dict] = []
+        for row in group:
+            if cluster:
+                try:
+                    gap = abs((datetime.fromisoformat(row["event_date_utc"]) - datetime.fromisoformat(cluster[0]["event_date_utc"])).days)
+                except (KeyError, ValueError):
+                    gap = 0
+                if gap > _RESCHEDULE_WINDOW_DAYS:
+                    out.append(max(cluster, key=_rank))
+                    cluster = []
+            cluster.append(row)
+        if cluster:
+            out.append(max(cluster, key=_rank))
+    return out
 
 
 def _dedupe_rescheduled(rows: list[dict]) -> list[dict]:
@@ -324,7 +384,9 @@ def _dedupe_rescheduled(rows: list[dict]) -> list[dict]:
     time (or the name's period suffix) the old row lingers next to the new
     one — two rows for one release, which flickers as data refreshes. Keep
     one row per (event_type, ET date, base name), preferring the one that
-    has an actual value, then the most recently created."""
+    has an actual value, then the most recently confirmed by FMP. Releases
+    moved to a different DAY are collapsed first (_collapse_moved_releases)."""
+    rows = _collapse_moved_releases(rows)
     best: dict[tuple, dict] = {}
     for row in rows:
         try:
@@ -334,12 +396,12 @@ def _dedupe_rescheduled(rows: list[dict]) -> list[dict]:
         base = _strip_period_suffix(row.get("event_name") or "")
         key = (row.get("event_type"), d, base if row.get("event_type") == "fed_speaker" else "")
         cur = best.get(key)
-        if cur is None or (row.get("actual_value") is not None, row.get("event_date_utc") or "") > (cur.get("actual_value") is not None, cur.get("event_date_utc") or ""):
+        if cur is None or _rank(row) > _rank(cur):
             best[key] = row
     return sorted(best.values(), key=lambda r: r["event_date_utc"])
 
 
-async def get_macro_events(days_ahead: int = 30, lang: str = "es") -> list[dict]:
+async def get_macro_events(days_ahead: int = 30, lang: str = "es", days_behind: int = _DAYS_BEHIND) -> list[dict]:
     """Always reads Supabase fresh — never a live FMP call from a request
     path (that boundary is still only crossed by fetch_and_normalize_macro_
     events, called by the cron/admin refresh). Returns events from today
@@ -368,9 +430,13 @@ async def get_macro_events(days_ahead: int = 30, lang: str = "es") -> list[dict]
     #    empty, see run_query_verified_nonempty);
     #  - on any DB failure/empty result, serves the last good snapshot kept
     #    in this process rather than an empty calendar.
+    #  - Diego, 2026-10-02: always reads the SAME wide window (a year+ of
+    #    history, the full forward horizon) and filters afterwards, so the
+    #    last-good snapshot always covers every caller's window and a past
+    #    release stays on the calendar instead of vanishing 3 days later.
     global _LAST_GOOD_ROWS
-    cutoff = (datetime.now(_ET).date() - timedelta(days=_DAYS_BEHIND)).isoformat()
-    upper = (datetime.now(_ET).date() + timedelta(days=max(days_ahead, 1) + 2)).isoformat()
+    cutoff = (datetime.now(_ET).date() - timedelta(days=_MAX_DAYS_BEHIND + 1)).isoformat()
+    upper = (datetime.now(_ET).date() + timedelta(days=_MAX_DAYS_AHEAD + 2)).isoformat()
     try:
         res = await run_query_verified_nonempty(
             lambda c: c.table("macro_economic_events")
@@ -403,7 +469,7 @@ async def get_macro_events(days_ahead: int = 30, lang: str = "es") -> list[dict]
             continue
         dt_et = dt_utc.astimezone(_ET)
         date_et = dt_et.date()
-        if date_et < today_et - timedelta(days=_DAYS_BEHIND) or date_et > horizon_et:
+        if date_et < today_et - timedelta(days=days_behind) or date_et > horizon_et:
             continue
         if row.get("impact_level") not in _SERVED_IMPACT_LEVELS:
             continue

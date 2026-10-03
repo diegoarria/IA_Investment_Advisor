@@ -199,3 +199,54 @@ class TestGetMacroEventsHolidayMerge:
         events = await get_macro_events(days_ahead=10, lang="es")
         holiday_dates = {e["date_et"] for e in events if e["event_type"] == "market_holiday"}
         assert "2026-09-08" not in holiday_dates  # the day right after Labor Day — not a holiday
+
+
+class TestMacroEventsStayFixed:
+    """Diego, 2026-10-02: macro events must stay fixed on the calendar —
+    a past release never vanishes, and a release FMP moved to another day
+    never shows twice."""
+
+    @staticmethod
+    def _row(event_type, name, date_utc, actual=None, updated_at="2026-09-01T00:00:00+00:00"):
+        return {
+            "event_id": f"{event_type}|{name}|{date_utc}", "event_type": event_type, "event_name": name,
+            "event_date_utc": date_utc, "impact_level": "VERY_HIGH", "actual_value": actual,
+            "updated_at": updated_at,
+        }
+
+    def test_release_moved_to_another_day_shows_once_on_its_new_day(self):
+        from app.services.macro_calendar_service import _dedupe_rescheduled
+        old = self._row("nfp", "Non Farm Payrolls (Sep)", "2026-10-02T12:30:00+00:00", updated_at="2026-09-20T00:00:00+00:00")
+        new = self._row("nfp", "Non Farm Payrolls (Sep)", "2026-10-09T12:30:00+00:00", updated_at="2026-10-01T00:00:00+00:00")
+        out = _dedupe_rescheduled([old, new])
+        assert [r["event_date_utc"] for r in out] == ["2026-10-09T12:30:00+00:00"]
+
+    def test_same_name_a_year_apart_is_two_releases(self):
+        from app.services.macro_calendar_service import _dedupe_rescheduled
+        a = self._row("nfp", "Non Farm Payrolls (Oct)", "2025-11-07T13:30:00+00:00", actual="100K")
+        b = self._row("nfp", "Non Farm Payrolls (Oct)", "2026-11-06T13:30:00+00:00")
+        assert len(_dedupe_rescheduled([a, b])) == 2
+
+    def test_fed_speakers_never_collapsed(self):
+        from app.services.macro_calendar_service import _dedupe_rescheduled
+        a = self._row("fed_speaker", "Fed Powell Speech", "2026-10-01T14:00:00+00:00")
+        b = self._row("fed_speaker", "Fed Powell Speech", "2026-10-08T14:00:00+00:00")
+        assert len(_dedupe_rescheduled([a, b])) == 2
+
+    async def test_past_release_stays_on_calendar_with_history_window(self, monkeypatch):
+        from datetime import date
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+        import app.services.macro_calendar_service as svc
+
+        rows = [self._row("cpi", "Inflation Rate YoY (Aug)", "2026-09-11T12:30:00+00:00", actual="2.9%")]
+        monkeypatch.setattr("app.core.database.get_supabase", lambda: MagicMock())
+        monkeypatch.setattr("app.core.database.get_fresh_supabase", lambda: MagicMock())
+        monkeypatch.setattr("app.core.database.run_query", AsyncMock(return_value=SimpleNamespace(data=rows)))
+        TestGetMacroEventsHolidayMerge._freeze_today(monkeypatch, date(2026, 10, 2))
+
+        default = await svc.get_macro_events(days_ahead=30, lang="es")
+        history = await svc.get_macro_events(days_ahead=30, lang="es", days_behind=400)
+        assert not any(e["event_type"] == "cpi" for e in default)
+        cpi = [e for e in history if e["event_type"] == "cpi"]
+        assert len(cpi) == 1 and cpi[0]["status"] == "past" and cpi[0]["date_et"] == "2026-09-11"

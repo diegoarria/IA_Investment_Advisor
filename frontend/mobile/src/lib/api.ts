@@ -460,8 +460,8 @@ export const earningsApi = {
     api.get(`/api/earnings/analysis/${symbol}`, { params: { shares, avg_cost: avgCost, lang } }),
   getRecentReporters: (symbols: string[]) =>
     api.get("/api/earnings/recent-reporters", { params: { symbols: symbols.join(",") } }),
-  getMacroCalendar: (daysAhead = 45, lang?: string) =>
-    api.get("/api/earnings/calendar/macro", { params: { days_ahead: daysAhead, lang } }),
+  getMacroCalendar: (daysAhead = 45, lang?: string, daysBehind = 3) =>
+    api.get("/api/earnings/calendar/macro", { params: { days_ahead: daysAhead, lang, days_behind: daysBehind }, timeout: 15000 }),
   getMacroImpact: (eventId: string, lang?: string) =>
     api.get(`/api/earnings/calendar/macro/${eventId}/impact`, { params: { lang } }),
 };

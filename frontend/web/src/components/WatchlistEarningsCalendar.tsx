@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { MACRO_DAYS_AHEAD, MACRO_DAYS_BEHIND, mergeMacroEvents, readMacroCache, writeMacroCache } from "@/lib/macroCalendarCache";
 import type { LucideIcon } from "lucide-react";
 import {
   ChevronLeft, ChevronRight, Calendar, Loader2,
@@ -53,6 +54,7 @@ interface MacroCalendarEvent {
   event_id: string;
   event_type: MacroEventType;
   event_name: string;
+  event_date_utc: string;
   date_et: string;   // "YYYY-MM-DD"
   time_et: string;   // "HH:MM"
   country: string;
@@ -65,8 +67,6 @@ interface MacroCalendarEvent {
   speaker_name?: string | null;
 }
 
-// Last-known-good macro events, so the calendar never renders them blank.
-const MACRO_CACHE_KEY = "nuvos_macro_calendar_v1";
 
 type AnyCalendarEvent = TickerCalendarEvent | MacroCalendarEvent;
 
@@ -171,12 +171,8 @@ export default function WatchlistEarningsCalendar({
   const MONTHS = getMonths(t);
   const EVENT_META = getEventMeta(t);
   const [tickerEvents, setTickerEvents] = useState<TickerCalendarEvent[]>([]);
-  const [macroEvents, setMacroEvents]   = useState<MacroCalendarEvent[]>(() => {
-    try {
-      const raw = localStorage.getItem(MACRO_CACHE_KEY);
-      return raw ? (JSON.parse(raw) as MacroCalendarEvent[]) : [];
-    } catch { return []; }
-  });
+  // Every macro event ever shown stays on the calendar (macroCalendarCache.ts).
+  const [macroEvents, setMacroEvents]   = useState<MacroCalendarEvent[]>(() => readMacroCache<MacroCalendarEvent>(i18n.language));
   const [loading, setLoading]     = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [viewDate, setViewDate]   = useState(() => new Date());
@@ -206,14 +202,16 @@ export default function WatchlistEarningsCalendar({
   // macroLoadError so the legend surfaces a visible retry instead.
   const fetchMacroEvents = async (attempt = 0): Promise<MacroCalendarEvent[] | null> => {
     try {
-      const res = await earningsApi.getMacroCalendar(45, i18n.language);
+      const lang = i18n.language;
+      const res = await earningsApi.getMacroCalendar(MACRO_DAYS_AHEAD, lang, MACRO_DAYS_BEHIND);
       const events = (res.data.events || []).map((e: Omit<MacroCalendarEvent, "kind">) => ({ ...e, kind: "macro" as const }));
-      // An empty response is never trusted over a known-good list (macro
-      // events are always present; empty means a glitch) — null = "keep
-      // whatever is on screen".
-      if (events.length === 0) return null;
-      try { localStorage.setItem(MACRO_CACHE_KEY, JSON.stringify(events)); } catch { /* storage unavailable */ }
-      return events;
+      // Merged into the cached list, never a blind replace: only the window
+      // this response covers is updated, and a response without macro
+      // events never removes any — null = "keep whatever is on screen".
+      const merged = mergeMacroEvents<MacroCalendarEvent>(readMacroCache<MacroCalendarEvent>(lang), { ...res.data, events });
+      if (!merged) return null;
+      writeMacroCache(lang, merged);
+      return merged;
     } catch (err) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       const isDefinitive = status !== undefined && status !== 503 && status !== 504;
@@ -241,23 +239,24 @@ export default function WatchlistEarningsCalendar({
     // here, after retries, still resolves to [] so Promise.all below
     // isn't rejected by it — but macroLoadError makes that failure visible
     // instead of silently indistinguishable from "no events this month").
-    const macroPromise = fetchMacroEvents();
+    // Independent of the ticker request: a ticker-calendar failure must
+    // never drop macro events that loaded fine.
+    const macroPromise = fetchMacroEvents().then((mEvents) => { if (mEvents) setMacroEvents(mEvents); });
+    const tickerDone = tickerPromise.then(setTickerEvents).catch(() => setLoadError(true));
 
-    Promise.all([tickerPromise, macroPromise])
-      .then(([tEvents, mEvents]) => {
-        setTickerEvents(tEvents);
-        // Never replace good macro events with nothing: on failure/empty
-        // keep what's already shown (or the last saved copy).
-        if (mEvents) setMacroEvents(mEvents);
-      })
-      .catch(() => setLoadError(true))
-      .finally(() => setLoading(false));
+    Promise.all([tickerDone, macroPromise]).finally(() => setLoading(false));
   };
 
   useEffect(() => {
     loadEvents();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTickers.join(","), i18n.language]);
+
+  // Switching language shows that language's saved events right away.
+  useEffect(() => {
+    const cached = readMacroCache<MacroCalendarEvent>(i18n.language);
+    if (cached.length) setMacroEvents(cached);
+  }, [i18n.language]);
 
   // date → events map (ticker events keyed by event_date, macro events by date_et — both "YYYY-MM-DD")
   const eventMap: Record<string, AnyCalendarEvent[]> = {};

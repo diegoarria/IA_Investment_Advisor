@@ -653,8 +653,8 @@ export const earningsApi = {
   // fetch pending indefinitely instead of failing fast into the retry
   // logic that reads this call (WatchlistEarningsCalendar.fetchMacroEvents,
   // 2026-08-25: "a veces aparecen y a veces desaparecen").
-  getMacroCalendar: (daysAhead = 45, lang?: string) =>
-    api.get("/api/earnings/calendar/macro", { params: { days_ahead: daysAhead, lang }, timeout: 15000 }),
+  getMacroCalendar: (daysAhead = 45, lang?: string, daysBehind = 3) =>
+    api.get("/api/earnings/calendar/macro", { params: { days_ahead: daysAhead, lang, days_behind: daysBehind }, timeout: 15000 }),
   getMacroImpact: (eventId: string, lang?: string) =>
     api.get(`/api/earnings/calendar/macro/${eventId}/impact`, { params: { lang } }),
 };

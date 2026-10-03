@@ -541,16 +541,35 @@ async def get_earnings_calendar(
 async def get_macro_calendar(
     days_ahead: int = 30,
     lang: str = "es",
+    days_behind: int = 3,
     user_id: str = Depends(get_current_user_id),
 ):
     """US macro-economic events (FOMC, CPI, NFP, GDP, PMIs, jobless claims,
     etc.) for the Watchlist calendar's macro layer — display only, no
     notifications. Read-through cache/DB (see macro_calendar_service.py);
-    never calls the external data source from this request path."""
-    from app.services.macro_calendar_service import get_macro_events
+    never calls the external data source from this request path.
+
+    `window` (ET dates) is the range this response is authoritative for —
+    clients replace their cached macro events inside it and keep the ones
+    outside it, so a past release never disappears from the calendar.
+    `macro_count` excludes market holidays/early closes, so a client can tell
+    "no macro data" apart from a response that only carries the holidays."""
+    from datetime import datetime as _dtm, timedelta as _tdl
+    import zoneinfo as _zi
+    from app.services.macro_calendar_service import get_macro_events, _MAX_DAYS_AHEAD, _MAX_DAYS_BEHIND
     lang = lang if lang in ("es", "en") else "es"
-    events = await get_macro_events(days_ahead=min(max(days_ahead, 1), 180), lang=lang)
-    return {"events": events}
+    days_ahead = min(max(days_ahead, 1), _MAX_DAYS_AHEAD)
+    days_behind = min(max(days_behind, 0), _MAX_DAYS_BEHIND)
+    events = await get_macro_events(days_ahead=days_ahead, lang=lang, days_behind=days_behind)
+    today = _dtm.now(_zi.ZoneInfo("America/New_York")).date()
+    return {
+        "events": events,
+        "macro_count": sum(1 for e in events if not str(e.get("event_type", "")).startswith("market_")),
+        "window": {
+            "from": (today - _tdl(days=days_behind)).isoformat(),
+            "to": (today + _tdl(days=days_ahead)).isoformat(),
+        },
+    }
 
 
 _TTL_MACRO_IMPACT = 30 * 24 * 3600  # 30 days — well past any event's own horizon; portfolio_hash busts it on its own if holdings change
@@ -591,7 +610,9 @@ async def get_macro_event_impact(
 
     lang = lang if lang in ("es", "en") else "es"
 
-    events = await get_macro_events(days_ahead=45, lang=lang)
+    # Same history window the calendar shows, so a past release on the
+    # calendar can still be opened (it used to 404 three days after).
+    events = await get_macro_events(days_ahead=180, lang=lang, days_behind=400)
     event = next((e for e in events if e.get("event_id") == event_id), None)
     if not event:
         raise HTTPException(status_code=404, detail="Evento no encontrado")
