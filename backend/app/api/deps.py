@@ -6,6 +6,23 @@ from app.core.cache import cache_get, cache_set
 _TOKEN_CACHE_TTL = 60  # seconds — token revocation propagates within this window
 
 
+def is_definitive_auth_rejection(exc: Exception) -> bool:
+    """True only when Supabase Auth itself answered "this token/session is
+    not valid" (bad/expired JWT, refresh token unknown/already used/revoked,
+    user gone). Network errors, timeouts, 5xx and rate limits are NOT —
+    those must never end a user's session."""
+    try:
+        from gotrue.errors import AuthApiError, AuthInvalidJwtError, AuthSessionMissingError
+    except Exception:  # pragma: no cover — package rename safety
+        return False
+    if isinstance(exc, (AuthInvalidJwtError, AuthSessionMissingError)):
+        return True
+    if isinstance(exc, AuthApiError):
+        status = getattr(exc, "status", None) or 0
+        return 400 <= status < 500 and status != 429
+    return False
+
+
 async def _resolve_user_token(token: str) -> dict:
     """Resolve a raw bearer token string → {id, email}. Cached by token hash."""
     if not token:
@@ -25,8 +42,16 @@ async def _resolve_user_token(token: str) -> dict:
         return user_data
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except Exception as e:
+        # Diego, 2026-10-02: "deja la sesión iniciada siempre". Only a token
+        # Supabase actually REJECTED is a 401 — a network blip or Supabase
+        # hiccup used to be reported as 401 too, which sent the clients
+        # through a refresh (and, when that also hiccuped, a forced logout)
+        # for a perfectly valid session. Transient failures are 503 now, so
+        # the clients just retry and the user stays signed in.
+        if is_definitive_auth_rejection(e):
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        raise HTTPException(status_code=503, detail="Auth temporarily unavailable, retry")
 
 
 async def _resolve_user(authorization: str) -> dict:

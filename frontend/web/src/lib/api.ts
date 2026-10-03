@@ -1,5 +1,4 @@
 import axios from "axios";
-import { getSupabaseClient } from "./supabase";
 import { apiBase } from "./apiBase";
 import type { DetailLevel } from "./detailLevel";
 
@@ -65,37 +64,43 @@ api.interceptors.response.use(
     original._retry = true;
     isRefreshing = true;
 
+    const refreshOnce = () => axios.post(`${BASE_URL}/api/auth/refresh`, {}, { withCredentials: true });
+    const statusOf = (e: unknown) => (e as { response?: { status?: number } })?.response?.status;
     try {
       // No body needed — the backend reads the refresh_token cookie itself.
       // The response's Set-Cookie header refreshes both cookies automatically;
       // there's nothing for JS to store.
-      await axios.post(`${BASE_URL}/api/auth/refresh`, {}, { withCredentials: true });
+      await refreshOnce();
       flushQueue(null);
       return api(original);
     } catch (refreshErr) {
-      // Only force logout when the server explicitly rejects the refresh
-      // (expired/invalid). For network errors or server outages, leave the
-      // cookie alone so the user stays logged in and can retry once
-      // connectivity is restored.
-      const refreshStatus = (refreshErr as { response?: { status?: number } })?.response?.status;
-      if (refreshStatus === 401 || refreshStatus === 403) {
-        // Before giving up, try Supabase's own client-side session — handles
-        // the multi-tab race where another tab already refreshed via the
-        // Supabase SDK directly. The token only ever lives in JS memory for
-        // this one call, passed straight through to re-mint our cookie —
-        // never persisted to storage.
+      // Diego, 2026-10-02: "deja la sesión iniciada siempre". Only an
+      // explicit rejection (401/403) can end the session — the backend now
+      // answers 503 for any network/Supabase hiccup, which leaves the cookie
+      // alone so the user stays signed in and the next request just retries.
+      if (statusOf(refreshErr) === 401 || statusOf(refreshErr) === 403) {
+        // Another tab may have rotated the refresh token a moment ago — the
+        // cookie jar is shared, so this tab may already hold a fresh session.
+        // Check that (and give one more refresh a chance) before giving up.
         try {
-          const { data: { session } } = await getSupabaseClient().auth.getSession();
-          if (session?.access_token) {
-            await axios.post(`${BASE_URL}/api/auth/set-session`, {
-              access_token: session.access_token,
-              refresh_token: session.refresh_token,
-            }, { withCredentials: true });
-            flushQueue(null);
-            return api(original);
+          await new Promise((r) => setTimeout(r, 800));
+          const retried = await api({ ...original, _retry: true });
+          flushQueue(null);
+          return retried;
+        } catch (retryErr) {
+          if (statusOf(retryErr) !== 401) { flushQueue(retryErr); return Promise.reject(retryErr); }
+        }
+        try {
+          await refreshOnce();
+          flushQueue(null);
+          return api(original);
+        } catch (secondErr) {
+          if (statusOf(secondErr) !== 401 && statusOf(secondErr) !== 403) {
+            flushQueue(secondErr);
+            return Promise.reject(secondErr);
           }
-        } catch {}
-        // Supabase also has no session — truly expired, clear the cookie and force logout.
+        }
+        // The server has really ended this session — clear it and ask to log in.
         try { await axios.post(`${BASE_URL}/api/auth/logout`, {}, { withCredentials: true }); } catch {}
         import("./store").then(({ useAuthStore }) => {
           useAuthStore.getState().setSessionExpired(true);
@@ -116,6 +121,8 @@ export const auth = {
   login: (email: string, password: string) =>
     api.post("/api/auth/login", { email, password }),
   logout: () => api.post("/api/auth/logout"),
+  // Renews the session from the 90-day httpOnly refresh cookie (no body).
+  refresh: () => api.post("/api/auth/refresh", {}),
   deleteAccount: () => api.delete("/api/auth/account"),
   // Self-serve "portabilidad" right the Privacy Policy promises — added
   // 2026-09-08 (pre-launch audit); previously only fulfillable by emailing

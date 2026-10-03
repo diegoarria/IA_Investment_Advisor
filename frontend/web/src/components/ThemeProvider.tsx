@@ -41,9 +41,23 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     if (isAuthenticated) { setAuthRestoring(false); return; }
 
     async function restoreSession() {
+      const { profile: profileApi, auth: authApi } = await import("@/lib/api");
       try {
-        const { profile: profileApi } = await import("@/lib/api");
-        const res = await profileApi.get();
+        let res;
+        try {
+          res = await profileApi.get();
+        } catch (firstErr: unknown) {
+          // Diego, 2026-10-02: "deja la sesión iniciada siempre". The 1-hour
+          // access cookie is usually expired by the next visit, and the
+          // api.ts interceptor only refreshes when the app already believes
+          // it's signed in — which it doesn't here (this branch runs exactly
+          // when that local flag is missing, e.g. Safari wiping site storage
+          // after 7 days away). The 90-day refresh cookie is still valid, so
+          // renew with it before deciding the user is signed out.
+          if ((firstErr as { response?: { status?: number } })?.response?.status !== 401) throw firstErr;
+          await authApi.refresh();
+          res = await profileApi.get();
+        }
         setAuth("", res.data.user_id);
       } catch (err: unknown) {
         const status = (err as { response?: { status?: number } })?.response?.status;

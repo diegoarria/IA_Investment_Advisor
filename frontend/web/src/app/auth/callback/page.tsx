@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabase";
+import { getSupabaseClient, forgetLocalSupabaseSession } from "@/lib/supabase";
 import { useAuthStore, useProfileStore } from "@/lib/store";
 import { profile as profileApi, auth as authApi } from "@/lib/api";
 import { applyPendingReferralIfAny } from "@/lib/referral";
@@ -19,7 +19,16 @@ export default function AuthCallback() {
     async function saveAndRedirect(session: { access_token: string; refresh_token?: string; user: { id: string } }) {
       if (done) return;
       done = true;
-      try { await authApi.setSession(session.access_token, session.refresh_token); } catch {}
+      // Hand the session to the backend's httpOnly cookie (the ONE session
+      // the app uses from now on), retrying a transient failure, and only
+      // then forget the local Supabase copy so it never competes with the
+      // backend in refreshing the same token (see supabase.ts).
+      let handedOff = false;
+      for (let attempt = 0; attempt < 3 && !handedOff; attempt++) {
+        try { await authApi.setSession(session.access_token, session.refresh_token); handedOff = true; }
+        catch { await new Promise((r) => setTimeout(r, 700 * (attempt + 1))); }
+      }
+      if (handedOff) forgetLocalSupabaseSession();
       setAuth(session.access_token, session.user.id);
       try {
         const p = await profileApi.get();

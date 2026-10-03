@@ -21,7 +21,16 @@ export function getSupabaseClient(): SupabaseClient {
       auth: {
         storage: typeof window !== "undefined" ? window.sessionStorage : undefined,
         persistSession: true,
-        autoRefreshToken: true,
+        // Diego, 2026-10-02: "deja la sesión iniciada siempre". The backend's
+        // httpOnly cookie is THE session; this client must never rotate the
+        // same refresh token on its own. With autoRefreshToken on, after a
+        // Google sign-in both this SDK and /api/auth/refresh rotated one
+        // shared token family — whichever ran second presented an already-
+        // used token, and Supabase's reuse detection can revoke the whole
+        // session, logging the user out on every device. The OAuth session
+        // is handed to the backend once (auth/callback) and then forgotten
+        // locally (forgetLocalSupabaseSession).
+        autoRefreshToken: false,
         // supabase-js v2 defaults detectSessionInUrl to true, which makes the
         // SDK itself silently start exchanging the one-time PKCE `?code=`
         // param the instant this client is constructed on /auth/callback —
@@ -40,4 +49,20 @@ export function getSupabaseClient(): SupabaseClient {
     });
   }
   return _client;
+}
+
+/** Drops this tab's copy of the Supabase session WITHOUT calling signOut
+ *  (signOut would revoke the very session the backend cookie now holds).
+ *  Called once the session has been handed to the backend cookie, so only
+ *  one place ever refreshes it. */
+export function forgetLocalSupabaseSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    for (const store of [window.sessionStorage, window.localStorage]) {
+      for (let i = store.length - 1; i >= 0; i--) {
+        const key = store.key(i);
+        if (key && key.startsWith("sb-") && key.includes("auth-token")) store.removeItem(key);
+      }
+    }
+  } catch { /* storage unavailable */ }
 }

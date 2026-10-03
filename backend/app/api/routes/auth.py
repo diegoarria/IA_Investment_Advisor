@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request, Response, Header
 from app.core.config import settings
 from app.core.database import get_supabase, get_auth_session_client, run_query, run_auth
 from app.models.user import AuthRequest, TokenResponse
-from app.api.deps import get_current_user_id
+from app.api.deps import get_current_user_id, is_definitive_auth_rejection
 from app.core.cache import cache_get, cache_set, cache_delete
 from app.core.limiter import limiter
 from app.core.security import (
@@ -62,14 +62,18 @@ _COOKIE_KW = {
 }
 
 
-_REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 90  # 90 days
+# Diego, 2026-10-02: "deja la sesión iniciada siempre" — 400 days is the
+# longest any browser keeps a cookie (Chrome caps Max-Age at 400 days), and
+# it's a sliding window renewed on every refresh, so anyone who opens Nuvos
+# at least once a year never sees the login screen again.
+_REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 400  # 400 days
 
 
 def _set_auth_cookies(response: Response, access_token: str, refresh_token: str | None) -> None:
     # This is a SLIDING window, not a fixed one: every successful call to
-    # /api/auth/refresh re-sets this cookie with a fresh 90-day clock (see the
+    # /api/auth/refresh re-sets this cookie with a fresh 400-day clock (see the
     # `refresh_token` route below, which calls this on every refresh). So a
-    # user who opens the app at least once every ~90 days never sees a login
+    # user who opens the app at least once a year never sees a login
     # screen — only real inactivity beyond that, or an explicit logout /
     # password change, actually ends the session. Not made infinite on
     # purpose: an unlimited refresh_token is effectively a permanent
@@ -305,8 +309,21 @@ async def refresh_token(request: Request, response: Response, body: dict):
         if not token:
             raise HTTPException(status_code=401, detail="refresh_token requerido")
         db = get_auth_session_client()
-        result = db.auth.refresh_session(token)
-        if result.session is None:
+        result = None
+        last_exc: Exception | None = None
+        # One quick retry on a transient failure, inside the same request —
+        # the refresh token is only consumed when Supabase answers, so a
+        # retry after a network error is safe.
+        for attempt in range(2):
+            try:
+                result = await run_auth(db.auth.refresh_session, token)
+                break
+            except Exception as e:
+                last_exc = e
+                if is_definitive_auth_rejection(e) or attempt == 1:
+                    raise
+                await asyncio.sleep(0.5)
+        if result is None or result.session is None:
             raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
         _set_auth_cookies(response, result.session.access_token, result.session.refresh_token)
         return {
@@ -316,7 +333,15 @@ async def refresh_token(request: Request, response: Response, body: dict):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Refresh error: {str(e)}")
+        # Diego, 2026-10-02: "deja la sesión iniciada siempre". This used to
+        # answer 401 for ANY failure — a Supabase timeout or network blip
+        # made both clients treat a valid session as expired and log the
+        # user out. Only a real rejection is 401 now; anything transient is
+        # 503 so the client keeps its tokens and simply retries later.
+        if is_definitive_auth_rejection(e):
+            raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
+        logger.warning("auth/refresh transient failure (session kept): %s", e)
+        raise HTTPException(status_code=503, detail="No se pudo renovar la sesión ahora; reintenta")
 
 
 @router.post("/set-session")
@@ -507,19 +532,24 @@ async def logout(
     # on this shared client (potentially a different, unrelated user's), see
     # the note on get_supabase() in database.py. Using the admin API with an
     # explicit token never depends on that shared state.
+    # Diego, 2026-10-02: "deja la sesión iniciada siempre". Scope "local":
+    # logging out on one device ends ONLY that device's session. This used
+    # to be "global", so signing out on a laptop (or the web's own forced-
+    # logout path) silently signed the same person out of their phone and
+    # every other browser too. Password reset still ends every session (see
+    # reset_password above), which is the one case that should.
     from app.api.deps import _extract_token
     token = _extract_token(authorization, access_token)
     if token:
         try:
             db = get_supabase()
-            await run_auth(db.auth.admin.sign_out, token, "global")
+            await run_auth(db.auth.admin.sign_out, token, "local")
         except Exception as exc:
-            # Security-relevant: the client is told they're logged out
-            # everywhere, but if this global sign-out actually failed,
-            # other sessions/tokens remain valid — silently, with zero
-            # trace (2026-08-26 full-sweep audit). This device's own
-            # cookies are still cleared below either way.
-            logger.error("logout: global sign_out failed: %s", exc)
+            # Security-relevant: if this sign-out actually failed, this
+            # session's refresh token remains valid — log it instead of
+            # failing silently (2026-08-26 full-sweep audit). This device's
+            # own cookies are still cleared below either way.
+            logger.error("logout: sign_out failed: %s", exc)
     _clear_auth_cookies(response)
     return {"message": "Logged out"}
 

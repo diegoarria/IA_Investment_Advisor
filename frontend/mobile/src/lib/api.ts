@@ -50,6 +50,16 @@ api.interceptors.response.use(
     original._retry = true;
     isRefreshing = true;
 
+    const statusOf = (e: unknown) => (e as { response?: { status?: number } })?.response?.status;
+    const refreshWith = async (refreshToken: string) => {
+      const res = await axios.post(`${BASE_URL}/api/auth/refresh`, { refresh_token: refreshToken }, { timeout: 20000 });
+      const { access_token, refresh_token: newRefresh } = res.data;
+      // Saved before anything else: the old refresh token is already used
+      // up on the server, so losing the new one would end the session.
+      await SecureStore.setItemAsync("access_token", access_token);
+      if (newRefresh) await SecureStore.setItemAsync("refresh_token", newRefresh);
+      return access_token as string;
+    };
     try {
       const refreshToken = await SecureStore.getItemAsync("refresh_token");
       if (!refreshToken) {
@@ -57,19 +67,37 @@ api.interceptors.response.use(
         flushQueue(error);
         return Promise.reject(error);
       }
-      const res = await axios.post(`${BASE_URL}/api/auth/refresh`, { refresh_token: refreshToken });
-      const { access_token, refresh_token: newRefresh } = res.data;
-      await SecureStore.setItemAsync("access_token", access_token);
-      await SecureStore.setItemAsync("refresh_token", newRefresh);
+      let access_token: string;
+      try {
+        access_token = await refreshWith(refreshToken);
+      } catch (firstErr) {
+        // A token saved by another code path (login, a parallel refresh)
+        // while this one was in flight: try that one before giving up.
+        const latest = await SecureStore.getItemAsync("refresh_token");
+        if ((statusOf(firstErr) === 401 || statusOf(firstErr) === 403) && latest && latest !== refreshToken) {
+          access_token = await refreshWith(latest);
+        } else {
+          throw firstErr;
+        }
+      }
       api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
       original.headers.Authorization = `Bearer ${access_token}`;
       flushQueue(null, access_token);
       return api(original);
     } catch (refreshErr) {
       flushQueue(refreshErr);
-      await SecureStore.deleteItemAsync("access_token");
-      await SecureStore.deleteItemAsync("refresh_token");
-      router.replace("/");
+      // Diego, 2026-10-02: "deja la sesión iniciada siempre". This used to
+      // wipe the tokens and jump to the login screen on ANY refresh failure
+      // — opening the app on a weak connection, a server restart or a
+      // Supabase hiccup logged people out. Only an explicit rejection from
+      // the server (401/403) ends the session now; anything else keeps the
+      // tokens so the next request simply tries again.
+      const st = statusOf(refreshErr);
+      if (st === 401 || st === 403) {
+        await SecureStore.deleteItemAsync("access_token").catch(() => {});
+        await SecureStore.deleteItemAsync("refresh_token").catch(() => {});
+        router.replace("/");
+      }
       return Promise.reject(refreshErr);
     } finally {
       isRefreshing = false;
