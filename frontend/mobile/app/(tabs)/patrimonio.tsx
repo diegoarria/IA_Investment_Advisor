@@ -13,8 +13,8 @@ import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useFxRate } from "../../src/lib/useFxRate";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { usePaperStore, PAPER_INITIAL_CASH } from "../../src/lib/paperStore";
-import { marketApi, cashHoldingsApi, dividendsApi } from "../../src/lib/api";
-import { fetchWithRetry } from "../../src/lib/fetchWithRetry";
+import { marketApi } from "../../src/lib/api";
+import { useCashDividends } from "../../src/lib/cashDividendsStore";
 import StockAvatar from "../../src/components/StockAvatar";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
@@ -95,31 +95,9 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
   }, 0);
 
   // Cash held outside stock positions (CETES, bank, bonds, other) and
-  // dividends actually paid (forward-tracking only, recorded by worker.py
-  // the day they're paid — see migrations/054_dividend_income.sql) both
-  // count toward the total shown here, alongside stock positions.
-  const [cashTotalUSD, setCashTotalUSD] = useState(0);
-  const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
-  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
-  useEffect(() => {
-    // A transient failure here must never silently drop cash/dividends out
-    // of the total shown (Diego, 2026-09-12: "SIEMPRE debe quedarse fijo") —
-    // retry a few times with backoff before giving up, same discipline as
-    // useSubscriptionStore.fetchStatus.
-    fetchWithRetry(() => cashHoldingsApi.list()).then((res: any) => {
-      if (!res) return;
-      const holdings = res.data?.holdings ?? [];
-      const usd = holdings.reduce((sum: number, c: { amount: number; currency: string; accrued_amount?: number }) => {
-        const amt = c.accrued_amount ?? c.amount;
-        if (c.currency === "USD") return sum + amt;
-        return sum + amt / (CASH_APPROX_TO_USD[c.currency] ?? 1);
-      }, 0);
-      setCashTotalUSD(usd);
-    });
-    fetchWithRetry(() => dividendsApi.getIncome()).then((res: any) => {
-      if (res) setDividendTotalUSD(res.data?.total ?? 0);
-    });
-  }, []);
+  // dividends actually paid both count toward the total shown here — from
+  // the one shared source every screen uses (cashDividendsStore.ts).
+  const { cashTotal, dividendTotal, cashTotalUSD, dividendTotalUSD } = useCashDividends(portfolioCurrency, fxRate);
   const totalValueWithExtras = totalValue + cashTotalUSD + dividendTotalUSD;
 
   const totalCost = positions.reduce((sum, pos) => sum + pos.shares * pos.avgPrice, 0);
@@ -151,7 +129,7 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
             </View>
             <BalanceVisibilityToggle color={colors.textMuted} size={13} />
           </View>
-          <Text style={[ss.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{mask(fmtMoney(totalValueWithExtras * fxRate, portfolioCurrency))}</Text>
+          <Text style={[ss.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{mask(fmtMoney(totalValue * fxRate + cashTotal + dividendTotal, portfolioCurrency))}</Text>
         </View>
         <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[ss.statLabel, { color: colors.textMuted }]}>{t("patrimonio.portfolioTab.dayGain")}</Text>

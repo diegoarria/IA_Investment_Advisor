@@ -159,6 +159,65 @@ def _parse_manual_rate(body: dict) -> float | None:
     return rate
 
 
+async def _usd_multipliers(currencies: set[str]) -> dict[str, float]:
+    """currency -> multiplier into USD, from the same live FX source (and
+    1h cache) as GET /api/market/fx-rate — so every screen's "cash in USD"
+    comes from ONE rate instead of each client's own hardcoded table."""
+    import asyncio
+    from app.api.routes.market import _fx_to_usd_multiplier
+    out: dict[str, float] = {}
+    for cur in currencies:
+        try:
+            out[cur] = await asyncio.to_thread(_fx_to_usd_multiplier, cur)
+        except Exception:
+            out[cur] = 1.0 if cur == "USD" else 0.0
+    return out
+
+
+async def _with_usd(holdings: list[dict]) -> list[dict]:
+    rates = await _usd_multipliers({(h.get("currency") or "USD").upper() for h in holdings})
+    for h in holdings:
+        _with_accrued(h)
+        mult = rates.get((h.get("currency") or "USD").upper()) or 0.0
+        h["amount_usd"] = h["accrued_amount"] * mult if mult else None
+    return holdings
+
+
+@router.get("/summary")
+async def cash_and_dividends_summary(user_id: str = Depends(get_current_user_id)):
+    """Cash holdings + dividends received in ONE response — the single source
+    every web/mobile screen (Inicio, Patrimonio, Portafolio) reads, so they
+    can never show different numbers for the same money.
+
+    Diego, 2026-10-02: "SIEMPRE se queden fijos ... y no haya inconsistencias".
+    Each screen used to fetch both separately and convert currencies with its
+    own hardcoded table. Each holding now carries `amount_usd` (live FX);
+    clients show a holding in its own currency when it matches the display
+    currency, otherwise amount_usd × the display currency's rate."""
+    import asyncio
+    cash_res, div_res = await asyncio.gather(
+        run_query_verified_nonempty(
+            lambda db: db.table("cash_holdings").select("*").eq("user_id", user_id).order("created_at")
+        ),
+        run_query_verified_nonempty(
+            lambda db: db.table("dividend_income").select("amount,currency").eq("user_id", user_id)
+        ),
+    )
+    holdings = await _with_usd(list(cash_res.data or []))
+    div_rows = div_res.data or []
+    div_rates = await _usd_multipliers({(r.get("currency") or "USD").upper() for r in div_rows})
+    dividend_total_usd = sum(
+        float(r["amount"]) * (div_rates.get((r.get("currency") or "USD").upper()) or 1.0) for r in div_rows
+    )
+    return {
+        "holdings": holdings,
+        "cash_total_usd": sum(h["amount_usd"] or 0.0 for h in holdings),
+        "dividend_total_usd": dividend_total_usd,
+        "dividend_count": len(div_rows),
+        "as_of": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 @router.get("")
 async def list_cash_holdings(user_id: str = Depends(get_current_user_id)):
     # 2026-09-23, Diego: "Efectivo disponible ... SIEMPRE VISIBLE, NO PUEDE
@@ -212,7 +271,7 @@ async def add_cash_holding(body: dict, user_id: str = Depends(get_current_user_i
         # raw "Internal Server Error" on "add cash holding." No natural key
         # to re-fetch by reliably here, so fail clean instead of guessing.
         raise HTTPException(status_code=503, detail="No se pudo guardar. Intenta de nuevo en unos segundos.")
-    return {"holding": _with_accrued(result.data[0])}
+    return {"holding": (await _with_usd([result.data[0]]))[0]}
 
 
 @router.put("/{holding_id}")
@@ -283,7 +342,7 @@ async def update_cash_holding(holding_id: str, body: dict, user_id: str = Depend
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="No encontrado")
-    return {"holding": _with_accrued(result.data[0])}
+    return {"holding": (await _with_usd([result.data[0]]))[0]}
 
 
 @router.delete("/{holding_id}")

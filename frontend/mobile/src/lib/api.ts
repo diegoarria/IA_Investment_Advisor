@@ -395,6 +395,7 @@ export const referralApi = {
 
 export const cashHoldingsApi = {
   list:   () => api.get("/api/cash-holdings"),
+  summary: () => api.get("/api/cash-holdings/summary"),
   add:    (amount: number, instrument: string, currency: string, label?: string, ratePct?: number | null) =>
     api.post("/api/cash-holdings", { amount, instrument, currency, label, rate_pct: ratePct ?? null }),
   update: (id: string, body: { amount?: number; instrument?: string; currency?: string; label?: string; rate_pct?: number | null }) =>

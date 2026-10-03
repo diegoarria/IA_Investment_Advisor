@@ -19,8 +19,8 @@ import { useLearnStore, getUnclaimedMilestones, type StreakMilestone, getNextMil
 import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { hasPremiumAccess } from "../../src/lib/subscriptionStore";
-import { marketApi, notificationsApi, cashHoldingsApi, dividendsApi } from "../../src/lib/api";
-import { fetchWithRetry } from "../../src/lib/fetchWithRetry";
+import { marketApi, notificationsApi } from "../../src/lib/api";
+import { useCashDividends } from "../../src/lib/cashDividendsStore";
 import { useChatStore } from "../../src/lib/chatStore";
 import { usePaperStore } from "../../src/lib/paperStore";
 import StockAvatar from "../../src/components/StockAvatar";
@@ -383,28 +383,10 @@ export default function HomeScreen() {
   const [claimingMilestone, setClaimingMilestone] = React.useState(false);
   const { positions, portfolioCurrency, closedPositions, inceptionDate } = usePortfolioStore();
   const fxRate = useFxRate(portfolioCurrency);
-  const [cashTotalUSD, setCashTotalUSD] = React.useState(0);
-  const [dividendTotalUSD, setDividendTotalUSD] = React.useState(0);
-  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
-  React.useEffect(() => {
-    // A transient failure here must never silently drop cash/dividends out
-    // of the headline total for the rest of the session (Diego, 2026-09-12:
-    // "SIEMPRE debe quedarse fijo") — retry a few times with backoff before
-    // giving up, same discipline as useSubscriptionStore.fetchStatus.
-    fetchWithRetry(() => cashHoldingsApi.list()).then((res: any) => {
-      if (!res) return;
-      const holdings = res.data?.holdings ?? [];
-      const usd = holdings.reduce((sum: number, c: { amount: number; currency: string; accrued_amount?: number }) => {
-        const amt = c.accrued_amount ?? c.amount;
-        if (c.currency === "USD") return sum + amt;
-        return sum + amt / (CASH_APPROX_TO_USD[c.currency] ?? 1);
-      }, 0);
-      setCashTotalUSD(usd);
-    });
-    fetchWithRetry(() => dividendsApi.getIncome()).then((res: any) => {
-      if (res) setDividendTotalUSD(res.data?.total ?? 0);
-    });
-  }, []);
+  // Cash + dividends from the one shared source every screen uses
+  // (cashDividendsStore.ts) — last good value shown instantly, never wiped
+  // by a failed request, same currency conversion everywhere.
+  const { cashTotal, dividendTotal, cashTotalUSD, dividendTotalUSD } = useCashDividends(portfolioCurrency, fxRate);
   // Distinct holdings, not purchase lots — buying more of a ticker you
   // already own shouldn't inflate this count.
   const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
@@ -1256,7 +1238,7 @@ export default function HomeScreen() {
                 adjustsFontSizeToFit
                 minimumFontScale={0.5}
               >
-                {mask(fmt((total + cashTotalUSD + dividendTotalUSD) * fxRate, portfolioCurrency))}
+                {mask(fmt(total * fxRate + cashTotal + dividendTotal, portfolioCurrency))}
               </Text>
           }
           <View style={[ss.heroGainBadge, { alignSelf: "flex-start", marginTop: 10,
@@ -1275,21 +1257,21 @@ export default function HomeScreen() {
                 </Text>
             }
           </View>
-          {!balanceHidden && (cashTotalUSD > 0 || dividendTotalUSD > 0) && (
+          {!balanceHidden && (cashTotal > 0 || dividendTotal > 0) && (
             <View style={{ marginTop: 12, gap: 4 }}>
-              {cashTotalUSD > 0 && (
+              {cashTotal > 0 && (
                 <View style={ss.heroExtraRow}>
                   <Ionicons name="wallet-outline" size={14} color={colors.accentLight} />
                   <Text style={[ss.heroExtraText, { color: colors.textSub }]} numberOfLines={1}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(cashTotalUSD * fxRate, portfolioCurrency)}</Text> en efectivo
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(cashTotal, portfolioCurrency)}</Text> en efectivo
                   </Text>
                 </View>
               )}
-              {dividendTotalUSD > 0 && (
+              {dividendTotal > 0 && (
                 <View style={ss.heroExtraRow}>
                   <Ionicons name="cash-outline" size={14} color={colors.accentLight} />
                   <Text style={[ss.heroExtraText, { color: colors.textSub }]} numberOfLines={1}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(dividendTotalUSD * fxRate, portfolioCurrency)}</Text> en dividendos recibidos
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(dividendTotal, portfolioCurrency)}</Text> en dividendos recibidos
                   </Text>
                 </View>
               )}

@@ -15,7 +15,8 @@ import Svg, { Path, Defs, Stop, LinearGradient, Circle, Line as SvgLine } from "
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { marketApi, cashHoldingsApi, dividendsApi, screenerWeeklyApi } from "../../src/lib/api";
+import { marketApi, cashHoldingsApi, screenerWeeklyApi } from "../../src/lib/api";
+import { useCashDividends, type CashHolding } from "../../src/lib/cashDividendsStore";
 import { useFxRate } from "../../src/lib/useFxRate";
 import { posthog } from "../../src/config/posthog";
 import { useTheme } from "../../src/lib/ThemeContext";
@@ -1061,55 +1062,19 @@ export default function PortfolioScreen() {
   const [screenshotPriceInputs, setScreenshotPriceInputs] = useState<Record<string, { shares: string; avgPrice: string; purchaseDate: string }>>({});
   const [brokerModalOpen, setBrokerModalOpen] = useState(false);
 
-  // Cash held outside of stock positions (CETES, parked in a bank, bonds,
-  // etc.) — counts toward the portfolio total alongside stock positions.
-  interface CashHolding {
-    id: string; amount: number; currency: string; instrument: "cetes" | "bank" | "bonds" | "other"; label: string | null;
-    accrued_amount?: number; rate_pct?: number | null;
-  }
-  const [cashList, setCashList] = useState<CashHolding[]>([]);
+  // Cash held outside of stock positions (CETES, bank, bonds, etc.) and
+  // dividends actually paid — both count toward the portfolio total. They
+  // come from the one shared source every screen uses (cashDividendsStore.ts):
+  // last good value shown instantly, never wiped by a failed request, and the
+  // same currency conversion as Inicio/Patrimonio.
+  const {
+    holdings: cashList, cashTotal, dividendTotal, toCurrency: convertHolding,
+    setHoldings: setCashList, refreshAfterChange: refreshCash,
+  } = useCashDividends(portfolioCurrency, fxRate);
   const [cashFormOpen, setCashFormOpen] = useState(false);
   const [cashEditingId, setCashEditingId] = useState<string | null>(null);
   const [cashForm, setCashForm] = useState<{ amount: string; instrument: CashHolding["instrument"]; label: string; rate: string }>({ amount: "", instrument: "bank", label: "", rate: "" });
   const [cashSaving, setCashSaving] = useState(false);
-
-  // A silent .catch(() => {}) here used to leave cashList stuck at [] for
-  // the rest of the mount on any transient failure (cold-start network not
-  // ready yet, token refresh in flight) — nothing ever retried, so the
-  // "efectivo disponible" card would randomly disappear and stay gone until
-  // the user left and re-entered the tab. Retry once before giving up.
-  useEffect(() => {
-    let cancelled = false;
-    const load = (isRetry: boolean) => {
-      cashHoldingsApi.list()
-        .then((res: any) => { if (!cancelled) setCashList(res.data?.holdings ?? []); })
-        .catch(() => { if (!cancelled && !isRetry) setTimeout(() => load(true), 1500); });
-    };
-    load(false);
-    return () => { cancelled = true; };
-  }, []);
-
-  // Dividends actually paid (worker.py records these the day they're paid,
-  // forward-tracking only — see migrations/054_dividend_income.sql) — real
-  // cash the user received, so it counts toward the total same as cash.
-  const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
-  useEffect(() => {
-    dividendsApi.getIncome().then((res: any) => setDividendTotalUSD(res.data?.total ?? 0)).catch(() => {});
-  }, []);
-
-  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
-  const convertCashToPortfolioCurrency = useCallback((amount: number, currency: string) => {
-    if (currency === portfolioCurrency) return amount;
-    if (currency === "USD") return amount * fxRate;
-    const usd = amount / (CASH_APPROX_TO_USD[currency] ?? 1);
-    return portfolioCurrency === "USD" ? usd : usd * fxRate;
-  }, [portfolioCurrency, fxRate]);
-
-  const cashTotal = useMemo(
-    () => cashList.reduce((sum, c) => sum + convertCashToPortfolioCurrency(c.accrued_amount ?? c.amount, c.currency), 0),
-    [cashList, convertCashToPortfolioCurrency]
-  );
-  const dividendTotal = portfolioCurrency === "USD" ? dividendTotalUSD : dividendTotalUSD * fxRate;
 
   const handleSaveCash = async () => {
     const amount = parseFloat(cashForm.amount);
@@ -1129,6 +1094,7 @@ export default function PortfolioScreen() {
       setCashForm({ amount: "", instrument: "bank", label: "", rate: "" });
       setCashEditingId(null);
       setCashFormOpen(false);
+      refreshCash();
     } catch {
       Alert.alert(t("common.error"), t("portfolio.cash.saveError"));
     } finally {
@@ -1148,6 +1114,7 @@ export default function PortfolioScreen() {
     if (cashEditingId === id) { setCashEditingId(null); setCashFormOpen(false); setCashForm({ amount: "", instrument: "bank", label: "", rate: "" }); }
     try {
       await cashHoldingsApi.remove(id);
+      refreshCash();
     } catch {
       // Used to swallow the failure and leave the row gone from the UI —
       // it would only "resurrect" on the next reload (server never actually
@@ -2566,7 +2533,7 @@ export default function PortfolioScreen() {
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                     <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                      {currencySymbol}{convertCashToPortfolioCurrency(c.accrued_amount ?? c.amount, c.currency).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {currencySymbol}{convertHolding(c).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Text>
                     <Ionicons name="pencil" size={12} color={colors.textDim} />
                     <TouchableOpacity onPress={() => handleRemoveCash(c.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -3226,7 +3193,7 @@ export default function PortfolioScreen() {
                         </Text>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                           <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                            {currencySymbol}{convertCashToPortfolioCurrency(c.accrued_amount ?? c.amount, c.currency).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {currencySymbol}{convertHolding(c).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </Text>
                           <Ionicons name="pencil" size={12} color={colors.textDim} />
                           <TouchableOpacity onPress={() => handleRemoveCash(c.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>

@@ -12,8 +12,8 @@ import type { TFunction } from "i18next";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { market as marketApi, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
-import { fetchWithRetry } from "@/lib/fetchWithRetry";
+import { market as marketApi, cashHoldings as cashHoldingsApi } from "@/lib/api";
+import { useCashDividends, type CashHolding } from "@/lib/cashDividendsStore";
 import { useAuthStore, useSubscriptionStore, useProfileStore, useBalanceVisibilityStore, hasPremiumAccess } from "@/lib/store";
 import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
@@ -950,100 +950,19 @@ export default function PortfolioPage() {
     }
   }, []);
 
-  // Cash held outside of stock positions (CETES, parked in a bank, bonds,
-  // etc.) — counts toward the portfolio total alongside stock positions.
-  interface CashHolding {
-    id: string; amount: number; currency: string; instrument: "cetes" | "bank" | "bonds" | "other"; label: string | null;
-    accrued_amount?: number; rate_pct?: number | null;
-  }
-  // 2026-09-23, Diego: "Efectivo disponible y dividendos SIEMPRE VISIBLE, NO
-  // PUEDE DESAPARECER". Both totals used to start every mount/navigation at
-  // []/0 and only fill in once their fetch resolved, so the summary line
-  // below blanked out for a moment on every single visit to this page even
-  // when the user has real cash/dividends — read the last known values from
-  // localStorage (same pattern the portfolio positions cache above already
-  // uses) so they render immediately, then get overwritten by the fresh
-  // fetch when it lands.
-  const cashCacheKey = userId ? `nuvos_cash_cache__${userId}` : null;
-  const dividendCacheKey = userId ? `nuvos_dividend_cache__${userId}` : null;
-  const [cashList, setCashList] = useState<CashHolding[]>(() => {
-    if (!cashCacheKey) return [];
-    try {
-      const raw = localStorage.getItem(cashCacheKey);
-      return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-  });
-  const [cashListLoaded, setCashListLoaded] = useState(false);
+  // Cash held outside of stock positions (CETES, bank, bonds, etc.) and
+  // dividends actually paid — both count toward the portfolio total. They
+  // come from the one shared source every screen uses (cashDividendsStore.ts):
+  // last good value shown instantly, never wiped by a failed request, and the
+  // same currency conversion as Inicio/Patrimonio.
+  const {
+    holdings: cashList, cashTotal, dividendTotal, toCurrency: convertHolding,
+    setHoldings: setCashList, refreshAfterChange: refreshCash,
+  } = useCashDividends(portfolioCurrency, fxRate);
   const [cashFormOpen, setCashFormOpen] = useState(false);
   const [cashEditingId, setCashEditingId] = useState<string | null>(null);
   const [cashForm, setCashForm] = useState({ amount: "", instrument: "bank" as CashHolding["instrument"], label: "", rate: "" });
   const [cashSaving, setCashSaving] = useState(false);
-
-  // Gated on isAuthenticated (not just on mount) so it never fires before
-  // the auth token is attached — an unguarded fetch used to 401 on
-  // login/remount, and the silent .catch() left cashList stuck at [],
-  // making the "efectivo disponible" card flicker in and out. Retries once
-  // on failure instead of giving up so a transient network blip doesn't
-  // permanently hide real cash data for the rest of the session.
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    let cancelled = false;
-    const load = (isRetry: boolean) => {
-      cashHoldingsApi.list()
-        .then((res) => {
-          if (cancelled) return;
-          const list = res.data?.holdings ?? [];
-          setCashList(list);
-          setCashListLoaded(true);
-          if (cashCacheKey) { try { localStorage.setItem(cashCacheKey, JSON.stringify(list)); } catch {} }
-        })
-        .catch(() => {
-          if (cancelled) return;
-          if (!isRetry) setTimeout(() => load(true), 1500);
-          else setCashListLoaded(true);
-        });
-    };
-    load(false);
-    return () => { cancelled = true; };
-  }, [isAuthenticated, cashCacheKey]);
-
-  // Dividends actually paid (worker.py records these the day they're paid,
-  // forward-tracking only — see migrations/054_dividend_income.sql) — real
-  // cash the user received, so it counts toward the total same as cash.
-  const [dividendTotalUSD, setDividendTotalUSD] = useState(() => {
-    if (!dividendCacheKey) return 0;
-    try {
-      const raw = localStorage.getItem(dividendCacheKey);
-      return raw ? JSON.parse(raw) : 0;
-    } catch { return 0; }
-  });
-  useEffect(() => {
-    // Same gating + retry discipline as the cash fetch above (Diego,
-    // 2026-09-12: cash/dividends must never silently drop out of the total)
-    // — an unguarded fetch used to 401 on login/remount, and the silent
-    // .catch() left this stuck at 0 with no retry.
-    if (!isAuthenticated) return;
-    fetchWithRetry(() => dividendsApi.getIncome()).then((res) => {
-      if (!res) return;
-      const total = res.data?.total ?? 0;
-      setDividendTotalUSD(total);
-      if (dividendCacheKey) { try { localStorage.setItem(dividendCacheKey, JSON.stringify(total)); } catch {} }
-    });
-  }, [isAuthenticated, dividendCacheKey]);
-  const dividendTotal = portfolioCurrency === "USD" ? dividendTotalUSD : dividendTotalUSD * fxRate;
-
-  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
-  const convertCashToPortfolioCurrency = useCallback((amount: number, currency: string) => {
-    if (currency === portfolioCurrency) return amount;
-    if (currency === "USD") return amount * fxRate;
-    const usd = amount / (CASH_APPROX_TO_USD[currency] ?? 1);
-    return portfolioCurrency === "USD" ? usd : usd * fxRate;
-  }, [portfolioCurrency, fxRate]);
-
-  const cashTotal = useMemo(
-    () => cashList.reduce((sum, c) => sum + convertCashToPortfolioCurrency(c.accrued_amount ?? c.amount, c.currency), 0),
-    [cashList, convertCashToPortfolioCurrency]
-  );
 
   const handleSaveCash = async () => {
     const amount = parseFloat(cashForm.amount);
@@ -1063,6 +982,7 @@ export default function PortfolioPage() {
       setCashForm({ amount: "", instrument: "bank", label: "", rate: "" });
       setCashEditingId(null);
       setCashFormOpen(false);
+      refreshCash();
     } catch {
       showToast("No se pudo guardar el efectivo. Intenta de nuevo.");
     } finally {
@@ -1082,6 +1002,7 @@ export default function PortfolioPage() {
     if (cashEditingId === id) { setCashEditingId(null); setCashFormOpen(false); setCashForm({ amount: "", instrument: "bank", label: "", rate: "" }); }
     try {
       await cashHoldingsApi.remove(id);
+      refreshCash();
     } catch {
       // Used to swallow the failure and leave the row gone from the UI — it
       // would only "resurrect" on the next reload (server never actually
@@ -2697,7 +2618,7 @@ export default function PortfolioPage() {
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold" style={{ color: "var(--text)" }}>
-                          {currencySymbol}{convertCashToPortfolioCurrency(c.accrued_amount ?? c.amount, c.currency).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {currencySymbol}{convertHolding(c).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                         <Pencil className="w-3 h-3" style={{ color: "var(--dim)" }} />
                         <button onClick={(e) => { e.stopPropagation(); handleRemoveCash(c.id); }} className="font-bold" style={{ color: "var(--dim)" }}>×</button>
@@ -2975,7 +2896,7 @@ export default function PortfolioPage() {
                             <p className="text-[11px] mt-1.5" style={{ color: "var(--dim)" }}>
                               {[
                                 cashTotal > 0 ? t("portfolio.cash.cashSummary", { amount: `${currencySymbol}${cashTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }) : null,
-                                dividendTotal > 0 ? t("portfolio.cash.dividendSummary", { amount: `${currencySymbol}${dividendTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}` }) : null,
+                                dividendTotal > 0 ? t("portfolio.cash.dividendSummary", { amount: `${currencySymbol}${dividendTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }) : null,
                               ].filter(Boolean).join(" + ")}
                             </p>
                           ) : null}
@@ -3352,7 +3273,7 @@ export default function PortfolioPage() {
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold" style={{ color: "var(--text)" }}>
-                          {currencySymbol}{convertCashToPortfolioCurrency(c.accrued_amount ?? c.amount, c.currency).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {currencySymbol}{convertHolding(c).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                         <Pencil className="w-3 h-3" style={{ color: "var(--dim)" }} />
                         <button onClick={(e) => { e.stopPropagation(); handleRemoveCash(c.id); }} className="font-bold" style={{ color: "var(--dim)" }}>×</button>

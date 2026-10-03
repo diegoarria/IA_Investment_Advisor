@@ -10,13 +10,13 @@ import PremiumBadge from "@/components/PremiumBadge";
 import BalanceVisibilityToggle from "@/components/BalanceVisibilityToggle";
 import ExplainButton from "@/components/ExplainButton";
 import StockAvatar from "@/components/StockAvatar";
-import { market as marketApi, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
+import { market as marketApi } from "@/lib/api";
+import { useCashDividends } from "@/lib/cashDividendsStore";
 import { useCombinedPositions, useCombinedCurrency } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
 import { useWatchlistStore, useBalanceVisibilityStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
 import { TrendingUp, TrendingDown, ArrowRight, Wallet, Eye, BarChart2 } from "lucide-react";
-import { fetchWithRetry } from "@/lib/fetchWithRetry";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -127,33 +127,10 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
   const stocksValue = totalValueUSD * fxRate;
 
   // Cash held outside stock positions (CETES, bank, bonds, other) and
-  // dividends actually paid (forward-tracking only, recorded by worker.py
-  // the day they're paid — see migrations/054_dividend_income.sql) both
-  // count toward the total shown here, alongside stock positions.
-  const [cashTotalUSD, setCashTotalUSD] = useState(0);
-  const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
-  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
-  useEffect(() => {
-    // A transient failure here must never silently drop cash/dividends out
-    // of the total shown (Diego, 2026-09-12: "SIEMPRE debe quedarse fijo") —
-    // retry a few times with backoff before giving up, same discipline as
-    // useSubscriptionStore.fetchStatus.
-    fetchWithRetry(() => cashHoldingsApi.list()).then((res) => {
-      if (!res) return;
-      const holdings = res.data?.holdings ?? [];
-      const usd = holdings.reduce((sum: number, c: { amount: number; currency: string; accrued_amount?: number }) => {
-        const amt = c.accrued_amount ?? c.amount;
-        if (c.currency === "USD") return sum + amt;
-        return sum + amt / (CASH_APPROX_TO_USD[c.currency] ?? 1);
-      }, 0);
-      setCashTotalUSD(usd);
-    });
-    fetchWithRetry(() => dividendsApi.getIncome()).then((res) => {
-      if (res) setDividendTotalUSD(res.data?.total ?? 0);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const totalValue = stocksValue + cashTotalUSD * fxRate + dividendTotalUSD * fxRate;
+  // dividends actually paid both count toward the total shown here — from
+  // the one shared source every screen uses (see cashDividendsStore.ts).
+  const { cashTotal, dividendTotal } = useCashDividends(portfolioCurrency, fxRate);
+  const totalValue = stocksValue + cashTotal + dividendTotal;
 
   const totalCost = positions.reduce((sum, pos) => sum + pos.shares * pos.avgPrice, 0) * fxRate;
   const totalGain = stocksValue - totalCost;
@@ -182,8 +159,8 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
             day_gain_pct: dayGainPctFinal,
             total_gain_pct: totalGainPct,
             position_count: positions.length,
-            cash_total: cashTotalUSD > 0 ? cashTotalUSD * fxRate : null,
-            dividend_income_received: dividendTotalUSD > 0 ? dividendTotalUSD * fxRate : null,
+            cash_total: cashTotal > 0 ? cashTotal : null,
+            dividend_income_received: dividendTotal > 0 ? dividendTotal : null,
             currency: portfolioCurrency,
           }}
         />

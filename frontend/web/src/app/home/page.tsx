@@ -18,7 +18,8 @@ import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
 import MorningBriefCard from "@/components/MorningBriefCard";
 import ExplainButton from "@/components/ExplainButton";
-import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, billing, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
+import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, billing } from "@/lib/api";
+import { useCashDividends } from "@/lib/cashDividendsStore";
 import PricingModal from "@/components/PricingModal";
 import EmbeddedCheckout, { type CheckoutSummary } from "@/components/EmbeddedCheckout";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore, hasPremiumAccess, getNextMilestone } from "@/lib/store";
@@ -31,7 +32,6 @@ import { isNYSEOpen, readPriceCache, writePriceCache, needsPriceRefresh } from "
 import { registerWebPush } from "@/lib/webPush";
 import { getUserLevel } from "@/lib/userLevel";
 import { isDismissedToday, dismissToday, isWeekdayET } from "@/lib/dailyDismiss";
-import { fetchWithRetry } from "@/lib/fetchWithRetry";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -144,32 +144,9 @@ export default function HomePage() {
   const fxRate = useFxRate(portfolioCurrency);
 
   // Cash held outside stock positions (CETES, bank, bonds, other) and
-  // dividends actually paid (forward-tracking only) both count toward the
-  // total shown here, same as on /portfolio.
-  const [cashTotalUSD, setCashTotalUSD] = useState(0);
-  const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
-  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
-  useEffect(() => {
-    // A transient failure here must never silently drop cash/dividends out
-    // of the headline total for the rest of the session (Diego, 2026-09-12:
-    // "SIEMPRE debe quedarse fijo") — retry a few times with backoff before
-    // giving up, same discipline as useSubscriptionStore.fetchStatus.
-    fetchWithRetry(() => cashHoldingsApi.list()).then((res) => {
-      if (!res) return;
-      const holdings = res.data?.holdings ?? [];
-      const usd = holdings.reduce((sum: number, c: { amount: number; currency: string; accrued_amount?: number }) => {
-        const amt = c.accrued_amount ?? c.amount;
-        if (c.currency === "USD") return sum + amt;
-        return sum + amt / (CASH_APPROX_TO_USD[c.currency] ?? 1);
-      }, 0);
-      setCashTotalUSD(usd);
-    });
-    fetchWithRetry(() => dividendsApi.getIncome()).then((res) => {
-      if (res) setDividendTotalUSD(res.data?.total ?? 0);
-    });
-  }, []);
-  const cashTotal = portfolioCurrency === "USD" ? cashTotalUSD : cashTotalUSD * fxRate;
-  const dividendTotal = portfolioCurrency === "USD" ? dividendTotalUSD : dividendTotalUSD * fxRate;
+  // dividends actually paid both count toward the total shown here — from
+  // the one shared source every screen uses (see cashDividendsStore.ts).
+  const { cashTotal, dividendTotal } = useCashDividends(portfolioCurrency, fxRate);
 
   const streak = useLearnStore((s) => s.streak);
   const completedToday = useLearnStore((s) => s.completedToday);
@@ -1171,7 +1148,7 @@ export default function HomePage() {
                     )}
 
                     {/* Cash / dividends */}
-                    {!loading && !balanceHidden && (cashTotal > 0 || dividendTotal > 0) && (
+                    {!balanceHidden && (cashTotal > 0 || dividendTotal > 0) && (
                       <div className="mt-3 space-y-1">
                         {cashTotal > 0 && (
                           <p className="flex items-center gap-1.5 text-[13px]" style={{ color: "var(--sub)" }}>
