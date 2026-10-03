@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from app.core.limiter import limiter
 import httpx
 from app.api.deps import get_current_user_id
-from app.core.database import get_supabase, get_fresh_supabase, run_query
+from app.core.database import get_supabase, run_query, run_query_verified_nonempty
 from app.core.cache import cache_get, cache_set
 from app.core.after_hours_cache import backfill_after_hours
 
@@ -354,27 +354,21 @@ async def get_batch_scores(request: Request, body: dict, lang: str = "es", user_
 async def get_watchlist(user_id: str = Depends(get_current_user_id)):
     """Return user's watchlist enriched with current prices."""
     import threading
-    db = get_supabase()
-    res = await run_query(db.table("watchlist").select("*").eq("user_id", user_id).order("added_at"))
+    # A real empty watchlist and the singleton's stale-pinned-connection
+    # issue (see database.py's get_supabase docstring — confirmed live
+    # 2026-09-16 for another table) look identical here: both are a clean
+    # 200 with []. run_query_verified_nonempty double-checks with an
+    # independently created client before trusting an empty result, so a
+    # stale node never silently wipes a client's cached watchlist (both
+    # frontends persist whatever this endpoint returns, including empty).
+    res = await run_query_verified_nonempty(
+        lambda db: db.table("watchlist").select("*").eq("user_id", user_id).order("added_at")
+    )
     items = res.data
     if items is None:
         raise RuntimeError("Watchlist DB query returned None — possible Supabase connectivity issue")
     if not items:
-        # A real empty watchlist and the singleton's stale-pinned-connection
-        # issue (see database.py's get_supabase docstring — confirmed live
-        # 2026-09-16 for another table) look identical here: both are a clean
-        # 200 with []. Double-check with an independently created client
-        # before trusting it, so a stale node never silently wipes a client's
-        # cached watchlist (both frontends persist whatever this endpoint
-        # returns, including empty). A genuinely empty watchlist still comes
-        # back empty from the fresh client too, so this costs one extra
-        # query only on the rare empty-result path.
-        fresh_res = await run_query(
-            get_fresh_supabase().table("watchlist").select("*").eq("user_id", user_id).order("added_at")
-        )
-        items = fresh_res.data or []
-        if not items:
-            return []
+        return []
 
     tickers = [item["ticker"] for item in items]
     try:

@@ -344,6 +344,10 @@ export const useAuthStore = create<AuthState>()(
         // preferred start screen once — see home/page.tsx's one-shot guard.
         try { sessionStorage.removeItem("nuvos_start_screen_redirected"); } catch {}
         set({ token: null, userId: null, isAuthenticated: false, authRestoring: false });
+        // watchlistMissStreak lives outside the persisted store (module
+        // scope) — clear it on every logout so a ticker's miss count never
+        // carries over to the next account signed into this same tab.
+        watchlistMissStreak = new Map();
         // Supabase's own session (persisted under its own localStorage key,
         // separate from our access_token) must go too — otherwise logging
         // into a DIFFERENT account on the same device can silently
@@ -1180,6 +1184,11 @@ interface WatchlistState {
   loadFromServer: () => Promise<void>;
 }
 
+// Per-ticker consecutive-miss counter for loadFromServer's merge-not-replace
+// guard — module scope (not persisted; a cold start has no history to
+// protect yet, which is correct).
+let watchlistMissStreak = new Map<string, number>();
+
 export const useWatchlistStore = create<WatchlistState>()(
   persist(
     (set, get) => {
@@ -1277,18 +1286,35 @@ export const useWatchlistStore = create<WatchlistState>()(
               name: i.name || i.ticker,
               addedAt: i.added_at ? new Date(i.added_at).getTime() : Date.now(),
             }));
-          let serverItems = toItems(await watchlist.get());
-          // A 200 with an empty body is ambiguous: it may be a real empty
-          // watchlist (e.g. another device just deleted the last item), or a
-          // transient blip between browser and backend returning a false
-          // empty despite the backend's own double-check (see GET /watchlist's
-          // fresh-client re-verify, 2026-09-16 — that guards the DB read, not
-          // this HTTP round-trip). Never let a single empty response wipe a
-          // non-empty local cache outright — re-confirm once before trusting it.
-          if (serverItems.length === 0 && get().items.length > 0) {
-            serverItems = toItems(await watchlist.get());
+          const serverItems = toItems(await watchlist.get());
+          const withTombstones = applyTombstones(useAuthStore.getState().userId, serverItems);
+
+          // Diego, 2026-10-03: "nunca nunca nunca debe desaparecer". A 200
+          // with an empty (or partial) body is ambiguous: it may be real
+          // (another device just deleted something), or a transient blip —
+          // a false empty despite the backend's own double-check (GET
+          // /watchlist's fresh-client re-verify, 2026-09-16) still guards
+          // only the DB read, not this HTTP round-trip, and doesn't protect
+          // against a response that's missing just SOME tickers either.
+          // Per-ticker miss-streak (mirrors watchlist/page.tsx's own fix,
+          // 2026-09-19/20, and mobile's watchlistStore.ts, 2026-10-03): a
+          // ticker this store already knows about that the server didn't
+          // return is kept for up to 2 more consecutive loads before it's
+          // trusted as a real removal, so every screen that reads this
+          // store (Patrimonio, Earnings' quick-add star) is as resilient
+          // as /watchlist itself, not a weaker, independently-drifting copy.
+          const serverTickers = new Set(withTombstones.map((i) => i.ticker));
+          let merged = withTombstones;
+          let anyKept = false;
+          const nextMisses = new Map<string, number>();
+          for (const local of get().items) {
+            if (serverTickers.has(local.ticker)) continue;
+            const n = (watchlistMissStreak.get(local.ticker) ?? 0) + 1;
+            if (n < 3) { nextMisses.set(local.ticker, n); merged = [...merged, local]; anyKept = true; }
           }
-          set({ items: applyTombstones(useAuthStore.getState().userId, serverItems) });
+          watchlistMissStreak = nextMisses;
+          set({ items: merged });
+          if (anyKept) setTimeout(() => useWatchlistStore.getState().loadFromServer(), 3000);
         } catch {}
       },
       };

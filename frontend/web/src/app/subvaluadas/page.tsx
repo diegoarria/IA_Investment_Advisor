@@ -28,7 +28,7 @@ import { Card } from "@/components/ui/Card";
 import { resolveValuationPanelMode } from "@/lib/valuationPanelMode";
 import { screenerApi, watchlist, market } from "@/lib/api";
 import { clearTombstone } from "@/lib/watchlistTombstones";
-import { useSubscriptionStore, useThemeStore, useAuthStore, isGuestUser, getGuestId, hasPremiumAccess } from "@/lib/store";
+import { useSubscriptionStore, useThemeStore, useAuthStore, useWatchlistStore, isGuestUser, getGuestId, hasPremiumAccess } from "@/lib/store";
 
 // Whether to call the no-auth /public routes instead of the authenticated
 // ones. isGuestUser() alone isn't enough — that flag is only ever set by
@@ -586,6 +586,15 @@ function SubvaluadasPageInner() {
       clearTombstone(useAuthStore.getState().userId, data.ticker);
       await watchlist.add(data.ticker, data.company_name || undefined);
       setWatchlisted(true);
+      // Diego, 2026-10-03: this screen was a 4th, disconnected watchlist
+      // writer — it told the server but never the shared store, so /watchlist,
+      // Patrimonio and Earnings' quick-add star could all be stale by up to
+      // 30s (their own periodic resync) after following a stock here.
+      useWatchlistStore.setState((s) =>
+        s.items.some((i) => i.ticker === data.ticker) ? s : {
+          items: [...s.items, { ticker: data.ticker, name: data.company_name || data.ticker, addedAt: Date.now() }],
+        }
+      );
     } catch (err) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       const code = (err as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code;

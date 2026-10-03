@@ -13,7 +13,7 @@ import {
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 import { watchlist as watchlistApi, market as marketApi, sync as syncApi, priceAlerts as priceAlertsApi } from "@/lib/api";
-import { useAuthStore, useSubscriptionStore, useProfileStore, usePersonalizationStore, hasPremiumAccess } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, useProfileStore, usePersonalizationStore, useWatchlistStore, hasPremiumAccess } from "@/lib/store";
 import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore, useCombinedPositions } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
@@ -614,6 +614,20 @@ export default function WatchlistPage() {
       writeCache(ordered);
       setLastRefreshed(new Date());
       setSecondsSince(0);
+      // Diego, 2026-10-03: this page has by far the strongest protection
+      // against a watchlist that flickers (miss-streak, pending-delete/add
+      // guards, fresh-client-backed reads) — mirror its result into the
+      // shared useWatchlistStore every time it settles, so Patrimonio's
+      // Watchlist tab and Earnings' quick-add star (which read that store
+      // independently) never show a staler/less-correct list than this
+      // page does. One-way only: this page's own `items` stays local and
+      // untouched by the store.
+      useWatchlistStore.setState({
+        items: ordered.map((i) => ({
+          ticker: i.ticker, name: i.name,
+          addedAt: i.added_at ? new Date(i.added_at).getTime() : Date.now(),
+        })),
+      });
     } catch {
       // On network/server error keep whatever items are already shown. If
       // there is nothing to show yet, never fall through to the "empty

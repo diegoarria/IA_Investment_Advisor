@@ -16,11 +16,39 @@ interface WatchlistStore {
   // a remove() call that never resolved, so loadFromServer() doesn't defer
   // to it forever.
   pendingSyncSetAt: number | null;
+  // Diego, 2026-10-03: "nunca nunca nunca debe desaparecer". Durable record
+  // of tickers this user deleted — mirrors web's watchlistTombstones.ts.
+  // Without this, a remove() whose DELETE genuinely failed after retrying
+  // (real outage) left the ticker merely hidden in memory: closing and
+  // reopening the app re-hydrated the persisted store, the next
+  // loadFromServer() read the server's unchanged copy, and the "deleted"
+  // ticker silently came back — reading to the user as the watchlist
+  // randomly resurrecting an item, or (if they deleted it again, confused)
+  // repeatedly "fighting" to keep it gone.
+  tombstones: string[];
   add: (ticker: string, name: string) => void;
   remove: (ticker: string) => void;
   reorder: (from: number, to: number) => void;
   has: (ticker: string) => boolean;
   loadFromServer: () => Promise<void>;
+}
+
+// Per-ticker consecutive-miss counter — module scope (not persisted; a
+// cold start has no history to protect yet, which is correct: the very
+// first read of a session has nothing to defend against losing).
+const missStreak = new Map<string, number>();
+// Tickers with a remove() retry currently in flight — a loadFromServer()
+// landing mid-retry must not resurrect them just because the server
+// hasn't committed the delete yet.
+const pendingRemoves = new Set<string>();
+
+/** Call on account switch (same place persist.rehydrate() is already called
+ *  for this store) — missStreak/pendingRemoves are module-level, not part
+ *  of the per-user persisted state, so without this a ticker's miss count
+ *  could carry over from the previous signed-in account on the same device. */
+export function resetWatchlistSyncState(): void {
+  missStreak.clear();
+  pendingRemoves.clear();
 }
 
 export const useWatchlistStore = create<WatchlistStore>()(
@@ -48,10 +76,12 @@ export const useWatchlistStore = create<WatchlistStore>()(
       items: [],
       pendingSync: false,
       pendingSyncSetAt: null,
+      tombstones: [],
 
       add: (ticker, name) => {
         const t = ticker.toUpperCase();
         if (get().items.find((i) => i.ticker === t)) return;
+        set((s) => ({ tombstones: s.tombstones.filter((x) => x !== t) }));
         // remove() already guarded loadFromServer() with this flag; add()
         // didn't, and fired the POST with a bare .catch(() => {}) — a
         // single transient failure silently dropped the add server-side
@@ -84,12 +114,26 @@ export const useWatchlistStore = create<WatchlistStore>()(
         // Flag pendingSync so a loadFromServer() already in flight (e.g. an
         // app-foreground resync) can't land mid-delete and resurrect this
         // item from a response that was fetched before the delete landed.
-        set((s) => ({ items: s.items.filter((i) => i.ticker !== t) }));
+        set((s) => ({ items: s.items.filter((i) => i.ticker !== t), tombstones: [...s.tombstones.filter((x) => x !== t), t] }));
+        pendingRemoves.add(t);
         beginPending();
-        watchlistServerApi
-          .remove(t)
-          .catch(() => {})
-          .finally(endPending);
+        (async () => {
+          // Retried with backoff, matching add() — a bare fire-and-forget
+          // DELETE used to leave an item removed locally forever even on a
+          // purely transient failure, with nothing to retry it. The
+          // tombstone above is the real backstop if every retry fails: it
+          // keeps the ticker hidden and gets re-sent on the next
+          // loadFromServer() (see applyTombstonesLocal below) instead of
+          // silently letting the server's stale copy win.
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await watchlistServerApi.remove(t);
+              return;
+            } catch {
+              if (attempt < 2) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            }
+          }
+        })().finally(() => { pendingRemoves.delete(t); endPending(); });
       },
 
       reorder: (from, to) => {
@@ -118,19 +162,46 @@ export const useWatchlistStore = create<WatchlistStore>()(
               name: item.name || item.ticker,
               addedAt: item.added_at ? new Date(item.added_at).getTime() : Date.now(),
             }));
-          let serverItems = toItems(await watchlistServerApi.getAll());
-          // A 200 with an empty body is ambiguous: it may be a real empty
-          // watchlist (e.g. another device just deleted the last item), or a
-          // transient blip returning a false empty despite the backend's own
-          // double-check (see GET /watchlist's fresh-client re-verify,
-          // 2026-09-16 — that guards the DB read, not this HTTP round-trip).
-          // Never let a single empty response wipe a non-empty local cache
-          // outright — re-confirm once before trusting it. Mirrors web's
-          // watchlist store fix, same date.
-          if (serverItems.length === 0 && get().items.length > 0) {
-            serverItems = toItems(await watchlistServerApi.getAll());
+          const serverItems = toItems(await watchlistServerApi.getAll());
+
+          // Diego, 2026-10-03: "nunca nunca nunca" — a single flaky read
+          // (the whole response empty, or missing some tickers the app
+          // already knows about) must never make the watchlist blink.
+          // Merge instead of replace: any ticker this app already shows
+          // that the server didn't return gets kept for up to 2 more
+          // consecutive reads (self-heals within ~15-30s on a real app-
+          // foreground cadence) before it's trusted as a genuine removal —
+          // mirrors web watchlist/page.tsx's per-ticker miss-streak,
+          // 2026-09-19/20. Tombstoned tickers (a pending local delete) are
+          // the one case that's never kept, re-deleting them instead.
+          const serverTickers = new Set(serverItems.map((i) => i.ticker));
+          const { tombstones } = get();
+          let merged = serverItems;
+          let anyKept = false;
+          const keptTombstones: string[] = [];
+          for (const t of tombstones) {
+            if (serverTickers.has(t)) {
+              // Server still has it — re-issue the delete and keep hiding it.
+              watchlistServerApi.remove(t).catch(() => {});
+              keptTombstones.push(t);
+              merged = merged.filter((i) => i.ticker !== t);
+            }
+            // else: server already agrees it's gone — tombstone served its purpose, drop it.
           }
-          set({ items: serverItems });
+          for (const local of get().items) {
+            if (serverTickers.has(local.ticker) || pendingRemoves.has(local.ticker) || keptTombstones.includes(local.ticker)) continue;
+            const n = (missStreak.get(local.ticker) ?? 0) + 1;
+            if (n < 3) {
+              missStreak.set(local.ticker, n);
+              merged = [...merged, local];
+              anyKept = true;
+            } else {
+              missStreak.delete(local.ticker);
+            }
+          }
+          for (const t of serverTickers) missStreak.delete(t); // present again — reset its streak
+          set({ items: merged, tombstones: keptTombstones });
+          if (anyKept) setTimeout(() => useWatchlistStore.getState().loadFromServer(), 5000);
         } catch {}
       },
       };
@@ -138,8 +209,8 @@ export const useWatchlistStore = create<WatchlistStore>()(
     {
       name: "watchlist",
       storage: userScopedStorage,
-      // Only persist items — runtime flags stay in-memory
-      partialize: (state) => ({ items: state.items }),
+      // Only persist items + tombstones — runtime flags stay in-memory
+      partialize: (state) => ({ items: state.items, tombstones: state.tombstones }),
     }
   )
 );

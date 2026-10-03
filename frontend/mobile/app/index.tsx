@@ -21,7 +21,7 @@ import { usePortfolioStore } from "../src/lib/portfolioStore";
 import { usePaperStore } from "../src/lib/paperStore";
 import { useSubscriptionStore } from "../src/lib/subscriptionStore";
 import { useChatStore } from "../src/lib/chatStore";
-import { useWatchlistStore } from "../src/lib/watchlistStore";
+import { useWatchlistStore, resetWatchlistSyncState } from "../src/lib/watchlistStore";
 import { useLearnStore } from "../src/lib/learnStore";
 import { useLanguage } from "../src/lib/LanguageContext";
 import { useTranslation } from "react-i18next";
@@ -249,6 +249,10 @@ export default function AuthScreen() {
       useWatchlistStore.persist.rehydrate(),
       useLearnStore.persist.rehydrate(),
     ]);
+    // watchlistStore's miss-streak/pending-remove tracking lives outside the
+    // persisted state (module scope) — clear it on every account switch so
+    // a ticker's miss count never carries over from the previous account.
+    resetWatchlistSyncState();
     try {
       const [profileRes, syncRes] = await Promise.allSettled([
         profileApi.get(),
