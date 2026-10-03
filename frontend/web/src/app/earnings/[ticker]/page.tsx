@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { Loader2, Lock, ChevronLeft, AlertTriangle } from "lucide-react";
+import { Loader2, Lock, ChevronLeft, AlertTriangle, RefreshCw } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
-import { EarningsAnalysisCard, type EarningsAnalysisResponse } from "@/components/EarningsAnalysisCard";
+import StockAvatar from "@/components/StockAvatar";
+import { EarningsAnalysisCard, EARNINGS_COLOR, type EarningsAnalysisResponse } from "@/components/EarningsAnalysisCard";
 import { earningsApi } from "@/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import { useCombinedPositions } from "@/lib/portfolioStore";
@@ -29,6 +30,7 @@ export default function EarningsTickerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<EarningsAnalysisResponse | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!isPremium || !ticker) { setLoading(false); return; }
@@ -49,7 +51,7 @@ export default function EarningsTickerPage() {
         setError(detail || t("earnings.search.error"));
       })
       .finally(() => setLoading(false));
-  }, [isPremium, ticker, i18n.language]);
+  }, [isPremium, ticker, i18n.language, reloadKey]);
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
@@ -57,31 +59,54 @@ export default function EarningsTickerPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <MarketTickerBar />
         <div className="flex-1 overflow-y-auto scrollbar-thin p-6">
-          <div className="max-w-2xl mx-auto">
-            <button onClick={() => router.push("/earnings")} className="flex items-center gap-1 text-xs font-bold mb-4" style={{ color: "var(--muted)" }}>
-              <ChevronLeft className="w-4 h-4" />
-              {t("earnings.title")}
+          <div className="max-w-2xl mx-auto pb-12">
+            <button onClick={() => router.push("/earnings")}
+                    className="flex items-center gap-1 text-[12px] font-extrabold mb-4 rounded-full px-3 py-1.5 border"
+                    style={{ color: "var(--sub)", borderColor: "var(--border)", background: "var(--card)" }}>
+              <ChevronLeft className="w-3.5 h-3.5" />
+              {t("earnings.backToList")}
             </button>
 
             {!isPremium ? (
-              <div className="rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(0,168,94,0.1)" }}>
-                  <Lock className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
+              <div className="rounded-[20px] border p-7 flex flex-col items-center text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: EARNINGS_COLOR + "1A" }}>
+                  <Lock className="w-7 h-7" style={{ color: EARNINGS_COLOR }} />
                 </div>
-                <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>{t("earnings.premiumGate.title")}</h2>
-                <p className="text-sm mb-5 max-w-sm mx-auto" style={{ color: "var(--muted)" }}>{t("earnings.premiumGate.desc")}</p>
-                <button onClick={() => setPaywallOpen(true)} className="px-6 py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
+                <h2 className="font-black text-[17px] mb-2" style={{ color: "var(--text)" }}>{t("earnings.premiumGate.title")}</h2>
+                <p className="text-[13px] leading-[19px] mb-5 max-w-sm" style={{ color: "var(--muted)" }}>{t("earnings.premiumGate.desc")}</p>
+                <button onClick={() => setPaywallOpen(true)} className="px-6 py-2.5 rounded-[14px] text-[13px] font-extrabold text-white" style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
                   {t("earnings.premiumGate.cta")}
                 </button>
               </div>
             ) : loading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} />
+              <div className="space-y-3.5">
+                <div className="relative overflow-hidden rounded-3xl p-5 border" style={{ background: EARNINGS_COLOR + "14", borderColor: EARNINGS_COLOR + "33" }}>
+                  <div className="flex items-center gap-3">
+                    <StockAvatar ticker={ticker} size="md" />
+                    <div>
+                      <p className="text-[22px] font-black tracking-tight" style={{ color: "var(--text)" }}>{ticker}</p>
+                      <p className="flex items-center gap-1.5 text-[13px] mt-0.5" style={{ color: "var(--sub)" }}>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: EARNINGS_COLOR }} />
+                        {t("earnings.loading")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="rounded-2xl border p-5 animate-pulse" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                    <div className="h-3 w-28 rounded mb-3" style={{ background: "var(--raised)" }} />
+                    <div className="h-2.5 w-full rounded mb-2" style={{ background: "var(--raised)" }} />
+                    <div className="h-2.5 w-4/5 rounded" style={{ background: "var(--raised)" }} />
+                  </div>
+                ))}
               </div>
             ) : error ? (
-              <div className="rounded-xl p-3 flex gap-2 items-start" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
-                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "#ef4444" }} />
-                <p className="text-xs font-medium" style={{ color: "#ef4444" }}>{error}</p>
+              <div className="rounded-[20px] border p-7 flex flex-col items-center gap-3 text-center" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                <AlertTriangle className="w-6 h-6" style={{ color: "#f59e0b" }} />
+                <p className="text-[13px] leading-[19px]" style={{ color: "var(--sub)" }}>{error}</p>
+                <button onClick={() => setReloadKey((k) => k + 1)} className="flex items-center gap-1.5 rounded-[14px] px-4 py-2.5 text-[13px] font-extrabold text-white" style={{ background: EARNINGS_COLOR }}>
+                  <RefreshCw className="w-3.5 h-3.5" />{t("earnings.retry")}
+                </button>
               </div>
             ) : result ? (
               <EarningsAnalysisCard result={result} />

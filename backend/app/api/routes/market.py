@@ -3176,7 +3176,7 @@ async def get_stock_detail(
     result = await asyncio.to_thread(_fetch_stock_detail, symbol.upper())
     if include_score:
         sym = symbol.upper()
-        score_cache_key = f"score5:{sym}"
+        score_cache_key = f"score6:{sym}"
         cached_score = cache_get(score_cache_key)
         if cached_score:
             return {**result, "score": cached_score}
@@ -3522,14 +3522,18 @@ def _compute_stock_score(detail: dict) -> dict:
         health_score * weights["health"]
     )
 
-    # Grade
-    if overall >= 85:   grade, signal = "A+", "COMPRA FUERTE"
-    elif overall >= 75: grade, signal = "A",  "COMPRA"
-    elif overall >= 65: grade, signal = "B+", "COMPRA"
-    elif overall >= 55: grade, signal = "B",  "MANTENER"
-    elif overall >= 45: grade, signal = "C",  "MANTENER"
-    elif overall >= 35: grade, signal = "D",  "VENDER"
-    else:               grade, signal = "F",  "VENTA FUERTE"
+    # Grade + a DESCRIPTIVE label of the business profile. Diego, 2026-10-02:
+    # this used to be "COMPRA FUERTE / COMPRA / MANTENER / VENDER / VENTA
+    # FUERTE" — a buy/sell call shown on every stock, which breaks "Nuvos
+    # nunca prescribe / no es asesor". The label now says what the score
+    # measures (how strong the business looks), never what to do.
+    if overall >= 85:   grade, signal = "A+", "EXCEPCIONAL"
+    elif overall >= 75: grade, signal = "A",  "SÓLIDA"
+    elif overall >= 65: grade, signal = "B+", "BUENA"
+    elif overall >= 55: grade, signal = "B",  "MIXTA"
+    elif overall >= 45: grade, signal = "C",  "MIXTA"
+    elif overall >= 35: grade, signal = "D",  "DÉBIL"
+    else:               grade, signal = "F",  "MUY DÉBIL"
 
     # ── Claude AI verdict ─────────────────────────────────────────────────────
     verdict_short = ""
@@ -3549,19 +3553,20 @@ def _compute_stock_score(detail: dict) -> dict:
             sector = p.get("sector", "")
             client_ant = anthropic.Anthropic(api_key=_ant_key)
             prompt = (
-                f"Eres un asesor financiero que explica inversiones a personas sin experiencia en finanzas. Analiza '{name}' ({sector}) con estos datos internos (NO los menciones directamente):\n"
+                f"Eres un educador financiero que explica negocios a personas sin experiencia en finanzas. Nunca recomiendas comprar, vender ni mantener. Analiza '{name}' ({sector}) con estos datos internos (NO los menciones directamente):\n"
                 f"- Score general: {overall}/100 (Valoración:{val_score} Crecimiento:{grow_score} Calidad:{qual_score} Salud:{health_score})\n"
                 f"- P/E: {pe}, Forward P/E: {fpe}, EV/EBITDA: {ev_ebitda}\n"
                 f"- Margen bruto: {round((gm or 0)*100,1)}%, Margen operativo: {round((om or 0)*100,1)}%, Margen neto: {round((nm or 0)*100,1)}%\n"
                 f"- Crecimiento de ingresos: {round((rev_growth or 0)*100,1)}%, Crecimiento de ganancias: {round((earn_growth or 0)*100,1)}%\n"
                 f"- ROE: {round((roe or 0)*100,1)}%, ROA: {round((roa or 0)*100,1)}%\n"
                 f"- Deuda/Capital: {de}, Ratio corriente: {cr}\n"
-                f"- Recomendación: {signal}\n\n"
+                f"- Perfil general del negocio: {signal}\n\n"
                 "REGLAS ESTRICTAS:\n"
                 "- Usa lenguaje simple que entienda alguien que nunca ha invertido\n"
                 "- PROHIBIDO mencionar: P/E, EV/EBITDA, ROE, ROA, ratio corriente, deuda/capital, márgenes operativos, ni ningún término técnico financiero\n"
                 "- Traduce los datos a ideas concretas: en vez de 'P/E alto' di 'la acción está cara comparada con lo que gana'; en vez de 'ROE alto' di 'la empresa es muy eficiente generando ganancias'\n"
-                "- Sé directo y conversacional, como si le explicaras a un amigo\n\n"
+                "- Sé directo y conversacional, como si le explicaras a un amigo\n"
+                "- PROHIBIDO decir si conviene comprar, vender, mantener, entrar o salir; solo describe el negocio\n\n"
                 "Responde en español con exactamente DOS partes:\n"
                 "CORTO: Una sola oración de máximo 20 palabras resumiendo si el negocio es bueno o no (sin mencionar precios ni términos técnicos).\n"
                 "LARGO: Dos oraciones en lenguaje simple: primero qué tiene de bueno la empresa, luego qué riesgo tiene o por qué hay que tener cuidado."
@@ -3654,11 +3659,14 @@ def _compute_stock_score(detail: dict) -> dict:
                         None if hi is None else round(hi, 2))
 
             tiers = [
-                {"label": "Muy cara",              "signal": "avoid",   "color": "#ef4444", "lo": fv * 1.15, "hi": None},
-                {"label": "Cara, esperar bajada",  "signal": "wait",    "color": "#f97316", "lo": fv * 1.05, "hi": fv * 1.15},
-                {"label": "Precio justo",          "signal": "neutral", "color": "#f59e0b", "lo": fv * 0.95, "hi": fv * 1.05},
-                {"label": "Buen rango para entrar","signal": "good",    "color": "#22c55e", "lo": fv * 0.80, "hi": fv * 0.95},
-                {"label": "Barata, oportunidad",   "signal": "strong",  "color": "#10b981", "lo": None,      "hi": fv * 0.80},
+                # Descriptive bands (price vs. estimated value), never "when to
+                # buy" — see the grade comment above. `signal` keys unchanged
+                # so existing clients keep keying/coloring them.
+                {"label": "Muy por encima de su valor estimado", "signal": "avoid",   "color": "#ef4444", "lo": fv * 1.15, "hi": None},
+                {"label": "Por encima de su valor estimado",     "signal": "wait",    "color": "#f97316", "lo": fv * 1.05, "hi": fv * 1.15},
+                {"label": "Cerca de su valor estimado",          "signal": "neutral", "color": "#f59e0b", "lo": fv * 0.95, "hi": fv * 1.05},
+                {"label": "Por debajo de su valor estimado",     "signal": "good",    "color": "#22c55e", "lo": fv * 0.80, "hi": fv * 0.95},
+                {"label": "Muy por debajo de su valor estimado", "signal": "strong",  "color": "#10b981", "lo": None,      "hi": fv * 0.80},
             ]
             for t in tiers:
                 lo, hi = t["lo"], t["hi"]
@@ -3901,7 +3909,7 @@ async def get_stock_score(
 ):
     """AI quality score + verdict for a stock (0-100, 8 metrics, 4 categories)."""
     sym = _yf_symbol(symbol.upper())
-    cache_key = f"score5:{sym}"
+    cache_key = f"score6:{sym}"
     cached = cache_get(cache_key)
     if cached:
         return cached

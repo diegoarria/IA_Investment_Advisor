@@ -717,7 +717,9 @@
       "guidance": "Guidance",
       "whyMoved": "Why did the stock move?",
       "thesisImpact": "Thesis impact",
-      "ratingReasoning": "Why this rating"
+      "ratingReasoning": "Why this rating",
+      "keyNumbers": "Key numbers from the report",
+      "portfolioNote": "What it means for your portfolio"
     },
     "segments": {
       "none": "We couldn't find segment-level detail for this report."
@@ -733,7 +735,42 @@
       "desc": "Earnings analysis uses real Finnhub/FMP data plus a real-time search of the report — available for Premium users only.",
       "cta": "Unlock Premium",
       "paywallReason": "Earnings analysis"
-    }
+    },
+    "hero": {
+      "eyebrow": "QUARTERLY EARNINGS",
+      "subtitle": "How your companies did in their latest report: what they earned, what the market expected, and what it means for you.",
+      "tracking": "{{count}} companies you follow",
+      "price": "Price today {{value}}"
+    },
+    "stats": {
+      "reported": "Reported",
+      "beatEps": "Beat on earnings",
+      "beatRevenue": "Beat on sales"
+    },
+    "metrics": {
+      "eps": "Earnings per share",
+      "revenue": "Sales",
+      "estimate": "Expected {{value}}",
+      "actualShort": "Actual",
+      "estimateShort": "Expected"
+    },
+    "list": {
+      "owned": "In your portfolio",
+      "reportedOn": "Reported {{date}}",
+      "viewAnalysis": "See full analysis",
+      "noSymbols": "Add companies to your portfolio or watchlist and you'll see how each report went right here.",
+      "loadError": "We couldn't load recent reports. Check your connection and try again."
+    },
+    "rating": {
+      "strong": "Strong",
+      "good": "Good",
+      "mixed": "Mixed",
+      "weak": "Weak"
+    },
+    "backToList": "All reports",
+    "loading": "Reading the report and preparing your analysis…",
+    "retry": "Try again",
+    "disclaimer": "Educational analysis based on the company's published report. Not a recommendation to buy or sell."
   },
   "subvaluadas": {
     "title": "Nuvos Radar",
@@ -3626,10 +3663,10 @@
     "verdictLocked": {
       "title": "AI Verdict",
       "tagline": "Premium exclusive",
-      "description": "Unlock the full analysis: business quality score, short and long-term outlook, and suggested entry ranges for this stock.",
+      "description": "Unlock the full analysis: business quality score, short and long-term outlook, and where today's price sits vs. its estimated value.",
       "benefit1": "Business quality score",
       "benefit2": "Short and long-term outlook",
-      "benefit3": "Suggested entry ranges"
+      "benefit3": "Current price compared with its estimated value"
     },
     "about": "About {{name}}",
     "calculatingAiSummary": "Calculating AI summary…",
@@ -3686,7 +3723,7 @@
       "financials": "Financials",
       "summary": "Summary"
     },
-    "whenToEnter": "When to buy?"
+    "whenToEnter": "Current price vs. estimated value"
   },
   "earningsCalendar": {
     "analysisError": "Couldn't get the analysis.",

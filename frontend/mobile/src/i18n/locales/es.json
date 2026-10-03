@@ -708,8 +708,8 @@
       "label": "Reportaron recientemente",
       "empty": "Ninguna de tus acciones (portafolio + watchlist) ha reportado en los últimos días."
     },
-    "beat": "Beat",
-    "miss": "Miss",
+    "beat": "Superó",
+    "miss": "Debajo",
     "sections": {
       "positives": "Lo positivo",
       "negatives": "Lo negativo",
@@ -717,7 +717,9 @@
       "guidance": "Guidance",
       "whyMoved": "¿Por qué se movió la acción?",
       "thesisImpact": "Impacto en la tesis",
-      "ratingReasoning": "Por qué esta calificación"
+      "ratingReasoning": "Por qué esta calificación",
+      "keyNumbers": "Números clave del reporte",
+      "portfolioNote": "Lo que significa para tu portafolio"
     },
     "segments": {
       "none": "No encontramos detalle de segmentos para este reporte."
@@ -733,7 +735,42 @@
       "desc": "El análisis de earnings usa datos reales de Finnhub/FMP más una búsqueda en tiempo real del reporte — disponible solo para usuarios Premium.",
       "cta": "Desbloquear Premium",
       "paywallReason": "Análisis de earnings"
-    }
+    },
+    "hero": {
+      "eyebrow": "REPORTES TRIMESTRALES",
+      "subtitle": "Cómo les fue a tus empresas en su último reporte: qué ganaron, qué esperaba el mercado y qué significa para ti.",
+      "tracking": "{{count}} empresas que sigues",
+      "price": "Precio hoy {{value}}"
+    },
+    "stats": {
+      "reported": "Reportaron",
+      "beatEps": "Superaron en utilidad",
+      "beatRevenue": "Superaron en ventas"
+    },
+    "metrics": {
+      "eps": "Utilidad por acción",
+      "revenue": "Ventas",
+      "estimate": "Esperado {{value}}",
+      "actualShort": "Real",
+      "estimateShort": "Esperado"
+    },
+    "list": {
+      "owned": "En tu portafolio",
+      "reportedOn": "Reportó el {{date}}",
+      "viewAnalysis": "Ver análisis completo",
+      "noSymbols": "Agrega empresas a tu portafolio o watchlist y aquí verás cómo les fue en cada reporte.",
+      "loadError": "No pudimos traer los reportes recientes. Revisa tu conexión e inténtalo de nuevo."
+    },
+    "rating": {
+      "strong": "Sólido",
+      "good": "Bueno",
+      "mixed": "Mixto",
+      "weak": "Débil"
+    },
+    "backToList": "Todos los reportes",
+    "loading": "Leyendo el reporte y preparando tu análisis…",
+    "retry": "Reintentar",
+    "disclaimer": "Análisis educativo basado en el reporte publicado por la empresa. No es recomendación de compra o venta."
   },
   "subvaluadas": {
     "title": "Nuvos Radar",
@@ -3626,10 +3663,10 @@
     "verdictLocked": {
       "title": "Veredicto de la IA",
       "tagline": "Exclusivo Premium",
-      "description": "Desbloquea el análisis completo: puntuación de calidad, perspectiva de corto y largo plazo, y rangos de entrada sugeridos para esta acción.",
+      "description": "Desbloquea el análisis completo: puntuación de calidad del negocio, perspectiva de corto y largo plazo, y dónde está el precio actual frente a su valor estimado.",
       "benefit1": "Puntuación de calidad del negocio",
       "benefit2": "Perspectiva de corto y largo plazo",
-      "benefit3": "Rangos de entrada sugeridos"
+      "benefit3": "Precio actual comparado con su valor estimado"
     },
     "about": "Acerca de {{name}}",
     "calculatingAiSummary": "Calculando resumen IA…",
@@ -3686,7 +3723,7 @@
       "financials": "Financieros",
       "summary": "Resumen"
     },
-    "whenToEnter": "¿Cuándo entrar?"
+    "whenToEnter": "Precio actual vs. su valor estimado"
   },
   "earningsCalendar": {
     "analysisError": "No se pudo obtener el análisis.",

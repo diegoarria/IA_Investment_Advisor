@@ -168,13 +168,12 @@ const er = StyleSheet.create({
 
 // ─── Verdict ──────────────────────────────────────────────────────────────────
 
-const SIGNAL_COLOR: Record<string, string> = {
-  "COMPRA FUERTE": "#00d47e",
-  "COMPRA":        "#22c55e",
-  "MANTENER":      "#f59e0b",
-  "VENDER":        "#f97316",
-  "VENTA FUERTE":  "#ef4444",
-};
+// Color for the AI Score — by the number itself. The label is a description
+// of the business ("SÓLIDA", "MIXTA"), never a buy/sell call (Diego, 2026-10-02).
+function scoreTone(n: number | undefined) {
+  if (n == null) return "#f59e0b";
+  return n >= 65 ? "#22c55e" : n >= 45 ? "#f59e0b" : "#ef4444";
+}
 
 function VerdictSection({ ticker }: { ticker: string }) {
   const { t } = useTranslation();
@@ -190,7 +189,7 @@ function VerdictSection({ ticker }: { ticker: string }) {
   }
   if (!data) return null;
 
-  const sigColor = SIGNAL_COLOR[data.signal] ?? D.amber;
+  const sigColor = scoreTone(data.overall_score);
 
   const text = data.verdict_long ?? "";
   const cortoIdx = text.indexOf("**CORTO:**");
