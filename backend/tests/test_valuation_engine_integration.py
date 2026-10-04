@@ -131,7 +131,14 @@ class TestDriverBasedValuationWiring:
             result = get_fundamental_analysis("SYN2")
 
         assert result is not None
-        assert result["dcf"] is None
+        # Diego, 2026-10-03: `dcf` is now a minimal non-None container (so
+        # the "siempre siempre siempre" company-diagnostic relative-
+        # valuation fallback has something real to attach peer data to) —
+        # the actual guardrail this test protects, no standard DCF/GQV
+        # number ever computed for a REIT, still holds via these 2 asserts.
+        assert result["dcf"] is not None
+        assert result["dcf"]["scenarios"] is None
+        assert result["dcf"]["nuvos_fair_value"] is None
         assert result["sector_model_note"] is not None
         assert result["sector_model_note"]["sector_type"] == "reit"
 
@@ -160,7 +167,9 @@ class TestDriverBasedValuationWiring:
             result = get_fundamental_analysis("O")
 
         assert result is not None
-        assert result["dcf"] is None
+        assert result["dcf"] is not None
+        assert result["dcf"]["scenarios"] is None
+        assert result["dcf"]["nuvos_fair_value"] is None
         assert result["sector_model_note"] is not None
         assert result["sector_model_note"]["sector_type"] == "reit"
 
@@ -484,4 +493,5 @@ class TestNuvosFairValueWiring:
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
             result = get_fundamental_analysis("SYN13")
 
-        assert result["dcf"] is None
+        assert result["dcf"] is not None
+        assert result["dcf"]["nuvos_fair_value"] is None

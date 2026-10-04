@@ -1556,6 +1556,27 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 "dedicado; el valor intrínseco no se muestra para evitar un número engañoso."
             ),
         }
+        # Diego, 2026-10-03: "los valores intrinsecos se muestran siempre
+        # siempre siempre" -- `dcf` used to stay `None` entirely for every
+        # REIT (see the block comment above: a deliberate guardrail against
+        # the standard FCF-DCF's REIT-specific absurd-margin bug, correctly
+        # NOT reverted here). This minimal dict carries no DCF/GQV number of
+        # any kind -- just enough real structure (price/shares/debt/cash,
+        # same shape as the Priority-3 GQV-fallback dict below) for the
+        # unconditional relative_valuation/historical_valuation attach
+        # block near this function's return to reach REITs too, so
+        # CompanyDiagnosticCard's peer-multiple fallback (company_
+        # diagnostic_service._fallback_relative_scenarios) has something
+        # real to work with instead of 404ing outright.
+        dcf = {
+            "sector": sector, "current_price": price,
+            "scenarios": None, "fair_value_range": None,
+            "margin_of_safety_pct": None, "confidence_score": None, "confidence_meter": None,
+            "shares_outstanding": round(shares_out, 0) if shares_out else None,
+            "total_debt": round(total_debt, 0), "cash": round(cash_latest, 0),
+            "nuvos_fair_value": None,
+            "dcf_unavailable_reason": sector_model_note["detalle"],
+        }
 
     elif avg_fcf_margin and avg_fcf_margin > 0 and not _fcf_margin_unreliable_thin_mixed and latest_rev and shares_out and price:
         base_fcf = avg_fcf_margin * latest_rev
@@ -2277,16 +2298,27 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     driver_based_value_drivers = None
 
             # ── Relative Valuation + Historical Valuation + Industry
-            # Benchmarks. `industry` isn't known at this scope (only `sector`
-            # is, from the Finnhub profile) — peer matching here falls back
-            # to sector-only, a real but slightly looser peer group than
-            # screener.py's industry-aware call; callers that already
-            # recompute these with real `industry` (screener.py,
+            # Benchmarks. Peer matching needs a sector/industry string that
+            # exact-matches UNIVERSE's own GICS taxonomy — Finnhub's
+            # `sector` (finnhubIndustry, e.g. "Consumer Cyclical") uses a
+            # DIFFERENT taxonomy from UNIVERSE's GICS ("Consumer
+            # Discretionary"), so passing it straight through silently
+            # zeroed out peer matching for the whole mismatched-taxonomy
+            # population (confirmed live 2026-10-03 for RIVN, and the
+            # CPRT gap referenced elsewhere in this codebase). When this
+            # ticker is itself one of UNIVERSE's ~927 members, its REAL
+            # sector+industry from there is used instead — same taxonomy
+            # as `_find_peers` compares against, by construction. Falls
+            # back to the Finnhub string unchanged for anything outside
+            # UNIVERSE (smaller/foreign tickers), exactly as before.
+            #
+            # Callers that already recompute these with their OWN
+            # UNIVERSE-sourced sector/industry (screener.py,
             # undervalued_screener_service.py) pass
             # `_compute_peer_dependent_data=False` here to avoid paying for
-            # the weaker version too. Broad except: these are an enrichment
-            # (they feed the exit multiple anchor — decision #1 — and
-            # display), never allowed to break the primary DCF result.
+            # this weaker version too. Broad except: these are an
+            # enrichment (they feed the exit multiple anchor — decision #1
+            # — and display), never allowed to break the primary DCF result.
             #
             # Incremento 12 — Consensus Engine (the archetype-weighted blend
             # of Conservative DCF/Professional DCF/Relative/Historical that
@@ -2298,7 +2330,9 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             industry_benchmarks = None
             if _compute_peer_dependent_data:
                 try:
-                    from app.services.relative_valuation_service import compute_relative_valuation
+                    from app.services.relative_valuation_service import (
+                        compute_relative_valuation, resolve_universe_sector_industry,
+                    )
                     from app.services.historical_valuation_service import compute_historical_valuation
                     from app.services.quality.industry_engine import compute_industry_benchmarks
 
@@ -2306,20 +2340,23 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     _latest_eps = _num(_latest_income_row.get("Diluted EPS")) or _num(_latest_income_row.get("Basic EPS"))
                     _latest_ebitda = _num(_latest_income_row.get("EBITDA"))
                     _latest_fcf = fcf_valid[-1] if fcf_valid else None
+                    _univ_sector, _univ_industry = resolve_universe_sector_industry(ticker)
+                    _peer_sector = _univ_sector or sector
 
                     # Shared across relative_valuation AND industry_benchmarks
-                    # — both resolve the SAME peer group here (same sector,
-                    # industry=None) via _find_peers, so without this a real
-                    # live request fetched every peer's full analysis TWICE
-                    # (~20 sequential peer fetches instead of ~10), found via
-                    # a real-network smoke test that took 94s before this
+                    # — both resolve the SAME peer group here via
+                    # _find_peers, so without this a real live request
+                    # fetched every peer's full analysis TWICE (~20
+                    # sequential peer fetches instead of ~10), found via a
+                    # real-network smoke test that took 94s before this
                     # cache was added.
                     _peer_analysis_cache: dict = {}
                     if price and shares_out:
                         relative_valuation = compute_relative_valuation(
                             ticker, price, shares_out, _latest_eps, _latest_ebitda, _latest_fcf,
-                            total_debt, cash_latest, sector, None,
+                            total_debt, cash_latest, _peer_sector, _univ_industry,
                             analysis_cache=_peer_analysis_cache,
+                            latest_revenue=latest_rev,
                         )
                         if n >= 5:
                             historical_valuation = compute_historical_valuation(
@@ -2327,7 +2364,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                                 _latest_eps, _latest_ebitda, _latest_fcf,
                             )
                     industry_benchmarks_result = compute_industry_benchmarks(
-                        ticker, sector, None, analysis_cache=_peer_analysis_cache,
+                        ticker, _peer_sector, _univ_industry, analysis_cache=_peer_analysis_cache,
                     )
                     industry_benchmarks = asdict(industry_benchmarks_result) if industry_benchmarks_result else None
                 except Exception as e:
@@ -3134,6 +3171,20 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
 
     if dcf is not None:
         dcf["business_economics"] = asdict(business_economics_result) if business_economics_result else None
+        # Diego, 2026-10-03: `relative_valuation`/`historical_valuation`/
+        # `industry_benchmarks` were computed above (real peer/history
+        # data) but only ever reached `dcf` on the standard-FCF-DCF success
+        # path's own dict literal (which already sets these directly) —
+        # every OTHER path that builds `dcf` (the REIT and Priority-3
+        # GQV-fallback minimal dicts, and the financial-sector dict from
+        # build_financial_fair_value, none of which set these keys at all)
+        # silently discarded them, even though the values themselves were
+        # real and already paid for. `setdefault` so the standard-DCF path
+        # (which already assigned the SAME real values directly above)
+        # stays exactly as before.
+        dcf.setdefault("relative_valuation", relative_valuation)
+        dcf.setdefault("historical_valuation", historical_valuation)
+        dcf.setdefault("industry_benchmarks", industry_benchmarks)
 
     return {
         "ticker": ticker,
@@ -3451,7 +3502,22 @@ def format_fundamental_analysis_for_prompt(data: dict) -> str:
         lines.append(f"  - Management & Capital Allocation (tasa de recompra real + disciplina de deuda real): {ts.get('management_capital_allocation')}/100" if ts.get('management_capital_allocation') is not None else "  - Management & Capital Allocation: N/D")
 
     dcf = data.get("dcf")
-    if dcf:
+    # Diego, 2026-10-03: `dcf` can now be a MINIMAL non-None container (REIT,
+    # or the pre-existing Priority-3 GQV-fallback path) that carries no
+    # legacy-DCF or financial-sector `scenarios` shape at all — everything
+    # below this point assumes one of those 2 full shapes and reads several
+    # of their keys unconditionally (`dcf["scenarios"][name]`,
+    # `dcf['base_discount_rate_pct']`, etc.), so it must never run against a
+    # minimal dict. Confirmed live: this crashed `format_fundamental_
+    # analysis_for_prompt` for a REIT once this function stopped leaving
+    # `dcf` as `None` for them — and the exact same crash was ALREADY
+    # silently happening (caught by chat.py's own try/except, see
+    # `_fundamentals_context_block`) for every GQV-fallback ticker
+    # (RIVN/LCID/PLUG/MSTR/BA/INTC/MRNA/TTWO/NIO/BABA...) even before
+    # today's change — Arthur's chat context has been silently missing
+    # their real fundamentals this whole time. The GQV branch below fixes
+    # that population too, not just REITs.
+    if dcf and ("projection_years" in dcf or dcf.get("scenarios") is not None):
         lines.append("")
         if "projection_years" in dcf:
             lines.append(
@@ -3687,9 +3753,40 @@ def format_fundamental_analysis_for_prompt(data: dict) -> str:
                     "Advertencia: menos de 5 años de historial disponible — la comparación contra el CAGR histórico propio "
                     "tiene menor poder predictivo aquí. Dilo explícitamente."
                 )
+    elif dcf and (dcf.get("gqv_fair_value") or {}).get("status") == "ok" and (
+        ((dcf["gqv_fair_value"].get("scenarios") or {}).get("base") or {}).get("fair_value_per_share") is not None
+    ):
+        # Priority-3 GQV-fallback shape (real earnings/FCF too negative for
+        # the standard DCF, or a REIT — see this function's own docstring
+        # above): the ONLY real, non-fabricated numbers available here are
+        # `gqv_fair_value`'s own bear/base/bull, a completely different
+        # shape from the legacy-DCF/financial-sector one the block above
+        # renders. Rendered plainly, never dressed up as the standard DCF.
+        gqv = dcf["gqv_fair_value"]
+        gs = gqv["scenarios"]
+        classification = gqv.get("classification") or {}
+        lines.append("")
+        lines.append(
+            f"Valoración calculada con el motor Growth+Quality+Value de Nuvos (NO es el DCF estándar de flujo de "
+            f"caja libre de arriba — este motor se usa cuando las ganancias o el flujo de caja son negativos o poco "
+            f"confiables, un estado real y común en empresas de crecimiento temprano o en un año cíclico difícil; "
+            f"razón: {dcf.get('dcf_unavailable_reason') or 'N/D'}). "
+            f"Clasificación real del negocio: {classification.get('reason') or 'N/D'}. "
+            f"Escenarios reales — Pesimista: ${gs.get('bear', {}).get('fair_value_per_share')}, "
+            f"Base: ${gs.get('base', {}).get('fair_value_per_share')}, "
+            f"Optimista: ${gs.get('bull', {}).get('fair_value_per_share')}. "
+            f"Precio actual: ${gs.get('current_price')}. Margen de seguridad real vs. precio actual: "
+            f"{gs.get('margin_of_safety_pct')}%. No inventes un número distinto a estos 3 escenarios reales."
+        )
+        if dcf.get("sector_model_note"):
+            lines.append(f"Nota de modelo de valuación: {dcf['sector_model_note']['detalle']}")
     else:
         lines.append("")
-        lines.append("DCF: no se pudo calcular (falta FCF positivo, precio o acciones en circulación reales) — dilo explícitamente, no inventes un valor intrínseco.")
+        lines.append(
+            f"DCF: no se pudo calcular un valor intrínseco confiable para esta empresa"
+            f"{' — ' + dcf['dcf_unavailable_reason'] if dcf and dcf.get('dcf_unavailable_reason') else ''}. "
+            "Dilo explícitamente, no inventes un valor intrínseco ni una recomendación de compra/venta basada en un número que no existe."
+        )
 
     at = data.get("analyst_target")
     if at and at.get("target_mean"):

@@ -30,6 +30,27 @@ logger = logging.getLogger(__name__)
 _MIN_PEERS = 5  # never compute a median off a "peer group" too small to mean anything
 
 
+def resolve_universe_sector_industry(ticker: str) -> tuple[Optional[str], Optional[str]]:
+    """Real GICS sector/industry for this ticker from the SAME curated
+    UNIVERSE that `_find_peers` matches against, when this ticker happens
+    to be one of its ~927 members — confirmed live 2026-10-03 as strictly
+    more useful here than Finnhub's own `sector` string
+    (`get_fundamental_analysis`'s `sector` field, i.e. Finnhub's
+    `finnhubIndustry`): that's a DIFFERENT taxonomy ("Consumer Cyclical")
+    from UNIVERSE's GICS ("Consumer Discretionary"), so `_find_peers`'
+    exact-string match against it silently returned zero peers for the
+    ENTIRE mismatched-taxonomy population, not just edge cases — RIVN
+    ("Consumer Cyclical" vs real GICS "Consumer Discretionary") is a
+    representative, confirmed example. Returns (None, None), never a
+    guess, when the ticker isn't in UNIVERSE — the caller falls back to
+    the Finnhub sector string unchanged in that case."""
+    from app.api.routes.screener import UNIVERSE
+    entry = next((e for e in UNIVERSE if e["ticker"] == ticker.upper()), None)
+    if not entry:
+        return None, None
+    return entry.get("sector"), entry.get("industry")
+
+
 def _find_peers(ticker: str, sector: Optional[str], industry: Optional[str], limit: int = 10) -> list[str]:
     """Same industry first (the tighter, more meaningful comparison); falls
     back to same sector only if the industry group is too small. Returns []
@@ -53,6 +74,7 @@ def compute_relative_valuation(
     latest_eps: Optional[float], latest_ebitda: Optional[float], latest_fcf: Optional[float],
     total_debt: float, cash: float, sector: Optional[str], industry: Optional[str],
     analysis_cache: Optional[dict[str, Optional[dict]]] = None,
+    latest_revenue: Optional[float] = None,
 ) -> Optional[dict]:
     """Real peer-multiple valuation. Returns None (never a fabricated
     estimate) if the curated universe doesn't have enough real peers in the
@@ -64,14 +86,23 @@ def compute_relative_valuation(
     avoids re-fetching a peer's full analysis when it was already computed
     for that peer directly — a same-sector peer is frequently also a
     candidate elsewhere in the same weekly run. Never required — falls
-    back to a real live fetch per peer when no cache is given."""
+    back to a real live fetch per peer when no cache is given.
+
+    `latest_revenue` (optional, added 2026-10-03): EV/Sales is the ONLY
+    multiple here that stays meaningful when EPS/EBITDA/FCF are negative —
+    an ordinary state for early-stage growth names and cyclicals in a down
+    year (RIVN, LCID, PLUG, MSTR...), confirmed live as the single biggest
+    cause of CompanyDiagnosticCard 404ing with "datos insuficientes" even
+    though a real price, real peers and real revenue all existed. Each
+    peer's own EV/Sales is derived from ITS real price/shares/debt/cash/
+    revenue — never looked up as a pre-computed field (none exists)."""
     from app.services.fundamental_analysis_service import get_fundamental_analysis
 
     peers = _find_peers(ticker, sector, industry)
     if len(peers) < _MIN_PEERS:
         return None
 
-    pe_values, ev_ebitda_values, ev_fcf_values, p_fcf_values = [], [], [], []
+    pe_values, ev_ebitda_values, ev_fcf_values, p_fcf_values, ev_sales_values = [], [], [], [], []
     real_peers_used = []
     for peer_ticker in peers:
         try:
@@ -99,6 +130,18 @@ def compute_relative_valuation(
             ev_fcf_values.append(peer_data["ev_fcf"])
         if peer_data.get("p_fcf") and peer_data["p_fcf"] > 0:
             p_fcf_values.append(peer_data["p_fcf"])
+        # EV/Sales — derived here (no pre-computed field exists) from this
+        # peer's own real price/shares/debt/cash/revenue. Skipped for a
+        # peer missing any one of those real inputs, never estimated.
+        peer_price = peer_data.get("current_price")
+        peer_shares = (peer_data.get("dcf") or {}).get("shares_outstanding")
+        peer_revenue = (peer_data.get("revenue_trend") or [None])[-1]
+        if peer_price and peer_shares and peer_revenue and peer_revenue > 0:
+            peer_debt = peer_data.get("total_debt") or 0.0
+            peer_cash = peer_data.get("cash") or 0.0
+            peer_ev = peer_price * peer_shares + peer_debt - peer_cash
+            if peer_ev > 0:
+                ev_sales_values.append(peer_ev / peer_revenue)
 
     if len(real_peers_used) < _MIN_PEERS:
         return None
@@ -120,6 +163,10 @@ def compute_relative_valuation(
     if p_fcf_values and latest_fcf and latest_fcf > 0 and shares_out:
         implied_values["p_fcf"] = statistics.median(p_fcf_values) * latest_fcf / shares_out
 
+    if ev_sales_values and latest_revenue and latest_revenue > 0 and shares_out:
+        implied_ev = statistics.median(ev_sales_values) * latest_revenue
+        implied_values["ev_sales"] = (implied_ev - net_debt) / shares_out
+
     if not implied_values:
         return None
 
@@ -137,6 +184,7 @@ def compute_relative_valuation(
         "peer_median_ev_ebitda": round(statistics.median(ev_ebitda_values), 1) if ev_ebitda_values else None,
         "peer_median_ev_fcf": round(statistics.median(ev_fcf_values), 1) if ev_fcf_values else None,
         "peer_median_p_fcf": round(statistics.median(p_fcf_values), 1) if p_fcf_values else None,
+        "peer_median_ev_sales": round(statistics.median(ev_sales_values), 2) if ev_sales_values else None,
         "implied_values_by_multiple": {k: round(v, 2) for k, v in implied_values.items()},
         "intrinsic_value_per_share": intrinsic_value_per_share,
         "margin_of_safety_pct": margin_of_safety_pct,

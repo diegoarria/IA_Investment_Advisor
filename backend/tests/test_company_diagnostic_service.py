@@ -172,3 +172,72 @@ class TestBadges:
     def test_never_raises_on_missing_market_cap_inputs(self):
         badges = _badges(data={}, scenarios={}, dcf={})
         assert badges == []
+
+
+class TestFallbackRelativeScenarios:
+    def test_returns_none_without_relative_valuation(self):
+        from app.services.company_diagnostic_service import _fallback_relative_scenarios
+        assert _fallback_relative_scenarios({"current_price": 10.0}, {}) is None
+
+    def test_returns_none_without_price(self):
+        from app.services.company_diagnostic_service import _fallback_relative_scenarios
+        dcf = {"relative_valuation": {"intrinsic_value_per_share": 20.0, "implied_values_by_multiple": {"ev_sales": 20.0}, "peer_count": 8}}
+        assert _fallback_relative_scenarios(dcf, {}) is None
+
+    def test_builds_band_from_two_real_multiples(self):
+        from app.services.company_diagnostic_service import _fallback_relative_scenarios
+        dcf = {
+            "current_price": 14.3,
+            "relative_valuation": {
+                "intrinsic_value_per_share": 18.0,
+                "implied_values_by_multiple": {"ev_sales": 16.0, "p_fcf": 20.0},
+                "peer_count": 9,
+                # Real output of numeric_helpers.calc_margin_of_safety(18.0, 14.3)
+                # — denominator is intrinsic value, not price (see that
+                # helper's own docstring). Asserted below as a straight
+                # pass-through, not re-derived.
+                "margin_of_safety_pct": 20.6,
+            },
+        }
+        s = _fallback_relative_scenarios(dcf, {})
+        assert s["source"] == "relative_valuation"
+        assert s["bear"] == 16.0 and s["bull"] == 20.0 and s["base"] == 18.0
+        assert s["current_price"] == 14.3
+        assert s["_peer_count"] == 9
+        assert s["margin_of_safety_pct"] == 20.6
+
+    def test_single_multiple_gets_disclosed_fixed_band(self):
+        from app.services.company_diagnostic_service import _fallback_relative_scenarios
+        dcf = {
+            "current_price": 10.0,
+            "relative_valuation": {
+                "intrinsic_value_per_share": 12.0,
+                "implied_values_by_multiple": {"ev_sales": 12.0},
+                "peer_count": 6,
+            },
+        }
+        s = _fallback_relative_scenarios(dcf, {})
+        assert s["bear"] == round(12.0 * 0.88, 2)
+        assert s["bull"] == round(12.0 * 1.12, 2)
+
+    def test_falls_back_to_data_current_price_when_dcf_lacks_one(self):
+        from app.services.company_diagnostic_service import _fallback_relative_scenarios
+        dcf = {"relative_valuation": {"intrinsic_value_per_share": 5.0, "implied_values_by_multiple": {"ev_sales": 5.0}, "peer_count": 5}}
+        s = _fallback_relative_scenarios(dcf, {"current_price": 4.0})
+        assert s["current_price"] == 4.0
+
+
+class TestPillarScoresFallbackSimplicity:
+    def test_uses_fallback_simplicity_when_no_real_uncertainty_profile(self):
+        from app.services.company_diagnostic_service import _pillar_scores
+        scenarios = {"margin_of_safety_pct": 10.0, "uncertainty_profile": None, "reality_gate_pass_rate": None}
+        data = {"business_quality_score": 50, "financial_strength_score": 60}
+        result = _pillar_scores(data, scenarios, fallback_simplicity=42)
+        assert result is not None
+        assert result["simplicity"] == 42
+
+    def test_still_none_without_fallback_and_without_real_signals(self):
+        from app.services.company_diagnostic_service import _pillar_scores
+        scenarios = {"margin_of_safety_pct": 10.0, "uncertainty_profile": None, "reality_gate_pass_rate": None}
+        data = {"business_quality_score": 50, "financial_strength_score": 60}
+        assert _pillar_scores(data, scenarios) is None

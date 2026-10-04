@@ -143,7 +143,64 @@ def _primary_scenarios(dcf: dict) -> Optional[dict]:
     return None
 
 
-def _pillar_scores(data: dict, scenarios: dict) -> Optional[dict]:
+def _fallback_relative_scenarios(dcf: dict, data: dict) -> Optional[dict]:
+    """Diego, 2026-10-03: "los valores intrínsecos se muestran siempre
+    siempre siempre" — confirmed live that the primary GQV/legacy-DCF
+    engine alone (`_primary_scenarios` above) leaves a real, meaningful
+    chunk of ordinary tickers with `status="insufficient_data"` and no
+    scenarios at all: early-stage/negative-earnings growth names and
+    cyclicals in a deep down year (RIVN, LCID, PLUG, MSTR, BA, INTC, MRNA,
+    TTWO all 404'd this way), where EPS/EBITDA/FCF are negative so the
+    earnings-based engine has nothing to anchor on.
+
+    `dcf["relative_valuation"]` — a REAL peer-multiple valuation
+    (relative_valuation_service.py, already computed inside
+    get_fundamental_analysis whenever ≥5 real same-sector/industry peers
+    exist, now extended with EV/Sales so it still works when earnings are
+    negative but revenue isn't) — is a strictly lower-confidence second
+    opinion, never silently presented as equivalent to the primary engine
+    (see `source`, surfaced in sectorModelNote by the caller). Still a
+    REAL, peer-derived number, never fabricated: returns None (never an
+    invented fallback) when relative_valuation itself came back empty."""
+    rv = dcf.get("relative_valuation")
+    current_price = dcf.get("current_price") or data.get("current_price")
+    if not rv or rv.get("intrinsic_value_per_share") is None or not current_price:
+        return None
+    base = rv["intrinsic_value_per_share"]
+    implied = [v for v in (rv.get("implied_values_by_multiple") or {}).values() if v is not None]
+    if len(implied) >= 2:
+        bear, bull = min(implied), max(implied)
+    else:
+        # Single real multiple produced a value — no real spread to draw
+        # bear/bull from, so a disclosed, fixed ±12% band stands in
+        # (narrower than this screen's usual bear/bull spread on purpose:
+        # this method is already lower-confidence, the band shouldn't
+        # compound that by looking falsely precise OR falsely wide).
+        bear, bull = base * 0.88, base * 1.12
+    # `rv["margin_of_safety_pct"]` is already computed by compute_relative_
+    # valuation itself via the shared numeric_helpers.calc_margin_of_safety
+    # (denominator = intrinsic value, the Graham/Buffett convention — "I
+    # paid X% below what it's really worth" — not price; see that helper's
+    # own docstring on why this isn't reinvented inline here).
+    margin_of_safety_pct = rv.get("margin_of_safety_pct")
+    return {
+        "bear": round(min(bear, bull), 2),
+        "base": round(base, 2),
+        "bull": round(max(bear, bull), 2),
+        "current_price": current_price,
+        "margin_of_safety_pct": margin_of_safety_pct,
+        "uncertainty_profile": None,
+        "reality_gate_pass_rate": None,
+        "source": "relative_valuation",
+        "fcf_assumptions": None,
+        "wacc_details": None,
+        "pe_on_normalized_eps": None,
+        "pe_gaap": None,
+        "_peer_count": rv.get("peer_count"),
+    }
+
+
+def _pillar_scores(data: dict, scenarios: dict, fallback_simplicity: Optional[int] = None) -> Optional[dict]:
     # Read from the unconditional top-level keys (real, always computed),
     # not `thesis_scores` — that dict is only built when the LEGACY DCF
     # produced its own `scenarios` (see fundamental_analysis_service.py's
@@ -170,6 +227,8 @@ def _pillar_scores(data: dict, scenarios: dict) -> Optional[dict]:
     rg_pass = scenarios.get("reality_gate_pass_rate")
     simplicity_components = [v for v in (data_conf, rg_pass) if v is not None]
     simplicity = round(sum(simplicity_components) / len(simplicity_components)) if simplicity_components else None
+    if simplicity is None:
+        simplicity = fallback_simplicity
     if simplicity is None:
         return None
 
@@ -544,14 +603,32 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
         return None
 
     scenarios = _primary_scenarios(dcf)
+    fallback_simplicity = None
+    if not scenarios or scenarios.get("current_price") is None:
+        logger.info(
+            "company_diagnostic(%s): no primary scenarios (gqv_status=%s, legacy_dcf_present=%s) — trying "
+            "relative-valuation fallback",
+            ticker, (dcf.get("gqv_fair_value") or {}).get("status"), bool(dcf.get("scenarios")),
+        )
+        scenarios = _fallback_relative_scenarios(dcf, data)
+        if scenarios:
+            # Real, disclosed heuristic (never fabricated): more real peers
+            # behind the median multiple -> higher confidence in that
+            # median. Capped below the GQV/legacy engine's own typical
+            # range so this method never LOOKS as confident as the primary
+            # one even on a wide peer set.
+            fallback_simplicity = round(min(72, 28 + (scenarios.get("_peer_count") or 0) * 5))
     if not scenarios or scenarios.get("current_price") is None:
         logger.warning(
-            "company_diagnostic(%s): no primary scenarios (gqv_status=%s, legacy_dcf_present=%s)",
+            "company_diagnostic(%s): no primary OR relative-valuation scenarios (gqv_status=%s, "
+            "legacy_dcf_present=%s, relative_valuation_present=%s)",
             ticker, (dcf.get("gqv_fair_value") or {}).get("status"), bool(dcf.get("scenarios")),
+            bool(dcf.get("relative_valuation")),
         )
         return None
 
-    pillar_scores = _pillar_scores(data, scenarios)
+    rv_peer_count = scenarios.get("_peer_count") or 0
+    pillar_scores = _pillar_scores(data, scenarios, fallback_simplicity=fallback_simplicity)
     if not pillar_scores:
         logger.warning(
             "company_diagnostic(%s): no pillar scores (quality=%s, trust=%s, mos=%s)",
@@ -734,7 +811,15 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
             ticker, valuation["conservative"], valuation["baseFairValue"], valuation["optimistic"],
         )
         return None
-    if valuation["peCurrent"] is None and valuation["peForward"] is None and valuation["peNormalized"] is None:
+    # Not required on the relative-valuation fallback path (2026-10-03):
+    # that method's whole reason for existing is companies where EPS is
+    # negative, which is exactly when all 3 of these are also None —
+    # requiring one here would re-404 the very tickers the fallback was
+    # built to rescue (RIVN/LCID/PLUG/MSTR confirmed live).
+    if (
+        scenarios.get("source") != "relative_valuation"
+        and valuation["peCurrent"] is None and valuation["peForward"] is None and valuation["peNormalized"] is None
+    ):
         logger.warning("company_diagnostic(%s): all 3 P/E fields are None (peCurrent/peForward/peNormalized)", ticker)
         return None
 
@@ -780,6 +865,31 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
         # Was already computed by fundamental_analysis_service.py but only
         # ever reached the RETIRED legacy GQV panel (shared.tsx) — this is
         # the only path that reaches the current, only-active diagnostic UI.
-        "sectorModelNote": dcf.get("sector_model_note"),
+        # When the relative-valuation fallback (2026-10-03) is what
+        # produced the scenarios above, that takes priority over any
+        # pre-existing note (e.g. the REIT one) — it's the more specific,
+        # more immediately relevant explanation for what the user is
+        # looking at on THIS particular card.
+        "sectorModelNote": (
+            {
+                "sector_type": "relative_valuation",
+                "detalle": (
+                    f"El motor principal de Nuvos no pudo construir un Fair Value para {ticker.upper()} "
+                    "(ganancias o flujo de caja negativos, un estado común en empresas en etapa de crecimiento "
+                    "o en un año cíclico difícil). Este valor viene de un método alternativo real: comparar "
+                    f"sus múltiplos (precio/ingresos u otros) contra los de {rv_peer_count} empresas "
+                    "comparables reales del mismo sector — no de un modelo de flujo de caja descontado. "
+                    "Es una referencia honesta, pero con menos certeza que el motor principal."
+                    if lang == "es" else
+                    f"Nuvos' primary engine couldn't build a Fair Value for {ticker.upper()} (negative "
+                    "earnings or cash flow, common for early-growth companies or a tough cyclical year). This "
+                    f"value comes from a real alternative method instead: comparing its multiples (price/sales "
+                    f"or others) against {rv_peer_count} real comparable companies in the same sector — not a "
+                    "discounted cash flow model. It's an honest reference, but less certain than the primary engine."
+                ),
+            }
+            if scenarios.get("source") == "relative_valuation"
+            else dcf.get("sector_model_note")
+        ),
         # investmentThesis / noiseVsReality / actionPlan attached by the caller.
     }
