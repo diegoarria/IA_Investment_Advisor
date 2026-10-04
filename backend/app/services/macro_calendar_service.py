@@ -219,7 +219,21 @@ def fetch_and_normalize_macro_events(days_ahead: int = _DAYS_AHEAD, days_behind:
             "source":         "fmp",
         }
 
-    return list(rows_by_id.values())
+    out_rows = list(rows_by_id.values())
+    if raw_items and not out_rows:
+        # Diego, 2026-10-03: distinguishes "FMP returned nothing" (logged
+        # above with its own warning) from "FMP returned data but every
+        # single item got classified away" — the latter means _EVENT_TYPE_
+        # RULES no longer matches FMP's current labels (e.g. a wording
+        # change) and would otherwise fail exactly as silently as an empty
+        # response, just further downstream.
+        sample = sorted({(item.get("event") or "").strip() for item in raw_items if item.get("country") == "US"})[:10]
+        logger.warning(
+            "fetch_and_normalize_macro_events: %d raw US items fetched but 0 classified — "
+            "_EVENT_TYPE_RULES may be stale. Sample raw labels: %r",
+            sum(1 for i in raw_items if i.get("country") == "US"), sample,
+        )
+    return out_rows
 
 
 def _stringify(v) -> Optional[str]:
@@ -451,6 +465,33 @@ async def get_macro_events(days_ahead: int = 30, lang: str = "es", days_behind: 
     except Exception as e:
         logger.warning("get_macro_events: DB read failed, serving last good snapshot: %s", e)
         rows = []
+
+    if not rows and not _LAST_GOOD_ROWS:
+        # Diego, 2026-10-03: the table coming back truly empty (fresh deploy,
+        # or job_refresh_macro_calendar silently failing/not running — it only
+        # ever logs a warning, never raises) must never surface as a blank
+        # calendar to a real user. Self-heal inline: do the one FMP round-trip
+        # ourselves right here instead of waiting for the next 6am ET cron.
+        # Safe to call from a request path despite refresh_macro_calendar's
+        # docstring reserving that FMP boundary for the cron/admin endpoint —
+        # this branch only ever runs when there is nothing in Supabase to
+        # read, so there is no "always fresh from DB" guarantee to violate.
+        logger.warning("get_macro_events: macro_economic_events empty with no fallback snapshot — self-healing via inline FMP refresh")
+        try:
+            await refresh_macro_calendar()
+            res = await run_query_verified_nonempty(
+                lambda c: c.table("macro_economic_events")
+                .select("*")
+                .gte("event_date_utc", cutoff)
+                .lte("event_date_utc", upper)
+                .in_("impact_level", sorted(_SERVED_IMPACT_LEVELS))
+                .order("event_date_utc")
+                .limit(5000)
+            )
+            rows = res.data or []
+        except Exception as e:
+            logger.warning("get_macro_events: inline self-heal refresh failed: %s", e)
+
     if rows:
         _LAST_GOOD_ROWS = rows
     elif _LAST_GOOD_ROWS:
