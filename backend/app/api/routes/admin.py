@@ -220,6 +220,20 @@ async def admin_refresh_macro_calendar(user: dict = Depends(get_current_user)):
     return {"status": "ok", "events_upserted": count}
 
 
+@router.post("/backfill-macro-event-identity")
+async def admin_backfill_macro_event_identity(user: dict = Depends(get_current_user)):
+    """ONE-TIME migration trigger (2026-10-04, migration 111) — consolidates
+    any pre-existing macro_economic_events rows that duplicated the same
+    real release under the old timestamp-based event_id into one row under
+    the new stable, period-based identity. Safe to call more than once
+    (idempotent — see backfill_stable_event_identity's own docstring).
+    Must only be called AFTER migration 111 has been applied."""
+    await _require_admin(user)
+    from app.services.macro_calendar_service import backfill_stable_event_identity
+    result = await backfill_stable_event_identity()
+    return {"status": "ok", **result}
+
+
 @router.post("/test-market-open")
 async def test_market_open(user: dict = Depends(get_current_user)):
     """Fires the REAL market-open data fetch (live Finnhub ^GSPC/^IXIC quotes,

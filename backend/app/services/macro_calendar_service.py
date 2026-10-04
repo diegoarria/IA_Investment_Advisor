@@ -32,13 +32,55 @@ doesn't expose these distinctions today):
     scheduled) — this category is legitimately empty on most days.
 
 Populated by a daily cron (worker.py's job_refresh_macro_calendar) into the
-macro_economic_events table (migration 074) + a short-lived Redis cache —
-the read path (GET /api/watchlist/macro-calendar) never calls FMP directly.
+macro_economic_events table (migrations 074 + 075). The read path (GET
+/api/watchlist/macro-calendar) never calls FMP directly — it reads
+Supabase, which is the sole source of truth; no Redis cache sits in front
+of it (see get_macro_events's own docstring for why).
+
+STABLE EVENT IDENTITY (2026-10-04, migration 111)
+==================================================
+Root cause of events flickering/duplicating on the calendar: `event_id`
+used to be sha1(event_type|event_name|event_date_utc) — derived from TWO
+fields FMP regularly changes for the SAME real-world release: the exact
+timestamp (a reschedule) and the raw label text (a wording tweak). Every
+change produced a brand-new row via upsert(on_conflict="event_id") instead
+of updating the existing one. Nothing ever DELETED the old row (there is
+no DELETE anywhere on this table — confirmed by grepping the whole
+backend), so Supabase just accumulated duplicates for the same release,
+and the read path (_collapse_moved_releases/_dedupe_rescheduled) had to
+guess, after the fact, which rows were really the same thing.
+
+Fix: `event_id` is now built from `event_type` + `event_period` — the one
+thing about a release that genuinely never changes ("CPI for September
+2026" is always that, no matter what day FMP currently thinks it posts
+on). See `event_period()` below for exactly how each of the 15 tracked
+types' period is derived from FMP's own data (never invented). Once
+`event_id` is correct, a reschedule/wording-change becomes an ordinary
+UPDATE of the same row (via `upsert_macro_events_batch`, migration 111's
+RPC — a COALESCE-based upsert that can never erase an already-confirmed
+actual/estimate/previous value with a later `null`, see that function's
+own comment) — `_collapse_moved_releases`/`_dedupe_rescheduled` stay as a
+defensive read-time safety net, not the primary mechanism, for whatever
+the stable identity doesn't perfectly cover (pre-backfill legacy rows, a
+future `_EVENT_TYPE_RULES` wording change creating a short-lived second
+identity until the next sync, etc.).
+
+PERSISTENCE GUARANTEE: Supabase is the only source of truth. A refresh
+can only INSERT a never-seen release or UPDATE an existing one — it can
+never remove a row, and an update can never overwrite a real confirmed
+value with FMP's temporary `null`. Rows are retained forever (no TTL,
+no delete-by-age) — `_MAX_DAYS_BEHIND`/`_MAX_DAYS_AHEAD` below are a
+DISPLAY window only (what `get_macro_events` returns to a client), never
+a storage retention policy. An in-memory `_LAST_GOOD_ROWS` snapshot exists
+purely as an optional, non-essential optimization for the narrow window
+between "this process's Supabase read failed" and the next successful
+one — it is never required for correctness, since Supabase itself never
+loses data; multiple gunicorn workers each having their own (or no) such
+snapshot has no effect on what's actually persisted.
 """
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 import re
@@ -107,9 +149,101 @@ def _classify(raw_name: str) -> Optional[tuple[str, str, Optional[str]]]:
     return None
 
 
-def _event_id(event_type: str, event_name: str, date_utc_iso: str) -> str:
-    raw = f"{event_type}|{event_name}|{date_utc_iso}"
-    return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+_MONTH_ABBR = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
+_SUFFIX_RE = re.compile(r"\(([^)]*)\)\s*$")
+_QUARTER_SUFFIX_RE = re.compile(r"^Q([1-4])$", re.IGNORECASE)
+_WEEKLY_SUFFIX_RE = re.compile(r"^([A-Za-z]{3})/(\d{1,2})$")  # "Oct/03"
+
+
+def _extract_period_suffix(raw_name: str) -> Optional[str]:
+    """FMP's raw parenthetical suffix, verbatim — "Sep", "Oct/03", "Q3" —
+    or None when the label has none (FOMC, Fed speakers, and anything
+    unexpected)."""
+    m = _SUFFIX_RE.search(raw_name)
+    return m.group(1).strip() if m else None
+
+
+def _infer_period_year(period_month: int, event_date_et) -> int:
+    """FMP's period suffix never carries a year ("Sep", "Oct/03", "Q3" are
+    all year-less) — the release date's own year is used, UNLESS the
+    period's month is more than 2 months "ahead" of the release month,
+    which only happens when the period is actually from the END of the
+    PRIOR year (e.g. a release in January reporting a December figure).
+    A 2-month margin comfortably covers every real reporting lag in the 15
+    tracked types (CPI/NFP/PCE/etc. report ~1 month after their period;
+    nothing here reports with more than a ~6-week lag) without misfiring
+    on an ordinary same-year release."""
+    year = event_date_et.year
+    if period_month - event_date_et.month > 2:
+        year -= 1
+    return year
+
+
+def event_period(event_type: str, raw_name: str, event_date_et) -> str:
+    """The stable, human-readable period key this release will always map
+    to, independent of whatever date/time FMP currently reports it at —
+    the backbone of `build_event_id`. `event_date_et` is the release's own
+    date (America/New_York) purely as a YEAR anchor for a year-less suffix
+    — never as the period itself, since that's exactly the field a
+    reschedule changes.
+
+    Per real FMP label shapes (inspected live, 2026-10-04):
+      - fomc_rate_decision / fed_speaker: no period suffix at all — each
+        meeting/speech is already uniquely dated, so the release's own ET
+        date IS the period ("2026-10-28"). A caller distinguishes same-day
+        speakers by also folding `speaker_name` into build_event_id.
+      - Quarterly ("...QoQ (Q3)"): "YYYY-Qn".
+      - Weekly ("Initial Jobless Claims (Oct/03)"): month/day suffix
+        already pins the exact week on its own — "YYYY-MM-DD".
+      - Monthly (everything else, "(Sep)"): "YYYY-MM".
+
+    Returns a slugified fallback (never raises, never drops the event)
+    for a label shape none of the above recognizes — logged by the caller
+    so a real FMP format change is diagnosable instead of silently
+    producing unstable IDs again."""
+    if event_type in ("fomc_rate_decision", "fed_speaker"):
+        return event_date_et.isoformat()
+
+    suffix = _extract_period_suffix(raw_name)
+    if not suffix:
+        return event_date_et.isoformat()
+
+    qm = _QUARTER_SUFFIX_RE.match(suffix)
+    if qm:
+        quarter = int(qm.group(1))
+        year = _infer_period_year(quarter * 3, event_date_et)  # approx quarter-end month
+        return f"{year}-Q{quarter}"
+
+    wm = _WEEKLY_SUFFIX_RE.match(suffix)
+    if wm:
+        month = _MONTH_ABBR.get(wm.group(1).lower())
+        if month:
+            year = _infer_period_year(month, event_date_et)
+            return f"{year}-{month:02d}-{int(wm.group(2)):02d}"
+
+    month = _MONTH_ABBR.get(suffix[:3].lower())
+    if month:
+        year = _infer_period_year(month, event_date_et)
+        return f"{year}-{month:02d}"
+
+    return re.sub(r"[^a-z0-9]+", "-", suffix.lower()).strip("-") or event_date_et.isoformat()
+
+
+def build_event_id(event_type: str, period: str, speaker_name: Optional[str] = None) -> str:
+    """Stable, human-readable identity — "cpi|2026-09", "fomc_rate_decision
+    |2026-10-28", "fed_speaker|2026-10-06|bowman". Deliberately NOT a hash:
+    a plain string is just as good a dedup key (still DB-UNIQUE-enforced)
+    and is actually debuggable in logs/Supabase without decoding anything.
+    `speaker_name` disambiguates two different Fed officials speaking on
+    the same day — without it they'd collide onto the same period (the ET
+    date) and only one would survive the upsert."""
+    if event_type == "fed_speaker" and speaker_name:
+        return f"fed_speaker|{period}|{speaker_name.strip().lower()}"
+    return f"{event_type}|{period}"
 
 
 def _fmp_key() -> str:
@@ -202,10 +336,30 @@ def fetch_and_normalize_macro_events(days_ahead: int = _DAYS_AHEAD, days_behind:
             continue
 
         date_utc_iso = dt_utc.isoformat()
-        event_id = _event_id(event_type, raw_name, date_utc_iso)
+        period = event_period(event_type, raw_name, dt_utc.astimezone(_ET).date())
+        event_id = build_event_id(event_type, period, speaker_name)
+        existing = rows_by_id.get(event_id)
+        if existing is not None:
+            # Two raw FMP items collapsed onto the same stable identity in
+            # THIS SAME fetch (e.g. a preliminary + revised entry for the
+            # same period) — keep the one with a confirmed actual value,
+            # then the later-dated one, same preference `_rank` uses
+            # elsewhere. Logged so a real identity COLLISION (two distinct
+            # releases wrongly mapped to one period) is diagnosable instead
+            # of silently dropping one.
+            logger.info(
+                "fetch_and_normalize_macro_events: %s already mapped this fetch (existing=%r, new=%r) — "
+                "keeping the one with a confirmed value / later date",
+                event_id, existing["event_name"], raw_name,
+            )
+            if (existing.get("actual_value") is not None, existing["event_date_utc"]) >= (
+                item.get("actual") is not None, date_utc_iso,
+            ):
+                continue
         rows_by_id[event_id] = {
             "event_id":       event_id,
             "event_type":     event_type,
+            "event_period":   period,
             "event_name":     raw_name,
             "event_date_utc": date_utc_iso,
             "country":        "US",
@@ -270,58 +424,85 @@ def why_it_matters(event_type: str, lang: str) -> str:
     return entry.get(lang) or entry.get("es") or ""
 
 
-def _stamp_seen(rows: list[dict]) -> None:
-    """updated_at = when FMP last confirmed this row. Lets the read path
-    tell a release's current date apart from the stale row FMP left behind
-    when it moved that release to another day (see _dedupe_rescheduled)."""
-    from datetime import timezone as _tz
-    now = datetime.now(_tz.utc).isoformat()
-    for r in rows:
-        r["updated_at"] = now
+_UPSERT_RPC_CHUNK = 200  # keep each RPC payload small/fast, not a correctness boundary
+
+
+async def _upsert_rows_lossless(rows: list[dict]) -> int:
+    """The ONLY write path to macro_economic_events (besides the one-time
+    backfill). Calls `upsert_macro_events_batch` (migration 111) — a real
+    Postgres ON CONFLICT DO UPDATE that COALESCEs actual/estimate/previous/
+    unit/speaker_name against the existing row instead of blindly
+    replacing them, so FMP temporarily reporting `null` for a field this
+    row already has a real confirmed value for can never erase it (see the
+    migration's own comment). Every row here always carries a real
+    `event_id` (stable, period-based — see build_event_id) and
+    `event_date_utc`/`impact_level`/etc., which DO get overwritten
+    unconditionally — those are meant to track FMP's current answer.
+
+    Falls back to a plain `.upsert()` (migration 074's original behavior —
+    still correct, just not lossless on actual/estimate/previous) ONLY if
+    the RPC itself doesn't exist yet (migration 111 not yet applied in
+    this environment) — logged loudly since that's a deploy-ordering gap
+    to fix, not a normal/expected path."""
+    db = get_supabase()
+    inserted = updated = 0
+    for i in range(0, len(rows), _UPSERT_RPC_CHUNK):
+        chunk = rows[i : i + _UPSERT_RPC_CHUNK]
+        try:
+            res = await run_query(db.rpc("upsert_macro_events_batch", {"p_rows": chunk}))
+            for r in res.data or []:
+                if r.get("was_insert"):
+                    inserted += 1
+                else:
+                    updated += 1
+        except Exception as e:
+            logger.error(
+                "_upsert_rows_lossless: upsert_macro_events_batch RPC failed (migration 111 applied?) — "
+                "falling back to plain upsert, actual/estimate/previous are NOT loss-protected this round: %s", e,
+            )
+            await run_query(db.table("macro_economic_events").upsert(chunk, on_conflict="event_id"))
+    logger.info("_upsert_rows_lossless: %d new release(s) discovered, %d existing updated", inserted, updated)
+    return len(rows)
 
 
 async def refresh_macro_calendar() -> int:
-    """Fetch → normalize → upsert into Supabase (dedup via event_id).
-    Called by the daily cron and the admin manual-refresh endpoint.
-    Returns the number of rows upserted. No cache to refresh here —
+    """Fetch → normalize → lossless upsert into Supabase (dedup via the
+    stable, period-based event_id — see build_event_id). Called by the
+    daily cron and the admin manual-refresh endpoint. Returns the number
+    of rows processed (inserted + updated). No cache to refresh here —
     get_macro_events reads Supabase directly on every call (see its
-    docstring for why)."""
+    docstring for why). Monotonic by construction: this function only ever
+    INSERTs a never-seen release or UPDATEs an existing one — there is no
+    code path anywhere that deletes a row from this table, so a thin/
+    partial/empty FMP response can only ever add less, never remove what's
+    already persisted."""
     import asyncio
     # Chunked into several sequential FMP calls now (see _fetch_fmp_window) —
     # off the event loop so a slow/retried chunk can't stall it.
     rows = await asyncio.to_thread(fetch_and_normalize_macro_events)
     if not rows:
-        logger.warning("refresh_macro_calendar: no rows to upsert (FMP unavailable or empty response)")
+        logger.warning("refresh_macro_calendar: no rows to upsert (FMP unavailable or empty response) — existing rows untouched")
         return 0
-    _stamp_seen(rows)
-
-    db = get_supabase()
-    await run_query(db.table("macro_economic_events").upsert(rows, on_conflict="event_id"))
-
-    logger.info("refresh_macro_calendar: upserted %d macro events", len(rows))
-    return len(rows)
+    return await _upsert_rows_lossless(rows)
 
 
 async def refresh_todays_macro_events() -> int:
     """Targeted, cheap refresh — re-fetches ONLY today's window from FMP
     (a single _fetch_fmp_window call, not the full 123-day sync) and
-    upserts. Root-cause fix, 2026-09-13: job_refresh_macro_calendar only
-    runs once at 6am ET, before same-day releases like 8:30am CPI have
-    posted — actual_value stayed null in Supabase all day, and by the next
-    day's 6am refresh the event was no longer "today" for job_macro_event_
-    watch's query, so the push silently never fired (confirmed: Friday's
-    CPI release produced zero notifications). Called by job_macro_event_
-    watch on every 15-min tick during market hours so actual_value picks
-    up a same-day release within minutes instead of never."""
+    upserts losslessly. Root-cause fix, 2026-09-13: job_refresh_macro_
+    calendar only runs once at 6am ET, before same-day releases like
+    8:30am CPI have posted — actual_value stayed null in Supabase all day,
+    and by the next day's 6am refresh the event was no longer "today" for
+    job_macro_event_watch's query, so the push silently never fired
+    (confirmed: Friday's CPI release produced zero notifications). Called
+    by job_macro_event_watch on every 15-min tick during market hours so
+    actual_value picks up a same-day release within minutes instead of
+    never."""
     import asyncio
     rows = await asyncio.to_thread(fetch_and_normalize_macro_events, 0, 0)
     if not rows:
         return 0
-    _stamp_seen(rows)
-
-    db = get_supabase()
-    await run_query(db.table("macro_economic_events").upsert(rows, on_conflict="event_id"))
-    return len(rows)
+    return await _upsert_rows_lossless(rows)
 
 
 async def refresh_if_empty_on_startup() -> None:
@@ -339,11 +520,119 @@ async def refresh_if_empty_on_startup() -> None:
         logger.warning("refresh_if_empty_on_startup (macro calendar) failed: %s", e)
 
 
+async def backfill_stable_event_identity() -> dict:
+    """ONE-TIME migration helper (2026-10-04, migration 111) — run once,
+    manually (there is no automatic trigger for this; see admin.py's
+    `/admin/backfill-macro-event-identity`), AFTER migration 111 has been
+    applied. Idempotent: safe to re-run (a second run finds every row
+    already under its correct new identity and merges nothing further).
+
+    Recomputes every existing row's stable event_id/event_period via the
+    exact same `event_period`/`build_event_id` the live sync now uses, and
+    merges any rows that collapse onto the same new identity — these are
+    rows created BEFORE this fix, duplicated under the old sha1(type|name|
+    exact_timestamp) scheme every time FMP rescheduled or re-worded a
+    release. Merge rule per group (never loses a previously-confirmed
+    value, same lossless discipline as the ongoing upsert RPC):
+      - actual/estimate/previous/unit/speaker_name: first non-null value
+        found, preferring the most-recently-updated row on ties.
+      - event_date_utc/event_name/impact_*: taken from the single row
+        with the latest updated_at (FMP's most recently confirmed answer).
+      - first_seen_at: the EARLIEST first_seen_at/created_at across the
+        group — this release really was first discovered then, even
+        though it was under a different, now-retired, event_id.
+      - last_seen_at: the LATEST last_seen_at/updated_at across the group.
+
+    The only deliberate exception to this module's "never delete" rule
+    lives here: once a group's merged data is safely written under its new
+    event_id (lossless upsert, done FIRST), the old, now-redundant row(s)
+    — PROVEN to represent the same real release by deterministically
+    mapping to the same new identity — are removed. This is a one-time,
+    carefully-reasoned consolidation, never part of the ongoing FMP sync
+    path (_upsert_rows_lossless/refresh_macro_calendar never delete)."""
+    db = get_supabase()
+    res = await run_query(db.table("macro_economic_events").select("*"))
+    rows = res.data or []
+    if not rows:
+        return {"old_rows": 0, "stable_releases": 0, "redundant_rows_removed": 0}
+
+    groups: dict[str, list[dict]] = {}
+    skipped = 0
+    for row in rows:
+        try:
+            dt_et = datetime.fromisoformat(row["event_date_utc"]).astimezone(_ET).date()
+        except (KeyError, ValueError, TypeError):
+            logger.warning("backfill_stable_event_identity: skipping row with unparseable event_date_utc, id=%r", row.get("event_id"))
+            skipped += 1
+            continue
+        period = event_period(row["event_type"], row.get("event_name") or "", dt_et)
+        new_id = build_event_id(row["event_type"], period, row.get("speaker_name"))
+        groups.setdefault(new_id, []).append({**row, "_new_period": period})
+
+    merged_rows: list[dict] = []
+    old_ids_to_remove: list[str] = []
+    for new_id, group in groups.items():
+        if len(group) > 1:
+            span_days = (
+                max(g["event_date_utc"] for g in group)[:10] != min(g["event_date_utc"] for g in group)[:10]
+            )
+            if span_days:
+                logger.info(
+                    "backfill_stable_event_identity: merging %d rows into %s (dates: %s)",
+                    len(group), new_id, sorted(g["event_date_utc"] for g in group),
+                )
+        group.sort(key=lambda r: r.get("updated_at") or r.get("created_at") or "")
+        latest = group[-1]
+
+        def _first_non_null(field: str, _group=group):
+            for r in reversed(_group):
+                if r.get(field) is not None:
+                    return r[field]
+            return None
+
+        merged_rows.append({
+            "event_id":       new_id,
+            "event_type":     latest["event_type"],
+            "event_period":   latest["_new_period"],
+            "event_name":     latest["event_name"],
+            "event_date_utc": latest["event_date_utc"],
+            "country":        latest.get("country") or "US",
+            "impact_source":  _first_non_null("impact_source"),
+            "impact_level":   latest["impact_level"],
+            "actual_value":   _first_non_null("actual_value"),
+            "estimate_value": _first_non_null("estimate_value"),
+            "previous_value": _first_non_null("previous_value"),
+            "unit":           _first_non_null("unit"),
+            "speaker_name":   _first_non_null("speaker_name"),
+            "source":         latest.get("source") or "fmp",
+        })
+        for r in group:
+            if r["event_id"] != new_id:
+                old_ids_to_remove.append(r["event_id"])
+
+    await _upsert_rows_lossless(merged_rows)
+
+    removed = 0
+    if old_ids_to_remove:
+        for i in range(0, len(old_ids_to_remove), 200):
+            chunk = old_ids_to_remove[i : i + 200]
+            await run_query(db.table("macro_economic_events").delete().in_("event_id", chunk))
+            removed += len(chunk)
+
+    result = {"old_rows": len(rows), "stable_releases": len(groups), "redundant_rows_removed": removed, "skipped_unparseable": skipped}
+    logger.info("backfill_stable_event_identity: %s", result)
+    return result
+
+
 _SERVED_IMPACT_LEVELS = {"VERY_HIGH", "HIGH"}  # Diego, 2026-08-19: MEDIUM events (housing starts, etc.) add noise without moving markets — drop them before they ever reach a client
 
 
-_LAST_GOOD_ROWS: list[dict] = []
-_MAX_DAYS_BEHIND = 400  # calendar history: every release of the last year+ stays visible
+_LAST_GOOD_ROWS: list[dict] = []  # optional best-effort fallback only — see module docstring's "PERSISTENCE GUARANTEE"
+# DISPLAY window only — never a storage/retention policy. A row's presence in
+# Supabase is permanent regardless of these bounds (nothing anywhere ever
+# deletes from macro_economic_events); this only controls how far back/
+# forward get_macro_events is willing to SERVE to a client.
+_MAX_DAYS_BEHIND = 400
 _MAX_DAYS_AHEAD = 180
 
 
@@ -357,15 +646,21 @@ def _rank(row: dict) -> tuple:
 
 
 def _collapse_moved_releases(rows: list[dict]) -> list[dict]:
-    """Diego, 2026-10-02: macro events must stay fixed, never two copies of
-    the same release on two different days. event_id hashes the timestamp,
-    so when FMP moves a release to ANOTHER DAY (e.g. a shutdown delays NFP)
-    the old row stays in the table on the old day and the calendar showed
-    the release twice. Rows sharing the exact event name with its period
-    suffix ("Non Farm Payrolls (Oct)") and the same type, within
-    _RESCHEDULE_WINDOW_DAYS of each other, are the same release — keep
-    one. Names without a period suffix (Fed speakers) are never collapsed,
-    and the window keeps next year's "(Oct)" release separate."""
+    """Diego, 2026-10-02/04: macro events must stay fixed, never two copies
+    of the same release on two different days. Since 2026-10-04 this is a
+    DEFENSIVE safety net, not the primary mechanism — `event_id` is now
+    stable/period-based (build_event_id), so a reschedule normally UPDATEs
+    the one existing row and never creates a second one to begin with (see
+    `_upsert_rows_lossless`). This still catches the cases the stable
+    identity itself can't: rows from before the one-time backfill
+    (backfill_stable_event_identity), or the brief window after an
+    `_EVENT_TYPE_RULES`/period-parsing change before the next sync
+    reconciles under the new scheme. Rows sharing the exact event name
+    with its period suffix ("Non Farm Payrolls (Oct)") and the same type,
+    within _RESCHEDULE_WINDOW_DAYS of each other, are treated as the same
+    release — keep one. Names without a period suffix (Fed speakers) are
+    never collapsed, and the window keeps next year's "(Oct)" release
+    separate."""
     groups: dict[tuple, list[dict]] = {}
     passthrough: list[dict] = []
     for row in rows:
@@ -394,12 +689,12 @@ def _collapse_moved_releases(rows: list[dict]) -> list[dict]:
 
 
 def _dedupe_rescheduled(rows: list[dict]) -> list[dict]:
-    """event_id hashes the UTC timestamp, so when FMP shifts a release's
-    time (or the name's period suffix) the old row lingers next to the new
-    one — two rows for one release, which flickers as data refreshes. Keep
-    one row per (event_type, ET date, base name), preferring the one that
-    has an actual value, then the most recently confirmed by FMP. Releases
-    moved to a different DAY are collapsed first (_collapse_moved_releases)."""
+    """Defensive read-time safety net (see _collapse_moved_releases'
+    docstring — stable, period-based event_id is the primary mechanism
+    now). Keeps one row per (event_type, ET date, base name), preferring
+    the one that has an actual value, then the most recently confirmed by
+    FMP. Releases moved to a different DAY are collapsed first
+    (_collapse_moved_releases)."""
     rows = _collapse_moved_releases(rows)
     best: dict[tuple, dict] = {}
     for row in rows:

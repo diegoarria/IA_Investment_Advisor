@@ -1,5 +1,8 @@
+from datetime import date
+
 from app.services.macro_calendar_service import (
-    _classify, _strip_period_suffix, _event_id, why_it_matters,
+    _classify, _strip_period_suffix, why_it_matters,
+    event_period, build_event_id,
 )
 
 
@@ -65,16 +68,82 @@ class TestClassify:
         assert _classify("Existing Home Sales (Oct)") is None
 
 
-class TestEventId:
+class TestEventPeriod:
+    """Stable period extraction — the backbone of build_event_id. Real FMP
+    label shapes inspected live 2026-10-04 (see macro_calendar_service.py's
+    module docstring): monthly "(Sep)", weekly "(Oct/03)", quarterly
+    "(Q3)" — never a year in the suffix itself."""
+
+    def test_monthly_release(self):
+        assert event_period("cpi", "Inflation Rate YoY (Sep)", date(2026, 10, 13)) == "2026-09"
+
+    def test_weekly_release_uses_month_and_day_from_suffix(self):
+        assert event_period("initial_jobless_claims", "Initial Jobless Claims (Oct/03)", date(2026, 10, 9)) == "2026-10-03"
+
+    def test_quarterly_release(self):
+        assert event_period("gdp", "GDP Growth Rate QoQ (Q3)", date(2026, 10, 29)) == "2026-Q3"
+
+    def test_fomc_has_no_suffix_uses_release_date_itself(self):
+        assert event_period("fomc_rate_decision", "Fed Interest Rate Decision", date(2026, 10, 28)) == "2026-10-28"
+
+    def test_fed_speaker_uses_release_date_itself(self):
+        assert event_period("fed_speaker", "Fed Bowman Speech", date(2026, 10, 6)) == "2026-10-06"
+
+    def test_january_release_reporting_december_period_uses_prior_year(self):
+        # A real, recurring case: e.g. December jobs data released in
+        # January always carries just "(Dec)" — no year — in FMP's label.
+        assert event_period("nfp", "Non Farm Payrolls (Dec)", date(2027, 1, 9)) == "2026-12"
+
+    def test_same_year_release_never_misfires_into_prior_year(self):
+        assert event_period("cpi", "Inflation Rate YoY (Oct)", date(2026, 11, 10)) == "2026-10"
+
+    def test_weekly_release_across_year_boundary(self):
+        assert event_period("initial_jobless_claims", "Initial Jobless Claims (Dec/26)", date(2027, 1, 2)) == "2026-12-26"
+
+    def test_unrecognized_suffix_shape_falls_back_to_slug_never_raises(self):
+        result = event_period("cpi", "Something Weird (abc!!def)", date(2026, 10, 1))
+        assert result and "/" not in result
+
+    def test_rescheduled_release_keeps_the_same_period(self):
+        # The entire point: FMP moving a release's DATE must never change
+        # its period, since the period — not the date — is what event_id
+        # is built from.
+        original = event_period("nfp", "Non Farm Payrolls (Sep)", date(2026, 10, 2))
+        rescheduled = event_period("nfp", "Non Farm Payrolls (Sep)", date(2026, 10, 9))
+        assert original == rescheduled == "2026-09"
+
+
+class TestBuildEventId:
     def test_deterministic(self):
-        a = _event_id("cpi", "Inflation Rate YoY (Sep)", "2026-09-11T12:30:00+00:00")
-        b = _event_id("cpi", "Inflation Rate YoY (Sep)", "2026-09-11T12:30:00+00:00")
+        a = build_event_id("cpi", "2026-09")
+        b = build_event_id("cpi", "2026-09")
         assert a == b
 
-    def test_changes_with_inputs(self):
-        a = _event_id("cpi", "Inflation Rate YoY (Sep)", "2026-09-11T12:30:00+00:00")
-        b = _event_id("cpi", "Inflation Rate YoY (Oct)", "2026-10-11T12:30:00+00:00")
+    def test_human_readable_and_stable_format(self):
+        assert build_event_id("cpi", "2026-09") == "cpi|2026-09"
+        assert build_event_id("fomc_rate_decision", "2026-10-28") == "fomc_rate_decision|2026-10-28"
+
+    def test_changes_with_period_not_with_date_or_name(self):
+        a = build_event_id("cpi", "2026-09")
+        b = build_event_id("cpi", "2026-10")
         assert a != b
+
+    def test_fed_speaker_disambiguated_by_speaker_name(self):
+        bowman = build_event_id("fed_speaker", "2026-10-06", "Bowman")
+        powell = build_event_id("fed_speaker", "2026-10-06", "Powell")
+        assert bowman != powell
+
+    def test_same_speaker_same_day_is_one_identity(self):
+        a = build_event_id("fed_speaker", "2026-10-06", "Bowman")
+        b = build_event_id("fed_speaker", "2026-10-06", "bowman")  # case-insensitive
+        assert a == b
+
+    def test_a_reschedule_produces_the_same_id_the_whole_point(self):
+        # End-to-end: event_period + build_event_id together must survive
+        # exactly the FMP reschedule scenario this whole feature exists for.
+        period_before = event_period("nfp", "Non Farm Payrolls (Sep)", date(2026, 10, 2))
+        period_after = event_period("nfp", "Non Farm Payrolls (Sep)", date(2026, 10, 9))
+        assert build_event_id("nfp", period_before) == build_event_id("nfp", period_after)
 
 
 class TestWhyItMatters:
@@ -250,3 +319,262 @@ class TestMacroEventsStayFixed:
         assert not any(e["event_type"] == "cpi" for e in default)
         cpi = [e for e in history if e["event_type"] == "cpi"]
         assert len(cpi) == 1 and cpi[0]["status"] == "past" and cpi[0]["date_et"] == "2026-09-11"
+
+
+class TestLosslessUpsertNeverDeletes:
+    """Section 16 scenarios 4-7: FMP returning less than before — empty,
+    partial, or a hard failure — must never remove anything already in
+    Supabase. The real guarantee is architectural (no DELETE exists
+    anywhere in the live sync path) — these tests prove that at the call
+    level: refresh_macro_calendar/_upsert_rows_lossless only ever INSERT/
+    UPDATE via the RPC (or the plain-upsert fallback), and the mocked
+    Supabase client's `.delete` is never invoked for any input shape."""
+
+    @staticmethod
+    def _mock_db(monkeypatch, rpc_return=None):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+        db = MagicMock()
+        db.rpc.return_value = "rpc_query"
+        db.table.return_value.delete = MagicMock(side_effect=AssertionError("delete() must never be called on macro_economic_events"))
+        monkeypatch.setattr("app.services.macro_calendar_service.get_supabase", lambda: db)
+
+        async def _run_query(query, *a, **kw):
+            if query == "rpc_query":
+                return SimpleNamespace(data=rpc_return or [])
+            return SimpleNamespace(data=[])
+
+        monkeypatch.setattr("app.services.macro_calendar_service.run_query", AsyncMock(side_effect=_run_query))
+        return db
+
+    async def test_empty_fmp_response_touches_nothing(self, monkeypatch):
+        import app.services.macro_calendar_service as svc
+        db = self._mock_db(monkeypatch)
+        monkeypatch.setattr(svc, "fetch_and_normalize_macro_events", lambda *a, **kw: [])
+
+        count = await svc.refresh_macro_calendar()
+        assert count == 0
+        db.rpc.assert_not_called()
+        db.table.return_value.delete.assert_not_called()
+
+    async def test_fmp_hard_failure_touches_nothing(self, monkeypatch):
+        # _fetch_fmp_window already swallows a hard HTTP failure into [] (its
+        # own retry-then-give-up contract) — so a total FMP outage surfaces
+        # to refresh_macro_calendar exactly like an empty response.
+        import app.services.macro_calendar_service as svc
+        db = self._mock_db(monkeypatch)
+        monkeypatch.setattr(svc, "_fetch_fmp_window", lambda *a, **kw: [])
+        monkeypatch.setattr(svc, "_fmp_key", lambda: "fake-key")
+
+        count = await svc.refresh_macro_calendar()
+        assert count == 0
+        db.table.return_value.delete.assert_not_called()
+
+    async def test_partial_fmp_response_only_upserts_what_it_got(self, monkeypatch):
+        # FMP returning only 1 of the 15 tracked types this run must not
+        # trigger any cleanup/removal logic for the other 14 — there isn't
+        # any, by construction, but this proves the call site stays that way.
+        import app.services.macro_calendar_service as svc
+        rpc_result = [{"event_id": "cpi|2026-09", "was_insert": True, "value_changed": True}]
+        db = self._mock_db(monkeypatch, rpc_return=rpc_result)
+        one_row = [{
+            "event_id": "cpi|2026-09", "event_type": "cpi", "event_period": "2026-09",
+            "event_name": "Inflation Rate YoY (Sep)", "event_date_utc": "2026-10-13T12:30:00+00:00",
+            "country": "US", "impact_source": "High", "impact_level": "VERY_HIGH",
+            "actual_value": "2.9", "estimate_value": None, "previous_value": "2.8",
+            "unit": "%", "speaker_name": None, "source": "fmp",
+        }]
+        monkeypatch.setattr(svc, "fetch_and_normalize_macro_events", lambda *a, **kw: one_row)
+
+        count = await svc.refresh_macro_calendar()
+        assert count == 1
+        db.rpc.assert_called_once()
+        assert db.rpc.call_args[0][0] == "upsert_macro_events_batch"
+        db.table.return_value.delete.assert_not_called()
+
+    async def test_rpc_missing_falls_back_to_plain_upsert_still_no_delete(self, monkeypatch):
+        # Migration 075 not yet applied in this environment — the RPC call
+        # itself raises. Must degrade to the old plain upsert, never crash
+        # the whole refresh, and still never delete anything.
+        import app.services.macro_calendar_service as svc
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+        db = MagicMock()
+        db.table.return_value.delete = MagicMock(side_effect=AssertionError("must never delete"))
+        monkeypatch.setattr("app.services.macro_calendar_service.get_supabase", lambda: db)
+
+        calls = []
+
+        async def _run_query(query, *a, **kw):
+            calls.append(query)
+            if query == "rpc_fail":
+                raise RuntimeError("function upsert_macro_events_batch does not exist")
+            return SimpleNamespace(data=[])
+
+        db.rpc.return_value = "rpc_fail"
+        db.table.return_value.upsert.return_value = "plain_upsert_query"
+        monkeypatch.setattr("app.services.macro_calendar_service.run_query", AsyncMock(side_effect=_run_query))
+        monkeypatch.setattr(svc, "fetch_and_normalize_macro_events", lambda *a, **kw: [
+            {"event_id": "cpi|2026-09", "event_type": "cpi", "event_period": "2026-09",
+             "event_name": "Inflation Rate YoY (Sep)", "event_date_utc": "2026-10-13T12:30:00+00:00"},
+        ])
+
+        count = await svc.refresh_macro_calendar()
+        assert count == 1
+        assert "plain_upsert_query" in calls
+        db.table.return_value.delete.assert_not_called()
+
+
+class TestBackfillStableEventIdentity:
+    """Section 11/16: the one-time migration backfill — merges old
+    duplicate rows (same release, old timestamp-based ids) into one row
+    under the new stable identity, losslessly, then removes only the
+    now-redundant old rows (never a release with no surviving duplicate)."""
+
+    @staticmethod
+    def _mock_db(monkeypatch, existing_rows):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+        db = MagicMock()
+        db.rpc.return_value = "rpc_query"
+        deleted_ids: list[str] = []
+
+        def _delete_in(col, ids):
+            deleted_ids.extend(ids)
+            return "delete_query"
+
+        db.table.return_value.delete.return_value.in_.side_effect = _delete_in
+
+        async def _run_query(query, *a, **kw):
+            if query == "select_all":
+                return SimpleNamespace(data=existing_rows)
+            if query == "rpc_query":
+                return SimpleNamespace(data=[])
+            return SimpleNamespace(data=[])
+
+        db.table.return_value.select.return_value = "select_all"
+        monkeypatch.setattr("app.services.macro_calendar_service.get_supabase", lambda: db)
+        monkeypatch.setattr("app.services.macro_calendar_service.run_query", AsyncMock(side_effect=_run_query))
+        return db, deleted_ids
+
+    async def test_merges_duplicate_rows_from_a_reschedule(self, monkeypatch):
+        import app.services.macro_calendar_service as svc
+        old_row = {
+            "event_id": "oldhash1", "event_type": "nfp", "event_name": "Non Farm Payrolls (Sep)",
+            "event_date_utc": "2026-10-02T12:30:00+00:00", "country": "US", "impact_source": "High",
+            "impact_level": "VERY_HIGH", "actual_value": None, "estimate_value": "150",
+            "previous_value": "140", "unit": "K", "speaker_name": None, "source": "fmp",
+            "created_at": "2026-09-20T00:00:00+00:00", "updated_at": "2026-09-20T00:00:00+00:00",
+        }
+        new_row = {
+            "event_id": "oldhash2", "event_type": "nfp", "event_name": "Non Farm Payrolls (Sep)",
+            "event_date_utc": "2026-10-09T12:30:00+00:00", "country": "US", "impact_source": "High",
+            "impact_level": "VERY_HIGH", "actual_value": "152", "estimate_value": "150",
+            "previous_value": "140", "unit": "K", "speaker_name": None, "source": "fmp",
+            "created_at": "2026-10-01T00:00:00+00:00", "updated_at": "2026-10-09T13:00:00+00:00",
+        }
+        db, deleted_ids = self._mock_db(monkeypatch, [old_row, new_row])
+
+        upserted = {}
+        async def _fake_upsert(rows):
+            for r in rows:
+                upserted[r["event_id"]] = r
+            return len(rows)
+        monkeypatch.setattr(svc, "_upsert_rows_lossless", _fake_upsert)
+
+        result = await svc.backfill_stable_event_identity()
+
+        assert result["old_rows"] == 2
+        assert result["stable_releases"] == 1
+        assert result["redundant_rows_removed"] == 2  # both old ids get replaced by the new stable one
+        merged = list(upserted.values())[0]
+        assert merged["event_id"] == "nfp|2026-09"
+        assert merged["event_date_utc"] == "2026-10-09T12:30:00+00:00"  # most recent
+        assert merged["actual_value"] == "152"  # the real confirmed value, never lost
+        assert set(deleted_ids) == {"oldhash1", "oldhash2"}
+
+    async def test_already_stable_row_is_untouched_idempotent(self, monkeypatch):
+        import app.services.macro_calendar_service as svc
+        row = {
+            "event_id": "cpi|2026-09", "event_type": "cpi", "event_name": "Inflation Rate YoY (Sep)",
+            "event_date_utc": "2026-10-13T12:30:00+00:00", "country": "US", "impact_source": "High",
+            "impact_level": "VERY_HIGH", "actual_value": "2.9", "estimate_value": None,
+            "previous_value": "2.8", "unit": "%", "speaker_name": None, "source": "fmp",
+            "created_at": "2026-10-13T00:00:00+00:00", "updated_at": "2026-10-13T13:00:00+00:00",
+        }
+        db, deleted_ids = self._mock_db(monkeypatch, [row])
+        monkeypatch.setattr(svc, "_upsert_rows_lossless", AsyncMock_return(1))
+
+        result = await svc.backfill_stable_event_identity()
+        assert result["stable_releases"] == 1
+        assert result["redundant_rows_removed"] == 0
+        assert deleted_ids == []
+
+    async def test_empty_table_is_a_noop(self, monkeypatch):
+        import app.services.macro_calendar_service as svc
+        db, deleted_ids = self._mock_db(monkeypatch, [])
+        result = await svc.backfill_stable_event_identity()
+        assert result == {"old_rows": 0, "stable_releases": 0, "redundant_rows_removed": 0}
+        assert deleted_ids == []
+
+
+def AsyncMock_return(value):
+    from unittest.mock import AsyncMock
+    return AsyncMock(return_value=value)
+
+
+class TestGetMacroEventsWorkerConsistency:
+    """Section 16 scenarios 9/10: multiple workers / a restart must see the
+    identical calendar, since it's derived purely from Supabase + "today" —
+    no worker-local state is part of the normal (DB available) path."""
+
+    async def test_two_independent_calls_return_identical_data(self, monkeypatch):
+        from datetime import date
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+        import app.services.macro_calendar_service as svc
+
+        rows = [{
+            "event_id": "cpi|2026-09", "event_type": "cpi", "event_name": "Inflation Rate YoY (Sep)",
+            "event_date_utc": "2026-10-13T12:30:00+00:00", "impact_level": "VERY_HIGH",
+            "actual_value": "2.9", "updated_at": "2026-10-13T13:00:00+00:00",
+        }]
+        monkeypatch.setattr(svc, "_LAST_GOOD_ROWS", [])
+        monkeypatch.setattr("app.core.database.get_supabase", lambda: MagicMock())
+        monkeypatch.setattr("app.core.database.get_fresh_supabase", lambda: MagicMock())
+        monkeypatch.setattr("app.core.database.run_query", AsyncMock(return_value=SimpleNamespace(data=rows)))
+        TestGetMacroEventsHolidayMerge._freeze_today(monkeypatch, date(2026, 10, 14))
+
+        # Simulates two different gunicorn worker processes each making
+        # their own independent call — same mocked Supabase response for
+        # both, since that's the one real shared source of truth.
+        worker_a = await svc.get_macro_events(days_ahead=30, lang="es")
+        worker_b = await svc.get_macro_events(days_ahead=30, lang="es")
+        a_macro = [e for e in worker_a if e["event_type"] == "cpi"]
+        b_macro = [e for e in worker_b if e["event_type"] == "cpi"]
+        assert a_macro == b_macro
+        assert len(a_macro) == 1
+
+    async def test_last_good_rows_is_last_resort_only_not_required_for_consistency(self, monkeypatch):
+        # A process that has NEVER made a successful read (fresh restart,
+        # _LAST_GOOD_ROWS == []) must still serve exactly what's in
+        # Supabase on its first real call — no dependency on prior process
+        # state, confirming _LAST_GOOD_ROWS is optional, not load-bearing.
+        from datetime import date
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+        import app.services.macro_calendar_service as svc
+
+        rows = [{
+            "event_id": "nfp|2026-09", "event_type": "nfp", "event_name": "Non Farm Payrolls (Sep)",
+            "event_date_utc": "2026-10-09T12:30:00+00:00", "impact_level": "VERY_HIGH",
+            "actual_value": "152", "updated_at": "2026-10-09T13:00:00+00:00",
+        }]
+        monkeypatch.setattr(svc, "_LAST_GOOD_ROWS", [])  # fresh process, never read before
+        monkeypatch.setattr("app.core.database.get_supabase", lambda: MagicMock())
+        monkeypatch.setattr("app.core.database.get_fresh_supabase", lambda: MagicMock())
+        monkeypatch.setattr("app.core.database.run_query", AsyncMock(return_value=SimpleNamespace(data=rows)))
+        TestGetMacroEventsHolidayMerge._freeze_today(monkeypatch, date(2026, 10, 14))
+
+        events = await svc.get_macro_events(days_ahead=30, lang="es", days_behind=7)
+        assert any(e["event_type"] == "nfp" and e["actual_value"] == "152" for e in events)
