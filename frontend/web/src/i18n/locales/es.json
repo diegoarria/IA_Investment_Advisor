@@ -4291,8 +4291,10 @@
       "suggestion1": "¿Con cuánto puedo empezar a invertir?",
       "suggestion2": "¿Qué es el riesgo?",
       "suggestion3": "¿Cómo puedo ganar dinero en la bolsa?",
-      "thinking": "Arthur está pensando...",
-      "genericError": "No pudimos conectar con Arthur. Intenta de nuevo."
+      "answer1": "No hay un mínimo mágico — en muchas plataformas puedes empezar con $500-1,000 MXN. Importa más la constancia que el monto: invertir un poco cada mes suele pesar más que con cuánto arrancas.",
+      "answer2": "El riesgo es la posibilidad de que tu inversión valga menos de lo que pagaste, al menos por un tiempo. No se elimina, se administra: diversificando, invirtiendo a largo plazo y solo con dinero que no vas a necesitar pronto.",
+      "answer3": "Principalmente de dos formas: cuando el precio de una acción sube (ganancia de capital) y cuando la empresa reparte utilidades (dividendos). Lo más probado a largo plazo es comprar negocios sólidos y mantenerlos — no adivinar movimientos de corto plazo.",
+      "answerFallback": "Esa es justo el tipo de pregunta que Arthur responde con detalle y personalizada a tu situación real. Crea tu cuenta gratis y pregúntaselo directamente →"
     },
     "pillars": {
       "action": {

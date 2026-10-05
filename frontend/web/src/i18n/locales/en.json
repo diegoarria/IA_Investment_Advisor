@@ -4291,8 +4291,10 @@
       "suggestion1": "How much do I need to start investing?",
       "suggestion2": "What is risk?",
       "suggestion3": "How can I make money in the stock market?",
-      "thinking": "Arthur is thinking...",
-      "genericError": "Couldn't reach Arthur. Try again."
+      "answer1": "There's no magic minimum — many platforms let you start with $25-50. What matters more than your starting amount is consistency: investing a little every month usually beats how much you start with.",
+      "answer2": "Risk is the chance your investment is worth less than you paid, at least for a while. It's never eliminated, only managed: by diversifying, investing long-term, and only using money you won't need soon.",
+      "answer3": "Mainly two ways: when a stock's price goes up (capital gains), and when a company shares part of its profits (dividends). The most proven long-term approach is buying solid businesses and holding them — not guessing short-term moves.",
+      "answerFallback": "That's exactly the kind of question Arthur answers in detail, personalized to your real situation. Create your free account and ask him directly →"
     },
     "pillars": {
       "action": {

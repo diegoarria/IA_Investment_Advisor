@@ -5,12 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { auth, profile as profileApi, chat as chatApi } from "@/lib/api";
+import { auth, profile as profileApi } from "@/lib/api";
 import { applyPendingReferralIfAny } from "@/lib/referral";
 import { consumeReturnTo } from "@/lib/returnTo";
 import { getSupabaseClient } from "@/lib/supabase";
-import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode, getGuestId } from "@/lib/store";
-import { Eye, EyeOff, ArrowRight, User, Send, Loader2 } from "lucide-react";
+import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode } from "@/lib/store";
+import { Eye, EyeOff, ArrowRight, User, Send } from "lucide-react";
 
 function getPillars(t: TFunction) {
   return [
@@ -69,39 +69,45 @@ function HomeContent() {
   const [error, setError]           = useState("");
 
   // Mini Arthur demo on the left panel — Diego, 2026-10-04: "añade la
-  // posibilidad de chatear con Arthur y probarlo levemente". Same guest
-  // chat pipeline (chatApi.stream, isGuest, getGuestId) the real chat
-  // screen and "Explorar sin cuenta" already use — real Arthur, same
-  // weekly guest allowance, never a second/fake implementation. Single
-  // exchange shown at a time (not a growing thread) to keep this a quick
-  // taste, not a full conversation, on a screen whose real job is login.
+  // posibilidad de chatear con Arthur y probarlo levemente", then,
+  // 2026-10-04 follow-up: "respuesta inmediata, en menos de 1 segundo,
+  // que el usuario no espere nada". A real Claude call can't honestly be
+  // sub-second, so this no longer hits the backend at all — it answers
+  // the 3 suggested beginner questions (and simple keyword variations of
+  // them) instantly from real, pre-written, generic educational copy,
+  // same accuracy bar as the rest of this page's static copy. Never
+  // personalized, never a fabricated reply to a question it doesn't
+  // recognize — those get an honest "create your account to ask Arthur
+  // directly" instead of a fake answer. Single exchange shown at a time
+  // (not a growing thread) to keep this a quick taste, not a full
+  // conversation, on a screen whose real job is login.
   const [previewUser, setPreviewUser]     = useState<string | null>(null);
   const [previewReply, setPreviewReply]   = useState("");
-  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewTyping, setPreviewTyping] = useState(false);
   const [previewInput, setPreviewInput]   = useState("");
-  const previewCancelRef = { cancelled: false };
 
-  const askArthurPreview = async (question: string) => {
+  const pickPreviewAnswer = (question: string): string => {
+    const q = question.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    if (/riesgo|\brisk\b/.test(q)) return t("landing.preview.answer2");
+    if (/(cuanto|minimo|how much).*(invert|start)|start investing/.test(q)) return t("landing.preview.answer1");
+    if (/ganar dinero|hacer dinero|make money|dividend|bolsa|stock market/.test(q)) return t("landing.preview.answer3");
+    return t("landing.preview.answerFallback");
+  };
+
+  const askArthurPreview = (question: string) => {
     const q = question.trim();
-    if (!q || previewLoading) return;
+    if (!q || previewTyping) return;
     setPreviewInput("");
     setPreviewUser(q);
     setPreviewReply("");
-    setPreviewLoading(true);
-    let full = "";
-    try {
-      await chatApi.stream(
-        q, [],
-        (chunk) => { full += chunk; setPreviewReply(full); },
-        () => setPreviewLoading(false),
-        undefined, undefined, null, previewCancelRef, null, null, null, null, undefined,
-        true, getGuestId(),
-      );
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      setPreviewReply(status === 429 ? t("chat.guestLimitReply") : t("landing.preview.genericError"));
-      setPreviewLoading(false);
-    }
+    setPreviewTyping(true);
+    const words = pickPreviewAnswer(q).split(" ");
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setPreviewReply(words.slice(0, i).join(" "));
+      if (i >= words.length) { clearInterval(id); setPreviewTyping(false); }
+    }, 9); // ~9ms/word — a ~40-word answer finishes well under half a second
   };
 
   // Forgot password flow
@@ -387,20 +393,16 @@ function HomeContent() {
             ))}
           </div>
 
-          {/* Live Arthur demo — Diego, 2026-10-04: "añade la posibilidad de
-              chatear con Arthur y probarlo levemente". Real Arthur, real
-              reply (chatApi.stream, same guest pipeline "Explorar sin
-              cuenta" uses elsewhere) — never a canned/fake exchange. Shows
-              one exchange at a time to stay a quick taste, not a full
-              conversation, on a screen whose real job is login. Arthur
-              explains, never prescribes a buy/sell — same as everywhere
-              else in the app. */}
+          {/* Instant Arthur demo — see askArthurPreview's own comment above
+              for why this answers locally instead of calling the real
+              backend. Arthur explains, never prescribes a buy/sell — same
+              as everywhere else in the app. */}
           <div className="relative rounded-2xl p-3.5 mb-5 overflow-hidden animate-fade-in-up stagger-2"
                style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
             <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full opacity-[0.12] blur-2xl"
                  style={{ background: "var(--grad-green)" }} />
             <div className="relative flex items-center gap-2 mb-2.5">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: previewLoading ? "#f59e0b" : "var(--accent-l)" }} />
+              <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent-l)" }} />
               <span className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
                 {t("landing.preview.label")}
               </span>
@@ -431,11 +433,7 @@ function HomeContent() {
                   </div>
                   <div className="rounded-2xl rounded-tl-sm px-3 py-2 text-[12.5px] leading-snug min-h-[32px]"
                        style={{ background: "rgba(0,185,109,0.08)", border: "1px solid rgba(0,185,109,0.16)", color: "var(--sub)" }}>
-                    {previewReply || (
-                      <span className="inline-flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                        <Loader2 className="w-3 h-3 animate-spin" /> {t("landing.preview.thinking")}
-                      </span>
-                    )}
+                    {previewReply}
                   </div>
                 </div>
               </>
@@ -444,10 +442,10 @@ function HomeContent() {
             <form className="relative flex items-center gap-1.5 mt-2.5"
                   onSubmit={(e) => { e.preventDefault(); askArthurPreview(previewInput); }}>
               <input value={previewInput} onChange={(e) => setPreviewInput(e.target.value)}
-                     placeholder={t("landing.preview.placeholder")} disabled={previewLoading}
+                     placeholder={t("landing.preview.placeholder")} disabled={previewTyping}
                      className="flex-1 min-w-0 rounded-xl px-3 py-2 text-[12.5px] outline-none disabled:opacity-50"
                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text)" }} />
-              <button type="submit" disabled={previewLoading || !previewInput.trim()}
+              <button type="submit" disabled={previewTyping || !previewInput.trim()}
                       className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center disabled:opacity-40 transition-opacity"
                       style={{ background: "var(--grad-green)" }}>
                 <Send className="w-3.5 h-3.5" style={{ color: "#06160f" }} />
