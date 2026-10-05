@@ -4285,11 +4285,13 @@
     "passwordUpdatedBody": "Ya puedes iniciar sesión con tu nueva contraseña.",
     "phone": "teléfono",
     "phoneLabel": "Número de teléfono",
-    "kicker": "Tu mentor de inversiones con IA",
     "preview": {
-      "label": "Así se siente hablar con Arthur",
-      "userMsg": "¿Por qué bajó mi portafolio hoy?",
-      "arthurMsg": "El mercado reaccionó a datos de inflación más altos de lo esperado. Tech fue el sector más golpeado — por eso lo sientes más hoy que ayer."
+      "label": "Pruébalo tú mismo",
+      "placeholder": "Pregúntale algo a Arthur...",
+      "suggestion1": "¿Por qué bajó mi portafolio hoy?",
+      "suggestion2": "¿Qué es el margen de seguridad?",
+      "thinking": "Arthur está pensando...",
+      "genericError": "No pudimos conectar con Arthur. Intenta de nuevo."
     },
     "pillars": {
       "action": {
