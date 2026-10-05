@@ -4285,6 +4285,12 @@
     "passwordUpdatedBody": "Ya puedes iniciar sesión con tu nueva contraseña.",
     "phone": "teléfono",
     "phoneLabel": "Número de teléfono",
+    "kicker": "Tu mentor de inversiones con IA",
+    "preview": {
+      "label": "Así se siente hablar con Arthur",
+      "userMsg": "¿Por qué bajó mi portafolio hoy?",
+      "arthurMsg": "El mercado reaccionó a datos de inflación más altos de lo esperado. Tech fue el sector más golpeado — por eso lo sientes más hoy que ayer."
+    },
     "pillars": {
       "action": {
         "desc": "Registra cada decisión, detecta tus patrones de comportamiento y actúa con más confianza.",

@@ -10,7 +10,7 @@ import { applyPendingReferralIfAny } from "@/lib/referral";
 import { consumeReturnTo } from "@/lib/returnTo";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode } from "@/lib/store";
-import { Eye, EyeOff, ArrowRight, User } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, User, Sparkles } from "lucide-react";
 
 function getPillars(t: TFunction) {
   return [
@@ -298,92 +298,156 @@ function HomeContent() {
       </div>
 
       {/* ── LEFT PANEL — Value proposition ──────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-[54%] flex-col justify-center px-16 xl:px-24 py-14 relative z-10 min-h-screen">
+      <div className="hidden lg:flex lg:w-[54%] flex-col justify-center px-12 xl:px-24 py-8 relative z-10 min-h-screen overflow-y-auto scrollbar-thin">
 
-        {/* Logo + live badge */}
-        <div className="flex items-center gap-3 mb-14 animate-fade-in">
-          <div className="relative">
-            <Image src="/logo.png" alt="Nuvos AI" width={44} height={44}
-                   className="rounded-2xl object-cover" style={{ boxShadow: "var(--shadow-accent)" }} />
-            <div className="absolute -inset-1 rounded-2xl blur-md opacity-25"
-                 style={{ background: "var(--grad-green)" }} />
-          </div>
-          <div>
-            <span className="text-base font-bold" style={{ color: "var(--text)" }}>Nuvos AI</span>
-          </div>
-        </div>
+        {/* Headline spotlight — a soft radial glow anchored behind the hero
+            text, independent of the ambient page-wide orbs above, so the
+            headline itself reads as the visual focal point of the screen. */}
+        <div className="pointer-events-none absolute -left-20 top-[8%] w-[720px] h-[720px] rounded-full opacity-[0.10] blur-[10px]"
+             style={{ background: "radial-gradient(circle, #00e887 0%, transparent 65%)" }} />
 
-        {/* Headline */}
-        <div className="mb-8 animate-fade-in-up">
-          <h1 className="text-5xl xl:text-[3.6rem] font-black leading-[1.06] tracking-tight mb-3"
-              style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            {t("landing.heroLine1")}<br />
-            <span className="gradient-text">{t("landing.heroLine2")}</span>
-          </h1>
-          <p className="text-lg leading-relaxed max-w-[420px]" style={{ color: "var(--muted)" }}>
-            {t("landing.heroSubtitle")}
-          </p>
-        </div>
+        <div className="relative max-w-[600px] xl:max-w-[640px]">
 
-        {/* Social proof bar */}
-        <div className="flex items-center gap-0 mb-10 animate-fade-in-up stagger-1">
-          {[
-            { value: "2,847", label: t("landing.stats.activeInvestors") },
-            { value: "4.9 ★", label: t("landing.stats.rating") },
-            { value: "< 2 min", label: t("landing.stats.toStart") },
-          ].map((stat, i) => (
-            <div key={stat.label} className="flex items-center">
-              <div className="text-center px-5 first:pl-0">
-                <div className="text-xl font-black tabular-nums"
-                     style={{ color: "var(--text)" }}>{stat.value}</div>
-                <div className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>{stat.label}</div>
-              </div>
-              {i < 2 && <div className="w-px h-8 shrink-0" style={{ background: "var(--border)" }} />}
+          {/* Logo */}
+          <div className="flex items-center gap-3 mb-5 animate-fade-in">
+            <div className="relative">
+              <Image src="/logo.png" alt="Nuvos AI" width={40} height={40}
+                     className="rounded-2xl object-cover" style={{ boxShadow: "var(--shadow-accent)" }} />
+              <div className="absolute -inset-1 rounded-2xl blur-md opacity-25"
+                   style={{ background: "var(--grad-green)" }} />
             </div>
-          ))}
-        </div>
-
-        {/* Three pillars */}
-        <div className="space-y-5 mb-10">
-          {PILLARS.map((p, i) => (
-            <div key={p.title} className={`flex items-start gap-4 animate-fade-in-up stagger-${i + 2}`}>
-              <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0"
-                   style={{ background: p.accent + "1a", border: `1px solid ${p.accent}30` }}>
-                {p.emoji}
-              </div>
-              <div className="pt-0.5">
-                <div className="text-sm font-bold mb-0.5" style={{ color: "var(--text)" }}>{p.title}</div>
-                <div className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>{p.desc}</div>
-              </div>
+            <div>
+              <span className="text-base font-bold" style={{ color: "var(--text)" }}>Nuvos AI</span>
             </div>
-          ))}
-        </div>
-
-        {/* Testimonial */}
-        <div className="rounded-2xl p-5 animate-fade-in-up stagger-4"
-             style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          <div className="flex gap-1 mb-3">
-            {"★★★★★".split("").map((s, i) => (
-              <span key={i} className="text-sm" style={{ color: "#f59e0b" }}>{s}</span>
-            ))}
           </div>
-          <p className="text-sm italic leading-relaxed mb-3" style={{ color: "var(--muted)" }}>
-            &quot;{t("landing.testimonial")}&quot;
-          </p>
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0"
-                 style={{ background: "rgba(0,168,94,0.2)", color: "var(--accent-l)" }}>D</div>
-            <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.35)" }}>
-              {t("landing.testimonialAuthor")}
+
+          {/* Kicker */}
+          <div className="inline-flex items-center gap-2 mb-3.5 pl-2.5 pr-3.5 py-1.5 rounded-full animate-fade-in-up"
+               style={{ background: "rgba(0,185,109,0.08)", border: "1px solid rgba(0,185,109,0.22)" }}>
+            <Sparkles className="w-3 h-3" style={{ color: "var(--accent-l)" }} />
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--accent-l)" }}>
+              {t("landing.kicker")}
             </span>
           </div>
-        </div>
 
+          {/* Headline */}
+          <div className="mb-5 animate-fade-in-up stagger-1">
+            <h1 className="text-[2.3rem] lg:text-[2.6rem] xl:text-[3.4rem] font-black leading-[1.08] tracking-[-0.02em] mb-3"
+                style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {t("landing.heroLine1")}<br />
+              <span className="gradient-text">{t("landing.heroLine2")}</span>
+            </h1>
+            <p className="text-base leading-relaxed max-w-[480px]" style={{ color: "var(--muted)" }}>
+              {t("landing.heroSubtitle")}
+            </p>
+          </div>
+
+          {/* Social proof bar */}
+          <div className="flex items-center gap-0 mb-5 animate-fade-in-up stagger-1">
+            {[
+              { value: "2,847", label: t("landing.stats.activeInvestors") },
+              { value: "4.9 ★", label: t("landing.stats.rating") },
+              { value: "< 2 min", label: t("landing.stats.toStart") },
+            ].map((stat, i) => (
+              <div key={stat.label} className="flex items-center">
+                <div className="text-center px-5 first:pl-0">
+                  <div className="text-lg font-black tabular-nums"
+                       style={{ color: "var(--text)" }}>{stat.value}</div>
+                  <div className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>{stat.label}</div>
+                </div>
+                {i < 2 && <div className="w-px h-7 shrink-0" style={{ background: "var(--border)" }} />}
+              </div>
+            ))}
+          </div>
+
+          {/* Product glimpse — a compact Arthur chat preview. Diego's
+              brief: "den ganas de ver qué me espera dentro" — this shows,
+              not tells, the first pillar below (Arthur siempre disponible)
+              instead of leaving the whole page as text-only promises.
+              Illustrative UI chrome only, same spirit as the "Ver cuenta
+              demo" button further down — never a real user quote, and
+              deliberately never a buy/sell verdict (Arthur explains,
+              never prescribes). */}
+          <div className="relative rounded-2xl p-3.5 mb-5 overflow-hidden animate-fade-in-up stagger-2"
+               style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full opacity-[0.12] blur-2xl"
+                 style={{ background: "var(--grad-green)" }} />
+            <div className="relative flex items-center gap-2 mb-2.5">
+              <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent-l)" }} />
+              <span className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                {t("landing.preview.label")}
+              </span>
+            </div>
+            <div className="relative flex justify-end mb-1.5">
+              <div className="rounded-2xl rounded-tr-sm px-3 py-1.5 max-w-[75%] text-[12.5px] leading-snug"
+                   style={{ background: "rgba(255,255,255,0.05)", color: "var(--text)" }}>
+                {t("landing.preview.userMsg")}
+              </div>
+            </div>
+            <div className="relative flex items-start gap-2">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0"
+                   style={{ background: "rgba(167,139,250,0.14)", border: "1px solid rgba(167,139,250,0.28)" }}>
+                🧠
+              </div>
+              <div className="rounded-2xl rounded-tl-sm px-3 py-2 text-[12.5px] leading-snug"
+                   style={{ background: "rgba(0,185,109,0.08)", border: "1px solid rgba(0,185,109,0.16)", color: "var(--sub)" }}>
+                {t("landing.preview.arthurMsg")}
+              </div>
+            </div>
+          </div>
+
+          {/* Three pillars — compact 3-up row (icon + title only, full
+              description on hover's not needed; the chat preview above
+              already demonstrates pillar #1 directly) */}
+          <div className="grid grid-cols-3 gap-2.5 mb-5">
+            {PILLARS.map((p, i) => (
+              <div key={p.title}
+                   className={`p-3 rounded-2xl animate-fade-in-up stagger-${i + 2}`}
+                   style={{ background: "rgba(255,255,255,0.015)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base mb-2"
+                     style={{ background: p.accent + "1a", border: `1px solid ${p.accent}30` }}>
+                  {p.emoji}
+                </div>
+                <div className="text-[12.5px] font-bold leading-tight" style={{ color: "var(--text)" }}>{p.title}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Testimonial */}
+          <div className="relative rounded-2xl p-4 pl-5 overflow-hidden animate-fade-in-up stagger-4"
+               style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: "var(--grad-green)" }} />
+            <span className="absolute -top-2 left-4 text-5xl font-black leading-none select-none"
+                  style={{ color: "var(--accent)", opacity: 0.18, fontFamily: "Georgia, serif" }}>&ldquo;</span>
+            <div className="flex gap-1 mb-2">
+              {"★★★★★".split("").map((s, i) => (
+                <span key={i} className="text-xs" style={{ color: "#f59e0b" }}>{s}</span>
+              ))}
+            </div>
+            <p className="text-[13px] italic leading-relaxed mb-2.5" style={{ color: "var(--muted)" }}>
+              &quot;{t("landing.testimonial")}&quot;
+            </p>
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black shrink-0"
+                   style={{ background: "rgba(0,168,94,0.2)", color: "var(--accent-l)" }}>D</div>
+              <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.35)" }}>
+                {t("landing.testimonialAuthor")}
+              </span>
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* ── RIGHT PANEL — Auth form ──────────────────────────────────────── */}
       <div className="w-full lg:w-[46%] flex items-start justify-center overflow-y-auto p-5 lg:p-12 min-h-screen relative z-10">
-        <div className="w-full max-w-[400px] my-auto py-8">
+        {/* Ambient halo behind the form card — purely decorative, sits behind
+            everything in this column and never affects the card's own
+            markup/classes/position below (kept exactly as-is per Diego's
+            brief). */}
+        <div className="hidden lg:block pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] rounded-full opacity-[0.07] blur-[60px]"
+             style={{ background: "var(--grad-green)" }} />
+        <div className="w-full max-w-[400px] my-auto py-8 relative">
 
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8 animate-fade-in">

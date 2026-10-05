@@ -4285,6 +4285,12 @@
     "passwordUpdatedBody": "You can now log in with your new password.",
     "phone": "phone",
     "phoneLabel": "Phone number",
+    "kicker": "Your AI investing mentor",
+    "preview": {
+      "label": "This is what talking to Arthur feels like",
+      "userMsg": "Why did my portfolio drop today?",
+      "arthurMsg": "The market reacted to hotter-than-expected inflation data. Tech took the biggest hit — that's why you're feeling it more today than yesterday."
+    },
     "pillars": {
       "action": {
         "desc": "Log every decision, spot your behavioral patterns, and act with more confidence.",
