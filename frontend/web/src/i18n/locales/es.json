@@ -4288,8 +4288,9 @@
     "preview": {
       "label": "Pruébalo tú mismo",
       "placeholder": "Pregúntale algo a Arthur...",
-      "suggestion1": "¿Por qué bajó mi portafolio hoy?",
-      "suggestion2": "¿Qué es el margen de seguridad?",
+      "suggestion1": "¿Con cuánto puedo empezar a invertir?",
+      "suggestion2": "¿Qué es el riesgo?",
+      "suggestion3": "¿Cómo puedo ganar dinero en la bolsa?",
       "thinking": "Arthur está pensando...",
       "genericError": "No pudimos conectar con Arthur. Intenta de nuevo."
     },

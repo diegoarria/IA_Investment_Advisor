@@ -4288,8 +4288,9 @@
     "preview": {
       "label": "Try it yourself",
       "placeholder": "Ask Arthur something...",
-      "suggestion1": "Why did my portfolio drop today?",
-      "suggestion2": "What's a margin of safety?",
+      "suggestion1": "How much do I need to start investing?",
+      "suggestion2": "What is risk?",
+      "suggestion3": "How can I make money in the stock market?",
       "thinking": "Arthur is thinking...",
       "genericError": "Couldn't reach Arthur. Try again."
     },

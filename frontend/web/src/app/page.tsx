@@ -408,7 +408,7 @@ function HomeContent() {
 
             {!previewUser ? (
               <div className="relative flex flex-wrap gap-1.5 mb-1">
-                {[t("landing.preview.suggestion1"), t("landing.preview.suggestion2")].map((s) => (
+                {[t("landing.preview.suggestion1"), t("landing.preview.suggestion2"), t("landing.preview.suggestion3")].map((s) => (
                   <button key={s} type="button" onClick={() => askArthurPreview(s)}
                           className="text-left rounded-xl px-2.5 py-1.5 text-[12px] transition-colors"
                           style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "var(--sub)" }}>
