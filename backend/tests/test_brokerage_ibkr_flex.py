@@ -150,3 +150,39 @@ class TestFetchStatementPolling:
         with pytest.raises(HTTPException) as exc:
             await _ibkr_flex_fetch_statement("123", "tok")
         assert exc.value.status_code == 504
+
+
+class TestSendRequestValidationOnly:
+    """connect_ibkr_flex (2026-10-06 follow-up) must validate credentials
+    without depending on a report ever finishing generation — a real,
+    genuinely empty/unfunded IBKR account can leave IBKR's report
+    generator stuck on 1019 forever, which must never block connecting."""
+
+    async def test_valid_credentials_return_reference_and_url_without_polling(self, monkeypatch):
+        from app.api.routes.brokerage import _ibkr_flex_send_request
+        send_resp = AsyncMock()
+        send_resp.text = _SEND_SUCCESS_XML
+        client = AsyncMock()
+        client.get = AsyncMock(return_value=send_resp)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        monkeypatch.setattr("app.api.routes.brokerage.httpx.AsyncClient", lambda **kw: client)
+
+        ref, url = await _ibkr_flex_send_request("123", "tok")
+        assert ref == "1234567890"
+        assert "GetStatement" in url
+        client.get.assert_called_once()  # exactly SendRequest, no polling at all
+
+    async def test_invalid_credentials_raise_401(self, monkeypatch):
+        from app.api.routes.brokerage import _ibkr_flex_send_request
+        bad_resp = AsyncMock()
+        bad_resp.text = _BAD_TOKEN_XML
+        client = AsyncMock()
+        client.get = AsyncMock(return_value=bad_resp)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        monkeypatch.setattr("app.api.routes.brokerage.httpx.AsyncClient", lambda **kw: client)
+
+        with pytest.raises(HTTPException) as exc:
+            await _ibkr_flex_send_request("bad", "bad")
+        assert exc.value.status_code == 401

@@ -194,16 +194,15 @@ def _normalize_ibkr_flex_positions(statement_xml: str, institution_name: str = "
     return positions
 
 
-async def _ibkr_flex_fetch_statement(query_id: str, token: str) -> str:
-    """SendRequest (kicks off report generation) -> poll GetStatement until
-    the real statement is ready. IBKR generates Flex reports asynchronously
-    (a few seconds, typically) and signals "not ready yet" as a <Status>Fail
-    with ErrorCode 1019 inside an HTTP 200 response, not a retryable HTTP
-    status — so retrying on that specific real error code is required, not
-    optional, for this to ever succeed. Raises HTTPException with IBKR's own
-    real error message on any other failure (bad token, bad query id,
-    query has no sections, etc.) — never invents a friendlier message that
-    could hide what's actually wrong."""
+async def _ibkr_flex_send_request(query_id: str, token: str) -> tuple[str, str]:
+    """Step 1 only: asks IBKR to start generating the report. A real,
+    validated query_id/token pair gets <Status>Success back immediately —
+    this alone is proof the credentials are real, independent of whether
+    the report itself ever finishes generating (see _ibkr_flex_fetch_
+    statement's docstring: that can hang indefinitely for a genuinely
+    empty/unfunded account, which is never a credentials problem). Raises
+    HTTPException with IBKR's own real error message on a real failure
+    (bad token, bad query id)."""
     async with httpx.AsyncClient(timeout=20) as client:
         send_resp = await client.get(
             f"{IBKR_FLEX_BASE}.SendRequest",
@@ -216,8 +215,27 @@ async def _ibkr_flex_fetch_statement(query_id: str, token: str) -> str:
     if send_root.findtext("Status") != "Success":
         msg = send_root.findtext("ErrorMessage") or "Query ID o token de IBKR inválidos."
         raise HTTPException(status_code=401, detail=f"IBKR: {msg}")
-    reference_code = send_root.findtext("ReferenceCode")
+    reference_code = send_root.findtext("ReferenceCode") or ""
     statement_url = send_root.findtext("Url") or f"{IBKR_FLEX_BASE}.GetStatement"
+    return reference_code, statement_url
+
+
+async def _ibkr_flex_fetch_statement(query_id: str, token: str) -> str:
+    """SendRequest (kicks off report generation) -> poll GetStatement until
+    the real statement is ready. IBKR generates Flex reports asynchronously
+    (a few seconds, typically) and signals "not ready yet" as a <Status>Fail
+    with ErrorCode 1019 inside an HTTP 200 response, not a retryable HTTP
+    status — so retrying on that specific real error code is required, not
+    optional, for this to ever succeed. Confirmed live, 2026-10-06: for a
+    genuinely empty/unfunded account (no positions, no activity ever),
+    IBKR's report generator can get stuck signaling 1019 indefinitely
+    instead of returning a real-but-empty report — not a bug on our side,
+    see connect_ibkr_flex's own comment for why the connect step doesn't
+    depend on this ever resolving. Raises HTTPException with IBKR's own
+    real error message on any other failure (bad token, bad query id,
+    query has no sections, etc.) — never invents a friendlier message that
+    could hide what's actually wrong."""
+    reference_code, statement_url = await _ibkr_flex_send_request(query_id, token)
 
     delays = [2, 3, 5, 8]  # IBKR's own guidance: report generation is a few seconds, poll with backoff
     last_error = "IBKR tardó demasiado en generar el reporte. Intenta de nuevo en un momento."
@@ -498,12 +516,23 @@ async def connect_ibkr_flex(
 ):
     """Stores the user's own Flex Query ID + Flex Web Service token
     (generated in their IBKR account, Settings -> Reporting) — and proves
-    they're real by doing one live fetch before saving, same spirit as
-    IOL's connect call actually hitting /token. No refresh_token/expiry: a
-    Flex token is a long-lived (up to 1 year), user-managed credential, not
-    a short OAuth token this backend rotates."""
-    positions = await _ibkr_flex_fetch_statement(body.query_id, body.token)  # raises on invalid query_id/token
-    _ = positions  # validated, not persisted here — holdings endpoint re-fetches fresh
+    they're real first, same spirit as IOL's connect call actually hitting
+    /token. No refresh_token/expiry: a Flex token is a long-lived (up to 1
+    year), user-managed credential, not a short OAuth token this backend
+    rotates.
+
+    Validates with ONLY the SendRequest step (_ibkr_flex_send_request),
+    not the full fetch-and-poll-for-the-report (_ibkr_flex_fetch_
+    statement) — confirmed live, 2026-10-06: a real account with zero
+    positions/activity ever can leave IBKR's report generator stuck
+    signaling "still generating" indefinitely, which used to make
+    connecting a genuinely real, freshly-opened IBKR account impossible
+    even though the credentials were perfectly valid. SendRequest alone
+    already proves query_id/token are real (IBKR validates them to even
+    accept the request); whether a report can actually be generated yet
+    is the holdings endpoint's problem to retry later, once there's
+    something real to report."""
+    await _ibkr_flex_send_request(body.query_id, body.token)  # raises on invalid query_id/token
 
     db = get_supabase()
     await run_query(
