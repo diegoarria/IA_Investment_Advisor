@@ -4,6 +4,8 @@ Brokerage integrations — read-only position sync.
 Supported brokers:
   - Plaid: Interactive Brokers, Charles Schwab, Robinhood (US)
   - IOL (Invertir Online): Argentine broker — direct OAuth
+  - IBKR Flex: Interactive Brokers — direct, no Plaid (Flex Web Service,
+    read-only, user-generated Query ID + token)
 
 Supabase table required:
   CREATE TABLE brokerage_connections (
@@ -29,6 +31,7 @@ Supabase table required:
 
 import asyncio
 import logging
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -45,6 +48,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/brokerage", tags=["brokerage"])
 
 IOL_BASE = "https://api.invertironline.com"
+
+# IBKR Flex Web Service — a direct, read-only, no-Plaid path for Interactive
+# Brokers. Diego, 2026-10-06: "cómo conecto IBKR API sin necesidad de
+# Plaid?" — the Client Portal Web API needs IBKR to approve you as a
+# third-party integrator first (not available to us yet) and the TWS API
+# needs a live per-user gateway process, neither fits a backend that syncs
+# many users' accounts unattended. Flex Web Service is the one IBKR surface
+# built for exactly this: the USER generates a Flex Query (which sections
+# to report — Open Positions, NAV) and a Flex Web Service token in their own
+# IBKR account (Settings → Reporting), no app-level API key, no IBKR
+# approval process. Those two values are the credential, same role IOL's
+# username/password plays for that connector.
+IBKR_FLEX_BASE = "https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService"
 
 
 # ── Plaid client (lazy) ───────────────────────────────────────────────────────
@@ -81,6 +97,10 @@ class PlaidExchangeRequest(BaseModel):
 class IOLConnectRequest(BaseModel):
     username: str
     password: str
+
+class IBKRFlexConnectRequest(BaseModel):
+    query_id: str
+    token: str
 
 class BrokerPosition(BaseModel):
     ticker: str
@@ -139,6 +159,90 @@ def _normalize_iol_holdings(activos: list[dict], institution_name: str = "Invert
             "institutionName": institution_name,
         })
     return positions
+
+
+def _normalize_ibkr_flex_positions(statement_xml: str, institution_name: str = "Interactive Brokers") -> list[dict]:
+    """Parses a Flex Statement's <OpenPosition> rows (real fields IBKR's own
+    schema defines — symbol/position/markPrice/costBasisPrice/currency).
+    Returns [] rather than raising on an unexpected/empty shape — a Flex
+    Query that doesn't include the "Open Positions" section (the user's own
+    configuration, not something we control) is a legitimate empty result,
+    not an error."""
+    positions = []
+    try:
+        root = ET.fromstring(statement_xml)
+    except ET.ParseError as e:
+        logger.warning("IBKR Flex: unparseable statement XML: %s", e)
+        return positions
+    for node in root.iter("OpenPosition"):
+        symbol = node.get("symbol")
+        if not symbol:
+            continue
+        qty = float(node.get("position") or 0)
+        cost_price = node.get("costBasisPrice") or node.get("openPrice") or "0"
+        mark_price = node.get("markPrice") or "0"
+        positions.append({
+            "ticker": symbol.upper(),
+            "name": node.get("description") or symbol,
+            "shares": qty,
+            "avgPrice": round(float(cost_price), 4),
+            "currentPrice": float(mark_price),
+            "currency": node.get("currency") or "USD",
+            "brokerSource": "ibkr_flex",
+            "institutionName": institution_name,
+        })
+    return positions
+
+
+async def _ibkr_flex_fetch_statement(query_id: str, token: str) -> str:
+    """SendRequest (kicks off report generation) -> poll GetStatement until
+    the real statement is ready. IBKR generates Flex reports asynchronously
+    (a few seconds, typically) and signals "not ready yet" as a <Status>Fail
+    with ErrorCode 1019 inside an HTTP 200 response, not a retryable HTTP
+    status — so retrying on that specific real error code is required, not
+    optional, for this to ever succeed. Raises HTTPException with IBKR's own
+    real error message on any other failure (bad token, bad query id,
+    query has no sections, etc.) — never invents a friendlier message that
+    could hide what's actually wrong."""
+    async with httpx.AsyncClient(timeout=20) as client:
+        send_resp = await client.get(
+            f"{IBKR_FLEX_BASE}.SendRequest",
+            params={"t": token, "q": query_id, "v": "3"},
+        )
+    try:
+        send_root = ET.fromstring(send_resp.text)
+    except ET.ParseError:
+        raise HTTPException(status_code=502, detail="IBKR no devolvió una respuesta válida. Intenta de nuevo.")
+    if send_root.findtext("Status") != "Success":
+        msg = send_root.findtext("ErrorMessage") or "Query ID o token de IBKR inválidos."
+        raise HTTPException(status_code=401, detail=f"IBKR: {msg}")
+    reference_code = send_root.findtext("ReferenceCode")
+    statement_url = send_root.findtext("Url") or f"{IBKR_FLEX_BASE}.GetStatement"
+
+    delays = [2, 3, 5, 8]  # IBKR's own guidance: report generation is a few seconds, poll with backoff
+    last_error = "IBKR tardó demasiado en generar el reporte. Intenta de nuevo en un momento."
+    for delay in delays:
+        await asyncio.sleep(delay)
+        async with httpx.AsyncClient(timeout=20) as client:
+            stmt_resp = await client.get(statement_url, params={"q": reference_code, "t": token, "v": "3"})
+        text = stmt_resp.text
+        try:
+            poll_root = ET.fromstring(text)
+        except ET.ParseError:
+            continue
+        # A real statement is rooted at <FlexQueryResponse> — checked via the
+        # PARSED root tag, not a raw string prefix: real IBKR responses are
+        # preceded by an XML declaration (`<?xml version="1.0" ...?>`),
+        # which made an earlier `text.startswith("<FlexQueryResponse")`
+        # check always false and masked every real success as the generic
+        # timeout error (caught by this module's own tests).
+        if poll_root.tag == "FlexQueryResponse":
+            return text  # the real statement — done
+        error_code = poll_root.findtext("ErrorCode")
+        last_error = poll_root.findtext("ErrorMessage") or last_error
+        if error_code != "1019":  # anything other than "still generating" is a real, final failure
+            raise HTTPException(status_code=401, detail=f"IBKR: {last_error}")
+    raise HTTPException(status_code=504, detail=f"IBKR: {last_error}")
 
 
 async def _iol_refresh_token(connection_id: str, refresh_token: str) -> Optional[str]:
@@ -385,6 +489,65 @@ async def get_iol_holdings(user_id: str = Depends(get_current_user_id)):
     return {"positions": all_positions}
 
 
+# ── IBKR Flex endpoints ──────────────────────────────────────────────────────
+
+@router.post("/ibkr-flex/connect")
+async def connect_ibkr_flex(
+    body: IBKRFlexConnectRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Stores the user's own Flex Query ID + Flex Web Service token
+    (generated in their IBKR account, Settings -> Reporting) — and proves
+    they're real by doing one live fetch before saving, same spirit as
+    IOL's connect call actually hitting /token. No refresh_token/expiry: a
+    Flex token is a long-lived (up to 1 year), user-managed credential, not
+    a short OAuth token this backend rotates."""
+    positions = await _ibkr_flex_fetch_statement(body.query_id, body.token)  # raises on invalid query_id/token
+    _ = positions  # validated, not persisted here — holdings endpoint re-fetches fresh
+
+    db = get_supabase()
+    await run_query(
+        db.table("brokerage_connections").upsert(
+            {
+                "user_id": user_id,
+                "provider": "ibkr_flex",
+                "institution_name": "Interactive Brokers",
+                "institution_id": body.query_id,
+                "access_token": body.token,
+                "last_sync_at": datetime.now(timezone.utc).isoformat(),
+            },
+            on_conflict="user_id,provider,institution_id",
+        )
+    )
+    return {"ok": True, "institution": "Interactive Brokers"}
+
+
+@router.get("/ibkr-flex/holdings")
+async def get_ibkr_flex_holdings(user_id: str = Depends(get_current_user_id)):
+    """Fetch real open positions via a fresh Flex Statement."""
+    db = get_supabase()
+    result = await run_query(
+        db.table("brokerage_connections")
+        .select("id,institution_id,access_token")
+        .eq("user_id", user_id)
+        .eq("provider", "ibkr_flex")
+        .maybe_single()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No tienes Interactive Brokers conectado.")
+
+    conn = result.data
+    statement_xml = await _ibkr_flex_fetch_statement(conn["institution_id"], conn["access_token"])
+    positions = _normalize_ibkr_flex_positions(statement_xml)
+
+    await run_query(
+        db.table("brokerage_connections")
+        .update({"last_sync_at": datetime.now(timezone.utc).isoformat()})
+        .eq("id", conn["id"])
+    )
+    return {"positions": positions}
+
+
 # ── Management endpoints ──────────────────────────────────────────────────────
 
 @router.get("/connections")
@@ -458,5 +621,15 @@ async def sync_all(user_id: str = Depends(get_current_user_id)):
             errors.append(f"IOL: {e.detail}")
     except Exception as e:
         errors.append(f"IOL: {str(e)}")
+
+    # IBKR Flex
+    try:
+        ibkr_result = await get_ibkr_flex_holdings(user_id=user_id)
+        all_positions.extend(ibkr_result["positions"])
+    except HTTPException as e:
+        if e.status_code != 404:  # 404 = not connected, not an error
+            errors.append(f"IBKR: {e.detail}")
+    except Exception as e:
+        errors.append(f"IBKR: {str(e)}")
 
     return {"positions": all_positions, "errors": errors}

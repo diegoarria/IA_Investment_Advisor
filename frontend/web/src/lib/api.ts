@@ -773,6 +773,11 @@ export const brokerageApi = {
     api.post("/api/brokerage/iol/connect", { username, password }),
   getIOLHoldings: () => api.get("/api/brokerage/iol/holdings"),
 
+  // IBKR Flex — direct, no Plaid (user's own Flex Query ID + Web Service token)
+  connectIBKRFlex: (queryId: string, token: string) =>
+    api.post("/api/brokerage/ibkr-flex/connect", { query_id: queryId, token }, { timeout: 30000 }),
+  getIBKRFlexHoldings: () => api.get("/api/brokerage/ibkr-flex/holdings", { timeout: 30000 }),
+
   // Management
   listConnections: () => api.get("/api/brokerage/connections"),
   deleteConnection: (id: string) => api.delete(`/api/brokerage/connections/${id}`),

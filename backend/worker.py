@@ -2206,7 +2206,7 @@ async def job_monthly_report_email():
 
 async def job_sync_connected_brokers():
     """8:10 AM ET daily — for every user with a broker connected by API
-    (Plaid: IBKR/Schwab/Robinhood; IOL), pull holdings and, if they differ
+    (Plaid: Schwab/Robinhood; IOL; IBKR via Flex, no Plaid), pull holdings and, if they differ
     from the Nuvos portfolio, Arthur offers a one-tap update
     (inbound_import.reconcile_broker_holdings)."""
     from app.core.database import get_supabase, run_query
@@ -2228,6 +2228,9 @@ async def job_sync_connected_brokers():
                     elif provider == "iol":
                         data = await brokerage.get_iol_holdings(user_id=uid)
                         name = "Invertir Online"
+                    elif provider == "ibkr_flex":
+                        data = await brokerage.get_ibkr_flex_holdings(user_id=uid)
+                        name = "Interactive Brokers"
                     else:
                         continue
                     positions = data.get("positions") or []

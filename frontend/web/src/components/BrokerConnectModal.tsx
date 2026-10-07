@@ -29,7 +29,7 @@ interface Props {
   onPositionsImported: (positions: BrokerPosition[]) => void;
 }
 
-type Screen = "home" | "iol-form" | "syncing";
+type Screen = "home" | "iol-form" | "ibkr-flex-form" | "syncing";
 
 // Belvo institution names below are Nuvos's best-effort mapping to
 // Belvo's real institution codes — CONFIRM against a live GET
@@ -41,6 +41,13 @@ type Screen = "home" | "iol-form" | "syncing";
 function getBrokers(t: TFunction) {
   return [
     { id: "ibkr",      name: "Interactive Brokers", domain: "interactivebrokers.com", color: "#e8000d", fallback: "IB",  provider: "plaid", desc: t("brokerConnectModal.brokers.ibkr") },
+    // Direct, no-Plaid alternative for the same broker (IBKR Flex Web
+    // Service) — Diego, 2026-10-06. Own `id`/display name so it never
+    // collides with the Plaid entry above in the `isConnected` matching
+    // below (both would otherwise save institution_name "Interactive
+    // Brokers"). Keeping both: existing users connected via Plaid keep
+    // working unchanged: this just gives anyone a cheaper/direct option too.
+    { id: "ibkr-flex", name: "Interactive Brokers (directo)", domain: "interactivebrokers.com", color: "#e8000d", fallback: "IB", provider: "ibkr_flex", desc: t("brokerConnectModal.brokers.ibkrFlex") },
     { id: "schwab",    name: "Charles Schwab",       domain: "schwab.com",             color: "#00a2e0", fallback: "CS",  provider: "plaid", desc: t("brokerConnectModal.brokers.schwab") },
     { id: "robinhood", name: "Robinhood",            domain: "robinhood.com",          color: "#00c805", fallback: "RH",  provider: "plaid", desc: t("brokerConnectModal.brokers.robinhood") },
     { id: "iol",       name: "Invertir Online",      domain: "invertironline.com",     color: "#003087", fallback: "IOL", provider: "iol",   desc: t("brokerConnectModal.brokers.iol") },
@@ -117,6 +124,8 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
   const [connections, setConnections] = useState<Connection[]>([]);
   const [iolUser, setIolUser] = useState("");
   const [iolPass, setIolPass] = useState("");
+  const [ibkrQueryId, setIbkrQueryId] = useState("");
+  const [ibkrToken, setIbkrToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
   const [error, setError] = useState("");
@@ -240,6 +249,31 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
     } finally {
       setLoading(false);
       setIolPass("");
+    }
+  };
+
+  // ── IBKR Flex flow (direct, no Plaid) ───────────────────────────────────────
+
+  const handleIBKRFlexConnect = async () => {
+    if (!ibkrQueryId || !ibkrToken) return;
+    setError("");
+    setLoading(true);
+    try {
+      await brokerageApi.connectIBKRFlex(ibkrQueryId, ibkrToken);
+      setScreen("syncing");
+      setSyncMsg(t("brokerConnectModal.status.fetchingIbkrPositions"));
+      const holdingsRes = await brokerageApi.getIBKRFlexHoldings();
+      const positions: BrokerPosition[] = holdingsRes.data?.positions ?? [];
+      await loadConnections();
+      onPositionsImported(positions);
+      setSyncMsg(`✓ ${t("brokerConnectModal.status.positionsImportedIbkr", { count: positions.length })}`);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(msg ?? t("brokerConnectModal.errors.ibkrConnectFailed"));
+      setScreen("home");
+    } finally {
+      setLoading(false);
+      setIbkrToken("");
     }
   };
 
@@ -455,6 +489,61 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
             </div>
           )}
 
+          {/* IBKR Flex form */}
+          {screen === "ibkr-flex-form" && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3 mb-2">
+                <BrokerLogoWeb domain="interactivebrokers.com" fallback="IB" color="#e8000d" />
+                <div>
+                  <p className="font-bold text-sm" style={{ color: "var(--text)" }}>Interactive Brokers</p>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>
+                    {t("brokerConnectModal.ibkrFlexNote")}
+                  </p>
+                </div>
+              </div>
+              <input
+                type="text"
+                placeholder={t("brokerConnectModal.ibkrFlexQueryIdPlaceholder")}
+                value={ibkrQueryId}
+                onChange={(e) => setIbkrQueryId(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                style={{ background: "var(--raised)", color: "var(--text)", border: "1px solid var(--border)" }}
+              />
+              <input
+                type="password"
+                placeholder={t("brokerConnectModal.ibkrFlexTokenPlaceholder")}
+                value={ibkrToken}
+                onChange={(e) => setIbkrToken(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleIBKRFlexConnect()}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                style={{ background: "var(--raised)", color: "var(--text)", border: "1px solid var(--border)" }}
+              />
+              {error && (
+                <div className="flex items-center gap-2 text-xs p-3 rounded-xl" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+              <div className="flex gap-2 mt-1">
+                <button
+                  onClick={() => { setScreen("home"); setError(""); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-opacity hover:opacity-70"
+                  style={{ background: "var(--raised)", color: "var(--muted)" }}
+                >
+                  {t("brokerConnectModal.cancel")}
+                </button>
+                <button
+                  onClick={handleIBKRFlexConnect}
+                  disabled={loading || !ibkrQueryId || !ibkrToken}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-opacity hover:opacity-80 disabled:opacity-40"
+                  style={{ background: "var(--accent)", color: "#fff" }}
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : t("brokerConnectModal.connect")}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Home screen */}
           {screen === "home" && (
             <>
@@ -521,17 +610,29 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
               <div className="flex flex-col gap-2">
                 {BROKERS.map((broker) => {
                   const isConnected = connections.some(
-                    (c) => c.institution_name === broker.name || (broker.id === "iol" && c.provider === "iol")
+                    (c) =>
+                      c.institution_name === broker.name ||
+                      (broker.id === "iol" && c.provider === "iol") ||
+                      (broker.id === "ibkr-flex" && c.provider === "ibkr_flex")
                   );
                   const isBelvo = broker.provider === "belvo";
                   const isPlaid = broker.provider === "plaid";
-                  const isLive = isBelvo || isPlaid;
+                  const isIOL = broker.provider === "iol";
+                  const isIBKRFlex = broker.provider === "ibkr_flex";
+                  // Diego, 2026-10-06: IOL was already real (its own form +
+                  // connect handler existed) but unreachable from here —
+                  // isLive only ever covered Belvo/Plaid, so clicking it
+                  // fell through to the generic "coming soon" message.
+                  // Fixed alongside wiring up the new IBKR Flex entry.
+                  const isLive = isBelvo || isPlaid || isIOL || isIBKRFlex;
                   return (
                     <button
                       key={broker.id}
                       onClick={() => {
                         if (isBelvo) return handleBelvoConnect(broker.name);
                         if (isPlaid) return handlePlaidBroker();
+                        if (isIOL) { setError(""); return setScreen("iol-form"); }
+                        if (isIBKRFlex) { setError(""); return setScreen("ibkr-flex-form"); }
                         return setError(`🚀 ${t("brokerConnectModal.comingSoonMessage", { broker: broker.name })}`);
                       }}
                       disabled={isConnected || (isLive && loading)}
