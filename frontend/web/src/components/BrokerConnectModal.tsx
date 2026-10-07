@@ -54,9 +54,17 @@ function getBrokers(t: TFunction) {
     // Banking (Belvo Phase 1 — real balance sync, live today).
     { id: "bbva-mx",   name: "BBVA México",          domain: "bbva.mx",                color: "#004481", fallback: "BBVA", provider: "belvo", belvoInstitution: "bbva_mx_retail",     desc: t("brokerConnectModal.brokers.bbvaMx") },
     { id: "banorte",   name: "Banorte",              domain: "banorte.com",            color: "#e2001a", fallback: "BNT",  provider: "belvo", belvoInstitution: "banorte_mx_retail",  desc: t("brokerConnectModal.brokers.banorte") },
-    // Brokerage (Belvo Phase 2 — link connects today, position sync lands later).
-    { id: "gbm",       name: "GBM",                  domain: "gbm.com.mx",             color: "#0033a0", fallback: "GBM", provider: "belvo", belvoInstitution: "gbm_mx_retail",      desc: t("brokerConnectModal.brokers.gbm") },
-    { id: "actinver",  name: "Actinver",             domain: "actinver.com",           color: "#c8102e", fallback: "ACT", provider: "belvo", belvoInstitution: "actinver_mx_retail", desc: t("brokerConnectModal.brokers.actinver") },
+    // Brokerage (Belvo Phase 2 — WAS "link connects today, position sync
+    // lands later", but Diego confirmed live 2026-10-06: GBM and Actinver
+    // themselves told him there's no channel at all for pulling portfolio
+    // positions — not a "we haven't built it yet" gap, possibly not
+    // buildable via Belvo (or anyone) at all. Marked `comingSoon: true` so
+    // these fall through to the same generic "🚀 Próximamente" treatment
+    // every not-yet-implemented broker gets, instead of actually opening
+    // the Belvo widget and saving a link that can never sync anything —
+    // never show a real "Conectar" CTA for something confirmed dead-ended.
+    { id: "gbm",       name: "GBM",                  domain: "gbm.com.mx",             color: "#0033a0", fallback: "GBM", provider: "belvo", belvoInstitution: "gbm_mx_retail",      desc: t("brokerConnectModal.brokers.gbm"),      comingSoon: true },
+    { id: "actinver",  name: "Actinver",             domain: "actinver.com",           color: "#c8102e", fallback: "ACT", provider: "belvo", belvoInstitution: "actinver_mx_retail", desc: t("brokerConnectModal.brokers.actinver"), comingSoon: true },
   ];
 }
 
@@ -615,10 +623,14 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                       (broker.id === "iol" && c.provider === "iol") ||
                       (broker.id === "ibkr-flex" && c.provider === "ibkr_flex")
                   );
-                  const isBelvo = broker.provider === "belvo";
-                  const isPlaid = broker.provider === "plaid";
-                  const isIOL = broker.provider === "iol";
-                  const isIBKRFlex = broker.provider === "ibkr_flex";
+                  // broker.comingSoon (GBM/Actinver, 2026-10-06 — see their
+                  // own comment above) overrides everything below: never
+                  // treat these as live even though their provider is
+                  // "belvo", same as BBVA/Banorte.
+                  const isBelvo = !broker.comingSoon && broker.provider === "belvo";
+                  const isPlaid = !broker.comingSoon && broker.provider === "plaid";
+                  const isIOL = !broker.comingSoon && broker.provider === "iol";
+                  const isIBKRFlex = !broker.comingSoon && broker.provider === "ibkr_flex";
                   // Diego, 2026-10-06: IOL was already real (its own form +
                   // connect handler existed) but unreachable from here —
                   // isLive only ever covered Belvo/Plaid, so clicking it
