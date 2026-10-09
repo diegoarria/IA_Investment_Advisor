@@ -617,11 +617,22 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
               </p>
               <div className="flex flex-col gap-2">
                 {BROKERS.map((broker) => {
+                  // Diego, 2026-10-09: "Interactive Brokers" (Plaid) and
+                  // "Interactive Brokers (directo)" (ibkr_flex) are two
+                  // DIFFERENT entries for the same real broker — but
+                  // connect_ibkr_flex saves institution_name "Interactive
+                  // Brokers" (the plain real name, same as the Plaid
+                  // connection would), so the plain `institution_name ===
+                  // broker.name` check below matched the Plaid "ibkr" entry
+                  // too even when only the direct one was ever connected
+                  // (both got the green checkmark). "ibkr" now requires its
+                  // real provider explicitly, same as iol/ibkr-flex already did.
                   const isConnected = connections.some(
                     (c) =>
-                      c.institution_name === broker.name ||
                       (broker.id === "iol" && c.provider === "iol") ||
-                      (broker.id === "ibkr-flex" && c.provider === "ibkr_flex")
+                      (broker.id === "ibkr-flex" && c.provider === "ibkr_flex") ||
+                      (broker.id === "ibkr" && c.provider === "plaid" && c.institution_name === broker.name) ||
+                      (broker.id !== "iol" && broker.id !== "ibkr-flex" && broker.id !== "ibkr" && c.institution_name === broker.name)
                   );
                   // broker.comingSoon (GBM/Actinver, 2026-10-06 — see their
                   // own comment above) overrides everything below: never
