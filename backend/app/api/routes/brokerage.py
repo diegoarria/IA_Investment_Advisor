@@ -545,7 +545,18 @@ async def connect_ibkr_flex(
                 "access_token": body.token,
                 "last_sync_at": datetime.now(timezone.utc).isoformat(),
             },
-            on_conflict="user_id,provider,institution_id",
+            # Diego, 2026-10-09: a user's Flex Query ID (institution_id here)
+            # isn't stable the way IOL's/Plaid's institution identifiers are
+            # — he recreated his after the first one got stuck, and
+            # reconnecting upserted a SECOND row instead of replacing the
+            # first (the general UNIQUE(user_id, provider, institution_id)
+            # constraint treats a new query_id as a different connection),
+            # which then broke get_ibkr_flex_holdings's .maybe_single() call
+            # (0-1 rows expected, got 2 -> raw 500). At most one IBKR Flex
+            # connection per user now (migration 112's partial unique
+            # index on (user_id, provider) WHERE provider='ibkr_flex') — a
+            # reconnect with a different query_id updates this same row.
+            on_conflict="user_id,provider",
         )
     )
     return {"ok": True, "institution": "Interactive Brokers"}
@@ -555,17 +566,23 @@ async def connect_ibkr_flex(
 async def get_ibkr_flex_holdings(user_id: str = Depends(get_current_user_id)):
     """Fetch real open positions via a fresh Flex Statement."""
     db = get_supabase()
+    # Plain select + take the most recent, NOT .maybe_single() — that raises
+    # (an unhandled exception -> raw 500) the moment more than one row
+    # matches, which happened live 2026-10-09 from a pre-migration-112 data
+    # state. Migration 112's unique index prevents new duplicates, but this
+    # stays defensive rather than trusting that alone.
     result = await run_query(
         db.table("brokerage_connections")
         .select("id,institution_id,access_token")
         .eq("user_id", user_id)
         .eq("provider", "ibkr_flex")
-        .maybe_single()
+        .order("created_at", desc=True)
+        .limit(1)
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="No tienes Interactive Brokers conectado.")
 
-    conn = result.data
+    conn = result.data[0]
     statement_xml = await _ibkr_flex_fetch_statement(conn["institution_id"], conn["access_token"])
     positions = _normalize_ibkr_flex_positions(statement_xml)
 
