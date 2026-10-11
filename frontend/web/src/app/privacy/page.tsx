@@ -31,8 +31,8 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-white text-xl font-bold mb-3">1. Responsable</h2>
             <p className="text-sm">
-              <strong className="text-white">Responsable del tratamiento:</strong> [NOMBRE LEGAL COMPLETO]<br />
-              <strong className="text-white">Domicilio:</strong> [DOMICILIO LEGAL]<br />
+              <strong className="text-white">Responsable del tratamiento:</strong> D.A. Holdings S.A. de C.V.<br />
+              <strong className="text-white">Domicilio:</strong> C. Washington 1400, Centro, 64000 Monterrey, N.L.<br />
               <strong className="text-white">Correo de privacidad:</strong> legal@nuvosai.com
             </p>
             <p className="text-sm mt-3">
@@ -446,6 +446,7 @@ export default function PrivacyPage() {
           <div className="flex items-center gap-4 text-xs sm:text-sm">
             <a href="/terms" className="hover:text-white/60 transition-colors">Términos de uso →</a>
             <a href="/privacy-simple" className="hover:text-white/60 transition-colors">Versión simplificada →</a>
+            <a href="/privacy/en" className="hover:text-white/60 transition-colors">English version →</a>
             <a href="/ai-policy" className="hover:text-white/60 transition-colors">Política de IA →</a>
           </div>
         </div>
