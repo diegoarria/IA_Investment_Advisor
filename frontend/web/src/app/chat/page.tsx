@@ -752,7 +752,10 @@ export default function ChatPage() {
         () => {
           setStreaming(false);
           localFingerprintsRef.current.add(fp("assistant", fullResponse));
-          if (!guestLike) chatApi.saveMessage("assistant", fullResponse, currentId).catch(() => {});
+          // No saveMessage() here — chat_message() on the backend already
+          // persisted this reply itself (see sessionId passed to
+          // chatApi.stream below) as soon as it finished generating, so a
+          // second save here would just duplicate the chat_history row.
           syncCursorRef.current = new Date().toISOString();
           if (voiceInputRef.current) {
             voiceInputRef.current = false;
@@ -786,6 +789,7 @@ export default function ChatPage() {
         },
         guestLike,
         getGuestId(),
+        guestLike ? null : currentId,
       );
     } catch (err: unknown) {
       setStreaming(false);

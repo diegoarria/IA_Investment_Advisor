@@ -201,6 +201,12 @@ class ChatRequest(BaseModel):
     image_type: Optional[str] = None
     # Multi-image support (1-8 images)
     images: list[ChatImage] = []
+    # When set, the backend persists the assistant's reply to chat_history
+    # itself (see chat_message's call to _persist_chat_message) instead of
+    # relying on the client surviving long enough to POST /save-message
+    # afterwards — a client that dies mid-request (tab closed, app killed)
+    # must not cost a real LLM call and lose the answer with no trace.
+    session_id: Optional[str] = None
 
     @field_validator("message")
     @classmethod

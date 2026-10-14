@@ -186,6 +186,7 @@ export const chatApi = {
     images?: Array<{ data: string; type: string }> | null,
     notificationContext?: string | null,
     onActions?: (actions: Array<{ type: string; label: string; data: Record<string, unknown> }>) => void,
+    sessionId?: string | null,
   ) => {
     const payload = {
       message,
@@ -195,6 +196,10 @@ export const chatApi = {
       image_type: imageType ?? null,
       images: images ?? [],
       notification_context: notificationContext ?? null,
+      // Lets the backend persist the assistant's reply itself right after
+      // generating it, instead of depending on this screen/app surviving
+      // long enough to come back and call saveMessage() afterwards.
+      session_id: sessionId ?? null,
     };
     let res;
     try {

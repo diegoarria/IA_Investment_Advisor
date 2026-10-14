@@ -671,7 +671,10 @@ Instrucciones críticas:
           setStreaming(false);
           localFingerprintsRef.current.add(fp("assistant", full));
           syncCursorRef.current = new Date().toISOString();
-          chatApi.saveMessage("assistant", full, currentId).catch(() => {});
+          // No saveMessage() here — chat_message() on the backend already
+          // persisted this reply itself (see sessionId passed to
+          // chatApi.stream below) as soon as it finished generating, so a
+          // second save here would just duplicate the chat_history row.
           if (voiceInputRef.current) {
             voiceInputRef.current = false;
             playMessageAudio(full, withAssistant.length - 1);
@@ -690,6 +693,7 @@ Instrucciones críticas:
         imagesToSend.length > 0 ? imagesToSend.map((i) => ({ data: i.data, type: i.type })) : null,
         ctxToSend,
         (actions) => { setPendingActions(actions); setCommittedActions(new Set()); },
+        currentId,
       );
     } catch (err: unknown) {
       const errObj = err as { response?: { status?: number; data?: { detail?: { message?: string } } }; message?: string };

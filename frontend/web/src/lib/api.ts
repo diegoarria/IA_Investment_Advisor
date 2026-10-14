@@ -181,6 +181,7 @@ export const chat = {
     onActions?: (actions: Array<{ type: string; label: string; data: Record<string, unknown> }>) => void,
     isGuest?: boolean,
     guestId?: string,
+    sessionId?: string | null,
   ) => {
     const payload = {
       message,
@@ -190,6 +191,10 @@ export const chat = {
       image_type: imageType ?? null,
       images: images ?? [],
       notification_context: notificationContext ?? null,
+      // Lets the backend persist the assistant's reply itself right after
+      // generating it, instead of depending on this tab surviving long
+      // enough to come back and call saveMessage() afterwards.
+      session_id: sessionId ?? null,
     };
     // No-auth counterpart for guests ("Explorar sin cuenta") — same real
     // Arthur, same dual-routing/Haiku tier a free account gets, gated by a

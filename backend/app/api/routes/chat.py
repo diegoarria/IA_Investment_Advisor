@@ -10,6 +10,7 @@ import json
 
 logger = logging.getLogger("uvicorn.error")
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
@@ -1060,6 +1061,18 @@ async def chat_message(
     if cache_key:
         store_answer(cache_key, clean_reply)
 
+    # Persist the reply server-side right away — fire-and-forget, same
+    # pattern as the Investment Graph logging below. Arthur must ALWAYS
+    # answer AND that answer must survive even if the client never comes
+    # back to ask for it (tab closed, app killed mid-request): by the time
+    # we're here the LLM call already happened and was already paid for,
+    # so losing the reply with no trace is strictly worse than this extra
+    # write. The client still does its own immediate optimistic save of the
+    # USER's message before this request is even sent (unaffected by this),
+    # but no longer needs to re-save the ASSISTANT's reply after the fact.
+    if body.session_id:
+        asyncio.create_task(_persist_chat_message(user_id, "assistant", clean_reply, body.session_id))
+
     # Uso extra: 70% / 90% / 100% usage alerts (once each per month).
     if premium:
         from app.services import usage_overage
@@ -1174,15 +1187,14 @@ async def chat_message_public(
     return {"reply": clean_reply, "risk_assessment": bscore, "tickers": tickers, "actions": actions}
 
 
-@router.post("/save-message")
-async def save_message(
-    request: dict,
-    user_id: str = Depends(get_current_user_id)
-):
+async def _persist_chat_message(user_id: str, role: str, content: str, session_id: Optional[str]) -> bool:
+    """Shared by /save-message (client-driven) and chat_message's own
+    fire-and-forget server-side save — see chat_message's call of this
+    for why the assistant reply also gets persisted here directly instead
+    of relying solely on the client calling /save-message afterwards."""
     try:
         from datetime import datetime
         db = get_supabase()
-        session_id = request.get("session_id")
         # A message send and a delete of that same session can race (the
         # user sends, then deletes before the save-message POST resolves).
         # Without this check, a save that lands AFTER the delete silently
@@ -1193,23 +1205,33 @@ async def save_message(
                   .eq("user_id", user_id).eq("session_id", session_id)
             )
             if tombstoned.data:
-                return {"saved": False, "reason": "session_deleted"}
+                return False
         record = {
             "user_id": user_id,
-            "role": request.get("role"),
-            "content": request.get("content"),
+            "role": role,
+            "content": content,
             "created_at": datetime.utcnow().isoformat(),
             "session_id": session_id,
         }
         await run_query(db.table("chat_history").insert(record))
+        return True
     except Exception as exc:
-        # Used to return {"saved": True} even when the insert above failed
-        # — an explicit lie to the client, and the message silently never
-        # persists to chat history with zero trace (2026-08-26 full-sweep
-        # audit).
-        logger.error("save_chat_message: insert failed for user %s: %s", user_id, exc)
-        return {"saved": False, "reason": "error"}
-    return {"saved": True}
+        logger.error("_persist_chat_message: insert failed for user %s: %s", user_id, exc)
+        return False
+
+
+@router.post("/save-message")
+async def save_message(
+    request: dict,
+    user_id: str = Depends(get_current_user_id)
+):
+    saved = await _persist_chat_message(
+        user_id, request.get("role"), request.get("content"), request.get("session_id"),
+    )
+    # Used to return {"saved": True} even when the insert failed — an
+    # explicit lie to the client, and the message silently never persists
+    # to chat history with zero trace (2026-08-26 full-sweep audit).
+    return {"saved": saved} if saved else {"saved": False, "reason": "error"}
 
 
 @router.post("/transcribe")
