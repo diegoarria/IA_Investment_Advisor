@@ -3214,20 +3214,24 @@ async def get_peers(
                 )
                 if r.status_code == 200:
                     tickers = [t for t in r.json() if t != sym][:7]
-                    for t in tickers:
+
+                    def _fetch_peer(t: str):
                         try:
                             from app.core.finnhub import fh_quote as _fh_q, fh_profile as _fh_p
                             q = _fh_q(t)
                             pr = _fh_p(t)
                             name = (pr or {}).get("name") or t
-                            peers.append({
+                            return {
                                 "ticker": t,
                                 "name":   name,
                                 "price":  round(q["price"], 2) if q and q.get("price") else None,
                                 "change_pct": q["change_pct"] if q else None,
-                            })
+                            }
                         except Exception:
-                            peers.append({"ticker": t, "name": t, "price": None, "change_pct": None})
+                            return {"ticker": t, "name": t, "price": None, "change_pct": None}
+
+                    if tickers:
+                        peers = list(_MARKET_POOL.map(_fetch_peer, tickers))
             except Exception:
                 pass
         return peers

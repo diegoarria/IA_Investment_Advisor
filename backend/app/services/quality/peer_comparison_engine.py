@@ -24,6 +24,7 @@ group.
 from __future__ import annotations
 
 import statistics
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -70,23 +71,37 @@ def compute_quality_peer_comparison(
     if len(peers) < _MIN_PEERS_FOR_COMPARISON:
         return None
 
-    snapshots: list[PeerQualitySnapshot] = []
-    real_peers: list[str] = []
-    for peer_ticker in peers:
-        if analysis_cache is not None and peer_ticker in analysis_cache:
-            peer_data = analysis_cache[peer_ticker]
-        else:
+    # Fetch each uncached peer's analysis in parallel — these are independent
+    # HTTP/compute-heavy calls that used to run one after another (same fix
+    # already applied to financial_data_service's statement fetches).
+    to_fetch = [
+        t for t in peers
+        if analysis_cache is None or t not in analysis_cache
+    ]
+    fetched: dict[str, Optional[dict]] = {}
+    if to_fetch:
+        def _fetch_one(peer_ticker: str) -> Optional[dict]:
             try:
                 # _compute_peer_dependent_data=False — this only needs the peer's
                 # quality score (build_quality_score_from_analysis below),
                 # never its Consensus fair value; skipping it avoids the
                 # peer's own peer-fetching cascade for a result that would
                 # just be discarded. See get_fundamental_analysis's docstring.
-                peer_data = get_fundamental_analysis(peer_ticker, _compute_peer_dependent_data=False)
+                return get_fundamental_analysis(peer_ticker, _compute_peer_dependent_data=False)
             except Exception:
-                continue
-            if analysis_cache is not None:
-                analysis_cache[peer_ticker] = peer_data
+                return None
+        with ThreadPoolExecutor(max_workers=len(to_fetch)) as ex:
+            fetched = dict(zip(to_fetch, ex.map(_fetch_one, to_fetch)))
+        if analysis_cache is not None:
+            analysis_cache.update(fetched)
+
+    snapshots: list[PeerQualitySnapshot] = []
+    real_peers: list[str] = []
+    for peer_ticker in peers:
+        if analysis_cache is not None and peer_ticker in analysis_cache:
+            peer_data = analysis_cache[peer_ticker]
+        else:
+            peer_data = fetched.get(peer_ticker)
         if not peer_data:
             continue
         real_peers.append(peer_ticker)

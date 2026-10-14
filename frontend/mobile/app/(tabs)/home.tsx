@@ -706,8 +706,11 @@ export default function HomeScreen() {
 
       // News + YTD only when we have positions
       if (tickers.length) {
-        const newsRes = await marketApi.getNews(tickers.slice(0, 6)).catch(() => null);
-        if (newsRes) setNews((newsRes.data?.articles ?? newsRes.data?.news ?? []).slice(0, 6));
+        // Fire-and-forget, same as the portfolio-chart calls right below it —
+        // news is below the fold and shouldn't block removing the skeleton.
+        marketApi.getNews(tickers.slice(0, 6)).then((newsRes: any) => {
+          if (newsRes) setNews((newsRes.data?.articles ?? newsRes.data?.news ?? []).slice(0, 6));
+        }).catch(() => {});
 
         // Must match Portfolio page's posPayload exactly (including purchase_date) —
         // the backend uses purchase_date to adjust the base for mid-period buys, so
