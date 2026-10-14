@@ -170,6 +170,35 @@ def _usd_rate(currency: str) -> Optional[float]:
             return float(rate)
     except Exception:
         pass
+
+    # Diego, 2026-10-14: Yahoo (yfinance) blocks/rate-limits datacenter IPs
+    # on its FX pairs often enough in practice (confirmed: "possibly
+    # delisted" on EURUSD=X with a healthy network otherwise) that this was
+    # silently starving every foreign-currency reporter's entire income
+    # statement of a real USD conversion — e.g. ASML (EUR) showing
+    # "Ventas: N/D" even though FMP's own income-statement endpoint already
+    # has the real revenue figure. FMP (already the primary provider for
+    # everything else in this file, proven reliable) has its own forex
+    # quote endpoint — try it before giving up, same honesty rule as
+    # before: a bad/zero rate still returns None, never a fabricated 1:1.
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/quote",
+            params={"apikey": FMP_KEY, "symbol": f"{c}USD"},
+            headers=_REQ_HEADERS,
+            timeout=8,
+        )
+        rows = r.json()
+        rate = (rows[0] or {}).get("price") if isinstance(rows, list) and rows else None
+        if rate and float(rate) > 0:
+            with _fx_mu:
+                _fx[c] = float(rate)
+                _fx_ts = time.time()
+                _fx_failed.pop(c, None)
+            return float(rate)
+    except Exception:
+        pass
+
     with _fx_mu:
         _fx_failed[c] = time.time()
     return None

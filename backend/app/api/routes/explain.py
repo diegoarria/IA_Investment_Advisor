@@ -58,6 +58,20 @@ _SCREEN_INSTRUCTIONS = {
         "ejemplo. Cierra invitando al usuario a mover los controles (crecimiento, WACC) él "
         "mismo para ver cómo cambia el valor intrínseco calculado."
     ),
+    "earnings": (
+        "Esta pantalla es el reporte trimestral completo de una empresa. Da un resumen ejecutivo "
+        "hablado de 1-2 minutos cubriendo, en este orden, solo lo que de verdad esté presente en "
+        "`context` (omite cualquier sección que no esté): (1) el veredicto general (`headline`) y "
+        "la calificación (`rating_out_of_10`); (2) si superó o no en utilidad y en ventas "
+        "(`eps_actual` vs `eps_estimate`, `revenue_actual` vs `revenue_estimate`); (3) los 2-3 "
+        "puntos positivos y negativos más importantes (`positives`/`negatives`); (4) si hay "
+        "`guidance_change`, di si la empresa elevó, bajó o mantuvo su guía; (5) si hay "
+        "`management_commentary`, resume la cita o idea más reveladora del CEO/CFO, mencionando "
+        "su nombre si lo sabes; (6) si hay `future_catalysts`, menciona el más importante para el "
+        "futuro de la empresa; (7) cierra con `thesis_impact` en tus propias palabras: qué "
+        "significa este reporte para alguien que invierte a largo plazo. Nunca digas 'compra' o "
+        "'vende'."
+    ),
     "oportunidades_slider_feedback": (
         "El usuario ACABA de mover uno de los controles del modelo (crecimiento, WACC o "
         "crecimiento terminal) a un nuevo valor — `context` trae el valor que eligió y el "

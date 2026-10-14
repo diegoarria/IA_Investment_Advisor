@@ -356,39 +356,30 @@ def _fetch_latest_reported_quarter(symbol: str) -> dict | None:
 
 
 def _fetch_revenue_for_period(symbol: str, period: str) -> dict:
-    """Real revenue actual (FMP's own quarterly income statement, matched to
-    the same fiscal period-end date Finnhub reported) and revenue estimate
-    (Finnhub's earnings calendar, matched to the announcement shortly AFTER
-    that period-end — that endpoint only carries estimates tied to the
-    announcement date, not the fiscal period-end). Returns None fields
-    (never a guess) when no real match is found for either."""
+    """Real revenue actual + estimate for the reported quarter.
+
+    Diego, 2026-10-14: Finnhub's own /calendar/earnings entry already
+    carries BOTH `revenueEstimate` and `revenueActual` together, in
+    whatever single currency/scale Finnhub itself uses for that ticker —
+    confirmed live for ASML: both ~€11.8-12.0B, consistent with each
+    other. That pairing is now preferred over FMP's income statement for
+    the actual: FMP reports in the company's OWN filing currency (EUR for
+    ASML) and gets converted to USD by _conv/get_financials, while
+    Finnhub's estimate for the same ticker was NOT going through that same
+    conversion — mixing the two silently compared a USD-converted actual
+    against a EUR-scale estimate (ASML: $13.27B "actual" vs €11.85B
+    "estimate", a fake ~12% beat that was really an artifact of currency,
+    not performance). Finnhub's own revenueActual avoids that entirely by
+    keeping both numbers in the same scale, straight from the same call.
+
+    FMP's income statement is now only a FALLBACK for when Finnhub hasn't
+    populated revenueActual yet (common right after a release, before
+    Finnhub's own ingestion catches up) — same currency-mismatch risk as
+    before applies to that fallback path, so it's a last resort, not the
+    primary source anymore. Returns None fields (never a guess) when no
+    real match is found for either."""
     revenue_actual = None
     revenue_estimate = None
-
-    try:
-        from app.services.financial_data_service import get_financials
-        fin = get_financials(symbol, limit=8)
-        income_q = fin.get("incomeStatement", {}).get("quarterly", [])
-        # Exact period match first; fall back to the closest period within
-        # 10 days (provider period-end dates occasionally differ by a day
-        # or two) — never further than that, to avoid mismatching quarters.
-        exact = next((row for row in income_q if row.get("period") == period), None)
-        if exact:
-            revenue_actual = exact.get("Total Revenue")
-        else:
-            try:
-                target = datetime.strptime(period, "%Y-%m-%d").date()
-                close = min(
-                    (row for row in income_q if row.get("period")),
-                    key=lambda row: abs((datetime.strptime(row["period"], "%Y-%m-%d").date() - target).days),
-                    default=None,
-                )
-                if close and abs((datetime.strptime(close["period"], "%Y-%m-%d").date() - target).days) <= 10:
-                    revenue_actual = close.get("Total Revenue")
-            except Exception:
-                pass
-    except Exception as e:
-        logger.debug("_fetch_revenue_for_period(%s) actual failed: %s", symbol, e)
 
     try:
         import os
@@ -411,8 +402,36 @@ def _fetch_revenue_for_period(symbol: str, period: str) -> dict:
             if items:
                 items.sort(key=lambda it: it.get("date") or "")
                 revenue_estimate = items[0].get("revenueEstimate")
+                revenue_actual = items[0].get("revenueActual")
     except Exception as e:
-        logger.debug("_fetch_revenue_for_period(%s) estimate failed: %s", symbol, e)
+        logger.debug("_fetch_revenue_for_period(%s) Finnhub calendar failed: %s", symbol, e)
+
+    if revenue_actual is None:
+        try:
+            from app.services.financial_data_service import get_financials
+            fin = get_financials(symbol, limit=8)
+            income_q = fin.get("incomeStatement", {}).get("quarterly", [])
+            # Exact period match first; fall back to the closest period
+            # within 10 days (provider period-end dates occasionally differ
+            # by a day or two) — never further than that, to avoid
+            # mismatching quarters.
+            exact = next((row for row in income_q if row.get("period") == period), None)
+            if exact:
+                revenue_actual = exact.get("Total Revenue")
+            else:
+                try:
+                    target = datetime.strptime(period, "%Y-%m-%d").date()
+                    close = min(
+                        (row for row in income_q if row.get("period")),
+                        key=lambda row: abs((datetime.strptime(row["period"], "%Y-%m-%d").date() - target).days),
+                        default=None,
+                    )
+                    if close and abs((datetime.strptime(close["period"], "%Y-%m-%d").date() - target).days) <= 10:
+                        revenue_actual = close.get("Total Revenue")
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug("_fetch_revenue_for_period(%s) FMP fallback failed: %s", symbol, e)
 
     return {"revenue_actual": revenue_actual, "revenue_estimate": revenue_estimate}
 
@@ -468,53 +487,125 @@ def _fetch_earnings_data(symbol: str) -> dict:
         return {"symbol": symbol, "error": str(e)}
 
 
-async def _search_earnings_context(symbol: str, company_name: str, fiscal_label: str, lang: str = "es") -> str:
+async def _search_earnings_context(symbol: str, company_name: str, fiscal_label: str, lang: str = "es") -> dict:
     """Real-time web search (Perplexity) for the actual earnings-release
-    detail no structured data source in this codebase provides — segment
-    revenue/orders growth, backlog, guidance changes, analyst/market
+    detail no structured data source in this codebase provides — segment/
+    orders growth, backlog, guidance changes, direct management quotes,
+    analyst Q&A highlights, forward catalysts, risks, and the market
     reaction. Same defensive pattern as price_alert_service.
-    search_price_catalyst: returns "" (never a guess) on timeout, missing
-    key, or a genuinely empty search — callers must treat that as "no
-    detail found" and say so explicitly, never fabricate a segment number
-    or backlog figure to fill the gap.
+    search_price_catalyst: returns {"text": "", "citations": []} (never a
+    guess) on timeout, missing key, or a genuinely empty search — callers
+    must treat that as "no detail found" and say so explicitly, never
+    fabricate a figure, quote, or catalyst to fill the gap.
 
-    The query itself is written in `lang` (not always Spanish) — a Spanish
-    query tends to surface Spanish-language source material, which can bias
-    Claude into leaking Spanish phrases/quotes into an English response even
-    though ai_service.analyze_earnings is explicitly told which language to
-    write in."""
-    from app.services.perplexity_service import search_web
+    Uses search_web_with_citations (not the plainer search_web) so the real
+    source URLs Perplexity's own web search found come back alongside the
+    answer — these are shown to the user as "Fuentes" and also let Claude
+    attribute a quote/claim to where it actually came from, instead of an
+    unsourced assertion. A much larger max_tokens than the old 450-token
+    search_web default — a one-paragraph answer physically cannot cover
+    guidance + quotes + Q&A + catalysts + risks, which is why the old
+    version of this report was this thin. This runs once per (ticker,
+    fiscal quarter) and is cached 60 days by the caller, so the extra
+    tokens cost nothing in practice.
 
+    The query/system prompt are written in `lang` (not always Spanish) — a
+    Spanish query tends to surface Spanish-language source material, which
+    can bias Claude into leaking Spanish phrases/quotes into an English
+    response even though ai_service.analyze_earnings is explicitly told
+    which language to write in."""
+    from app.services.perplexity_service import search_web_with_citations
+
+    empty = {"text": "", "citations": []}
     if lang == "en":
+        system_prompt = (
+            "You are a financial research assistant preparing a deep, investor-grade earnings "
+            "report briefing. Be thorough and factual, citing exact figures, dates and named "
+            "sources wherever possible. Up to 1200 words."
+        )
         query = (
-            f"Quarterly earnings report results for {company_name} ({symbol}), {fiscal_label}: "
-            f"find the revenue and order-growth breakdown by business SEGMENT, "
-            f"backlog or accumulated orders, any guidance change (old range vs new) "
-            f"for the full fiscal year, and the market/analyst reaction to the report. Give exact "
-            f"figures and which segment/business line they come from when available."
+            f"Deep-dive on the quarterly earnings report of {company_name} ({symbol}) for "
+            f"{fiscal_label}, released around now. Cover, with exact figures and attribution "
+            f"whenever available: (1) revenue/orders growth broken down by business SEGMENT, "
+            f"backlog or accumulated orders; (2) any guidance change for next quarter and the "
+            f"full fiscal year (old range vs new range); (3) DIRECT QUOTES from the CEO/CFO or "
+            f"other named executives from the earnings call or press release, with their name and "
+            f"title; (4) the most revealing questions analysts asked on the earnings call and how "
+            f"management answered, naming the analyst/firm when available; (5) forward-looking "
+            f"catalysts or demand signals management described for the next 1-2 years; (6) risks "
+            f"or uncertainties management or analysts raised; (7) how the stock reacted and why. "
+            f"Skip any of these you can't find real information for — never guess."
         )
     else:
+        system_prompt = (
+            "Eres un asistente de investigación financiera preparando un briefing profundo, de "
+            "nivel inversionista, sobre un reporte trimestral. Sé exhaustivo y factual, citando "
+            "cifras exactas, fechas y fuentes nombradas cuando sea posible. Hasta 1200 palabras."
+        )
         query = (
-            f"Resultados del reporte trimestral de {company_name} ({symbol}) para {fiscal_label}: "
-            f"busca el desglose de ingresos y crecimiento de órdenes por SEGMENTO de negocio, "
-            f"backlog u órdenes acumuladas, cualquier cambio en el guidance (rango anterior vs nuevo) "
-            f"para el año fiscal completo, y la reacción del mercado/analistas al reporte. Da cifras "
-            f"exactas y de qué segmento/línea de negocio provienen cuando estén disponibles."
+            f"Análisis profundo del reporte trimestral de {company_name} ({symbol}) para "
+            f"{fiscal_label}, publicado recientemente. Cubre, con cifras exactas y atribución "
+            f"cuando estén disponibles: (1) desglose de ingresos/órdenes por SEGMENTO de negocio, "
+            f"backlog u órdenes acumuladas; (2) cualquier cambio de guidance para el próximo "
+            f"trimestre y el año fiscal completo (rango anterior vs nuevo); (3) CITAS TEXTUALES "
+            f"del CEO/CFO u otros ejecutivos nombrados, de la earnings call o el comunicado, con "
+            f"su nombre y cargo; (4) las preguntas más reveladoras que hicieron los analistas en "
+            f"la earnings call y cómo respondió el management, nombrando al analista/firma cuando "
+            f"esté disponible; (5) catalizadores futuros o señales de demanda que el management "
+            f"haya descrito para los próximos 1-2 años; (6) riesgos o incertidumbres que el "
+            f"management o los analistas hayan mencionado; (7) cómo reaccionó la acción y por qué. "
+            f"Omite lo que no encuentres información real — nunca inventes."
         )
     try:
         result = await asyncio.wait_for(
-            asyncio.to_thread(search_web, query, False),
-            timeout=35.0,
+            asyncio.to_thread(search_web_with_citations, query, system_prompt, 1600),
+            timeout=40.0,
         )
-        if not result:
+        text = (result or {}).get("answer") or ""
+        citations = (result or {}).get("citations") or []
+        if not text:
             logger.warning("Perplexity returned no earnings context for %s (%s)", symbol, fiscal_label)
-        return result
+        return {"text": text, "citations": citations}
     except asyncio.TimeoutError:
-        logger.warning("Perplexity earnings context search TIMED OUT for %s (>35s)", symbol)
-        return ""
+        logger.warning("Perplexity earnings context search TIMED OUT for %s (>40s)", symbol)
+        return empty
     except Exception as e:
         logger.warning("Perplexity earnings context search failed for %s: %s", symbol, e)
-        return ""
+        return empty
+
+
+def _annual_segment_mix(symbol: str) -> dict | None:
+    """Real, deterministic (no LLM involved) product-segment revenue mix
+    from the company's own most recently reported FULL FISCAL YEAR — FMP's
+    revenue-product-segmentation endpoint is annual-only on the plan this
+    app has (confirmed live, 2026-10-14: the quarterly variant 403s).
+    Computed as plain percentages in Python, never asked of the LLM, so
+    there's zero risk of an arithmetic or transcription error — the one
+    thing in this report that's pure fact with no model involved at all.
+    Returns None if FMP has nothing for this symbol; callers must label
+    this clearly as an ANNUAL mix, never imply it's this quarter's split."""
+    try:
+        from app.services.financial_data_service import get_revenue_segments
+        rows = get_revenue_segments(symbol, by="product", limit=1)
+        if not rows:
+            return None
+        row = rows[0]
+        data = row.get("data") or {}
+        total = sum(v for v in data.values() if isinstance(v, (int, float)))
+        if not total:
+            return None
+        segments = sorted(
+            ({"name": k, "value": v, "pct": round(v / total * 100, 1)} for k, v in data.items() if isinstance(v, (int, float))),
+            key=lambda s: s["value"], reverse=True,
+        )
+        return {
+            "fiscal_year": row.get("fiscalYear"),
+            "currency": row.get("reportedCurrency"),
+            "segments": segments[:8],
+        }
+    except Exception as e:
+        logger.debug("_annual_segment_mix(%s) failed: %s", symbol, e)
+        return None
 
 
 @router.get("/calendar")
@@ -702,7 +793,11 @@ async def get_earnings_analysis(
         raise HTTPException(status_code=404, detail=f"No hay datos reales de earnings disponibles para {symbol}")
 
     fiscal_key = f"{earnings_data.get('fiscal_year')}Q{earnings_data.get('fiscal_quarter')}"
-    cache_key = f"earnings:v2:{symbol}:{fiscal_key}:{lang}"
+    # v3 (2026-10-14): response shape changed (annual_segment_mix, sources,
+    # new structured_analysis fields) — bumping the key also naturally
+    # invalidates every existing v2 entry, including any frozen-N/D ones
+    # cached under the old 60-day-no-matter-what rule above.
+    cache_key = f"earnings:v3:{symbol}:{fiscal_key}:{lang}"
     cached = cache_get(cache_key)
     if cached:
         # Re-sanitize even a cached hit — a response cached before the
@@ -715,10 +810,15 @@ async def get_earnings_analysis(
             cached["structured_analysis"] = ai_service._sanitize_earnings_analysis(cached["structured_analysis"])
         return cached
 
-    web_context = await _search_earnings_context(symbol, earnings_data.get("name", symbol), earnings_data.get("fiscal_label", symbol), lang=lang)
+    web = await _search_earnings_context(symbol, earnings_data.get("name", symbol), earnings_data.get("fiscal_label", symbol), lang=lang)
+    web_context, sources = web["text"], web["citations"]
+    annual_segment_mix = await asyncio.to_thread(_annual_segment_mix, symbol)
     position = {"shares": shares, "avg_cost": avg_cost} if shares else None
     try:
-        analysis = await ai_service.analyze_earnings(symbol, earnings_data, position, profile, lang=lang, web_context=web_context)
+        analysis = await ai_service.analyze_earnings(
+            symbol, earnings_data, position, profile, lang=lang,
+            web_context=web_context, annual_segment_mix=annual_segment_mix,
+        )
     except Exception as e:
         logger.error("get_earnings_analysis(%s): AI analysis failed: %s", symbol, e, exc_info=True)
         analysis = {
@@ -728,6 +828,7 @@ async def get_earnings_analysis(
                 "No pudimos generar el análisis con IA en este momento. Las cifras reales de arriba siguen siendo correctas."
             ),
             "positives": [], "negatives": [], "segments": [], "guidance_change": None,
+            "management_commentary": [], "future_catalysts": [], "risks": [], "analyst_qa": [],
             "why_stock_moved": "", "thesis_impact": "", "rating_out_of_10": None,
             "rating_reasoning": "", "portfolio_note": None,
         }
@@ -742,10 +843,23 @@ async def get_earnings_analysis(
         "analysis": _render_analysis_text(analysis, lang),
         "structured_analysis": analysis,
         "earnings_data": earnings_data,
+        "annual_segment_mix": annual_segment_mix,
+        "sources": sources,
     }
-    # Only cache a successful, complete result — never a transient failure,
-    # so a provider hiccup doesn't get "stuck" wrong for 60 days.
-    cache_set(cache_key, result, ttl=_TTL_ANALYSIS_V2)
+    # Diego, 2026-10-14: this used to always cache the full result for 60
+    # days on the theory that a reported quarter's numbers never change —
+    # true of the numbers themselves, but NOT of whether this codebase has
+    # them YET. A viewer who opens the report within the first few hours of
+    # the release (exactly when traffic peaks) can hit this before FMP has
+    # finished ingesting the structured income statement, caching
+    # "revenue: N/D" as the full 60-day answer even though the real number
+    # becomes available an hour later — this is what produced ASML's
+    # "Ventas: N/D" even though FMP had the real $11,662M figure by the
+    # time this was investigated. Same discipline already applied to
+    # /sync/all's false-empty guard: never lock in an incomplete real-data
+    # read for the long TTL — retry soon instead until it's actually complete.
+    is_complete = earnings_data.get("eps_actual") is not None and earnings_data.get("revenue_actual") is not None
+    cache_set(cache_key, result, ttl=_TTL_ANALYSIS_V2 if is_complete else _TTL_ANALYSIS)
     return result
 
 

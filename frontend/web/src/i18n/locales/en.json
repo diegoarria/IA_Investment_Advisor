@@ -635,10 +635,20 @@
       "thesisImpact": "Thesis impact",
       "ratingReasoning": "Why this rating",
       "keyNumbers": "Key numbers from the report",
-      "portfolioNote": "What it means for your portfolio"
+      "portfolioNote": "What it means for your portfolio",
+      "annualMix": "Product mix",
+      "managementCommentary": "What management said",
+      "analystQa": "Analyst questions",
+      "catalysts": "Future catalysts",
+      "risks": "Risks to watch",
+      "sources": "Sources"
     },
     "segments": {
       "none": "We couldn't find segment-level detail for this report."
+    },
+    "annualMix": {
+      "fy": "Fiscal year {{year}}",
+      "note": "Real revenue mix by product line from the most recently reported full fiscal year — not specific to this quarter."
     },
     "guidance": {
       "raised": "Guidance raised",

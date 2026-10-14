@@ -4532,12 +4532,34 @@ def _sanitize_earnings_analysis(parsed: dict) -> dict:
 
     portfolio_note = parsed.get("portfolio_note")
 
+    management_commentary = []
+    for item in parsed.get("management_commentary") or []:
+        if isinstance(item, dict) and item.get("quote"):
+            management_commentary.append({
+                "quote": _as_str(item.get("quote")),
+                "speaker": _as_str(item.get("speaker"), default=None) if item.get("speaker") is not None else None,
+                "topic": _as_str(item.get("topic"), default=None) if item.get("topic") is not None else None,
+            })
+
+    analyst_qa = []
+    for item in parsed.get("analyst_qa") or []:
+        if isinstance(item, dict) and item.get("question"):
+            analyst_qa.append({
+                "question": _as_str(item.get("question")),
+                "analyst": _as_str(item.get("analyst"), default=None) if item.get("analyst") is not None else None,
+                "answer_summary": _as_str(item.get("answer_summary")),
+            })
+
     return {
         "headline": _as_str(parsed.get("headline")),
         "positives": _as_str_list(parsed.get("positives")),
         "negatives": _as_str_list(parsed.get("negatives")),
         "segments": segments,
         "guidance_change": guidance_change,
+        "management_commentary": management_commentary,
+        "analyst_qa": analyst_qa,
+        "future_catalysts": _as_str_list(parsed.get("future_catalysts")),
+        "risks": _as_str_list(parsed.get("risks")),
         "why_stock_moved": _as_str(parsed.get("why_stock_moved")),
         "thesis_impact": _as_str(parsed.get("thesis_impact")),
         "rating_out_of_10": _as_float(parsed.get("rating_out_of_10")),
@@ -4553,6 +4575,7 @@ async def analyze_earnings(
     profile: UserProfile | None = None,
     lang: str = "es",
     web_context: str = "",
+    annual_segment_mix: dict | None = None,
 ) -> dict:
     """Structured earnings-report analysis — grounded in the real Finnhub/FMP
     actual-vs-estimate numbers in `earnings_data` plus a live Perplexity
@@ -4597,34 +4620,56 @@ async def analyze_earnings(
         beat_miss_rev = f"✅ BEAT +{diff_pct:.1f}%" if diff_pct >= 0 else f"❌ MISS {diff_pct:.1f}%"
 
     web_section = (
-        f"BÚSQUEDA WEB EN TIEMPO REAL del reporte real ({fiscal_label}):\n{web_context}"
+        f"BÚSQUEDA WEB PROFUNDA del reporte real ({fiscal_label}) — incluye guidance, citas del "
+        f"management, preguntas de analistas, catalizadores y riesgos cuando la búsqueda los "
+        f"haya encontrado:\n{web_context}"
         if web_context else
-        f"BÚSQUEDA WEB EN TIEMPO REAL del reporte real ({fiscal_label}):\n(sin resultados — no hay detalle de segmentos/guidance/backlog disponible)"
+        f"BÚSQUEDA WEB PROFUNDA del reporte real ({fiscal_label}):\n(sin resultados — no hay "
+        f"detalle de segmentos/guidance/citas/backlog disponible más allá de los DATOS REALES de "
+        f"EPS/Revenue de arriba)"
     )
 
-    prompt = f"""{_output_language_directive(lang)}Eres el analista de earnings de Nuvos AI. Analiza el reporte de resultados de {symbol} ({fiscal_label}):
+    segment_mix_section = ""
+    if annual_segment_mix and annual_segment_mix.get("segments"):
+        fy = annual_segment_mix.get("fiscal_year")
+        rows = "\n".join(
+            f"  - {s['name']}: {s['pct']}% del total" for s in annual_segment_mix["segments"]
+        )
+        segment_mix_section = (
+            f"\n\nMEZCLA DE PRODUCTO REAL (año fiscal completo FY{fy}, NO específica de este "
+            f"trimestre — ya se calculó y se muestra aparte en la pantalla, no la repitas en "
+            f"\"segments\"):\n{rows}"
+        )
+
+    prompt = f"""{_output_language_directive(lang)}Eres el analista de earnings de Nuvos AI. Tu trabajo es producir un reporte tan completo y útil como el que haría un analista humano senior leyendo el comunicado de resultados y la earnings call — no un resumen superficial. Analiza el reporte de resultados de {symbol} ({fiscal_label}):
 
 DATOS REALES:
 EPS: ${eps_actual} real vs ${eps_estimate} estimado {beat_miss_eps}
 Revenue: {rev_actual} real vs {rev_estimate} estimado {beat_miss_rev}
 
-{web_section}{position_ctx}
+{web_section}{segment_mix_section}{position_ctx}
 
 REGLAS CRÍTICAS (no negociables):
-1. Los campos "segments", "guidance_change" y cualquier cifra de backlog/órdenes SOLO pueden venir de lo que aparece literalmente en la BÚSQUEDA WEB de arriba o de los DATOS REALES de EPS/Revenue — NUNCA inventes un número de backlog, crecimiento de segmento o cambio de guidance que no esté ahí. Si la búsqueda no trae ese detalle, deja el campo como null o un array vacío y dilo explícitamente en el texto (ej. "no encontramos detalle de segmentos para este reporte").
-2. "rating_out_of_10" y "rating_reasoning" son tu juicio subjetivo como analista — dilo explícitamente, no lo presentes como un hecho objetivo.
-3. Nunca digas "Comprar/Vender" — esto no es asesoría de inversión.
-4. La BÚSQUEDA WEB de arriba puede estar en español o en inglés según de dónde vino la fuente — no importa: TODOS los campos de texto de tu respuesta deben estar 100% en el idioma indicado al inicio de este prompt. Traduce cualquier cifra, cita o frase que tomes de la búsqueda al idioma de salida — nunca copies una oración textual en el idioma original si no coincide con el idioma pedido.
+1. CADA campo de abajo que pida una cifra, cita, nombre de analista/ejecutivo, o detalle específico SOLO puede venir de lo que aparece literalmente en la BÚSQUEDA WEB o en los DATOS REALES de arriba — NUNCA inventes un número, una cita, un nombre o un catalizador que no esté ahí. Si la búsqueda no trae ese detalle para una sección, deja esa sección como un array vacío (nunca la rellenes con generalidades vagas sin cifra ni fuente).
+2. Las citas de "management_commentary" deben ser lo más cercanas posible a palabras reales reportadas en la búsqueda — si la búsqueda las presenta como cita textual, mantenla como cita; si solo resume lo que dijo el ejecutivo (sin comillas en la fuente), igual repórtala pero sin pretender que es literal.
+3. "rating_out_of_10" y "rating_reasoning" son tu juicio subjetivo como analista — dilo explícitamente, no lo presentes como un hecho objetivo.
+4. Nunca digas "Comprar/Vender" — esto no es asesoría de inversión.
+5. La BÚSQUEDA WEB puede estar en español o en inglés según la fuente — no importa: TODOS los campos de texto de tu respuesta deben estar 100% en el idioma indicado al inicio de este prompt. Traduce cualquier cifra, cita o frase que tomes de la búsqueda al idioma de salida — nunca copies una oración textual en el idioma original si no coincide con el idioma pedido.
+6. Sé específico y denso en cifras reales en cada sección — evita relleno genérico tipo "la empresa tuvo un buen trimestre" sin un número al lado.
 
 Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta estructura exacta:
 {{
   "headline": "<1 línea: veredicto general del trimestre y su calidad>",
   "positives": ["<viñeta positiva 1 con cifra real>", "..."],
   "negatives": ["<viñeta negativa 1 con cifra real>", "..."],
-  "segments": [{{"name": "<nombre real del segmento mencionado en la búsqueda>", "metric": "<ej. 'órdenes', 'revenue' o 'EBITDA'>", "value": "<cifra real, ej. '+135%' o '-$275M'>", "note": "<contexto breve>"}}],
+  "segments": [{{"name": "<nombre real del segmento/línea de negocio mencionado en la búsqueda>", "metric": "<ej. 'órdenes', 'revenue' o 'EBITDA'>", "value": "<cifra real, ej. '+135%' o '-$275M'>", "note": "<contexto breve>"}}],
   "guidance_change": {{"status": "raised|lowered|maintained|unknown", "old_range": "<o null>", "new_range": "<o null>", "note": "<o null>"}},
+  "management_commentary": [{{"quote": "<cita o paráfrasis cercana de lo que dijo el ejecutivo, en el idioma de salida>", "speaker": "<nombre y cargo real, ej. 'Christophe Fouquet, CEO', o null si no se sabe>", "topic": "<de qué trata en 2-4 palabras, ej. 'Demanda de IA'>"}}],
+  "analyst_qa": [{{"question": "<pregunta real que hizo un analista>", "analyst": "<nombre y firma si están disponibles, o null>", "answer_summary": "<cómo respondió el management, resumido>"}}],
+  "future_catalysts": ["<catalizador o señal de demanda futura concreta, con horizonte temporal si se menciona>", "..."],
+  "risks": ["<riesgo o incertidumbre concreta mencionada por management o analistas>", "..."],
   "why_stock_moved": "<explicación breve de por qué el mercado reaccionó así, basada solo en lo real de arriba>",
-  "thesis_impact": "<1 párrafo: qué significa este reporte para la tesis de inversión de largo plazo>",
+  "thesis_impact": "<1-2 párrafos: qué significa este reporte para la tesis de inversión de largo plazo, cubriendo tanto lo que confirma como lo que todavía genera incertidumbre>",
   "rating_out_of_10": <número decimal, ej. 8.8>,
   "rating_reasoning": "<por qué esa calificación — tu juicio subjetivo>",
   "portfolio_note": "<1 línea sobre el impacto en la posición del usuario si aplica, o null>"
@@ -4632,7 +4677,17 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
 
     response = await _claude(
         model=settings.claude_model,
-        max_tokens=1600,
+        # Diego, 2026-10-14: confirmed live — with a rich Perplexity result
+        # (real transcript/article sources, ~6-7k chars) the model's JSON
+        # output for all the new sections (management_commentary, analyst_qa,
+        # future_catalysts, risks, etc.) genuinely needs more than 3200
+        # tokens; at 3200 the response got cut off mid-JSON, failed to
+        # parse, and silently fell back to the empty "couldn't generate"
+        # skeleton — the richer the real source material, the more likely
+        # the richer report was the one that got discarded. This runs once
+        # per (ticker, fiscal quarter) and is cached 60 days, so the extra
+        # budget costs nothing in practice.
+        max_tokens=6000,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
@@ -4640,7 +4695,23 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and "headline" in parsed:
-        return _sanitize_earnings_analysis(parsed)
+        result = _sanitize_earnings_analysis(parsed)
+        # Diego, 2026-10-14: rule #1 in the prompt above tells the model
+        # never to invent a quote/Q&A when the web search found nothing —
+        # confirmed live that the model doesn't reliably follow that on its
+        # own (a real test with empty web_context still got back a
+        # plausible-sounding, unsourced management quote). A prompt
+        # instruction is advisory; this is the actual enforcement — these
+        # two fields can ONLY ever contain something sourced from the real
+        # web search, so if that search found nothing, both are forced
+        # empty here regardless of what the model returned. segments/
+        # future_catalysts/risks are left alone: those can legitimately
+        # also draw on DATOS REALES (EPS/revenue/segment mix), which is
+        # always present even when web_context is empty.
+        if not web_context:
+            result["management_commentary"] = []
+            result["analyst_qa"] = []
+        return result
     _log.warning("analyze_earnings(%s): JSON parse failed, response likely truncated (%d chars)", symbol, len(text))
     fallback_headline = (
         "We couldn't generate the AI analysis right now. The real numbers above are still accurate."
@@ -4649,7 +4720,8 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
     )
     return {
         "headline": fallback_headline, "positives": [], "negatives": [], "segments": [],
-        "guidance_change": None, "why_stock_moved": "", "thesis_impact": "",
+        "guidance_change": None, "management_commentary": [], "analyst_qa": [],
+        "future_catalysts": [], "risks": [], "why_stock_moved": "", "thesis_impact": "",
         "rating_out_of_10": None, "rating_reasoning": "", "portfolio_note": None,
     }
 

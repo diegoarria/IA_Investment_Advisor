@@ -3,6 +3,7 @@
 import { useTranslation } from "react-i18next";
 import {
   TrendingUp, TrendingDown, Target, CheckCircle2, XCircle, Sparkles, Compass, Activity, Briefcase, Info, Layers,
+  Quote, MessageCircleQuestion, Rocket, ShieldAlert, Link2, PieChart,
 } from "lucide-react";
 import StockAvatar from "@/components/StockAvatar";
 
@@ -25,12 +26,39 @@ export interface GuidanceChange {
   note: string | null;
 }
 
+export interface ManagementQuote {
+  quote: string;
+  speaker: string | null;
+  topic: string | null;
+}
+
+export interface AnalystQA {
+  question: string;
+  analyst: string | null;
+  answer_summary: string;
+}
+
+export interface AnnualSegmentMix {
+  fiscal_year: number | null;
+  currency: string | null;
+  segments: { name: string; value: number; pct: number }[];
+}
+
+export interface EarningsSource {
+  url: string;
+  title: string | null;
+}
+
 export interface EarningsAnalysisData {
   headline: string;
   positives: string[];
   negatives: string[];
   segments: EarningsSegment[];
   guidance_change: GuidanceChange | null;
+  management_commentary: ManagementQuote[];
+  analyst_qa: AnalystQA[];
+  future_catalysts: string[];
+  risks: string[];
   why_stock_moved: string;
   thesis_impact: string;
   rating_out_of_10: number | null;
@@ -55,6 +83,8 @@ export interface EarningsAnalysisResponse {
   symbol: string;
   structured_analysis: EarningsAnalysisData;
   earnings_data: EarningsData;
+  annual_segment_mix: AnnualSegmentMix | null;
+  sources: EarningsSource[];
 }
 
 export interface RecentReporter {
@@ -250,6 +280,140 @@ export function SegmentsList({ segments }: { segments: EarningsSegment[] }) {
   );
 }
 
+/** Real, deterministic (no LLM) annual product-segment mix — plain bars,
+ * one color, no per-row math left to the model. Always labeled with the
+ * fiscal year so it's never mistaken for this quarter's own split. */
+export function AnnualSegmentMixBars({ mix }: { mix: AnnualSegmentMix | null }) {
+  const { t } = useTranslation();
+  if (!mix || mix.segments.length === 0) return null;
+  const max = Math.max(...mix.segments.map((s) => s.pct)) || 1;
+  return (
+    <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+      <div className="flex items-center justify-between mb-3">
+        <SectionLabel icon={PieChart}>{t("earnings.sections.annualMix")}</SectionLabel>
+        {mix.fiscal_year && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: "var(--raised)", color: "var(--muted)" }}>
+            {t("earnings.annualMix.fy", { year: mix.fiscal_year })}
+          </span>
+        )}
+      </div>
+      <p className="text-[11px] leading-4 mb-3.5" style={{ color: "var(--muted)" }}>{t("earnings.annualMix.note")}</p>
+      <div className="space-y-2.5">
+        {mix.segments.map((s) => (
+          <div key={s.name}>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <span className="text-[12px] font-bold truncate" style={{ color: "var(--text)" }}>{s.name}</span>
+              <span className="text-[12px] font-black tabular-nums shrink-0" style={{ color: EARNINGS_COLOR }}>{s.pct}%</span>
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--raised)" }}>
+              <div className="h-full rounded-full" style={{ width: `${Math.max(4, (s.pct / max) * 100)}%`, background: EARNINGS_COLOR }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ManagementQuotesList({ items }: { items: ManagementQuote[] }) {
+  const { t } = useTranslation();
+  if (items.length === 0) return null;
+  return (
+    <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+      <SectionLabel icon={Quote}>{t("earnings.sections.managementCommentary")}</SectionLabel>
+      <div className="space-y-3.5">
+        {items.map((m, i) => (
+          <div key={i} className="pl-3.5 border-l-2" style={{ borderColor: EARNINGS_COLOR + "55" }}>
+            <p className="text-[13.5px] leading-[20px] italic" style={{ color: "var(--text)" }}>&ldquo;{m.quote}&rdquo;</p>
+            {(m.speaker || m.topic) && (
+              <p className="text-[11px] font-bold mt-1.5" style={{ color: "var(--muted)" }}>
+                {m.speaker}{m.speaker && m.topic ? " · " : ""}{m.topic}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function AnalystQAList({ items }: { items: AnalystQA[] }) {
+  const { t } = useTranslation();
+  if (items.length === 0) return null;
+  return (
+    <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+      <SectionLabel icon={MessageCircleQuestion}>{t("earnings.sections.analystQa")}</SectionLabel>
+      <div className="space-y-4">
+        {items.map((qa, i) => (
+          <div key={i} className={i > 0 ? "pt-4 border-t" : ""} style={{ borderColor: "var(--border)" }}>
+            <p className="text-[13px] font-extrabold leading-[19px]" style={{ color: "var(--text)" }}>
+              {qa.analyst && <span style={{ color: EARNINGS_COLOR }}>{qa.analyst}: </span>}
+              {qa.question}
+            </p>
+            <p className="text-[13px] leading-[19px] mt-1.5" style={{ color: "var(--sub)" }}>{qa.answer_summary}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CatalystsAndRisks({ catalysts, risks }: { catalysts: string[]; risks: string[] }) {
+  const { t } = useTranslation();
+  if (catalysts.length === 0 && risks.length === 0) return null;
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+      {catalysts.length > 0 && (
+        <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+          <SectionLabel icon={Rocket} color={EARNINGS_COLOR}>{t("earnings.sections.catalysts")}</SectionLabel>
+          <ul className="space-y-2">
+            {catalysts.map((c, i) => (
+              <li key={i} className="flex gap-2 items-start text-[13px] leading-[19px]" style={{ color: "var(--sub)" }}>
+                <span className="mt-[7px] w-1 h-1 rounded-full shrink-0" style={{ background: EARNINGS_COLOR }} />
+                {c}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {risks.length > 0 && (
+        <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+          <SectionLabel icon={ShieldAlert} color="#f59e0b">{t("earnings.sections.risks")}</SectionLabel>
+          <ul className="space-y-2">
+            {risks.map((r, i) => (
+              <li key={i} className="flex gap-2 items-start text-[13px] leading-[19px]" style={{ color: "var(--sub)" }}>
+                <span className="mt-[7px] w-1 h-1 rounded-full shrink-0" style={{ background: "#f59e0b" }} />
+                {r}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SourcesList({ sources }: { sources: EarningsSource[] }) {
+  const { t } = useTranslation();
+  if (sources.length === 0) return null;
+  return (
+    <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+      <SectionLabel icon={Link2}>{t("earnings.sections.sources")}</SectionLabel>
+      <ul className="space-y-1.5">
+        {sources.slice(0, 8).map((s, i) => (
+          <li key={i}>
+            <a href={s.url} target="_blank" rel="noopener noreferrer"
+               className="text-[12px] leading-[17px] hover:underline break-all"
+               style={{ color: EARNINGS_COLOR }}>
+              {s.title || s.url}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function PointList({ items, tone }: { items: string[]; tone: "up" | "down" }) {
   const Icon = tone === "up" ? CheckCircle2 : XCircle;
   const color = tone === "up" ? UP : DOWN;
@@ -267,7 +431,7 @@ function PointList({ items, tone }: { items: string[]; tone: "up" | "down" }) {
 
 export function EarningsAnalysisCard({ result }: { result: EarningsAnalysisResponse }) {
   const { t } = useTranslation();
-  const { structured_analysis: rawAnalysis, earnings_data: d } = result;
+  const { structured_analysis: rawAnalysis, earnings_data: d, annual_segment_mix, sources } = result;
   // Defense in depth — the backend sanitizes these to arrays, but a render
   // must never trust an external API payload's shape enough to call
   // `.map()`/`.length` on it unchecked.
@@ -276,6 +440,10 @@ export function EarningsAnalysisCard({ result }: { result: EarningsAnalysisRespo
     positives: Array.isArray(rawAnalysis.positives) ? rawAnalysis.positives : [],
     negatives: Array.isArray(rawAnalysis.negatives) ? rawAnalysis.negatives : [],
     segments: Array.isArray(rawAnalysis.segments) ? rawAnalysis.segments : [],
+    management_commentary: Array.isArray(rawAnalysis.management_commentary) ? rawAnalysis.management_commentary : [],
+    analyst_qa: Array.isArray(rawAnalysis.analyst_qa) ? rawAnalysis.analyst_qa : [],
+    future_catalysts: Array.isArray(rawAnalysis.future_catalysts) ? rawAnalysis.future_catalysts : [],
+    risks: Array.isArray(rawAnalysis.risks) ? rawAnalysis.risks : [],
   };
   const rating = ratingValue(a.rating_out_of_10);
 
@@ -343,11 +511,22 @@ export function EarningsAnalysisCard({ result }: { result: EarningsAnalysisRespo
 
       <GuidanceCallout g={a.guidance_change} />
 
-      {/* Segments */}
-      <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-        <SectionLabel icon={Layers}>{t("earnings.sections.segments")}</SectionLabel>
-        <SegmentsList segments={a.segments} />
-      </div>
+      {/* Real, deterministic annual product mix (no LLM) — the primary
+          answer to "desglose por segmento" now that it's actually wired up. */}
+      <AnnualSegmentMixBars mix={annual_segment_mix} />
+
+      {/* AI-extracted, quarter-specific segment/order detail from the web
+          search — only shown when the search actually found something real,
+          never an empty placeholder box anymore (the annual mix above
+          already covers that need honestly). */}
+      {a.segments.length > 0 && (
+        <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+          <SectionLabel icon={Layers}>{t("earnings.sections.segments")}</SectionLabel>
+          <SegmentsList segments={a.segments} />
+        </div>
+      )}
+
+      <ManagementQuotesList items={a.management_commentary} />
 
       {a.why_stock_moved && (
         <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
@@ -356,12 +535,16 @@ export function EarningsAnalysisCard({ result }: { result: EarningsAnalysisRespo
         </div>
       )}
 
+      <AnalystQAList items={a.analyst_qa} />
+
       {a.thesis_impact && (
         <div className="rounded-2xl border p-5" style={{ background: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.25)" }}>
           <SectionLabel icon={Target} color="var(--accent-l)">{t("earnings.sections.thesisImpact")}</SectionLabel>
-          <p className="text-[14px] leading-[21px]" style={{ color: "var(--sub)" }}>{a.thesis_impact}</p>
+          <p className="text-[14px] leading-[21px] whitespace-pre-line" style={{ color: "var(--sub)" }}>{a.thesis_impact}</p>
         </div>
       )}
+
+      <CatalystsAndRisks catalysts={a.future_catalysts} risks={a.risks} />
 
       {a.portfolio_note && (
         <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
@@ -376,6 +559,8 @@ export function EarningsAnalysisCard({ result }: { result: EarningsAnalysisRespo
           <p className="text-[14px] leading-[21px]" style={{ color: "var(--sub)" }}>{a.rating_reasoning}</p>
         </div>
       )}
+
+      <SourcesList sources={Array.isArray(sources) ? sources : []} />
 
       <div className="flex gap-2 px-1 pt-1">
         <Info className="w-[15px] h-[15px] shrink-0 mt-px" style={{ color: "var(--muted)" }} />

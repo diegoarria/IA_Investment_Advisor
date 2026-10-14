@@ -9,6 +9,7 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import StockAvatar from "@/components/StockAvatar";
 import { EarningsAnalysisCard, EARNINGS_COLOR, type EarningsAnalysisResponse } from "@/components/EarningsAnalysisCard";
+import ExplainButton from "@/components/ExplainButton";
 import { earningsApi } from "@/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import { useCombinedPositions } from "@/lib/portfolioStore";
@@ -109,7 +110,30 @@ export default function EarningsTickerPage() {
                 </button>
               </div>
             ) : result ? (
-              <EarningsAnalysisCard result={result} />
+              <>
+                <div className="flex justify-end mb-2.5">
+                  <ExplainButton
+                    screen="earnings"
+                    context={{
+                      symbol: result.symbol,
+                      fiscal_label: result.earnings_data.fiscal_label,
+                      eps_actual: result.earnings_data.eps_actual,
+                      eps_estimate: result.earnings_data.eps_estimate,
+                      revenue_actual: result.earnings_data.revenue_actual,
+                      revenue_estimate: result.earnings_data.revenue_estimate,
+                      headline: result.structured_analysis.headline,
+                      rating_out_of_10: result.structured_analysis.rating_out_of_10,
+                      positives: result.structured_analysis.positives,
+                      negatives: result.structured_analysis.negatives,
+                      guidance_change: result.structured_analysis.guidance_change,
+                      management_commentary: result.structured_analysis.management_commentary?.slice(0, 3),
+                      future_catalysts: result.structured_analysis.future_catalysts,
+                      thesis_impact: result.structured_analysis.thesis_impact,
+                    }}
+                  />
+                </div>
+                <EarningsAnalysisCard result={result} />
+              </>
             ) : null}
           </div>
         </div>

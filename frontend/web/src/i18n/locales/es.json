@@ -635,10 +635,20 @@
       "thesisImpact": "Impacto en la tesis",
       "ratingReasoning": "Por qué esta calificación",
       "keyNumbers": "Números clave del reporte",
-      "portfolioNote": "Lo que significa para tu portafolio"
+      "portfolioNote": "Lo que significa para tu portafolio",
+      "annualMix": "Mezcla de producto",
+      "managementCommentary": "Qué dijo el management",
+      "analystQa": "Preguntas de analistas",
+      "catalysts": "Catalizadores futuros",
+      "risks": "Riesgos a vigilar",
+      "sources": "Fuentes"
     },
     "segments": {
       "none": "No encontramos detalle de segmentos para este reporte."
+    },
+    "annualMix": {
+      "fy": "Año fiscal {{year}}",
+      "note": "Mezcla real de ingresos por línea de producto del último año fiscal completo reportado — no es específica de este trimestre."
     },
     "guidance": {
       "raised": "Guidance elevado",
