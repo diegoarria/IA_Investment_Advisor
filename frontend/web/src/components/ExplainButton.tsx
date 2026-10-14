@@ -164,10 +164,14 @@ export default function ExplainButton({
         <button
           onClick={handleClick}
           aria-label={t("explainButton.cta") ?? undefined}
-          className="w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-opacity hover:opacity-80"
-          style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}
+          className="group relative w-9 h-9 rounded-full flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-transform hover:scale-105 active:scale-95"
+          style={{ background: "linear-gradient(145deg, var(--card), var(--raised))", border: "1px solid var(--border)" }}
         >
-          <span className="text-sm">{mentor?.emoji ?? "🎙️"}</span>
+          <span
+            className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-40 transition-opacity"
+            style={{ background: "radial-gradient(circle, var(--accent-l), transparent 70%)" }}
+          />
+          <span className="relative text-sm">{mentor?.emoji ?? "🎙️"}</span>
         </button>
       </div>
     );
@@ -177,25 +181,44 @@ export default function ExplainButton({
     <>
       <div className={`fixed bottom-6 right-6 z-30 ${className}`}>
         <div className="relative">
+          {/* Soft ambient glow behind the pill — same footprint as before,
+              just a more premium base layer instead of a flat fill. */}
+          <div
+            className="absolute -inset-1 rounded-full blur-md opacity-60 pointer-events-none"
+            style={{ background: "linear-gradient(135deg, var(--accent-l), #00897b)" }}
+          />
           <button
             onClick={handleClick}
-            className="flex items-center gap-1.5 pl-3 pr-8 py-2 rounded-full text-xs font-bold shadow-lg transition-opacity hover:opacity-80"
-            style={{ background: "var(--accent-l)", color: "#000" }}
+            className="relative flex items-center gap-1.5 pl-3 pr-8 py-2 rounded-full text-xs font-bold shadow-[0_4px_16px_rgba(0,0,0,0.25)] transition-transform hover:scale-[1.03] active:scale-95"
+            style={{ background: "linear-gradient(135deg, var(--accent-l), #00c389)", color: "#04120c" }}
           >
-            {state === "loading" ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : state === "playing" ? (
-              <Square className="w-3 h-3" />
-            ) : (
-              <span>{mentor?.emoji ?? "🎙️"}</span>
-            )}
+            <span
+              className="flex items-center justify-center w-5 h-5 rounded-full shrink-0"
+              style={{ background: "rgba(0,0,0,0.12)" }}
+            >
+              {state === "loading" ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : state === "playing" ? (
+                <Square className="w-2.5 h-2.5" />
+              ) : (
+                <span className="text-[11px] leading-none">{mentor?.emoji ?? "🎙️"}</span>
+              )}
+            </span>
             {state === "loading" ? t("explainButton.loading") : state === "playing" ? t("explainButton.stop") : t("explainButton.cta")}
+            {state === "playing" && (
+              <span className="flex items-center gap-[2px] ml-0.5">
+                {[0, 1, 2].map((i) => (
+                  <span key={i} className="w-[2.5px] rounded-full bg-black/60 animate-pulse"
+                        style={{ height: 6 + (i % 2) * 4, animationDelay: `${i * 150}ms` }} />
+                ))}
+              </span>
+            )}
           </button>
 
           <button
             onClick={handleDismiss}
             aria-label={t("explainButton.dismiss") ?? undefined}
-            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow"
+            className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 rounded-full flex items-center justify-center shadow-md transition-transform hover:scale-110"
             style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}
           >
             <X className="w-3 h-3" />
@@ -206,13 +229,45 @@ export default function ExplainButton({
               a blocked/failed audio load hid the already-generated text at
               the same moment, with nothing on screen to show for the tap at
               all. Text now stays visible on its own once generated, and is
-              only cleared when a fresh explanation starts loading. */}
+              only cleared when a fresh explanation starts loading.
+
+              Diego, 2026-10-14: this used to be an unbounded-height box
+              (`bottom-full` with no max-height) — a long explanation (the
+              richer earnings reports especially) could grow past the top of
+              the viewport with no way to read the rest. Now a fixed-height
+              card with its own scrollable body, capped relative to the
+              viewport so it always fits on screen regardless of content
+              length or window size. */}
           {(errorMsg || text) && (
             <div
-              className="absolute z-20 bottom-full right-0 mb-2 w-64 rounded-xl p-3 text-xs leading-relaxed shadow-lg"
-              style={{ background: "var(--card)", border: `1px solid ${errorMsg ? "#ef4444" : "var(--border)"}`, color: errorMsg ? "#ef4444" : "var(--sub)" }}
+              className="absolute z-20 bottom-full right-0 mb-3 w-72 max-w-[calc(100vw-3rem)] rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col"
+              style={{
+                background: "var(--card)",
+                border: `1px solid ${errorMsg ? "#ef4444" : "var(--border)"}`,
+                maxHeight: "min(60vh, 420px)",
+              }}
             >
-              {errorMsg || text}
+              <div
+                className="flex items-center gap-2 px-3.5 py-2.5 shrink-0"
+                style={{
+                  background: errorMsg ? "rgba(239,68,68,0.08)" : "color-mix(in srgb, var(--accent-l) 10%, transparent)",
+                  borderBottom: `1px solid ${errorMsg ? "rgba(239,68,68,0.25)" : "var(--border)"}`,
+                }}
+              >
+                <span
+                  className="flex items-center justify-center w-6 h-6 rounded-full text-[11px] shrink-0"
+                  style={{ background: errorMsg ? "rgba(239,68,68,0.15)" : "var(--raised)" }}
+                >
+                  {errorMsg ? "⚠️" : mentor?.emoji ?? "🎙️"}
+                </span>
+                <span className="text-[11px] font-black uppercase tracking-wide truncate" style={{ color: errorMsg ? "#ef4444" : "var(--text)" }}>
+                  {errorMsg ? t("explainButton.error") : mentor?.name || t("explainButton.cta")}
+                </span>
+              </div>
+              <div className="overflow-y-auto scrollbar-thin px-3.5 py-3 text-xs leading-relaxed"
+                   style={{ color: errorMsg ? "#ef4444" : "var(--sub)" }}>
+                {errorMsg || text}
+              </div>
             </div>
           )}
         </div>
