@@ -243,9 +243,19 @@ function HomeContent() {
       // of) would otherwise get silently reused by the callback page instead
       // of the account the user is actually trying to sign into now.
       await getSupabaseClient().auth.signOut();
+      // redirectTo must be a FIXED origin, not window.location.origin: the
+      // PKCE code_verifier is saved to sessionStorage under the origin the
+      // flow STARTS on (apex or www), but Vercel 307-redirects the apex to
+      // www site-wide, so a flow started on the apex would land on /auth/
+      // callback under www with no verifier available — exchangeCodeForSession
+      // fails silently and the user bounces back to login in a loop. Same
+      // apex/www split that made the auth cookie's Domain need to be fixed
+      // to .nuvosai.com (see backend/app/api/routes/auth.py's _COOKIE_KW).
+      const isProd = window.location.hostname.endsWith("nuvosai.com");
+      const callbackOrigin = isProd ? "https://www.nuvosai.com" : window.location.origin;
       const { error } = await getSupabaseClient().auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+        options: { redirectTo: `${callbackOrigin}/auth/callback` },
       });
       if (error) setError(`Google error: ${error.message}`);
     } catch (e: unknown) {
