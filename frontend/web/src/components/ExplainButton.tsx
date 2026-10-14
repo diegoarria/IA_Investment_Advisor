@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Square, Loader2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { explain as explainApi } from "@/lib/api";
@@ -74,6 +74,23 @@ export default function ExplainButton({
   const [dismissed, setDismissed] = useState<boolean | null>(null);
   const dismissKey = `nuvos_explain_dismissed:${screen}`;
 
+  // Karaoke-style follow-along, Diego 2026-10-14: there's no real per-word
+  // timing data from either TTS provider here (OpenAI's tts-1 returns none;
+  // ElevenLabs only does via a separate /with-timestamps endpoint this app
+  // doesn't call) — so this is an honest approximation, not fabricated
+  // precision: words advance proportionally to audio.currentTime/duration,
+  // which tracks real playback speed closely enough for continuous
+  // narration at a fairly even pace (how this voice reads) to feel in sync.
+  const [activeWordIdx, setActiveWordIdx] = useState(-1);
+  const words = useMemo(() => (text ? text.split(/\s+/).filter(Boolean) : []), [text]);
+  const activeWordRef = useRef<HTMLSpanElement | null>(null);
+
+  useEffect(() => {
+    if (activeWordIdx >= 0) {
+      activeWordRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [activeWordIdx]);
+
   useEffect(() => {
     try {
       setDismissed(localStorage.getItem(dismissKey) === "1");
@@ -84,8 +101,11 @@ export default function ExplainButton({
   }, [dismissKey]);
 
   const stop = () => {
-    getUnlockedAudioElement().pause();
+    const audio = getUnlockedAudioElement();
+    audio.pause();
+    audio.ontimeupdate = null;
     setState("idle");
+    setActiveWordIdx(-1);
   };
 
   const handleDismiss = () => {
@@ -112,35 +132,47 @@ export default function ExplainButton({
 
     const cacheKey = `nuvos_explain:${screen}:${i18n.language}:${hashContext(context)}`;
     setErrorMsg(null);
-    const playAudio = async (b64: string) => {
+    // `fullText` is passed explicitly rather than read from the `text`
+    // state — this runs right after a `setText(...)` call in the same
+    // handler, and state updates aren't guaranteed to have flushed yet by
+    // the time this needs the word count for highlighting.
+    const playAudio = async (b64: string, fullText: string) => {
+      const wordCount = fullText.split(/\s+/).filter(Boolean).length;
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
       const blob = new Blob([bytes], { type: "audio/mpeg" });
       const url = URL.createObjectURL(blob);
       const audio = getUnlockedAudioElement();
       audio.pause();
       audio.src = url;
-      audio.onended = () => setState("idle");
-      audio.onerror = () => setState("idle");
+      audio.ontimeupdate = () => {
+        if (!wordCount || !audio.duration || !isFinite(audio.duration)) return;
+        setActiveWordIdx(Math.min(wordCount - 1, Math.floor((audio.currentTime / audio.duration) * wordCount)));
+      };
+      const finish = () => { setState("idle"); setActiveWordIdx(-1); audio.ontimeupdate = null; };
+      audio.onended = finish;
+      audio.onerror = finish;
       setState("playing");
-      await audio.play().catch(() => setState("idle"));
+      setActiveWordIdx(0);
+      await audio.play().catch(finish);
     };
 
     const cached = readExplainCache(cacheKey);
     if (cached) {
       setText(cached.text);
-      if (cached.audio) { await playAudio(cached.audio); } else { setState("idle"); }
+      if (cached.audio) { await playAudio(cached.audio, cached.text); } else { setState("idle"); }
       return;
     }
 
     setState("loading");
     setText(null);
+    setActiveWordIdx(-1);
     try {
       const res = await explainApi.explain(screen, context, i18n.language);
       const resultText = res.data?.text || "";
       setText(resultText || null);
       if (resultText) writeExplainCache(cacheKey, resultText, res.data?.audio || null);
       if (!res.data?.audio) { setState("idle"); return; }
-      await playAudio(res.data.audio);
+      await playAudio(res.data.audio, resultText);
     } catch {
       // Was a silent revert to idle with zero feedback — a Premium user
       // tapping this and getting nothing back couldn't tell "I tapped
@@ -266,7 +298,23 @@ export default function ExplainButton({
               </div>
               <div className="overflow-y-auto scrollbar-thin px-3.5 py-3 text-xs leading-relaxed"
                    style={{ color: errorMsg ? "#ef4444" : "var(--sub)" }}>
-                {errorMsg || text}
+                {errorMsg ? errorMsg : activeWordIdx < 0 ? text : (
+                  words.map((w, i) => (
+                    <span
+                      key={i}
+                      ref={i === activeWordIdx ? activeWordRef : undefined}
+                      style={
+                        i === activeWordIdx
+                          ? { background: "var(--accent-l)", color: "#04120c", borderRadius: 4, padding: "0 3px", fontWeight: 700 }
+                          : i < activeWordIdx
+                          ? { color: "var(--text)" }
+                          : { opacity: 0.45 }
+                      }
+                    >
+                      {w}{" "}
+                    </span>
+                  ))
+                )}
               </div>
             </div>
           )}

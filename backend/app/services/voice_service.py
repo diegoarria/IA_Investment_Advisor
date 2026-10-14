@@ -133,12 +133,28 @@ async def transcribe_audio_bytes(
 
 async def synthesize_speech_bytes(text: str) -> bytes:
     """Text → MP3 bytes. ElevenLabs if configured, else OpenAI TTS fallback."""
-    text = (text or "").strip()[:2000]
+    text = (text or "").strip()
     if not text:
         return b""
+
+    # Diego, 2026-10-14: this used to hard-cut every call to 2000 chars,
+    # with no warning — a caller generating up to 700 Claude tokens of
+    # Spanish narration (explain.py's "Explícame esto", ~2500-3500+ chars
+    # for the richer screens like earnings) silently lost the back half of
+    # the text, audible as the voice stopping mid-sentence with no error.
+    # The real constraint is each PROVIDER's own API limit, not an
+    # arbitrary round number: OpenAI's tts-1 hard-rejects over 4096 chars;
+    # ElevenLabs' eleven_multilingual_v2 comfortably handles longer inputs.
+    # Still cap as a last resort (never send literally unbounded text to a
+    # paid API), but log loudly when it actually bites so a too-long
+    # narration is visible instead of silently truncated.
+    eleven_key = os.getenv("ELEVENLABS_API_KEY")
+    max_chars = 4800 if eleven_key else 4096
+    if len(text) > max_chars:
+        logger.warning("synthesize_speech_bytes: text truncated from %d to %d chars for TTS", len(text), max_chars)
+        text = text[:max_chars]
     text = _speechify(text)
 
-    eleven_key = os.getenv("ELEVENLABS_API_KEY")
     if eleven_key:
         voice_id = os.getenv("ELEVENLABS_VOICE_ID", "jBDyTilUWfkS9aYMESCa")
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
