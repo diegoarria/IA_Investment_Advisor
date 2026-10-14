@@ -307,7 +307,13 @@ async def create_link_token(user_id: str = Depends(get_current_user_id)):
             products=[Products("investments")],
             client_name="Nuvos AI",
             country_codes=[CountryCode("US")],
-            language="es",
+            # Plaid's Data Transparency Messaging consent screens are only
+            # configured in English for this account (no "es" customization
+            # set up in the Plaid Dashboard) — requesting "es" here makes
+            # link_token_create fail with INVALID_LINK_CUSTOMIZATION. English
+            # is confined to Plaid's own institution-picker/consent modal;
+            # the rest of Nuvos stays Spanish.
+            language="en",
             user=LinkTokenCreateRequestUser(client_user_id=user_id),
         )
         # Production OAuth institutions (Schwab, Robinhood…) send the user to
