@@ -11,6 +11,17 @@ export interface WatchItem {
 
 interface WatchlistStore {
   items: WatchItem[];
+  // Diego, 2026-10-14: the watchlist screen rendered its "empty" card off
+  // of items.length===0 alone, with no loading/error gate (unlike the web
+  // screen, which does have one) — so a cold start where persisted-storage
+  // rehydration or the first loadFromServer() just hadn't resolved yet
+  // showed "watchlist vacío" for real tickers that were about to load.
+  // Both flags default false and flip true exactly once per app session
+  // (rehydration below, loadFromServer's own finally), regardless of
+  // success/failure, so the screen can tell "still loading" from "really
+  // empty" instead of guessing from items.length alone.
+  hasHydrated: boolean;
+  hasLoadedFromServer: boolean;
   pendingSync: boolean;
   // When pendingSync was last set to true. Used to detect a flag stuck from
   // a remove() call that never resolved, so loadFromServer() doesn't defer
@@ -74,6 +85,8 @@ export const useWatchlistStore = create<WatchlistStore>()(
       };
       return {
       items: [],
+      hasHydrated: false,
+      hasLoadedFromServer: false,
       pendingSync: false,
       pendingSyncSetAt: null,
       tombstones: [],
@@ -202,7 +215,10 @@ export const useWatchlistStore = create<WatchlistStore>()(
           for (const t of serverTickers) missStreak.delete(t); // present again — reset its streak
           set({ items: merged, tombstones: keptTombstones });
           if (anyKept) setTimeout(() => useWatchlistStore.getState().loadFromServer(), 5000);
-        } catch {}
+        } catch {
+        } finally {
+          set({ hasLoadedFromServer: true });
+        }
       },
       };
     },
@@ -211,6 +227,9 @@ export const useWatchlistStore = create<WatchlistStore>()(
       storage: userScopedStorage,
       // Only persist items + tombstones — runtime flags stay in-memory
       partialize: (state) => ({ items: state.items, tombstones: state.tombstones }),
+      onRehydrateStorage: () => () => {
+        useWatchlistStore.setState({ hasHydrated: true });
+      },
     }
   )
 );

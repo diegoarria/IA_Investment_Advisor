@@ -898,14 +898,22 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         "favorite_metrics":               profile_row.get("favorite_metrics") or [],
         "dashboard_section_order":        profile_row.get("dashboard_section_order"),
     }
-    # A brand-new account with zero portfolio rows is a normal, cacheable state.
-    # But if this account has ever had a portfolio and this particular read just
-    # came back empty, it's more likely racing a very recent write than a real
-    # reset — don't cache that and risk locking in stale/empty data (including
-    # for scheduled jobs that read this same cache) for the full TTL. There's no
-    # cheap way to tell the two cases apart here, so we simply never cache an
-    # empty portfolio_res — the extra DB hit on the rare miss is cheap.
-    if portfolio_res.data:
+    # A brand-new account with zero portfolio/watchlist rows is a normal,
+    # cacheable state. But if this account has ever had one and this
+    # particular read just came back empty, it's more likely racing a very
+    # recent write than a real reset — don't cache that and risk locking in
+    # stale/empty data (including for scheduled jobs that read this same
+    # cache, AND for every other client that calls /sync/all during the
+    # TTL) for the full TTL. There's no cheap way to tell the two cases
+    # apart here, so we simply never cache a response where EITHER came back
+    # empty — the extra DB hit on the rare miss is cheap. Watchlist used to
+    # be left out of this guard (only portfolio_res.data was checked), so a
+    # watchlist read that raced a very recent add/remove could get cached as
+    # `"watchlist": []` for the full TTL and served that way to every client
+    # that called /sync/all in that window — this is what produced the
+    # intermittent "watchlist vacío" the empty-watchlist screen is built to
+    # never show (Diego, 2026-10-14).
+    if portfolio_res.data and watchlist_res.data:
         cache_set(ck, resp, ttl=_TTL_ALL)
     return resp
 

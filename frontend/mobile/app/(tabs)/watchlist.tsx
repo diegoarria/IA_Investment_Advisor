@@ -290,7 +290,13 @@ export default function WatchlistScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const { macroEventId } = useLocalSearchParams<{ macroEventId?: string }>();
-  const { items, add, remove, has, reorder } = useWatchlistStore();
+  const { items, add, remove, has, reorder, hasHydrated, hasLoadedFromServer } = useWatchlistStore();
+  // Diego, 2026-10-14: don't trust items.length===0 as "really empty" until
+  // local storage has rehydrated AND the first server read has resolved —
+  // otherwise a cold start briefly shows the empty card for a watchlist
+  // that's simply still loading. See watchlistStore.ts's hasHydrated/
+  // hasLoadedFromServer comment.
+  const watchlistReady = hasHydrated && hasLoadedFromServer;
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
   const { positions, portfolioCurrency } = usePortfolioStore();
@@ -537,8 +543,9 @@ export default function WatchlistScreen() {
             </View>
           )}
 
-          {/* Empty state */}
-          {items.length === 0 && (
+          {/* Empty state — only once hydration + first server read have
+              actually resolved, never just because items is momentarily [] */}
+          {items.length === 0 && watchlistReady && (
             <View style={[s.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={s.emptyIcon}>
                 <Ionicons name="eye-outline" size={26} color="#00d47e" />
@@ -547,6 +554,11 @@ export default function WatchlistScreen() {
               <Text style={[s.emptySub, { color: colors.textMuted }]}>
                 {t("watchlist.empty.subtitle")}
               </Text>
+            </View>
+          )}
+          {items.length === 0 && !watchlistReady && (
+            <View style={{ paddingVertical: 40, alignItems: "center" }}>
+              <ActivityIndicator size="small" color="#00d47e" />
             </View>
           )}
 
