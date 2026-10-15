@@ -39,7 +39,7 @@ jobs:
       CLAUDE_MODEL: claude-haiku-4-5-20251001
       FRONTEND_URL: "*"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v5
