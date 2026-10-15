@@ -54,6 +54,8 @@ const LOCAL_BROKER_LOGOS: Record<string, number> = {
   "interactivebrokers.com": require("../../assets/images/brokers/ibkr.png"),
   "schwab.com": require("../../assets/images/brokers/schwab.png"),
   "robinhood.com": require("../../assets/images/brokers/robinhood.png"),
+  "gbm.com.mx": require("../../assets/images/brokers/gbm.png"),
+  "actinver.com": require("../../assets/images/brokers/actinver.png"),
 };
 
 function BrokerLogo({ domain, fallback, color }: { domain: string; fallback: string; color: string }) {

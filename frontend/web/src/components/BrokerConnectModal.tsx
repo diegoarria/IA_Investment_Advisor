@@ -78,6 +78,8 @@ const LOCAL_BROKER_LOGOS: Record<string, string> = {
   "interactivebrokers.com": "/brokers/ibkr.png",
   "schwab.com": "/brokers/schwab.png",
   "robinhood.com": "/brokers/robinhood.png",
+  "gbm.com.mx": "/brokers/gbm.png",
+  "actinver.com": "/brokers/actinver.png",
 };
 
 function BrokerLogoWeb({ domain, fallback, color }: { domain: string; fallback: string; color: string }) {
