@@ -44,6 +44,18 @@ function getBrokers(t: TFunction) {
   ];
 }
 
+// Real brand logos bundled with the app — RN requires a static, literal
+// `require()` per image (no dynamic/computed paths), so this is a fixed
+// lookup instead of a template string like the web version. Used instead
+// of a Clearbit network fetch when we have our own copy: no round-trip to
+// a third party, no risk of Clearbit not serving that logo, and a
+// consistent crop/background.
+const LOCAL_BROKER_LOGOS: Record<string, number> = {
+  "interactivebrokers.com": require("../../assets/images/brokers/ibkr.png"),
+  "schwab.com": require("../../assets/images/brokers/schwab.png"),
+  "robinhood.com": require("../../assets/images/brokers/robinhood.png"),
+};
+
 function BrokerLogo({ domain, fallback, color }: { domain: string; fallback: string; color: string }) {
   const [error, setError] = useState(false);
   if (error) {
@@ -53,9 +65,10 @@ function BrokerLogo({ domain, fallback, color }: { domain: string; fallback: str
       </View>
     );
   }
+  const source = LOCAL_BROKER_LOGOS[domain] ?? { uri: `https://logo.clearbit.com/${domain}` };
   return (
     <Image
-      source={{ uri: `https://logo.clearbit.com/${domain}` }}
+      source={source}
       style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: "white" }}
       onError={() => setError(true)}
     />

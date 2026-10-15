@@ -51,9 +51,11 @@ function getBrokers(t: TFunction) {
     { id: "schwab",    name: "Charles Schwab",       domain: "schwab.com",             color: "#00a2e0", fallback: "CS",  provider: "plaid", desc: t("brokerConnectModal.brokers.schwab") },
     { id: "robinhood", name: "Robinhood",            domain: "robinhood.com",          color: "#00c805", fallback: "RH",  provider: "plaid", desc: t("brokerConnectModal.brokers.robinhood") },
     { id: "iol",       name: "Invertir Online",      domain: "invertironline.com",     color: "#003087", fallback: "IOL", provider: "iol",   desc: t("brokerConnectModal.brokers.iol") },
-    // Banking (Belvo Phase 1 — real balance sync, live today).
-    { id: "bbva-mx",   name: "BBVA México",          domain: "bbva.mx",                color: "#004481", fallback: "BBVA", provider: "belvo", belvoInstitution: "bbva_mx_retail",     desc: t("brokerConnectModal.brokers.bbvaMx") },
-    { id: "banorte",   name: "Banorte",              domain: "banorte.com",            color: "#e2001a", fallback: "BNT",  provider: "belvo", belvoInstitution: "banorte_mx_retail",  desc: t("brokerConnectModal.brokers.banorte") },
+    // Diego, 2026-10-15: banks (BBVA México, Banorte — Belvo Phase 1)
+    // removed from this panel — Nuvos doesn't connect to bank accounts,
+    // only brokerage. Don't re-add without an explicit decision to resume
+    // banking; the Belvo widget plumbing below (handleBelvoConnect) stays
+    // since GBM/Actinver below still use it.
     // Brokerage (Belvo Phase 2 — WAS "link connects today, position sync
     // lands later", but Diego confirmed live 2026-10-06: GBM and Actinver
     // themselves told him there's no channel at all for pulling portfolio
@@ -68,6 +70,16 @@ function getBrokers(t: TFunction) {
   ];
 }
 
+// Real brand logos we have our own copy of, served from /public — used
+// instead of a Clearbit lookup when available (no network round-trip to a
+// third party, no risk of Clearbit not having/serving that logo, and a
+// more consistent crop/background than whatever Clearbit returns).
+const LOCAL_BROKER_LOGOS: Record<string, string> = {
+  "interactivebrokers.com": "/brokers/ibkr.png",
+  "schwab.com": "/brokers/schwab.png",
+  "robinhood.com": "/brokers/robinhood.png",
+};
+
 function BrokerLogoWeb({ domain, fallback, color }: { domain: string; fallback: string; color: string }) {
   const [err, setErr] = useState(false);
   if (err) {
@@ -78,10 +90,11 @@ function BrokerLogoWeb({ domain, fallback, color }: { domain: string; fallback: 
       </div>
     );
   }
+  const src = LOCAL_BROKER_LOGOS[domain] ?? `https://logo.clearbit.com/${domain}`;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`https://logo.clearbit.com/${domain}`}
+      src={src}
       alt={fallback}
       onError={() => setErr(true)}
       className="w-9 h-9 rounded-xl object-contain flex-shrink-0"
@@ -402,11 +415,11 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
           renders its own overlay into it; this stays empty otherwise. */}
       <div id="belvo" />
       <div
-        className="w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+        className="w-full max-w-md max-h-[85vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
         style={{ background: "var(--card)", border: "1px solid var(--border)" }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+        {/* Header — stays fixed while the broker list below scrolls */}
+        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
           <div className="flex items-center gap-2">
             <Link2 className="w-5 h-5" style={{ color: "var(--accent)" }} />
             <span className="font-bold text-base" style={{ color: "var(--text)" }}>
@@ -418,7 +431,12 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
           </button>
         </div>
 
-        <div className="p-5">
+        {/* Diego, 2026-10-15: the modal had no height cap and this content
+            block had no scroll container — on a shorter viewport (or once
+            the broker list grows), the bottom entries/footer note could
+            extend past the screen with no way to reach them. Capped to
+            85vh above with this as the one scrollable region. */}
+        <div className="p-5 overflow-y-auto scrollbar-thin">
           {/* Syncing screen */}
           {screen === "syncing" && (
             <div className="flex flex-col items-center gap-4 py-8">
@@ -637,7 +655,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                   // broker.comingSoon (GBM/Actinver, 2026-10-06 — see their
                   // own comment above) overrides everything below: never
                   // treat these as live even though their provider is
-                  // "belvo", same as BBVA/Banorte.
+                  // "belvo".
                   const isBelvo = !broker.comingSoon && broker.provider === "belvo";
                   const isPlaid = !broker.comingSoon && broker.provider === "plaid";
                   const isIOL = !broker.comingSoon && broker.provider === "iol";
