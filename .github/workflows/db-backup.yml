@@ -59,7 +59,7 @@ jobs:
 
       - name: Upload dump as workflow artifact (short-term fallback copy)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: db-backup-${{ github.run_id }}
           path: backend/backups/*.dump
