@@ -19,7 +19,7 @@
     "@types/react": "~19.2.4",
     "axios": "^1.7.9",
     "babel-preset-expo": "~57.0.0",
-    "expo": "^57.0.22",
+    "expo": "^57.0.25",
     "expo-apple-authentication": "~57.0.2",
     "expo-asset": "~57.0.17",
     "expo-audio": "~57.0.5",
