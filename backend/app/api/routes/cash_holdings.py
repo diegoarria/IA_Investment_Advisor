@@ -348,7 +348,16 @@ async def update_cash_holding(holding_id: str, body: dict, user_id: str = Depend
 @router.delete("/{holding_id}")
 async def delete_cash_holding(holding_id: str, user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    await run_query(
+    # Same discipline as update_cash_holding above — this used to always
+    # return {"ok": True} regardless of whether a row actually matched and
+    # got deleted, so a wrong/already-deleted id looked identical to a real
+    # delete on the client. The frontend's retry/tombstone queue
+    # (cashDividendsStore.ts) now specifically treats 404 here as "already
+    # gone, goal achieved" — so this 404 is a real signal, not silently
+    # swallowed.
+    result = await run_query(
         db.table("cash_holdings").delete().eq("id", holding_id).eq("user_id", user_id)
     )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No encontrado")
     return {"ok": True}

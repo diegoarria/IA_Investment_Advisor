@@ -12,7 +12,7 @@ import type { TFunction } from "i18next";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { market as marketApi, cashHoldings as cashHoldingsApi } from "@/lib/api";
+import { market as marketApi } from "@/lib/api";
 import { useCashDividends, type CashHolding } from "@/lib/cashDividendsStore";
 import { useAuthStore, useSubscriptionStore, useProfileStore, useBalanceVisibilityStore, hasPremiumAccess } from "@/lib/store";
 import { getUserLevel, isAtLeast } from "@/lib/userLevel";
@@ -957,37 +957,31 @@ export default function PortfolioPage() {
   // same currency conversion as Inicio/Patrimonio.
   const {
     holdings: cashList, cashTotal, dividendTotal, toCurrency: convertHolding,
-    setHoldings: setCashList, refreshAfterChange: refreshCash,
+    addHolding: addCashHolding, updateHolding: updateCashHolding, removeHolding: removeCashHolding,
   } = useCashDividends(portfolioCurrency, fxRate);
   const [cashFormOpen, setCashFormOpen] = useState(false);
   const [cashEditingId, setCashEditingId] = useState<string | null>(null);
   const [cashForm, setCashForm] = useState({ amount: "", instrument: "bank" as CashHolding["instrument"], label: "", rate: "" });
-  const [cashSaving, setCashSaving] = useState(false);
 
-  const handleSaveCash = async () => {
+  // Diego, 2026-10-16: "SIEMPRE SIEMPRE debe funcionar, con o sin internet,
+  // y debe guardarse" — add/update/remove now go through cashDividendsStore
+  // (addHolding/updateHolding/removeHolding), which applies the change
+  // locally and persists it immediately, then retries the server call in
+  // the background (with a tombstone/pending queue that survives a reload)
+  // instead of this screen waiting on one request and reverting the whole
+  // thing on any single failure.
+  const handleSaveCash = () => {
     const amount = parseFloat(cashForm.amount);
     if (isNaN(amount) || amount <= 0) return;
     const manualRate = cashForm.rate.trim() === "" ? null : parseFloat(cashForm.rate);
-    setCashSaving(true);
-    try {
-      if (cashEditingId) {
-        const res = await cashHoldingsApi.update(cashEditingId, {
-          amount, instrument: cashForm.instrument, label: cashForm.label || undefined, rate_pct: manualRate,
-        });
-        setCashList((prev) => prev.map((c) => (c.id === cashEditingId ? res.data.holding : c)));
-      } else {
-        const res = await cashHoldingsApi.add(amount, cashForm.instrument, portfolioCurrency, cashForm.label || undefined, manualRate);
-        setCashList((prev) => [...prev, res.data.holding]);
-      }
-      setCashForm({ amount: "", instrument: "bank", label: "", rate: "" });
-      setCashEditingId(null);
-      setCashFormOpen(false);
-      refreshCash();
-    } catch {
-      showToast("No se pudo guardar el efectivo. Intenta de nuevo.");
-    } finally {
-      setCashSaving(false);
+    if (cashEditingId) {
+      updateCashHolding(cashEditingId, { amount, instrument: cashForm.instrument, label: cashForm.label || undefined, rate_pct: manualRate });
+    } else {
+      addCashHolding(amount, cashForm.instrument, portfolioCurrency, cashForm.label || undefined, manualRate);
     }
+    setCashForm({ amount: "", instrument: "bank", label: "", rate: "" });
+    setCashEditingId(null);
+    setCashFormOpen(false);
   };
 
   const handleEditCash = (c: CashHolding) => {
@@ -996,21 +990,9 @@ export default function PortfolioPage() {
     setCashFormOpen(true);
   };
 
-  const handleRemoveCash = async (id: string) => {
-    const removed = cashList.find((c) => c.id === id);
-    setCashList((prev) => prev.filter((c) => c.id !== id));
+  const handleRemoveCash = (id: string) => {
     if (cashEditingId === id) { setCashEditingId(null); setCashFormOpen(false); setCashForm({ amount: "", instrument: "bank", label: "", rate: "" }); }
-    try {
-      await cashHoldingsApi.remove(id);
-      refreshCash();
-    } catch {
-      // Used to swallow the failure and leave the row gone from the UI — it
-      // would only "resurrect" on the next reload (server never actually
-      // deleted it), which looks like the app randomly un-deleting data.
-      // Roll the optimistic removal back immediately instead, and say why.
-      if (removed) setCashList((prev) => [...prev, removed]);
-      showToast("No se pudo eliminar. Revisa tu conexión e intenta de nuevo.");
-    }
+    removeCashHolding(id);
   };
   const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
 
@@ -2678,10 +2660,10 @@ export default function PortfolioPage() {
                             className="flex-1 py-2 rounded-lg border text-xs font-semibold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
                       {t("portfolio.cash.cancel")}
                     </button>
-                    <button onClick={handleSaveCash} disabled={cashSaving || !cashForm.amount}
+                    <button onClick={handleSaveCash} disabled={!cashForm.amount}
                             className="flex-[2] py-2 rounded-lg text-xs font-bold text-white disabled:opacity-40"
                             style={{ background: "var(--accent)" }}>
-                      {cashSaving ? t("portfolio.cash.saving") : cashEditingId ? t("portfolio.cash.saveChanges") : t("portfolio.cash.save")}
+                      {cashEditingId ? t("portfolio.cash.saveChanges") : t("portfolio.cash.save")}
                     </button>
                   </div>
                 </div>
@@ -3333,10 +3315,10 @@ export default function PortfolioPage() {
                             className="flex-1 py-2 rounded-lg border text-xs font-semibold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
                       {t("portfolio.cash.cancel")}
                     </button>
-                    <button onClick={handleSaveCash} disabled={cashSaving || !cashForm.amount}
+                    <button onClick={handleSaveCash} disabled={!cashForm.amount}
                             className="flex-[2] py-2 rounded-lg text-xs font-bold text-white disabled:opacity-40"
                             style={{ background: "var(--accent)" }}>
-                      {cashSaving ? t("portfolio.cash.saving") : cashEditingId ? t("portfolio.cash.saveChanges") : t("portfolio.cash.save")}
+                      {cashEditingId ? t("portfolio.cash.saveChanges") : t("portfolio.cash.save")}
                     </button>
                   </div>
                 </div>
