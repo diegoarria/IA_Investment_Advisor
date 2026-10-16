@@ -1147,21 +1147,27 @@ export default function HomePage() {
                       </span>
                     )}
 
-                    {/* Cash / dividends */}
-                    {!balanceHidden && (cashTotal > 0 || dividendTotal > 0) && (
+                    {/* Cash / dividends — Diego, 2026-10-16: "CORRÍGELO Y
+                        MUÉSTRALO SIEMPRE". Used to hide entirely whenever
+                        cashTotal/dividendTotal were 0, which read as "my
+                        cash disappeared" the moment a user's real balance
+                        actually was zero (e.g. right after deleting their
+                        only cash holding) — indistinguishable from data
+                        loss even though nothing was lost. Now always shown
+                        (still respecting the balanceHidden eye toggle,
+                        which is an intentional privacy control, not a bug)
+                        so the real number — including a real $0.00 — is
+                        always visible instead of the line just vanishing. */}
+                    {!balanceHidden && !loading && (
                       <div className="mt-3 space-y-1">
-                        {cashTotal > 0 && (
-                          <p className="flex items-center gap-1.5 text-[13px]" style={{ color: "var(--sub)" }}>
-                            <Wallet className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--accent-l)" }} />
-                            <span><b className="font-bold" style={{ color: "var(--text)" }}>{fmt(cashTotal, portfolioCurrency)}</b> en efectivo</span>
-                          </p>
-                        )}
-                        {dividendTotal > 0 && (
-                          <p className="flex items-center gap-1.5 text-[13px]" style={{ color: "var(--sub)" }}>
-                            <Banknote className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--accent-l)" }} />
-                            <span><b className="font-bold" style={{ color: "var(--text)" }}>{fmt(dividendTotal, portfolioCurrency)}</b> en dividendos recibidos</span>
-                          </p>
-                        )}
+                        <p className="flex items-center gap-1.5 text-[13px]" style={{ color: "var(--sub)" }}>
+                          <Wallet className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--accent-l)" }} />
+                          <span><b className="font-bold" style={{ color: "var(--text)" }}>{fmt(cashTotal, portfolioCurrency)}</b> en efectivo</span>
+                        </p>
+                        <p className="flex items-center gap-1.5 text-[13px]" style={{ color: "var(--sub)" }}>
+                          <Banknote className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--accent-l)" }} />
+                          <span><b className="font-bold" style={{ color: "var(--text)" }}>{fmt(dividendTotal, portfolioCurrency)}</b> en dividendos recibidos</span>
+                        </p>
                       </div>
                     )}
                   </div>

@@ -1260,24 +1260,29 @@ export default function HomeScreen() {
                 </Text>
             }
           </View>
-          {!balanceHidden && (cashTotal > 0 || dividendTotal > 0) && (
+          {/* Cash / dividends — Diego, 2026-10-16: "CORRÍGELO Y MUÉSTRALO
+              SIEMPRE". Used to hide entirely whenever cashTotal/
+              dividendTotal were 0, which read as "my cash disappeared" the
+              moment a user's real balance actually was zero —
+              indistinguishable from data loss even though nothing was
+              lost. Now always shown (still respecting the balanceHidden
+              eye toggle, an intentional privacy control, not a bug) so a
+              real $0.00 is always visible instead of the row vanishing.
+              Mirror of the same fix on web's home/page.tsx. */}
+          {!balanceHidden && !loading && (
             <View style={{ marginTop: 12, gap: 4 }}>
-              {cashTotal > 0 && (
-                <View style={ss.heroExtraRow}>
-                  <Ionicons name="wallet-outline" size={14} color={colors.accentLight} />
-                  <Text style={[ss.heroExtraText, { color: colors.textSub }]} numberOfLines={1}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(cashTotal, portfolioCurrency)}</Text> en efectivo
-                  </Text>
-                </View>
-              )}
-              {dividendTotal > 0 && (
-                <View style={ss.heroExtraRow}>
-                  <Ionicons name="cash-outline" size={14} color={colors.accentLight} />
-                  <Text style={[ss.heroExtraText, { color: colors.textSub }]} numberOfLines={1}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(dividendTotal, portfolioCurrency)}</Text> en dividendos recibidos
-                  </Text>
-                </View>
-              )}
+              <View style={ss.heroExtraRow}>
+                <Ionicons name="wallet-outline" size={14} color={colors.accentLight} />
+                <Text style={[ss.heroExtraText, { color: colors.textSub }]} numberOfLines={1}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(cashTotal, portfolioCurrency)}</Text> en efectivo
+                </Text>
+              </View>
+              <View style={ss.heroExtraRow}>
+                <Ionicons name="cash-outline" size={14} color={colors.accentLight} />
+                <Text style={[ss.heroExtraText, { color: colors.textSub }]} numberOfLines={1}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(dividendTotal, portfolioCurrency)}</Text> en dividendos recibidos
+                </Text>
+              </View>
             </View>
           )}
 
