@@ -518,8 +518,14 @@ export const screenerWeeklyApi = {
     api.get("/api/market/screener/quick-analysis", { params: { query, lang, is_default_view: isDefaultView }, timeout: 25000 }),
   nifDashboard: (query: string, lang?: string) =>
     api.get("/api/market/screener/nif-dashboard", { params: { query, lang }, timeout: 25000 }),
+  // 75s (bumped from 25s, 2026-10-17 — same fix as web's api.ts: a never-
+  // before-seen ticker whose peer data hits a rate-limited external
+  // provider can legitimately take the backend close to its ~12s
+  // enrichment budget plus its own internal retry-once logic before
+  // succeeding or falling back; 25s cut the backend off before its own
+  // resilience logic even got a chance to finish.
   companyDiagnostic: (query: string, lang?: string) =>
-    api.get("/api/market/screener/company-diagnostic", { params: { query, lang }, timeout: 25000 }),
+    api.get("/api/market/screener/company-diagnostic", { params: { query, lang }, timeout: 75000 }),
   getValuationBacktest: () => api.get("/api/market/screener/valuation-backtest"),
 };
 

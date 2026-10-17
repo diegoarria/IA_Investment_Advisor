@@ -708,15 +708,20 @@ export const screenerApi = {
     api.get("/api/market/screener/quick-analysis/public", { params: { query, guest_id: guestId, lang, is_default_view: isDefaultView }, timeout: 25000 }),
   nifDashboard: (query: string, lang?: string) =>
     api.get("/api/market/screener/nif-dashboard", { params: { query, lang }, timeout: 25000 }),
-  // 40s (vs. the 25s other screener endpoints use) — a fresh/uncached
-  // ticker runs the full dual-track engine plus an AI narrative call and
-  // has measured at ~15s server-side alone; 25s left too little headroom
-  // for real browser network latency on top of that.
+  // 75s (bumped from 40s, 2026-10-17 — confirmed live: a never-before-
+  // seen ticker whose peer data hits a rate-limited external provider can
+  // legitimately take the backend close to 2× its own ~12s enrichment
+  // budget plus its internal 2.5s-then-retry logic before succeeding or
+  // falling back — 40s was cutting the backend off before ITS OWN
+  // resilience logic (see screener.py's _company_diagnostic_result) even
+  // got a chance to finish. The backend-side peer-enrichment time budget
+  // (fundamental_analysis_service.py's _PEER_ENRICHMENT_TIMEOUT_S) is the
+  // real fix for the common case; this is the safety margin for the rest.
   companyDiagnostic: (query: string, lang?: string) =>
-    api.get("/api/market/screener/company-diagnostic", { params: { query, lang }, timeout: 40000 }),
+    api.get("/api/market/screener/company-diagnostic", { params: { query, lang }, timeout: 75000 }),
   // No-auth counterpart for guests, same real data as companyDiagnostic.
   companyDiagnosticPublic: (query: string, guestId: string, lang?: string) =>
-    api.get("/api/market/screener/company-diagnostic/public", { params: { query, guest_id: guestId, lang }, timeout: 40000 }),
+    api.get("/api/market/screener/company-diagnostic/public", { params: { query, guest_id: guestId, lang }, timeout: 75000 }),
   getValuationBacktest: () => api.get("/api/market/screener/valuation-backtest"),
 };
 

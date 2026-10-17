@@ -22,6 +22,7 @@ import os
 import time
 import threading
 import logging
+import concurrent.futures
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -33,6 +34,30 @@ from app.core.config import settings
 from app.services.valuation.numeric_helpers import derive_fcf
 
 logger = logging.getLogger(__name__)
+
+# Diego, 2026-10-17: "Nuvos Radar JAMÁS debe fallar al abrir" — confirmed
+# live for UNH: its own financials came back fine from FMP, but peer
+# tickers fetched in parallel during Consensus/industry-benchmark
+# enrichment fell through to this file's yfinance fallback, which has no
+# explicit timeout of its own — Yahoo rate-limited several peers
+# simultaneously (429s), and yfinance's own internal retry/backoff on
+# that is unbounded enough that the whole request took 53+ seconds,
+# blowing well past the frontend's 40s timeout even though real data was
+# available the whole time. This hard-caps any single yfinance fallback
+# call so a rate-limited/slow Yahoo response can never stall the request
+# for more than a few seconds — it degrades to "no data from this
+# fallback" (the same outcome as any other yfinance failure already
+# handled below), never to a multi-minute hang.
+_YF_TIMEOUT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="yf-fallback")
+_YF_CALL_TIMEOUT_S = 8
+
+
+def _yf_with_timeout(fn, *args, **kwargs):
+    """Runs `fn(*args, **kwargs)` with a hard deadline — raises
+    concurrent.futures.TimeoutError (a normal Exception subclass) instead
+    of letting a rate-limited/slow Yahoo response hang the caller."""
+    future = _YF_TIMEOUT_POOL.submit(fn, *args, **kwargs)
+    return future.result(timeout=_YF_CALL_TIMEOUT_S)
 
 # ─── Provider credentials ─────────────────────────────────────────────────────
 
@@ -738,12 +763,14 @@ class YFinanceProvider(FinancialProvider):
 
     def get_income(self, symbol: str, annual: bool, limit: int) -> list[dict]:
         try:
-            import yfinance as yf
-            t = yf.Ticker(symbol)
-            df = t.income_stmt if annual else t.quarterly_income_stmt
+            def _fetch():
+                import yfinance as yf
+                t = yf.Ticker(symbol)
+                df = t.income_stmt if annual else t.quarterly_income_stmt
+                return df, self._currency(t)
+            df, cur = _yf_with_timeout(_fetch)
             if df is None or df.empty:
                 return []
-            cur = self._currency(t)
 
             def n(v):
                 return _conv(v, cur)
@@ -784,12 +811,14 @@ class YFinanceProvider(FinancialProvider):
 
     def get_balance(self, symbol: str, annual: bool, limit: int) -> list[dict]:
         try:
-            import yfinance as yf
-            t = yf.Ticker(symbol)
-            df = t.balance_sheet if annual else t.quarterly_balance_sheet
+            def _fetch():
+                import yfinance as yf
+                t = yf.Ticker(symbol)
+                df = t.balance_sheet if annual else t.quarterly_balance_sheet
+                return df, self._currency(t)
+            df, cur = _yf_with_timeout(_fetch)
             if df is None or df.empty:
                 return []
-            cur = self._currency(t)
 
             def n(v):
                 return _conv(v, cur)
@@ -841,12 +870,14 @@ class YFinanceProvider(FinancialProvider):
 
     def get_cashflow(self, symbol: str, annual: bool, limit: int) -> list[dict]:
         try:
-            import yfinance as yf
-            t = yf.Ticker(symbol)
-            df = t.cashflow if annual else t.quarterly_cashflow
+            def _fetch():
+                import yfinance as yf
+                t = yf.Ticker(symbol)
+                df = t.cashflow if annual else t.quarterly_cashflow
+                return df, self._currency(t)
+            df, cur = _yf_with_timeout(_fetch)
             if df is None or df.empty:
                 return []
-            cur = self._currency(t)
 
             def n(v):
                 return _conv(v, cur)

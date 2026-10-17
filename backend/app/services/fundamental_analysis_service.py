@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import statistics
+import concurrent.futures
 from datetime import datetime, timezone
 from dataclasses import asdict
 from typing import Optional
@@ -53,6 +54,29 @@ from app.services.quality.quality_engine import compute_incremental_roic, comput
 from app.services.valuation.nuvos_engine.engine import compute_nuvos_fair_value
 
 logger = logging.getLogger(__name__)
+
+# Diego, 2026-10-17: "Nuvos Radar JAMÁS debe fallar al abrir" — confirmed
+# live for UNH: the broad try/except around the peer-dependent block below
+# already keeps a real exception there from crashing the whole analysis,
+# but it does nothing to bound TIME — a slow/rate-limited external call
+# inside it (Yahoo peer data, confirmed live hitting 429s) can still eat
+# 40-50+ seconds before the except even fires, blowing past the frontend's
+# timeout even though the CORE valuation (everything above this block)
+# never depended on it. This caps the ENTIRE enrichment block at a hard
+# wall-clock budget — if it's not done in time, the result is exactly the
+# same as any other failure in that block (relative_valuation/historical_
+# valuation/industry_benchmarks stay None, logged, nothing fabricated) and
+# the core result ships on time regardless of what peers/Yahoo are doing.
+_PEER_ENRICHMENT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="peer-enrich")
+_PEER_ENRICHMENT_TIMEOUT_S = 12
+
+
+def _with_time_budget(fn, seconds: float):
+    """Runs `fn()` with a hard deadline — returns `fn`'s result, or raises
+    concurrent.futures.TimeoutError (a normal Exception) if it overruns."""
+    future = _PEER_ENRICHMENT_POOL.submit(fn)
+    return future.result(timeout=seconds)
+
 
 _MIN_YEARS = 3
 _PROJECTION_YEARS = 10
@@ -2329,7 +2353,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             historical_valuation = None
             industry_benchmarks = None
             if _compute_peer_dependent_data:
-                try:
+                def _compute_peer_enrichment():
                     from app.services.relative_valuation_service import (
                         compute_relative_valuation, resolve_universe_sector_industry,
                     )
@@ -2351,22 +2375,35 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     # real-network smoke test that took 94s before this
                     # cache was added.
                     _peer_analysis_cache: dict = {}
+                    _rel_val = None
+                    _hist_val = None
                     if price and shares_out:
-                        relative_valuation = compute_relative_valuation(
+                        _rel_val = compute_relative_valuation(
                             ticker, price, shares_out, _latest_eps, _latest_ebitda, _latest_fcf,
                             total_debt, cash_latest, _peer_sector, _univ_industry,
                             analysis_cache=_peer_analysis_cache,
                             latest_revenue=latest_rev,
                         )
                         if n >= 5:
-                            historical_valuation = compute_historical_valuation(
+                            _hist_val = compute_historical_valuation(
                                 ticker, income, balance, cashflow, price, shares_out, total_debt, cash_latest,
                                 _latest_eps, _latest_ebitda, _latest_fcf,
                             )
-                    industry_benchmarks_result = compute_industry_benchmarks(
+                    _industry_result = compute_industry_benchmarks(
                         ticker, _peer_sector, _univ_industry, analysis_cache=_peer_analysis_cache,
                     )
-                    industry_benchmarks = asdict(industry_benchmarks_result) if industry_benchmarks_result else None
+                    return _rel_val, _hist_val, (asdict(_industry_result) if _industry_result else None)
+
+                try:
+                    relative_valuation, historical_valuation, industry_benchmarks = _with_time_budget(
+                        _compute_peer_enrichment, _PEER_ENRICHMENT_TIMEOUT_S,
+                    )
+                except concurrent.futures.TimeoutError:
+                    logger.info(
+                        "get_fundamental_analysis(%s): peer-dependent enrichment exceeded %ss budget — "
+                        "shipping the core valuation without it (likely a rate-limited external peer fetch)",
+                        ticker, _PEER_ENRICHMENT_TIMEOUT_S,
+                    )
                 except Exception as e:
                     logger.info("get_fundamental_analysis(%s): relative/historical/industry not computable: %s", ticker, e)
 
