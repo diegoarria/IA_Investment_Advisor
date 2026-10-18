@@ -8,6 +8,7 @@ import Image from "next/image";
 import {
   BrainCircuit, Wallet, User, GraduationCap,
   MessageSquare, ChevronLeft, ChevronRight, Plus, X, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag, Menu, Radar,
+  Sparkles, Gauge, Target,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -333,7 +334,10 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
           </div>
         )}
 
-        {/* Profile widget */}
+        {/* Profile widget — redesigned 2026-10-18 (Diego: "mejora por mucho
+            el diseño"): ambient glow, ringed avatar, icon badges instead of
+            flat pills, gradient-filled risk bar. Same data/logic as before,
+            just a more premium presentation. */}
         {profile && (() => {
           const age = getAge(profile.birth_date);
           const riskScore = behavioralRiskScore ?? {
@@ -345,31 +349,35 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
           const riskLabel = behavioralRiskLabel(riskScore, t);
           return (
             <div className="px-2 pb-1.5 shrink-0">
-              <div className="rounded-xl p-2 card-accent">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-base font-black text-white"
-                       style={{ background: "var(--grad-green)" }}>
+              <div className="relative overflow-hidden rounded-2xl p-2.5"
+                   style={{ background: "linear-gradient(160deg, var(--card), var(--raised))", border: "1px solid var(--border)" }}>
+                <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full pointer-events-none"
+                     style={{ background: "radial-gradient(circle, rgba(0,212,126,0.16), transparent 70%)" }} />
+                <div className="relative flex items-center gap-2">
+                  <div className="relative w-11 h-11 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-base font-black text-white"
+                       style={{ background: "var(--grad-green)", boxShadow: "0 0 0 2px var(--card), 0 0 0 3.5px rgba(0,212,126,0.4), 0 2px 10px rgba(0,212,126,0.25)" }}>
                     {profile.avatar_url
                       ? <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
                       : profile.name.charAt(0).toUpperCase()
                     }
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-bold truncate mb-0.5" style={{ color: "var(--text)" }}>
+                    <div className="text-[12.5px] font-extrabold truncate mb-1 tracking-tight" style={{ color: "var(--text)" }}>
                       {profile.name}{age ? `, ${age}` : ""}
                     </div>
                     <div className="flex items-center gap-1 flex-wrap">
-                      <span className="text-[8px] font-semibold px-1.5 py-px rounded"
-                            style={{ background: "var(--raised)", color: LEVEL_COLOR[userLevel], border: `1px solid var(--border)` }}>
+                      <span className="inline-flex items-center gap-[3px] text-[8px] font-bold px-1.5 py-[3px] rounded-md"
+                            style={{ background: `${LEVEL_COLOR[userLevel]}1A`, color: LEVEL_COLOR[userLevel], border: `1px solid ${LEVEL_COLOR[userLevel]}40` }}>
                         {getLevelLabel(t, userLevel)}
                       </span>
                       {isPremium ? (
-                        <span className="text-[8px] font-semibold px-1.5 py-px rounded"
-                              style={{ background: "var(--raised)", color: "var(--accent-l)", border: "1px solid var(--border)" }}>
+                        <span className="inline-flex items-center gap-[3px] text-[8px] font-bold px-1.5 py-[3px] rounded-md"
+                              style={{ background: "rgba(0,212,126,0.12)", color: "var(--accent-l)", border: "1px solid rgba(0,212,126,0.3)" }}>
+                          <Sparkles className="w-2.5 h-2.5" />
                           {t("common.premium")}
                         </span>
                       ) : (
-                        <span className="text-[8px] font-semibold px-1.5 py-px rounded"
+                        <span className="text-[8px] font-bold px-1.5 py-[3px] rounded-md"
                               style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
                           {t("common.free")}
                         </span>
@@ -379,18 +387,19 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                 </div>
 
                 {/* Risk bar */}
-                <div className="mt-2">
+                <div className="relative mt-2.5">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[8px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>
+                    <span className="inline-flex items-center gap-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: "var(--dim)" }}>
+                      <Gauge className="w-2.5 h-2.5" />
                       {t("common.risk")}
                     </span>
-                    <span className="text-[8px] font-bold" style={{ color: riskColor }}>
+                    <span className="text-[8.5px] font-black" style={{ color: riskColor }}>
                       {riskLabel}
                     </span>
                   </div>
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                  <div className="h-[7px] rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
                     <div className="h-full rounded-full transition-all duration-700"
-                         style={{ width: `${riskScore}%`, background: riskColor }} />
+                         style={{ width: `${riskScore}%`, background: `linear-gradient(90deg, ${riskColor}99, ${riskColor})`, boxShadow: `0 0 6px ${riskColor}66` }} />
                   </div>
                 </div>
               </div>
@@ -398,7 +407,8 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
           );
         })()}
 
-        {/* ── Goal banner ── always visible for logged-in users with a goal */}
+        {/* ── Goal banner ── redesigned 2026-10-18, same data as before —
+            icon badge instead of a bare floating emoji, clearer hierarchy. */}
         {profile?.investment_goal && (() => {
           const goal = GOAL_MAP[profile.investment_goal];
           const goalLabel = goal ? t(`common.goalMap.${goal.key}`) : profile.investment_goal;
@@ -406,18 +416,24 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
           const amount = profile.investment_goal_amount ? Number(profile.investment_goal_amount) : null;
           return (
             <div className="px-2 pb-1.5 shrink-0">
-              <div className="rounded-xl px-2.5 py-2 flex items-center gap-2"
-                   style={{ background: "linear-gradient(135deg, rgba(0,168,94,0.09), rgba(0,184,94,0.04))", border: "1px solid rgba(0,168,94,0.22)" }}>
-                <span style={{ fontSize: 18, lineHeight: 1 }}>{goalEmoji}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[8px] font-bold uppercase tracking-widest leading-none mb-0.5" style={{ color: "var(--dim)" }}>
+              <div className="relative overflow-hidden rounded-2xl px-2.5 py-2.5 flex items-center gap-2.5"
+                   style={{ background: "linear-gradient(135deg, rgba(0,168,94,0.12), rgba(0,184,94,0.03))", border: "1px solid rgba(0,168,94,0.28)" }}>
+                <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full pointer-events-none"
+                     style={{ background: "radial-gradient(circle, rgba(0,212,126,0.10), transparent 70%)" }} />
+                <div className="relative w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                     style={{ background: "rgba(0,212,126,0.14)", border: "1px solid rgba(0,212,126,0.3)" }}>
+                  <span style={{ fontSize: 17, lineHeight: 1 }}>{goalEmoji}</span>
+                </div>
+                <div className="relative flex-1 min-w-0">
+                  <p className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-widest leading-none mb-1" style={{ color: "var(--dim)" }}>
+                    <Target className="w-2.5 h-2.5" style={{ color: "var(--accent-l)" }} />
                     {t("common.myGoal")}
                   </p>
-                  <p className="text-[11px] font-bold leading-tight truncate" style={{ color: "var(--accent-l)" }}>
+                  <p className="text-[11.5px] font-extrabold leading-tight truncate tracking-tight" style={{ color: "var(--accent-l)" }}>
                     {goalLabel}
                   </p>
                   {amount ? (
-                    <p className="text-[10px] font-semibold mt-0.5" style={{ color: "var(--text)" }}>
+                    <p className="text-[10px] font-bold mt-0.5 tabular-nums" style={{ color: "var(--text)" }}>
                       ${amount.toLocaleString("en-US")} USD
                     </p>
                   ) : null}

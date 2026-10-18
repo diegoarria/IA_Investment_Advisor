@@ -4,6 +4,7 @@ import {
   StyleSheet, Pressable, Platform, ScrollView, Image, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as SecureStore from "expo-secure-store";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -50,16 +51,25 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
   const isPremium = hasPremiumAccess(subStore);
   const age = getAge(profile.birth_date ?? "");
 
+  // Redesigned 2026-10-18 (Diego: "mejora por mucho el diseño") — subtle
+  // gradient card body, ringed/glowing avatar, icon badges instead of flat
+  // pills, gradient-filled risk bar. Same data/logic as before.
   return (
-    <View style={[styles.profileCard, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+    <LinearGradient
+      colors={[colors.card, colors.bgRaised]}
+      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+      style={[styles.profileCard, { borderColor: colors.border }]}
+    >
       {/* Avatar + name + badges */}
       <View style={styles.profileHeader}>
-        <View style={styles.avatar}>
-          {profile.avatarUri ? (
-            <Image source={{ uri: profile.avatarUri }} style={styles.avatarImg} />
-          ) : (
-            <Text style={styles.avatarText}>{profile.name.charAt(0).toUpperCase()}</Text>
-          )}
+        <View style={styles.avatarRing}>
+          <View style={styles.avatar}>
+            {profile.avatarUri ? (
+              <Image source={{ uri: profile.avatarUri }} style={styles.avatarImg} />
+            ) : (
+              <Text style={styles.avatarText}>{profile.name.charAt(0).toUpperCase()}</Text>
+            )}
+          </View>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
@@ -69,30 +79,42 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
             <View style={[styles.levelBadge, { borderColor: levelColor + "55", backgroundColor: levelColor + "18" }]}>
               <Text style={[styles.levelBadgeText, { color: levelColor }]}>{getLevelLabel(t, level)}</Text>
             </View>
-            <View style={[styles.subBadge, { borderColor: colors.border }]}>
-              <Text style={[styles.subBadgeText, { color: isPremium ? "#00d47e" : colors.textDim }]}>
-                {isPremium ? t("common.sidebar.premium") : t("common.sidebar.free")}
-              </Text>
-            </View>
+            {isPremium ? (
+              <View style={[styles.subBadge, { borderColor: "rgba(0,212,126,0.4)", backgroundColor: "rgba(0,212,126,0.14)" }]}>
+                <Ionicons name="sparkles" size={9} color="#00d47e" style={{ marginRight: 2 }} />
+                <Text style={[styles.subBadgeText, { color: "#00d47e" }]}>{t("common.sidebar.premium")}</Text>
+              </View>
+            ) : (
+              <View style={[styles.subBadge, { borderColor: colors.border }]}>
+                <Text style={[styles.subBadgeText, { color: colors.textDim }]}>{t("common.sidebar.free")}</Text>
+              </View>
+            )}
           </View>
         </View>
       </View>
 
       {/* Risk bar */}
       {seg && (
-        <View style={{ marginTop: 10 }}>
+        <View style={{ marginTop: 12 }}>
           <View style={styles.riskRow}>
-            <Text style={[styles.riskLabel, { color: colors.textDim }]}>{t("common.sidebar.riskLabel")}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+              <Ionicons name="speedometer-outline" size={11} color={colors.textDim} />
+              <Text style={[styles.riskLabel, { color: colors.textDim }]}>{t("common.sidebar.riskLabel")}</Text>
+            </View>
             <Text style={[styles.riskPct, { color: seg.color }]}>
               {t(`common.sidebar.riskSegments.${profile.risk_tolerance}`, { defaultValue: profile.risk_tolerance })}
             </Text>
           </View>
           <View style={[styles.riskBarTrack, { backgroundColor: colors.border }]}>
-            <View style={[styles.riskBarFill, { width: `${seg.pct}%` as any, backgroundColor: seg.color }]} />
+            <LinearGradient
+              colors={[seg.color + "AA", seg.color]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={[styles.riskBarFill, { width: `${seg.pct}%` as any }]}
+            />
           </View>
         </View>
       )}
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -112,11 +134,22 @@ function GoalCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"] })
     emoji: GOAL_EMOJI[profile.investment_goal] ?? "🎯",
   };
   const amount = profile.investment_goal_amount ? Number(profile.investment_goal_amount) : null;
+  // Redesigned 2026-10-18 — icon badge instead of a bare floating emoji,
+  // same data as before.
   return (
-    <View style={[goalStyles.card, { borderColor: "rgba(0,212,126,0.25)", backgroundColor: "rgba(0,212,126,0.07)" }]}>
-      <Text style={goalStyles.emoji}>{goal.emoji}</Text>
+    <LinearGradient
+      colors={["rgba(0,212,126,0.14)", "rgba(0,184,94,0.03)"]}
+      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+      style={[goalStyles.card, { borderColor: "rgba(0,212,126,0.3)" }]}
+    >
+      <View style={goalStyles.iconBadge}>
+        <Text style={goalStyles.emoji}>{goal.emoji}</Text>
+      </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[goalStyles.label, { color: "rgba(0,212,126,0.6)" }]}>{t("common.sidebar.myGoal")}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 2 }}>
+          <Ionicons name="flag-outline" size={9} color="#00d47e" />
+          <Text style={goalStyles.label}>{t("common.sidebar.myGoal")}</Text>
+        </View>
         <Text style={[goalStyles.name, { color: "#00d47e" }]} numberOfLines={1}>{goal.label}</Text>
         {amount ? (
           <Text style={[goalStyles.amount, { color: colors.text }]}>
@@ -124,21 +157,27 @@ function GoalCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"] })
           </Text>
         ) : null}
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
 const goalStyles = StyleSheet.create({
   card: {
     marginHorizontal: 12, marginBottom: 8,
-    borderRadius: 12, borderWidth: 1,
-    paddingHorizontal: 12, paddingVertical: 9,
+    borderRadius: 16, borderWidth: 1, overflow: "hidden",
+    paddingHorizontal: 12, paddingVertical: 10,
     flexDirection: "row", alignItems: "center", gap: 10,
   },
-  emoji: { fontSize: 22 },
-  label: { fontSize: 8, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 1 },
-  name:  { fontSize: 12, fontWeight: "700", letterSpacing: -0.1 },
-  amount: { fontSize: 11, fontWeight: "600", marginTop: 1 },
+  iconBadge: {
+    width: 36, height: 36, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(0,212,126,0.14)",
+    borderWidth: 1, borderColor: "rgba(0,212,126,0.3)",
+  },
+  emoji: { fontSize: 17 },
+  label: { fontSize: 8, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", color: "rgba(0,212,126,0.65)" },
+  name:  { fontSize: 12.5, fontWeight: "800", letterSpacing: -0.1 },
+  amount: { fontSize: 11, fontWeight: "700", marginTop: 1 },
 });
 
 // ─── Fixed nav items ──────────────────────────────────────────────────────────
@@ -630,12 +669,17 @@ const styles = StyleSheet.create({
     width: 30, height: 30, borderRadius: 8, borderWidth: 1,
     alignItems: "center", justifyContent: "center", flexShrink: 0,
   },
-  // Profile card
+  // Profile card — redesigned 2026-10-18
   profileCard: {
     marginHorizontal: 10, marginBottom: 8,
-    borderRadius: 14, borderWidth: 1, padding: 10,
+    borderRadius: 18, borderWidth: 1, padding: 11, overflow: "hidden",
   },
-  profileHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 0 },
+  avatarRing: {
+    width: 46, height: 46, borderRadius: 23, flexShrink: 0,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(0,212,126,0.16)",
+  },
+  profileHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 0 },
   avatar: {
     width: 40, height: 40, borderRadius: 20, flexShrink: 0,
     alignItems: "center", justifyContent: "center",
@@ -643,20 +687,20 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: "white", fontSize: 16, fontFamily: "DMSans_800ExtraBold" },
   avatarImg: { width: 40, height: 40, borderRadius: 20 },
-  profileName: { fontSize: 12, fontFamily: "DMSans_700Bold", marginBottom: 3 },
+  profileName: { fontSize: 13, fontFamily: "DMSans_800ExtraBold", marginBottom: 4 },
   profileSub: { fontSize: 10, fontFamily: "DMSans_400Regular" },
-  profileBadgesRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  levelBadge: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  profileBadgesRow: { flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "wrap" },
+  levelBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   levelBadgeText: { fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.3 },
-  subBadge: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  subBadgeText: { fontSize: 8, fontFamily: "DMSans_500Medium", letterSpacing: 0.2 },
+  subBadge: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  subBadgeText: { fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.2 },
   lockLevelText: { fontSize: 9, fontFamily: "DMSans_400Regular" },
   // Risk bar
-  riskRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
-  riskLabel: { fontSize: 10, fontFamily: "DMSans_600SemiBold" },
-  riskPct: { fontSize: 11, fontFamily: "DMSans_800ExtraBold" },
-  riskBarTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
-  riskBarFill: { height: "100%", borderRadius: 3 },
+  riskRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 5 },
+  riskLabel: { fontSize: 9.5, fontFamily: "DMSans_700Bold", textTransform: "uppercase", letterSpacing: 0.3 },
+  riskPct: { fontSize: 11.5, fontFamily: "DMSans_800ExtraBold" },
+  riskBarTrack: { height: 7, borderRadius: 3.5, overflow: "hidden" },
+  riskBarFill: { height: "100%", borderRadius: 3.5 },
   // Nav
   navSection: { paddingHorizontal: 10, paddingTop: 4, gap: 1 },
   navSectionCollapsed: { paddingHorizontal: 6, alignItems: "center" },
