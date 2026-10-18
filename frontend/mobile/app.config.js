@@ -31,7 +31,10 @@ export default {
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#3db54a",
+        // Matches the new logo's own green (2026-10-18 rebrand) — sampled
+        // from the icon artwork itself so the Android adaptive-icon mask's
+        // fallback background never shows a visible seam against it.
+        backgroundColor: "#02da82",
       },
       package: "com.nuvosai.app",
     },
