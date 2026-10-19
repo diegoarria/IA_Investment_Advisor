@@ -1891,6 +1891,11 @@
       "askMentor": "Ask your AI mentor",
       "searchHint": "Or search for any company above by name or ticker (e.g. \"Apple\" or \"AAPL\")"
     },
+    "sessionExpired": {
+      "title": "Your session expired",
+      "subtitle": "Your stocks are still saved — you just need to sign in again to see them.",
+      "cta": "Sign in"
+    },
     "pagination": {
       "prev": "Previous page",
       "next": "Next page",

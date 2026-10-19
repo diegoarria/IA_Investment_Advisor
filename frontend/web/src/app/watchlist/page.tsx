@@ -13,7 +13,7 @@ import {
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 import { watchlist as watchlistApi, market as marketApi, sync as syncApi, priceAlerts as priceAlertsApi } from "@/lib/api";
-import { useAuthStore, useSubscriptionStore, useProfileStore, usePersonalizationStore, useWatchlistStore, hasPremiumAccess } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, useProfileStore, usePersonalizationStore, useWatchlistStore, useGuestGateStore, hasPremiumAccess } from "@/lib/store";
 import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore, useCombinedPositions } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
@@ -54,9 +54,26 @@ interface SearchResult {
 
 const FREE_LIMIT = 25;
 
-// Cache keys are scoped per user so switching accounts never shows stale data.
-const cacheKey = () => `nuvos_watchlist_cache__${useAuthStore.getState().userId ?? "guest"}`;
-const orderKey = () => `nuvos_watchlist_order__${useAuthStore.getState().userId ?? "guest"}`;
+// Cache keys are scoped per user so switching accounts never shows stale
+// data. Diego, 2026-10-19: these used to read useAuthStore.getState().userId
+// LIVE on every call — confirmed live as the real cause of a watchlist
+// going blank mid-session: a session expiring (api.ts's 401 interceptor
+// calling clearAuth(), which nulls userId but leaves the sidebar's
+// profile/goal stores untouched, so the rest of the screen still looks
+// normal) silently flipped every cache read/write to the "guest" bucket,
+// hiding the user's own real cached list at the exact moment they'd most
+// need to still see it. `_pinnedUserId` is set once a real (non-guest)
+// userId is ever seen and is never un-set back to null by a later session
+// expiry — only a genuinely NEW real login (an actual account switch)
+// re-pins it.
+let _pinnedUserId: string | null = null;
+function _resolveUserId(): string | null {
+  const live = useAuthStore.getState().userId;
+  if (live && live !== _pinnedUserId) _pinnedUserId = live;
+  return _pinnedUserId;
+}
+const cacheKey = () => `nuvos_watchlist_cache__${_resolveUserId() ?? "guest"}`;
+const orderKey = () => `nuvos_watchlist_order__${_resolveUserId() ?? "guest"}`;
 
 // "Avanzado" siempre activo, en cualquier dispositivo/ancho de ventana —
 // "Básico" queda dormido (Diego, 2026-08-12). Wrapped in a function (not a
@@ -380,7 +397,8 @@ export default function WatchlistPage() {
   // (?macroEventId=...) — read once on mount, same pattern as the tour flag above.
   const [macroEventId, setMacroEventId] = useState<string | undefined>(undefined);
   useEffect(() => { setMacroEventId(new URLSearchParams(window.location.search).get("macroEventId") ?? undefined); }, []);
-  const { isAuthenticated, clearAuth } = useAuthStore();
+  const { isAuthenticated, clearAuth, sessionExpired } = useAuthStore();
+  const forceShowFlashcard = useGuestGateStore((s) => s.forceShowFlashcard);
   const { profile } = useProfileStore();
   const userLevel = getUserLevel(profile);
   const { tier, isTrialPremium, hasFetchedStatus } = useSubscriptionStore();
@@ -565,6 +583,21 @@ export default function WatchlistPage() {
   const retryRef = useRef(0);
   const pendingAddsRef = useRef<Set<string>>(new Set());
   const missStreakRef = useRef<Map<string, number>>(new Map());
+  // Diego, 2026-10-19: the miss-streak above only protects tickers that
+  // were ALREADY shown successfully this session — it does nothing for the
+  // very first fetch of a session landing on a false-empty. Confirmed live
+  // against Diego's own account (65 real rows in Supabase, confirmed by a
+  // direct DB query) that the backend's own double-check
+  // (run_query_verified_nonempty) can itself still return an empty result
+  // both times under rare conditions (e.g. a lagging read replica) — a
+  // successful HTTP 200 with `[]`, not an error, so the existing retry-on-
+  // exception logic below never even sees it. This requires a SECOND
+  // consecutive empty read, a few seconds apart, before a first-ever-this-
+  // session empty result is trusted — mirrors the backend's own "don't
+  // trust one empty read" discipline, one layer up, closing the gap where
+  // both of ITS checks could coincidentally land on the same stale replica.
+  const firstEmptyStreakRef = useRef(0);
+  const everConfirmedRef = useRef(false);
 
   // ── Fetch watchlist ─────────────────────────────────────────────────────
   const fetchWatchlist = useCallback(async (isRefresh = false) => {
@@ -583,6 +616,21 @@ export default function WatchlistPage() {
       if (myFetchId !== fetchIdRef.current) return; // superseded by a newer fetch — discard this stale response
       if (!Array.isArray(res.data)) return; // malformed response — keep what is shown
       const data = res.data as WatchlistItem[];
+      // First-ever-this-session empty read: the backend already double-
+      // checks a surprising empty with a fresh client, but that check can
+      // itself land on the same stale replica both times — require a
+      // second consecutive empty read, a few seconds apart, before
+      // trusting it. Once anything is confirmed (real items, or two empty
+      // reads in a row), this never fires again this session.
+      if (data.length === 0 && itemsRef.current.length === 0 && !everConfirmedRef.current) {
+        firstEmptyStreakRef.current += 1;
+        if (firstEmptyStreakRef.current < 2) {
+          retrying = true;
+          setTimeout(() => fetchWatchlist(false), 2500);
+          return;
+        }
+      }
+      everConfirmedRef.current = true;
       // A ticker the user is looking at is never dropped because ONE server
       // read didn't include it (stale node, partial read, blip). It stays
       // until the server has omitted it on 3 consecutive reads — a real
@@ -1092,6 +1140,29 @@ export default function WatchlistPage() {
                 onRemove={handleConfirmDelete}
                 onRowClick={setSelectedStock}
               />
+            ) : items.length === 0 && sessionExpired ? (
+              /* Diego, 2026-10-19: confirmed live root cause of an
+                 intermittent "watchlist vacía" — a session expiring
+                 mid-use (api.ts's 401 interceptor) left the sidebar's
+                 cached profile/goal looking perfectly normal while this
+                 screen's own fetch 401'd and fell through to the generic
+                 empty-state render, indistinguishable from a real empty
+                 account. Session-expired now renders its own state
+                 instead, with a direct way back in. */
+              <div className="rounded-2xl border flex flex-col items-center gap-3 py-16 px-6"
+                   style={{ borderColor: "rgba(239,68,68,0.3)", background: "var(--card)" }}>
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                     style={{ background: "rgba(239,68,68,0.10)" }}>
+                  <Lock className="w-7 h-7" style={{ color: "#ef4444" }} />
+                </div>
+                <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("watchlist.sessionExpired.title")}</p>
+                <p className="text-xs text-center max-w-xs" style={{ color: "var(--muted)" }}>{t("watchlist.sessionExpired.subtitle")}</p>
+                <button onClick={() => forceShowFlashcard()}
+                        className="mt-1 px-4 py-2 rounded-xl text-xs font-bold text-white"
+                        style={{ background: "var(--accent)" }}>
+                  {t("watchlist.sessionExpired.cta")}
+                </button>
+              </div>
             ) : items.length === 0 ? (
               /* Empty state */
               userLevel === "avanzado" ? (

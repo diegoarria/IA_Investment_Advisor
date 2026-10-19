@@ -52,12 +52,26 @@ const missStreak = new Map<string, number>();
 // landing mid-retry must not resurrect them just because the server
 // hasn't committed the delete yet.
 const pendingRemoves = new Set<string>();
+// Diego, 2026-10-19: missStreak above only protects tickers already in
+// `items` (a prior successful load, including a persisted cache from a
+// past session) — a brand-new install/device with NO persisted cache has
+// nothing to protect, so a false-empty first read was accepted instantly.
+// Confirmed live against a real account (65 real rows in Supabase) that
+// the backend's own false-empty guard can itself return empty on both its
+// checks under rare conditions (e.g. a lagging read replica) — this
+// requires a second consecutive empty read, a few seconds apart, before
+// trusting a FIRST-EVER (this process) empty result. Mirrors the same fix
+// on web's watchlist/page.tsx.
+let firstEmptyStreak = 0;
+let everConfirmed = false;
 
 /** Call on account switch (same place persist.rehydrate() is already called
  *  for this store) — missStreak/pendingRemoves are module-level, not part
  *  of the per-user persisted state, so without this a ticker's miss count
  *  could carry over from the previous signed-in account on the same device. */
 export function resetWatchlistSyncState(): void {
+  firstEmptyStreak = 0;
+  everConfirmed = false;
   missStreak.clear();
   pendingRemoves.clear();
 }
@@ -160,6 +174,7 @@ export const useWatchlistStore = create<WatchlistStore>()(
       has: (ticker) => !!get().items.find((i) => i.ticker === ticker.toUpperCase()),
 
       loadFromServer: async () => {
+        let stillConfirming = false;
         try {
           const { pendingSync, pendingSyncSetAt } = get();
           // Stuck flag (or none at all, persisted from before this field
@@ -176,6 +191,19 @@ export const useWatchlistStore = create<WatchlistStore>()(
               addedAt: item.added_at ? new Date(item.added_at).getTime() : Date.now(),
             }));
           const serverItems = toItems(await watchlistServerApi.getAll());
+
+          // First-ever-this-process empty read — see firstEmptyStreak's
+          // comment above. Require a second consecutive empty read before
+          // trusting it; keep showing the loading state in the meantime.
+          if (serverItems.length === 0 && get().items.length === 0 && !everConfirmed) {
+            firstEmptyStreak += 1;
+            if (firstEmptyStreak < 2) {
+              stillConfirming = true;
+              setTimeout(() => useWatchlistStore.getState().loadFromServer(), 2500);
+              return;
+            }
+          }
+          everConfirmed = true;
 
           // Diego, 2026-10-03: "nunca nunca nunca" — a single flaky read
           // (the whole response empty, or missing some tickers the app
@@ -217,7 +245,7 @@ export const useWatchlistStore = create<WatchlistStore>()(
           if (anyKept) setTimeout(() => useWatchlistStore.getState().loadFromServer(), 5000);
         } catch {
         } finally {
-          set({ hasLoadedFromServer: true });
+          if (!stillConfirming) set({ hasLoadedFromServer: true });
         }
       },
       };

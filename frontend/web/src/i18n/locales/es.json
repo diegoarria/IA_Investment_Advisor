@@ -1891,6 +1891,11 @@
       "askMentor": "Preguntarle al mentor IA",
       "searchHint": "O busca cualquier empresa arriba por nombre o símbolo (ej: \"Apple\" o \"AAPL\")"
     },
+    "sessionExpired": {
+      "title": "Tu sesión expiró",
+      "subtitle": "Tus acciones siguen guardadas — solo necesitas iniciar sesión de nuevo para verlas.",
+      "cta": "Iniciar sesión"
+    },
     "pagination": {
       "prev": "Página anterior",
       "next": "Página siguiente",
