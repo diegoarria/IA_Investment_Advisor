@@ -53,6 +53,28 @@ from app.services.quality.moat_engine import compute_moat_score
 # to speed up.
 _DIAG_ENRICHMENT_POOL = ThreadPoolExecutor(max_workers=16, thread_name_prefix="diag-enrich")
 
+# Diego, 2026-10-19: "Nuvos Radar JAMÁS debe fallar al abrir" — confirmed
+# live for AAPL (!): fundamental_analysis_service.py got a 12s time budget
+# on ITS OWN peer-dependent enrichment on 2026-10-17, but this file runs a
+# SECOND, independent peer-fetching pass (_competitor_comparison,
+# _sector_comparison below) that had no budget of its own — each real peer
+# fetch here can still fall through to the same rate-limited Yahoo
+# fallback. Worst case: two full _attempt_build() retries in screener.py,
+# each now bounded mainly by THIS file's unprotected peer fan-out, pushed
+# the total close enough to the frontend's 75s timeout that AAPL — the
+# most liquid, most-prewarmed ticker there is — still 404'd. Same fix as
+# before: a hard wall-clock budget per enrichment block, degrading to
+# "this card omitted" (already a legitimate, existing outcome below
+# _MIN_SECTOR_PEERS) instead of ever holding up the whole diagnostic.
+_DIAG_TIME_BUDGET_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="diag-budget")
+
+
+def _with_diag_time_budget(fn, seconds: float):
+    """Runs `fn()` with a hard deadline — returns `fn`'s result, or raises
+    concurrent.futures.TimeoutError (a normal Exception) if it overruns."""
+    future = _DIAG_TIME_BUDGET_POOL.submit(fn)
+    return future.result(timeout=seconds)
+
 logger = logging.getLogger(__name__)
 
 _COMPETITOR_METRICS_ES = [
@@ -357,7 +379,9 @@ def _competitor_comparison(ticker: str, data: dict, dcf: dict, scenarios: Option
         # industry-benchmarks peer waterfall, ~10 more sequential fetches,
         # just to render a simple side-by-side comparison table that only
         # needs the competitor's own numbers, never its peer-relative ones).
-        competitor_data = get_fundamental_analysis(competitor_ticker, _compute_peer_dependent_data=False)
+        competitor_data = _with_diag_time_budget(
+            lambda: get_fundamental_analysis(competitor_ticker, _compute_peer_dependent_data=False), 10,
+        )
     except Exception as e:
         logger.warning("company_diagnostic(%s): competitor fetch failed for %s: %s", ticker, competitor_ticker, e)
         competitor_data = None
@@ -506,11 +530,27 @@ def _sector_comparison(ticker: str, data: dict, dcf: dict, sector: Optional[str]
     # pattern as market.py's _MARKET_POOL; .map() preserves input order, so
     # peer_values still lines up positionally with `peers` the way the
     # sequential loop's append order used to.
-    peer_values: list[dict] = []
-    for peer_data in _DIAG_ENRICHMENT_POOL.map(_fetch_one_peer, peers):
-        if not peer_data:
-            continue
-        peer_values.append(_sector_metric_values(peer_data, peer_data.get("dcf") or {}))
+    #
+    # Diego, 2026-10-19: parallel across peers still has no ceiling on how
+    # long the SLOWEST one can take — confirmed live, this fan-out (plus
+    # _competitor_comparison's own peer fetch) was the real reason AAPL
+    # still 404'd after the 2026-10-17 fix (that one only covered the
+    # SEPARATE peer pass inside get_fundamental_analysis itself). A hard
+    # wall-clock budget here too — timing out just means this card is
+    # omitted, same outcome as not clearing _MIN_SECTOR_PEERS below.
+    def _collect_peer_values() -> list[dict]:
+        collected: list[dict] = []
+        for peer_data in _DIAG_ENRICHMENT_POOL.map(_fetch_one_peer, peers):
+            if not peer_data:
+                continue
+            collected.append(_sector_metric_values(peer_data, peer_data.get("dcf") or {}))
+        return collected
+
+    try:
+        peer_values = _with_diag_time_budget(_collect_peer_values, 14)
+    except Exception as e:
+        logger.warning("sector_comparison(%s): peer fan-out exceeded time budget or failed: %s", ticker, e)
+        return None
 
     if len(peer_values) < _MIN_SECTOR_PEERS:
         return None

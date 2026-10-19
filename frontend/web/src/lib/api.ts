@@ -708,20 +708,19 @@ export const screenerApi = {
     api.get("/api/market/screener/quick-analysis/public", { params: { query, guest_id: guestId, lang, is_default_view: isDefaultView }, timeout: 25000 }),
   nifDashboard: (query: string, lang?: string) =>
     api.get("/api/market/screener/nif-dashboard", { params: { query, lang }, timeout: 25000 }),
-  // 75s (bumped from 40s, 2026-10-17 — confirmed live: a never-before-
-  // seen ticker whose peer data hits a rate-limited external provider can
-  // legitimately take the backend close to 2× its own ~12s enrichment
-  // budget plus its internal 2.5s-then-retry logic before succeeding or
-  // falling back — 40s was cutting the backend off before ITS OWN
-  // resilience logic (see screener.py's _company_diagnostic_result) even
-  // got a chance to finish. The backend-side peer-enrichment time budget
-  // (fundamental_analysis_service.py's _PEER_ENRICHMENT_TIMEOUT_S) is the
-  // real fix for the common case; this is the safety margin for the rest.
+  // 100s (bumped from 75s, 2026-10-19 — confirmed live AAPL still 404'd
+  // at 75s: company_diagnostic_service.py's OWN peer fan-out
+  // (_competitor_comparison/_sector_comparison) had no time budget of its
+  // own, independent of fundamental_analysis_service.py's 2026-10-17 fix,
+  // so two full backend retries could still approach ~90s in the worst
+  // case. Both now have their own hard budgets too (company_diagnostic_
+  // service.py's _DIAG_TIME_BUDGET_POOL), which fixes the common case;
+  // this wider margin covers the rest.
   companyDiagnostic: (query: string, lang?: string) =>
-    api.get("/api/market/screener/company-diagnostic", { params: { query, lang }, timeout: 75000 }),
+    api.get("/api/market/screener/company-diagnostic", { params: { query, lang }, timeout: 100000 }),
   // No-auth counterpart for guests, same real data as companyDiagnostic.
   companyDiagnosticPublic: (query: string, guestId: string, lang?: string) =>
-    api.get("/api/market/screener/company-diagnostic/public", { params: { query, guest_id: guestId, lang }, timeout: 75000 }),
+    api.get("/api/market/screener/company-diagnostic/public", { params: { query, guest_id: guestId, lang }, timeout: 100000 }),
   getValuationBacktest: () => api.get("/api/market/screener/valuation-backtest"),
 };
 
