@@ -537,10 +537,22 @@ def get_revenue_segments(symbol: str, by: str = "product", limit: int = 1) -> li
     revenue for `symbol`. `by` is "product" or "geography". Returns [] if
     FMP isn't configured, the plan doesn't cover this ticker/endpoint, or
     the request fails — callers should treat that as "no segment data
-    available" and say so explicitly, never fall back to a guess."""
+    available" and say so explicitly, never fall back to a guess.
+
+    Cached 24h, keyed by (symbol, by) — NOT by `limit` (2026-10-20 cost
+    audit): `limit` only slices the already-fetched list client-side, the
+    real FMP call itself is identical for any limit, so the full annual
+    history is cached once and every caller's own `limit` is applied
+    after the cache read/write — one fetch serves every limit instead of
+    a separate cache entry (and a separate real call on a cache miss) per
+    distinct limit value a caller happens to pass."""
     if not FMP_KEY:
         return []
     path = "revenue-product-segmentation" if by == "product" else "revenue-geographic-segmentation"
+    ck = f"fmp:segments:{by}:{symbol}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached[:limit]
     try:
         r = requests.get(
             f"{FMP_BASE}/{path}",
@@ -551,6 +563,8 @@ def get_revenue_segments(symbol: str, by: str = "product", limit: int = 1) -> li
         data = r.json()
         if not isinstance(data, list):
             return []
+        if data:
+            cache_set(ck, data, ttl=24 * 3600)
         return data[:limit]
     except Exception as exc:
         logger.debug("FMP segmentation request failed for %s/%s: %s", by, symbol, exc)
@@ -587,9 +601,21 @@ def get_fmp_quote_price(symbol: str) -> Optional[float]:
     been fetched successfully from FMP moments earlier) — confirmed with
     AXP, whose financial-sector valuation model is otherwise real and
     tested (see valuation.financial_engine.build_financial_fair_value).
-    None if unavailable, same as get_beta above — never fabricates a price."""
+    None if unavailable, same as get_beta above — never fabricates a price.
+
+    Cached 60s (2026-10-20 cost audit): confirmed live that a single
+    company-diagnostic open calls this once for the target AND once per
+    comparable peer (up to ~12 real calls just for /quote on one page
+    view) — a live price genuinely needs to stay fresh, but not fresher
+    than 60s, so this still tracks real intraday moves while cutting
+    redundant calls across a request's own peer fan-out and across
+    concurrent requests for the same/overlapping tickers."""
     if not FMP_KEY:
         return None
+    ck = f"fmp:quote_price:{symbol}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
     try:
         r = requests.get(
             f"{FMP_BASE}/quote",
@@ -599,7 +625,10 @@ def get_fmp_quote_price(symbol: str) -> Optional[float]:
         )
         data = r.json()
         if isinstance(data, list) and data:
-            return _num(data[0].get("price"))
+            price = _num(data[0].get("price"))
+            if price is not None:
+                cache_set(ck, price, ttl=60)
+                return price
     except Exception as exc:
         logger.debug("FMP quote request failed for %s: %s", symbol, exc)
     return None
@@ -1422,9 +1451,23 @@ def get_company_profile_fmp(symbol: str) -> dict:
     shape (`name`, `finnhubIndustry`, `exchange`, `shareOutstanding`,
     `marketCapitalization`) so callers can merge the two without a
     separate mapping layer. Returns {} if FMP isn't configured or the
-    request fails — never fabricates a name/sector."""
+    request fails — never fabricates a name/sector.
+
+    Cached 7 days (2026-10-20 cost audit): name/sector/exchange/shares-
+    outstanding change rarely enough that refetching this on every single
+    request/peer-fan-out was pure waste — confirmed this was one of the
+    biggest uncached, repeated FMP endpoints in a company-diagnostic open.
+    `marketCapitalization` riding along in this same cached payload will
+    go briefly stale over the week (it moves with price) — acceptable
+    here since this fallback's primary purpose is name/sector/exchange;
+    callers needing a live market cap use the separately-cached, 60s
+    `/quote` price instead."""
     if not FMP_KEY:
         return {}
+    ck = f"fmp:profile:{symbol}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
     try:
         r = requests.get(
             f"{FMP_BASE}/profile",
@@ -1435,13 +1478,16 @@ def get_company_profile_fmp(symbol: str) -> dict:
         data = r.json()
         if isinstance(data, list) and data:
             d = data[0]
-            return {
+            result = {
                 "name": d.get("companyName"),
                 "finnhubIndustry": d.get("sector"),
                 "exchange": d.get("exchangeFullName") or d.get("exchange"),
                 "shareOutstanding": (_num(d.get("sharesOutstanding")) or 0) / 1_000_000 or None,
                 "marketCapitalization": (_num(d.get("marketCap")) or 0) / 1_000_000 or None,
             }
+            if result["name"]:
+                cache_set(ck, result, ttl=7 * 24 * 3600)
+            return result
     except Exception as exc:
         logger.debug("FMP profile fallback request failed for %s: %s", symbol, exc)
     return {}
@@ -1457,9 +1503,17 @@ def get_analyst_price_target_fmp(symbol: str) -> dict | None:
     outage from a permanent plan limitation. Same real shape as
     `fh_price_target` (target_high/target_low/target_mean/target_median)
     so callers don't need a second code path. Returns None if FMP isn't
-    configured, the request fails, or this ticker has no real consensus."""
+    configured, the request fails, or this ticker has no real consensus.
+
+    Cached 24h (2026-10-20 cost audit): analyst consensus targets move at
+    most a few times a quarter — matches this codebase's existing _TTL_FMP
+    convention for other fundamentals, not re-derived here."""
     if not FMP_KEY:
         return None
+    ck = f"fmp:price_target:{symbol}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
     try:
         r = requests.get(
             f"{FMP_BASE}/price-target-consensus",
@@ -1473,12 +1527,14 @@ def get_analyst_price_target_fmp(symbol: str) -> dict | None:
             target_mean = _num(d.get("targetConsensus"))
             if target_mean is None:
                 return None
-            return {
+            result = {
                 "target_high": _num(d.get("targetHigh")),
                 "target_low": _num(d.get("targetLow")),
                 "target_mean": target_mean,
                 "target_median": _num(d.get("targetMedian")),
             }
+            cache_set(ck, result, ttl=24 * 3600)
+            return result
     except Exception as exc:
         logger.debug("FMP price-target-consensus request failed for %s: %s", symbol, exc)
     return None

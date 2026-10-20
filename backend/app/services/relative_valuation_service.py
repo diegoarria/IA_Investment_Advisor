@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import statistics
+import time
 from typing import Optional
 
 from app.services.valuation.numeric_helpers import calc_margin_of_safety
@@ -75,6 +76,7 @@ def compute_relative_valuation(
     total_debt: float, cash: float, sector: Optional[str], industry: Optional[str],
     analysis_cache: Optional[dict[str, Optional[dict]]] = None,
     latest_revenue: Optional[float] = None,
+    deadline: Optional[float] = None,
 ) -> Optional[dict]:
     """Real peer-multiple valuation. Returns None (never a fabricated
     estimate) if the curated universe doesn't have enough real peers in the
@@ -87,6 +89,16 @@ def compute_relative_valuation(
     for that peer directly — a same-sector peer is frequently also a
     candidate elsewhere in the same weekly run. Never required — falls
     back to a real live fetch per peer when no cache is given.
+
+    `deadline` (optional, `time.monotonic()`-based, 2026-10-20 cost audit):
+    when the caller's own enclosing time budget is about to expire, stop
+    fetching NEW peers rather than keep spending real FMP/Finnhub quota on
+    a result that will be discarded anyway (confirmed live: a timed-out
+    enrichment block's peer fetches kept running to completion in the
+    background regardless, each one a full get_fundamental_analysis call).
+    A peer fetch already in flight when the deadline passes is still
+    allowed to finish normally — this never cancels work, it only skips
+    peers not yet started.
 
     `latest_revenue` (optional, added 2026-10-03): EV/Sales is the ONLY
     multiple here that stays meaningful when EPS/EBITDA/FCF are negative —
@@ -105,6 +117,12 @@ def compute_relative_valuation(
     pe_values, ev_ebitda_values, ev_fcf_values, p_fcf_values, ev_sales_values = [], [], [], [], []
     real_peers_used = []
     for peer_ticker in peers:
+        if deadline is not None and time.monotonic() > deadline:
+            logger.info(
+                "compute_relative_valuation(%s): time budget exceeded, stopping at %d/%d peers fetched",
+                ticker, len(real_peers_used), len(peers),
+            )
+            break
         try:
             if analysis_cache is not None and peer_ticker in analysis_cache:
                 peer_data = analysis_cache[peer_ticker]

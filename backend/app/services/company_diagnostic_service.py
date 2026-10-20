@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import statistics
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
@@ -517,7 +518,25 @@ def _sector_comparison(ticker: str, data: dict, dcf: dict, sector: Optional[str]
     if len(peers) < _MIN_SECTOR_PEERS:
         return None
 
+    _sector_budget_s = 14
+    _sector_deadline = time.monotonic() + _sector_budget_s
+
     def _fetch_one_peer(peer_ticker: str) -> Optional[dict]:
+        # 2026-10-20 cost audit: confirmed live that once _with_diag_time_
+        # budget's 14s wait gives up below, ThreadPoolExecutor.map() had
+        # already submitted every one of these 10 peer fetches up front —
+        # whichever hadn't started running yet still ran to completion in
+        # the background, each one a full get_fundamental_analysis call
+        # (quote/profile/shares/target/segments/statements), burning real
+        # FMP quota for a result nothing was still waiting on. This check
+        # runs at the top of each worker's actual execution (not at
+        # submit time), so it also protects against the realistic
+        # multi-user case: two people opening same-sector tickers at once
+        # share this pool, so a peer fetch queued behind someone else's
+        # work can still see an expired deadline by the time its turn
+        # comes up. Never cancels a fetch already past this point.
+        if time.monotonic() > _sector_deadline:
+            return None
         try:
             return get_fundamental_analysis(peer_ticker, _compute_peer_dependent_data=False)
         except Exception as e:
@@ -547,7 +566,7 @@ def _sector_comparison(ticker: str, data: dict, dcf: dict, sector: Optional[str]
         return collected
 
     try:
-        peer_values = _with_diag_time_budget(_collect_peer_values, 14)
+        peer_values = _with_diag_time_budget(_collect_peer_values, _sector_budget_s)
     except Exception as e:
         logger.warning("sector_comparison(%s): peer fan-out exceeded time budget or failed: %s", ticker, e)
         return None

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import statistics
+import time
 import concurrent.futures
 from datetime import datetime, timezone
 from dataclasses import asdict
@@ -2374,6 +2375,15 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     # sequential peer fetches instead of ~10), found via a
                     # real-network smoke test that took 94s before this
                     # cache was added.
+                    # Own deadline, not just the outer `future.result(timeout=...)`
+                    # (2026-10-20 cost audit) — confirmed live that a timed-out
+                    # enrichment block's peer fetches kept running to completion
+                    # in the background regardless, each spending real FMP
+                    # quota on a result the caller had already given up on.
+                    # Passed into both peer loops below so each stops starting
+                    # NEW peer fetches once it's gone; never cancels one already
+                    # in flight.
+                    _enrich_deadline = time.monotonic() + _PEER_ENRICHMENT_TIMEOUT_S
                     _peer_analysis_cache: dict = {}
                     _rel_val = None
                     _hist_val = None
@@ -2383,6 +2393,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                             total_debt, cash_latest, _peer_sector, _univ_industry,
                             analysis_cache=_peer_analysis_cache,
                             latest_revenue=latest_rev,
+                            deadline=_enrich_deadline,
                         )
                         if n >= 5:
                             _hist_val = compute_historical_valuation(
@@ -2391,6 +2402,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                             )
                     _industry_result = compute_industry_benchmarks(
                         ticker, _peer_sector, _univ_industry, analysis_cache=_peer_analysis_cache,
+                        deadline=_enrich_deadline,
                     )
                     return _rel_val, _hist_val, (asdict(_industry_result) if _industry_result else None)
 

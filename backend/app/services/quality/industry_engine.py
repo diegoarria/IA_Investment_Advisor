@@ -27,9 +27,13 @@ Two independent jobs:
 
 from __future__ import annotations
 
+import logging
 import statistics
+import time
 from dataclasses import dataclass
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 _MIN_PEERS_FOR_BENCHMARK = 5  # same floor relative_valuation_service uses — never median a group too small to mean anything
 
@@ -100,6 +104,7 @@ class IndustryBenchmarks:
 def compute_industry_benchmarks(
     ticker: str, sector: Optional[str], industry: Optional[str],
     analysis_cache: Optional[dict[str, Optional[dict]]] = None,
+    deadline: Optional[float] = None,
 ) -> Optional[IndustryBenchmarks]:
     """Real median ROIC/margins/growth across the company's actual real
     peers (same universe + peer-matching `relative_valuation_service`
@@ -120,6 +125,16 @@ def compute_industry_benchmarks(
     roic_vals, om_vals, fcf_vals, growth_vals = [], [], [], []
     real_peers: list[str] = []
     for peer_ticker in peers:
+        if deadline is not None and time.monotonic() > deadline:
+            # Same discipline as relative_valuation_service.compute_
+            # relative_valuation's own deadline check (2026-10-20 cost
+            # audit) — stop starting new peer fetches once the caller's
+            # time budget is gone; never cancels a fetch already in flight.
+            logger.info(
+                "compute_industry_benchmarks(%s): time budget exceeded, stopping at %d/%d peers fetched",
+                ticker, len(real_peers), len(peers),
+            )
+            break
         if analysis_cache is not None and peer_ticker in analysis_cache:
             peer_data = analysis_cache[peer_ticker]
         else:
