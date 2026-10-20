@@ -61,6 +61,21 @@ interface MacroCalendarEvent {
 
 type AnyCalendarEvent = TickerCalendarEvent | MacroCalendarEvent;
 
+// Diego, 2026-10-19: exported so it's directly unit-testable with the
+// exact same function the component runs — mirror of the same helper on
+// web's WatchlistEarningsCalendar.tsx (see its comment for the full
+// reasoning).
+export function reconcileTickerEvents<T>(
+  evts: T[],
+  allTickersLen: number,
+  prevCount: number,
+): { apply: boolean; nextPrevCount: number } {
+  if (evts.length === 0 && allTickersLen === 0 && prevCount > 0) {
+    return { apply: false, nextPrevCount: 0 };
+  }
+  return { apply: true, nextPrevCount: allTickersLen };
+}
+
 interface Props {
   watchlistTickers: string[];
   portfolioTickers?: string[];
@@ -152,6 +167,17 @@ export default function MobileEarningsCalendar({
   const [macroImpact, setMacroImpact]       = useState<Record<string, string>>({});
   const [analyzingMacro, setAnalyzingMacro] = useState<string | null>(null);
 
+  // Diego, 2026-10-19: unlike macroEvents (merge + persisted cache below),
+  // tickerEvents had zero protection against a blind replace — if
+  // watchlistTickers transiently collapses to [] (a watchlist hiccup
+  // upstream), allTickers here follows, and setTickerEvents([]) wiped every
+  // real earnings/dividend date for the user's actual holdings. Tracks the
+  // last known-real ticker count so a SUSPICIOUS transition (had tickers,
+  // now suddenly none) doesn't wipe real data; a genuinely-empty watchlist
+  // still converges within one more load. Mirror of the same fix on web's
+  // WatchlistEarningsCalendar.tsx.
+  const prevTickersCountRef = useRef(0);
+
   // Portfolio tickers first: they are the ones that must ALWAYS be on the calendar.
   const allTickers   = [...new Set([...portfolioTickers, ...watchlistTickers])].filter(Boolean);
   const portfolioSet = new Set(portfolioTickers);
@@ -189,7 +215,11 @@ export default function MobileEarningsCalendar({
     const macroPromise = fetchMacro().then((mEvents) => {
       if (mEvents) { freshMacroLang.current = fetchLang; setMacroEvents(mEvents); }
     });
-    const tickerDone = tickerPromise.then(setTickerEvents).catch(() => {});
+    const tickerDone = tickerPromise.then((evts) => {
+      const { apply, nextPrevCount } = reconcileTickerEvents(evts, allTickers.length, prevTickersCountRef.current);
+      prevTickersCountRef.current = nextPrevCount;
+      if (apply) setTickerEvents(evts);
+    }).catch(() => {});
 
     Promise.all([tickerDone, macroPromise]).finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps

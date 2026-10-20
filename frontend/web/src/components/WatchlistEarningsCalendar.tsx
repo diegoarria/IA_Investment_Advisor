@@ -70,6 +70,27 @@ interface MacroCalendarEvent {
 
 type AnyCalendarEvent = TickerCalendarEvent | MacroCalendarEvent;
 
+// Diego, 2026-10-19: exported (not inlined in the component) so it's
+// directly unit-testable with the exact same function the component runs
+// — no separately-maintained test simulation that could drift from the
+// real logic. Decides whether a fresh (possibly empty) ticker-events
+// response should replace what's on screen, or be treated as a suspicious
+// transient hiccup to ignore (the ticker list going from real to
+// unexpectedly empty, most likely an upstream blip rather than the user
+// clearing their whole watchlist in that exact instant). A genuinely
+// empty watchlist still converges: the guard resets on the first ignored
+// empty, so a SECOND consecutive empty read is trusted.
+export function reconcileTickerEvents<T>(
+  evts: T[],
+  allTickersLen: number,
+  prevCount: number,
+): { apply: boolean; nextPrevCount: number } {
+  if (evts.length === 0 && allTickersLen === 0 && prevCount > 0) {
+    return { apply: false, nextPrevCount: 0 };
+  }
+  return { apply: true, nextPrevCount: allTickersLen };
+}
+
 interface Props {
   watchlistTickers: string[];
   portfolioTickers?: string[];
@@ -189,6 +210,20 @@ export default function WatchlistEarningsCalendar({
   // macro never did. Tracked separately so a macro hiccup never blocks or
   // hides the ticker events that DID load fine.
   const [macroLoadError, setMacroLoadError] = useState(false);
+  // Diego, 2026-10-19: unlike macroEvents (merge + localStorage cache,
+  // 2026-08-25 fix above), tickerEvents had zero protection against a
+  // blind replace — confirmed live: watchlistTickers is the parent page's
+  // own `items` state, which itself had a false-empty bug (session expiry,
+  // a first-load false-empty) fixed today in watchlist/page.tsx. Every
+  // time that happened, allTickers here collapsed to [], this component's
+  // own effect re-ran, and setTickerEvents([]) wiped every real earnings/
+  // dividend date for the user's actual holdings — the exact "a veces
+  // aparecen y a veces desaparecen" symptom, just for ticker events
+  // instead of macro ones. Tracks the last known-real ticker count so a
+  // SUSPICIOUS transition (had tickers, now suddenly none) doesn't wipe
+  // real data; a genuinely-empty watchlist still converges within one
+  // more load (same miss-streak philosophy used elsewhere in this app).
+  const prevTickersCountRef = useRef(0);
 
   // Portfolio tickers first: they are the ones that must ALWAYS be on the calendar.
   const allTickers   = [...new Set([...portfolioTickers, ...watchlistTickers])].filter(Boolean);
@@ -242,7 +277,11 @@ export default function WatchlistEarningsCalendar({
     // Independent of the ticker request: a ticker-calendar failure must
     // never drop macro events that loaded fine.
     const macroPromise = fetchMacroEvents().then((mEvents) => { if (mEvents) setMacroEvents(mEvents); });
-    const tickerDone = tickerPromise.then(setTickerEvents).catch(() => setLoadError(true));
+    const tickerDone = tickerPromise.then((evts) => {
+      const { apply, nextPrevCount } = reconcileTickerEvents(evts, allTickers.length, prevTickersCountRef.current);
+      prevTickersCountRef.current = nextPrevCount;
+      if (apply) setTickerEvents(evts);
+    }).catch(() => setLoadError(true));
 
     Promise.all([tickerDone, macroPromise]).finally(() => setLoading(false));
   };
