@@ -153,3 +153,57 @@ class TestTranslateHeadlinesToSpanish:
         k3 = mbs._headline_cache_key("Tesla reports earnings")
         assert k1 == k2
         assert k1 != k3
+
+
+class TestCashAndDividendsTotal:
+    """2026-10-20 fix: a genuine fetch failure must never look identical to
+    a real $0 cash + $0 dividends account — that's real money shown wrong
+    in the one number every screen treats as the portfolio's true total."""
+
+    async def test_both_succeed_sums_real_values(self, monkeypatch):
+        import app.services.morning_brief_service as mbs
+        import app.api.routes.wrapped as wrapped
+
+        async def fake_cash(user_id): return 1500.0
+        async def fake_div(user_id): return 42.5
+        monkeypatch.setattr(wrapped, "_cash_holdings_total_usd", fake_cash)
+        monkeypatch.setattr(wrapped, "_dividend_income_total", fake_div)
+
+        total = await mbs._cash_and_dividends_total("u1")
+        assert total == 1542.5
+
+    async def test_genuine_zero_is_not_confused_with_failure(self, monkeypatch):
+        import app.services.morning_brief_service as mbs
+        import app.api.routes.wrapped as wrapped
+
+        async def fake_cash(user_id): return 0.0
+        async def fake_div(user_id): return 0.0
+        monkeypatch.setattr(wrapped, "_cash_holdings_total_usd", fake_cash)
+        monkeypatch.setattr(wrapped, "_dividend_income_total", fake_div)
+
+        total = await mbs._cash_and_dividends_total("u1")
+        assert total == 0.0  # a real $0 account is still a real, trustworthy answer
+
+    async def test_cash_fetch_failure_returns_none_not_zero(self, monkeypatch):
+        import app.services.morning_brief_service as mbs
+        import app.api.routes.wrapped as wrapped
+
+        async def failing_cash(user_id): raise RuntimeError("Supabase hiccup")
+        async def fake_div(user_id): return 42.5
+        monkeypatch.setattr(wrapped, "_cash_holdings_total_usd", failing_cash)
+        monkeypatch.setattr(wrapped, "_dividend_income_total", fake_div)
+
+        total = await mbs._cash_and_dividends_total("u1")
+        assert total is None, "a real $42.50 in dividends must never be silently reported as the whole total"
+
+    async def test_dividend_fetch_failure_returns_none_not_zero(self, monkeypatch):
+        import app.services.morning_brief_service as mbs
+        import app.api.routes.wrapped as wrapped
+
+        async def fake_cash(user_id): return 1500.0
+        async def failing_div(user_id): raise RuntimeError("FX lookup timed out")
+        monkeypatch.setattr(wrapped, "_cash_holdings_total_usd", fake_cash)
+        monkeypatch.setattr(wrapped, "_dividend_income_total", failing_div)
+
+        total = await mbs._cash_and_dividends_total("u1")
+        assert total is None

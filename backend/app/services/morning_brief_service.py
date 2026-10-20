@@ -181,7 +181,7 @@ def _live_position_value(positions: list[dict], quotes: dict[str, dict]) -> floa
     return total
 
 
-async def _cash_and_dividends_total(user_id: str) -> float:
+async def _cash_and_dividends_total(user_id: str) -> Optional[float]:
     """Real cash + real dividends — build_morning_brief adds the live
     position value to this to get the TRUE total shown everywhere else in the app (Home's heroTotal,
     Wrapped) — live stock position value + real cash available to invest
@@ -193,11 +193,18 @@ async def _cash_and_dividends_total(user_id: str) -> float:
     or dividends — so it was never the right source for "the real value."
     """
     from app.api.routes.wrapped import _cash_holdings_total_usd, _dividend_income_total
+    # None (not 0.0) on a genuine fetch failure — real money, so a failed
+    # read must never look identical to "this user really has $0 cash and
+    # $0 dividends." A real $0 value and a failed fetch returned 0.0 the
+    # same way, so a transient Supabase/FX hiccup could cache today's
+    # whole-day total understated and have it propagate via `last_good`.
     cash_total, dividend_total = await asyncio.gather(
-        _guard(_cash_holdings_total_usd(user_id), 0.0, "cash_total"),
-        _guard(_dividend_income_total(user_id), 0.0, "dividend_total"),
+        _guard(_cash_holdings_total_usd(user_id), None, "cash_total"),
+        _guard(_dividend_income_total(user_id), None, "dividend_total"),
     )
-    return (cash_total or 0.0) + (dividend_total or 0.0)
+    if cash_total is None or dividend_total is None:
+        return None
+    return cash_total + dividend_total
 
 
 def _sp500_day_change(quotes: dict[str, dict]) -> Optional[float]:
@@ -661,7 +668,7 @@ async def build_morning_brief(user_id: str, lang: str = "es") -> dict:
         _guard(_top_news_for_positions(tickers or watchlist_tickers, lang), None, "news", timeout=10.0),
         _guard(_events_with_impact_for_user(user_id, positions, lang, db), None, "events", timeout=12.0),
     )
-    degraded = degraded or news is None or events is None or "SPY" not in quotes
+    degraded = degraded or news is None or events is None or "SPY" not in quotes or (bool(positions) and cash_divs is None)
 
     has_portfolio = bool(positions)
     portfolio_value = change_usd = change_pct = None
@@ -702,6 +709,13 @@ async def build_morning_brief(user_id: str, lang: str = "es") -> dict:
         brief["sp500_change_pct"] = last_good.get("sp500_change_pct")
     if has_portfolio and brief["top_mover"] is None:
         brief["top_mover"] = last_good.get("top_mover")
+    if has_portfolio and cash_divs is None and last_good.get("portfolio_value") is not None:
+        # Cash/dividends fetch failed this run — showing stock-only value
+        # as "the total" would understate it (a real, not cosmetic, wrong
+        # number), so prefer today's last known-good real total instead.
+        brief["portfolio_value"] = last_good["portfolio_value"]
+        brief["change_usd"] = last_good.get("change_usd")
+        brief["change_pct"] = last_good.get("change_pct")
     return brief
 
 

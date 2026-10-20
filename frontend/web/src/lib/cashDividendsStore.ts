@@ -50,6 +50,7 @@ interface Snapshot {
 // request's outcome.
 interface PendingAdd {
   tempId: string;
+  clientId: string;
   amount: number;
   instrument: CashHolding["instrument"];
   currency: string;
@@ -113,16 +114,33 @@ const writePending = (userId: string, pending: PendingOps) => {
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** True if every attempt failed — caller decides what "give up" means. */
-async function retry3<T>(fn: () => Promise<T>): Promise<T | null> {
+const newClientId = (): string =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+/** A 422 is the server definitively rejecting the input (bad amount,
+ * unknown instrument) — retrying sends the exact same rejected body again.
+ * Every other failure (network, 401 mid-refresh, 503, 5xx) is transient
+ * and worth retrying. */
+const isPermanentError = (err: unknown): boolean => (err as { response?: { status?: number } })?.response?.status === 422;
+
+type RetryResult<T> = { ok: true; value: T } | { ok: false; permanent: boolean };
+
+/** Retries up to 3 times, but stops immediately on a permanent rejection
+ * instead of resending the same invalid request three times. */
+async function retry3<T>(fn: () => Promise<T>): Promise<RetryResult<T>> {
+  let lastErr: unknown;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      return await fn();
-    } catch {
+      return { ok: true, value: await fn() };
+    } catch (err) {
+      lastErr = err;
+      if (isPermanentError(err)) break;
       if (attempt < 3) await sleep(500 * attempt);
     }
   }
-  return null;
+  return { ok: false, permanent: isPermanentError(lastErr) };
 }
 
 /** DELETE now 404s if nothing matched (2026-10-16 backend fix) — treat
@@ -231,7 +249,7 @@ export const useCashDividendsStore = create<CashDividendsState>()((set, get) => 
         }).catch(() => {});
       }
       for (const a of pending.adds) {
-        cashHoldingsApi.add(a.amount, a.instrument, a.currency, a.label, a.rate_pct ?? null).then((res) => {
+        cashHoldingsApi.add(a.amount, a.instrument, a.currency, a.label, a.rate_pct ?? null, a.clientId).then((res) => {
           const s = get();
           if (s.userId !== userId) return;
           const nextPending = { ...s.pending, adds: s.pending.adds.filter((x) => x.tempId !== a.tempId) };
@@ -270,30 +288,43 @@ export const useCashDividendsStore = create<CashDividendsState>()((set, get) => 
     const { userId, snap, pending } = get();
     if (!userId) return;
     const tempId = `${TEMP_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const clientId = newClientId();
     const optimistic: CashHolding = {
       id: tempId, amount, currency, instrument, label: label ?? null, accrued_amount: amount,
       amount_usd: currency.toUpperCase() === "USD" ? amount : null, rate_pct: ratePct ?? null,
     };
     const nextSnap = { holdings: [...(snap?.holdings ?? []), optimistic], dividendTotalUSD: snap?.dividendTotalUSD ?? 0 };
-    const nextPending = { ...pending, adds: [...pending.adds, { tempId, amount, instrument, currency, label, rate_pct: ratePct }] };
+    const nextPending = { ...pending, adds: [...pending.adds, { tempId, clientId, amount, instrument, currency, label, rate_pct: ratePct }] };
     set({ snap: nextSnap, pending: nextPending });
     write(userId, nextSnap);
     writePending(userId, nextPending);
 
-    const res = await retry3(() => cashHoldingsApi.add(amount, instrument, currency, label, ratePct ?? null));
+    const res = await retry3(() => cashHoldingsApi.add(amount, instrument, currency, label, ratePct ?? null, clientId));
     if (get().userId !== userId) return;
-    if (res) {
+    if (res.ok) {
       const s = get();
-      const finalSnap = s.snap ? { ...s.snap, holdings: s.snap.holdings.map((h) => (h.id === tempId ? res.data.holding : h)) } : s.snap;
+      const finalSnap = s.snap ? { ...s.snap, holdings: s.snap.holdings.map((h) => (h.id === tempId ? res.value.data.holding : h)) } : s.snap;
+      const finalPending = { ...s.pending, adds: s.pending.adds.filter((a) => a.tempId !== tempId) };
+      set({ ...(finalSnap ? { snap: finalSnap } : {}), pending: finalPending });
+      if (finalSnap) write(userId, finalSnap);
+      writePending(userId, finalPending);
+    } else if (res.permanent) {
+      // The server definitively rejected this add (bad amount, unknown
+      // instrument) — showing it as if saved would be worse than losing
+      // it, so roll back the optimistic row instead of leaving a value
+      // on screen the account never actually has.
+      const s = get();
+      const finalSnap = s.snap ? { ...s.snap, holdings: s.snap.holdings.filter((h) => h.id !== tempId) } : s.snap;
       const finalPending = { ...s.pending, adds: s.pending.adds.filter((a) => a.tempId !== tempId) };
       set({ ...(finalSnap ? { snap: finalSnap } : {}), pending: finalPending });
       if (finalSnap) write(userId, finalSnap);
       writePending(userId, finalPending);
     }
-    // else: 3 retries exhausted — the optimistic temp row and its pending
-    // entry both stay as-is, already saved to storage above, and will be
-    // retried again by the next refresh()'s flush (including after
-    // reopening the app with no network now and real network later).
+    // else: transient failure, 3 retries exhausted — the optimistic temp
+    // row and its pending entry both stay as-is, already saved to storage
+    // above, and will be retried again by the next refresh()'s flush
+    // (including after reopening the app with no network now and real
+    // network later).
   },
 
   updateHolding: async (id, updates) => {
@@ -319,17 +350,27 @@ export const useCashDividendsStore = create<CashDividendsState>()((set, get) => 
 
     const res = await retry3(() => cashHoldingsApi.update(id, updates));
     if (get().userId !== userId) return;
-    if (res) {
+    if (res.ok) {
       const s = get();
-      const finalSnap = s.snap ? { ...s.snap, holdings: s.snap.holdings.map((h) => (h.id === id ? res.data.holding : h)) } : s.snap;
+      const finalSnap = s.snap ? { ...s.snap, holdings: s.snap.holdings.map((h) => (h.id === id ? res.value.data.holding : h)) } : s.snap;
       const { [id]: _drop, ...restUpdates } = s.pending.updates;
       const finalPending = { ...s.pending, updates: restUpdates };
       set({ ...(finalSnap ? { snap: finalSnap } : {}), pending: finalPending });
       if (finalSnap) write(userId, finalSnap);
       writePending(userId, finalPending);
+    } else if (res.permanent) {
+      // Definitively rejected — the server's copy is the truth now, so
+      // drop the pending edit rather than keep showing a value the
+      // account doesn't actually have. A background refresh() will pull
+      // the real row back in.
+      const s = get();
+      const { [id]: _drop, ...restUpdates } = s.pending.updates;
+      const finalPending = { ...s.pending, updates: restUpdates };
+      set({ pending: finalPending });
+      writePending(userId, finalPending);
     }
-    // else: stays pending, retried by refresh()'s flush — the user's edit
-    // is already saved locally either way, never silently reverted.
+    // else: transient failure — stays pending, retried by refresh()'s
+    // flush; the user's edit is already saved locally either way.
   },
 
   removeHolding: async (id) => {
@@ -354,7 +395,7 @@ export const useCashDividendsStore = create<CashDividendsState>()((set, get) => 
 
     const res = await retry3(() => removeOnServer(id));
     if (get().userId !== userId) return;
-    if (res) {
+    if (res.ok) {
       const s = get();
       const finalPending = { ...s.pending, removals: s.pending.removals.filter((x) => x !== id) };
       set({ pending: finalPending });

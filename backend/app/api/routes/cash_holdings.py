@@ -247,6 +247,7 @@ async def add_cash_holding(body: dict, user_id: str = Depends(get_current_user_i
 
     currency = (body.get("currency") or "USD").strip().upper()
     label = (body.get("label") or "").strip() or None
+    client_id = (body.get("client_id") or "").strip() or None
 
     row = {
         "user_id": user_id,
@@ -254,6 +255,7 @@ async def add_cash_holding(body: dict, user_id: str = Depends(get_current_user_i
         "currency": currency,
         "instrument": instrument,
         "label": label,
+        "client_id": client_id,
     }
     manual_rate = _parse_manual_rate(body)
     rate = manual_rate if manual_rate is not None else await _auto_rate_for_instrument(instrument)
@@ -262,7 +264,16 @@ async def add_cash_holding(body: dict, user_id: str = Depends(get_current_user_i
         row["rate_captured_at"] = datetime.now(timezone.utc).isoformat()
 
     db = get_supabase()
-    result = await run_query(db.table("cash_holdings").insert(row))
+    if client_id:
+        # A retry of the exact same add (double-click, or the frontend's
+        # own retry racing a request that actually already landed) must
+        # not create a second holding — upsert on (user_id, client_id)
+        # (migrations/113) so a repeat is a no-op, not a duplicate.
+        result = await run_query(
+            db.table("cash_holdings").upsert(row, on_conflict="user_id,client_id")
+        )
+    else:
+        result = await run_query(db.table("cash_holdings").insert(row))
     if not result.data:
         # Same class of bug found and fixed in profile.py's create_profile:
         # an insert() that actually commits but returns no rows on the
