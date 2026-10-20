@@ -483,6 +483,7 @@
     "logout": "Log out",
     "deletingAccount": "Deleting account...",
     "deleteAccount": "Delete my account",
+    "accountSectionTitle": "Account",
     "duoMetrics": {
       "currentWealth": "Current wealth",
       "cumulativeReturn": "Cumulative return",

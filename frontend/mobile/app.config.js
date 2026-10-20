@@ -58,7 +58,21 @@ export default {
       "expo-sharing",
       "expo-splash-screen",
       "expo-status-bar",
-      "expo-audio",
+      // Apple App Store review rejection (2026-10-20): expo-audio's default
+      // NSMicrophoneUsageDescription ("Allow Nuvos AI to access your
+      // microphone") was flagged as too generic — must say specifically
+      // how the app uses it, with a real example. Nuvos only ever records
+      // audio for two real features: a voice note to Arthur in chat
+      // (app/(tabs)/chat.tsx) and a live voice call with Arthur
+      // (VoiceCallModal.tsx) — never anything else, never in the
+      // background without the user actively starting one of those.
+      [
+        "expo-audio",
+        {
+          microphonePermission:
+            "Nuvos AI usa el micrófono para que puedas hablar con Arthur, tu mentor de inversión — por ejemplo, para enviarle un mensaje de voz en el chat o hacerle una pregunta en una llamada, sin tener que escribir.",
+        },
+      ],
       "expo-video",
       // Compartir captura/PDF desde la app del broker directo a Nuvos
       // (Diego, 2026-09-29). Native — only active in EAS builds, not Expo Go.

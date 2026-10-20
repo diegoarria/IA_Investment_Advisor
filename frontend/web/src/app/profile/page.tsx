@@ -1704,14 +1704,27 @@ export default function ProfilePage() {
                   {t("profile.exportData", "Descargar mis datos")}
                 </button>
 
-                {/* Delete account */}
+                {/* Account — Diego, 2026-10-20: Apple App Store review (build 36)
+                    rejected for "no account deletion" even though the real,
+                    working endpoint + flow existed since May — the reviewer
+                    almost certainly just missed it, buried as small dim text
+                    below Logout with no section heading. Now a clearly labeled
+                    "Cuenta" section with a full-weight, solid-red destructive
+                    button (heavier than Logout's own outline style, since this
+                    is the more severe action) — same confirm flow, same real
+                    DELETE /api/auth/account call, nothing behavioral changed. */}
+                <p className="text-xs font-semibold uppercase tracking-wide text-center pt-2"
+                   style={{ color: "var(--dim)" }}>
+                  {t("profile.accountSectionTitle", "Cuenta")}
+                </p>
                 {deleteError && (
                   <p className="text-xs text-center px-2" style={{ color: "#ef4444" }}>{deleteError}</p>
                 )}
                 <button onClick={handleDeleteAccount}
                         disabled={deletingAccount}
-                        className="w-full py-3 text-xs text-center hover:opacity-70 transition-opacity disabled:opacity-40"
-                        style={{ color: "var(--dim)" }}>
+                        className="w-full py-3 rounded-2xl flex items-center justify-center gap-2 text-sm font-semibold hover:opacity-85 transition-opacity disabled:opacity-60"
+                        style={{ background: "#ef4444", color: "#fff" }}>
+                  {deletingAccount ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                   {deletingAccount ? t("profile.deletingAccount") : t("profile.deleteAccount")}
                 </button>
               </>

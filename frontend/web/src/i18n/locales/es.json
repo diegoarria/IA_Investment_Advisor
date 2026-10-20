@@ -483,6 +483,7 @@
     "logout": "Cerrar sesión",
     "deletingAccount": "Eliminando cuenta...",
     "deleteAccount": "Eliminar mi cuenta",
+    "accountSectionTitle": "Cuenta",
     "duoMetrics": {
       "currentWealth": "Patrimonio actual",
       "cumulativeReturn": "Retorno acumulado",

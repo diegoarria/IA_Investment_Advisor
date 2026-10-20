@@ -624,8 +624,23 @@ async def delete_account(user_id: str = Depends(get_current_user_id)):
     # still exists but now has zero associated data — the user (or a retry
     # of this same endpoint) can safely call delete again, since re-running
     # delete_user_data against already-empty tables is a harmless no-op.
+    #
+    # 2026-10-20, confirmed live (real production Supabase, real account):
+    # this call failed every time with gotrue's "User not allowed" via the
+    # shared `db` singleton — every authenticated request's own auth check
+    # (deps.py's _resolve_user_token, via db.auth.get_user(token) on this
+    # SAME shared client) leaves the client's internal gotrue session
+    # pointed at the end user's own session, not the service role, even
+    # though get_supabase()'s own self-check (which only inspects the
+    # postgrest-level Authorization header) reports it clean — a real,
+    # currently-live account-deletion outage. A completely fresh client
+    # (get_fresh_supabase(), bypassing the singleton and its contamination
+    # entirely) was confirmed, live, to delete the same user successfully
+    # on the first try.
+    from app.core.database import get_fresh_supabase
     try:
-        await asyncio.to_thread(lambda: db.auth.admin.delete_user(user_id))
+        fresh_db = get_fresh_supabase()
+        await asyncio.to_thread(lambda: fresh_db.auth.admin.delete_user(user_id))
     except Exception as e:
         logger.error("delete_account: failed to delete auth user %s (data already fully cleared): %s", user_id, e)
         raise HTTPException(status_code=500, detail="No se pudo eliminar la cuenta.")

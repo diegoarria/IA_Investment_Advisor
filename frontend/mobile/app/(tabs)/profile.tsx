@@ -1731,8 +1731,23 @@ if (!profile) {
             <Text style={[s.actionBtnText, { color: "#ef4444" }]}>{t("profile.bottom.logout")}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={{ alignItems: "center", paddingVertical: 10 }} onPress={handleDeleteAccount}>
-            <Text style={{ color: colors.textDim, fontSize: 12, fontWeight: "500" }}>{t("profile.bottom.deleteAccount")}</Text>
+          {/* Cuenta — Diego, 2026-10-20: Apple App Store review (build 36)
+              rejected for "no account deletion" even though the real,
+              working flow existed since May — the reviewer almost
+              certainly just missed it, a small dim text link with no
+              icon and no section heading. Now a clearly labeled "Cuenta"
+              section with a full solid-red button, heavier than Logout's
+              own outline style since this is the more severe action.
+              Same confirm flow, same real DELETE /api/auth/account call. */}
+          <Text style={{ color: colors.textDim, fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center", marginTop: 8 }}>
+            {t("profile.bottom.accountSectionTitle", "Cuenta")}
+          </Text>
+          <TouchableOpacity
+            style={[s.actionBtn, { borderColor: "#ef4444", backgroundColor: "#ef4444", marginHorizontal: 16 }]}
+            onPress={handleDeleteAccount}
+          >
+            <Ionicons name="trash-outline" size={17} color="#fff" />
+            <Text style={[s.actionBtnText, { color: "#fff" }]}>{t("profile.bottom.deleteAccount")}</Text>
           </TouchableOpacity>
         </View>
 
