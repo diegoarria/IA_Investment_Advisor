@@ -7014,7 +7014,7 @@ async def main():
     scheduler.add_job(job_ipo_alerts,            "cron",                        hour=7,       minute=45,    timezone="America/New_York")
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_dividend_income,      "cron", hour=9,       minute=0,     timezone="America/New_York")
-    # misfire_grace_time=0 (overrides the 600s default above): confirmed
+    # misfire_grace_time=1 (effectively disables the 600s misfire catch-up; 0 itself is rejected by APScheduler as invalid): confirmed
     # live, 2026-10-21 — a Railway worker restart's misfire catch-up run of
     # this job produced a real DUPLICATE earnings push (same user/ticker/
     # day, ~35min after the first), despite the dedup lock correctly
@@ -7026,7 +7026,7 @@ async def main():
     # duplicate. Root cause of the lock itself not holding across the
     # catch-up run wasn't nailed down further; removing the catch-up firing
     # closes the actual reported symptom regardless.
-    scheduler.add_job(job_earnings_watch,       "cron", day_of_week="mon-fri", hour="7-18",  minute="*/15", timezone="America/New_York", misfire_grace_time=0)
+    scheduler.add_job(job_earnings_watch,       "cron", day_of_week="mon-fri", hour="7-18",  minute="*/15", timezone="America/New_York", misfire_grace_time=1)
     scheduler.add_job(job_morning_brief,        "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
     scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
     # Same 9:30 slot as job_market_open — the two are mutually exclusive by
@@ -7041,12 +7041,12 @@ async def main():
     # Market opens 9:30 ET — first two runs (9:30, 9:35) get their own cron
     # since a single hour="9-15" field can't start mid-hour; 10-15 continues
     # the normal every-5-min cadence.
-    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour=9,       minute="30,35,40,45,50,55", timezone="America/New_York", misfire_grace_time=0)
-    # misfire_grace_time=0: same fix/reasoning as job_earnings_watch above —
+    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour=9,       minute="30,35,40,45,50,55", timezone="America/New_York", misfire_grace_time=1)
+    # misfire_grace_time=1: same fix/reasoning as job_earnings_watch above —
     # this job also relies on a daily dedup lock + runs every 5 min anyway,
     # so a restart catch-up run only risks reproducing the same proven
     # duplicate-push bug for no real benefit.
-    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York", misfire_grace_time=0)
+    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York", misfire_grace_time=1)
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=5,     timezone="America/New_York")
     # Second fire, only actually acted on when today is a NYSE early-close
     # day (see job_market_close's own early-close guard) — captures the
@@ -7159,8 +7159,8 @@ async def main():
     # ── Every 15 min, 8am-3pm ET Mon-Fri: CPI/Core CPI/PCE/Core PCE/NFP/
     # Unemployment/FOMC/GDP push — covers every tracked release's window
     # (8:30am for most, 2pm ET for FOMC). See job_macro_event_watch's docstring.
-    # misfire_grace_time=0 — same reasoning as job_earnings_watch above.
-    scheduler.add_job(job_macro_event_watch, "cron", day_of_week="mon-fri", hour="8-15", minute="*/15", timezone="America/New_York", misfire_grace_time=0)
+    # misfire_grace_time=1 — same reasoning as job_earnings_watch above.
+    scheduler.add_job(job_macro_event_watch, "cron", day_of_week="mon-fri", hour="8-15", minute="*/15", timezone="America/New_York", misfire_grace_time=1)
 
     # ── Sunday 7:05pm ET: index futures just came online for the week (5 min
     # after market.py's futures window opens at 7pm ET) ──────────────────────
@@ -7175,8 +7175,8 @@ async def main():
 
     # ── AI Portfolio Manager — proactive alerts (written earlier, now scheduled) ──
     scheduler.add_job(job_risk_mgmt_push,        "cron", day_of_week="fri",     hour=15, minute=0, timezone="America/New_York")
-    # misfire_grace_time=0 — same reasoning as job_earnings_watch above.
-    scheduler.add_job(job_market_crash_alert,    "cron", day_of_week="mon-fri", hour="9-15", minute="*/5", timezone="America/New_York", misfire_grace_time=0)
+    # misfire_grace_time=1 — same reasoning as job_earnings_watch above.
+    scheduler.add_job(job_market_crash_alert,    "cron", day_of_week="mon-fri", hour="9-15", minute="*/5", timezone="America/New_York", misfire_grace_time=1)
     # "La IA encontró algo" — roughly every 2h during market hours, never more
     scheduler.add_job(job_ai_insight_scan,       "cron", day_of_week="mon-fri", hour="9,11,13,15", minute=30, timezone="America/New_York")
     scheduler.add_job(job_reengagement_push,     "cron",                        hour=11, minute=0, timezone="America/New_York")
