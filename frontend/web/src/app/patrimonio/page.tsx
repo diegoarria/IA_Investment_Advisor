@@ -16,7 +16,7 @@ import { useCombinedPositions, useCombinedCurrency } from "@/lib/portfolioStore"
 import { useFxRate } from "@/lib/useFxRate";
 import { useWatchlistStore, useBalanceVisibilityStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
-import { TrendingUp, TrendingDown, ArrowRight, Wallet, Eye, BarChart2 } from "lucide-react";
+import { TrendingUp, TrendingDown, ArrowRight, Wallet, Eye, BarChart2, Loader2 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -270,7 +270,7 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
 function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { items } = useWatchlistStore();
+  const { items, hasLoadedFromServer } = useWatchlistStore();
   const portfolioCurrency = useCombinedCurrency();
   const fxRate = useFxRate(portfolioCurrency);
 
@@ -308,7 +308,19 @@ function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean 
           )}
         </div>
 
-        {items.length === 0 ? (
+        {items.length === 0 && !hasLoadedFromServer ? (
+          // 2026-10-20: this is the exact gap that let Patrimonio flash
+          // "watchlist vacía" on a fresh session (landing here before
+          // /watchlist ever ran its own, stronger checks) — the store
+          // hasn't CONFIRMED a real result yet (could still be loading, or
+          // a suspicious first-ever empty still awaiting its second
+          // confirming read), so show a neutral loading state, never the
+          // empty-state copy, until hasLoadedFromServer is actually true.
+          <div className="py-12 text-center">
+            <Loader2 size={24} className="mx-auto mb-2 animate-spin opacity-40" style={{ color: "var(--muted)" }} />
+            <p className="text-sm" style={{ color: "var(--muted)" }}>{t("patrimonio.common.loading", "Cargando...")}</p>
+          </div>
+        ) : items.length === 0 ? (
           <div className="py-12 text-center">
             <Eye size={32} className="mx-auto mb-2 opacity-30" style={{ color: "var(--muted)" }} />
             <p className="text-sm" style={{ color: "var(--muted)" }}>{t("patrimonio.watchlist.empty")}</p>

@@ -249,7 +249,14 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
 
 function WatchlistTab({ prices, loading, colors }: { prices: PriceMap; loading: boolean; colors: any }) {
   const { t } = useTranslation();
-  const { items } = useWatchlistStore();
+  const { items, hasHydrated, hasLoadedFromServer } = useWatchlistStore();
+  // 2026-10-20: mirrors (tabs)/watchlist.tsx's own watchlistReady guard —
+  // this tab read `items` from the same store but never consulted these
+  // flags, so a fresh session landing on Patrimonio FIRST (before ever
+  // opening the Watchlist tab) could flash "vacía" during the store's own
+  // hydration/first-load window, even though the store itself already
+  // protects against a false-empty server read.
+  const watchlistReady = hasHydrated && hasLoadedFromServer;
 
   return (
     <View style={{ flex: 1 }}>
@@ -260,7 +267,11 @@ function WatchlistTab({ prices, loading, colors }: { prices: PriceMap; loading: 
           {loading && <ActivityIndicator size="small" color={colors.accentLight} />}
         </View>
 
-        {items.length === 0 ? (
+        {items.length === 0 && !watchlistReady ? (
+          <View style={ss.emptyState}>
+            <ActivityIndicator size="small" color={colors.accentLight} />
+          </View>
+        ) : items.length === 0 ? (
           <View style={ss.emptyState}>
             <Ionicons name="eye-outline" size={32} color={colors.textMuted} style={{ opacity: 0.4 }} />
             <Text style={[ss.emptyText, { color: colors.textMuted }]}>{t("patrimonio.watchlistTab.empty")}</Text>

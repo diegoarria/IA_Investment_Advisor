@@ -1830,6 +1830,7 @@
     },
     "common": {
       "updating": "Updating...",
+      "loading": "Loading...",
       "today": "today"
     },
     "portfolio": {

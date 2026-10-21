@@ -348,6 +348,9 @@ export const useAuthStore = create<AuthState>()(
         // scope) — clear it on every logout so a ticker's miss count never
         // carries over to the next account signed into this same tab.
         watchlistMissStreak = new Map();
+        watchlistFirstEmptyStreak = 0;
+        watchlistEverConfirmed = false;
+        useWatchlistStore.setState({ hasLoadedFromServer: false });
         // Supabase's own session (persisted under its own localStorage key,
         // separate from our access_token) must go too — otherwise logging
         // into a DIFFERENT account on the same device can silently
@@ -1178,6 +1181,16 @@ interface WatchlistState {
   // doesn't defer to it forever — mirrors mobile's watchlistStore.ts.
   pendingSync: boolean;
   pendingSyncSetAt: number | null;
+  // 2026-10-20: true only once a real, CONFIRMED server result has been
+  // applied (0 items or N — either is a legitimate confirmed state) — never
+  // set on a caught network/auth error, and never set on a first-ever-
+  // session empty read that hasn't passed the double-check yet. Lets any
+  // screen reading this store (Patrimonio's Watchlist tab) tell "still
+  // loading/unconfirmed" apart from "confirmed genuinely empty" instead of
+  // inferring it from items.length alone — the exact gap that let
+  // Patrimonio flash "watchlist vacía" on a fresh session while /watchlist
+  // (which has always had this distinction) never did.
+  hasLoadedFromServer: boolean;
   add: (ticker: string, name: string) => void;
   remove: (ticker: string) => void;
   has: (ticker: string) => boolean;
@@ -1188,6 +1201,17 @@ interface WatchlistState {
 // guard — module scope (not persisted; a cold start has no history to
 // protect yet, which is correct).
 let watchlistMissStreak = new Map<string, number>();
+// 2026-10-20: mirrors /watchlist/page.tsx's own firstEmptyStreakRef/
+// everConfirmedRef (2026-10-19) — this store (Patrimonio's Watchlist tab,
+// Earnings' quick-add star) never got that protection, so a brand-new
+// session landing on Patrimonio FIRST (never visiting /watchlist, which
+// has its own independent instance of this same guard) trusted a single
+// first-ever-this-session empty read outright. A genuinely first-ever
+// empty result now needs a second consecutive empty read a few seconds
+// apart before it's trusted; once anything is confirmed (real items, or
+// two empty reads in a row) this never fires again this session.
+let watchlistFirstEmptyStreak = 0;
+let watchlistEverConfirmed = false;
 
 export const useWatchlistStore = create<WatchlistState>()(
   persist(
@@ -1214,6 +1238,7 @@ export const useWatchlistStore = create<WatchlistState>()(
       items: [],
       pendingSync: false,
       pendingSyncSetAt: null,
+      hasLoadedFromServer: false,
       add: (ticker, name) => {
         const t = ticker.toUpperCase();
         if (get().items.find((i) => i.ticker === t)) return;
@@ -1287,6 +1312,20 @@ export const useWatchlistStore = create<WatchlistState>()(
               addedAt: i.added_at ? new Date(i.added_at).getTime() : Date.now(),
             }));
           const serverItems = toItems(await watchlist.get());
+
+          // First-ever-this-session empty read — same double-check
+          // /watchlist/page.tsx already does (see watchlistFirstEmptyStreak's
+          // own doc comment above). Checked BEFORE tombstones/merge so a
+          // suspicious empty never even reaches set({ items }) below.
+          if (serverItems.length === 0 && get().items.length === 0 && !watchlistEverConfirmed) {
+            watchlistFirstEmptyStreak += 1;
+            if (watchlistFirstEmptyStreak < 2) {
+              setTimeout(() => useWatchlistStore.getState().loadFromServer(), 2500);
+              return;
+            }
+          }
+          watchlistEverConfirmed = true;
+
           const withTombstones = applyTombstones(useAuthStore.getState().userId, serverItems);
 
           // Diego, 2026-10-03: "nunca nunca nunca debe desaparecer". A 200
@@ -1313,7 +1352,7 @@ export const useWatchlistStore = create<WatchlistState>()(
             if (n < 3) { nextMisses.set(local.ticker, n); merged = [...merged, local]; anyKept = true; }
           }
           watchlistMissStreak = nextMisses;
-          set({ items: merged });
+          set({ items: merged, hasLoadedFromServer: true });
           if (anyKept) setTimeout(() => useWatchlistStore.getState().loadFromServer(), 3000);
         } catch {}
       },
