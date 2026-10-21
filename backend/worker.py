@@ -3782,9 +3782,9 @@ async def job_saturday_reflection():
 
 
 async def job_refresh_smart_alerts_sources():
-    """1:00 PM ET weekdays — Diego, 2026-08-30: Smart Alerts' 5 detectors
-    (thesis_change, guidance_change, roic_fcf_deterioration, new_risk,
-    price_in_range) all read research data that used to only refresh when
+    """1:00 PM ET weekdays — Diego, 2026-08-30: Smart Alerts' detectors
+    (thesis_change, guidance_change, roic_fcf_deterioration, price_in_range)
+    all read research data that used to only refresh when
     some user organically opened that ticker's dossier/NIF dashboard —
     tickers nobody happened to view never accumulated anything new to
     diff against, so their alerts silently never fired. This proactively

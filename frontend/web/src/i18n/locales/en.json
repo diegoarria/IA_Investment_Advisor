@@ -4437,10 +4437,6 @@
         "label": "ROIC/FCF deterioration",
         "desc": "Real profitability starts slipping before it shows up in the price — time to decide while you still can"
       },
-      "newRisks": {
-        "label": "New risks in the thesis",
-        "desc": "Something your original thesis didn't account for just showed up — worth checking if it changes your decision"
-      },
       "priceInRange": {
         "label": "Price in fair value range",
         "desc": "The price reached the level you defined as fair — it's time to decide whether to act"

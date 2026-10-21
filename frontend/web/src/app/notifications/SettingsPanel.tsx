@@ -33,7 +33,6 @@ function getSmartAlertToggles(t: TFunction) {
     { key: "push_thesis_changes",         label: t("notificationSettings.push.thesisChanges.label"),        desc: t("notificationSettings.push.thesisChanges.desc") },
     { key: "push_guidance_changes",       label: t("notificationSettings.push.guidanceChanges.label"),      desc: t("notificationSettings.push.guidanceChanges.desc") },
     { key: "push_roic_fcf_deterioration", label: t("notificationSettings.push.roicFcfDeterioration.label"), desc: t("notificationSettings.push.roicFcfDeterioration.desc") },
-    { key: "push_new_risks",              label: t("notificationSettings.push.newRisks.label"),              desc: t("notificationSettings.push.newRisks.desc") },
     { key: "push_price_in_range",         label: t("notificationSettings.push.priceInRange.label"),          desc: t("notificationSettings.push.priceInRange.desc") },
   ];
 }

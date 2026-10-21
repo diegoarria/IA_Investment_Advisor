@@ -66,7 +66,7 @@ _DEFAULT_PREFS = {
     # app/services/smart_alerts_service.py for exactly which existing
     # Fase 2/3 signal backs each of these.
     "push_thesis_changes": True, "push_guidance_changes": True,
-    "push_roic_fcf_deterioration": True, "push_new_risks": True,
+    "push_roic_fcf_deterioration": True,
     "push_price_in_range": True,
     # Diego, 2026-09-09 — 1st/15th-of-month investment-discipline nudge
     # (see job_investment_discipline_reminder in worker.py). Real detection
@@ -94,7 +94,6 @@ class PrefsUpdate(BaseModel):
     push_thesis_changes:          Optional[bool] = None
     push_guidance_changes:        Optional[bool] = None
     push_roic_fcf_deterioration:  Optional[bool] = None
-    push_new_risks:               Optional[bool] = None
     push_price_in_range:          Optional[bool] = None
     push_investment_reminder:     Optional[bool] = None
     push_weekly_opportunities:    Optional[bool] = None

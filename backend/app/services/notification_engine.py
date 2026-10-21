@@ -29,7 +29,7 @@ async def _get_prefs(user_id: str, db) -> dict:
         "push_watchlist_alerts": True, "push_ai_recommendations": True,
         "push_milestones": True, "push_volatility": True,
         "push_thesis_changes": True, "push_guidance_changes": True,
-        "push_roic_fcf_deterioration": True, "push_new_risks": True,
+        "push_roic_fcf_deterioration": True,
         "push_price_in_range": True,
         "push_investment_reminder": True,
         "push_weekly_opportunities": True,
@@ -111,7 +111,7 @@ async def _push_count_since(user_id: str, since_iso: str, db, high_priority: Opt
 # (e.g. "smart_alert_thesis_change", "ai_insight_reversal_NVDA") are covered
 # without needing to enumerate every ticker.
 _HIGH_PRIORITY_CATEGORY_PREFIXES = (
-    "smart_alert_",              # thesis_change, guidance_change, roic_fcf_deterioration, new_risk, price_in_range
+    "smart_alert_",              # thesis_change, guidance_change, roic_fcf_deterioration, price_in_range
     "sunday_portfolio_review",
     "weekly_rituals_",           # question, saturday, sunday
     "ai_insight_reversal_",

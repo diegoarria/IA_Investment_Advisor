@@ -4437,10 +4437,6 @@
         "label": "Deterioro de ROIC/FCF",
         "desc": "La rentabilidad real empieza a caer, antes de que se note en el precio — tiempo de decidir mientras aún puedes"
       },
-      "newRisks": {
-        "label": "Nuevos riesgos en la tesis",
-        "desc": "Apareció algo que tu tesis original no consideraba — vale la pena revisar si cambia tu decisión"
-      },
       "priceInRange": {
         "label": "Precio en rango de valor razonable",
         "desc": "El precio llegó al nivel que tú mismo definiste como razonable — es el momento de decidir si actúas"

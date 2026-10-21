@@ -10,9 +10,7 @@ import pytest
 from app.services.smart_alerts_service import (
     _detect_thesis_or_guidance,
     _detect_roic_fcf_direction,
-    _detect_new_risks,
     _detect_price_in_range,
-    _serialize_risks,
     _alert_copy,
     run_smart_alerts_check,
 )
@@ -68,24 +66,6 @@ class TestDetectRoicFcfDirection:
         assert _detect_roic_fcf_direction(nif) is None
 
 
-class TestDetectNewRisks:
-    def test_no_previous_state_returns_none_never_pushes_on_first_sight(self):
-        assert _detect_new_risks(["Riesgo A"], None) is None
-
-    def test_no_current_risks_returns_none(self):
-        assert _detect_new_risks([], "Riesgo A") is None
-
-    def test_new_risk_text_is_detected(self):
-        current = ["Riesgo A", "Riesgo B"]
-        previous = _serialize_risks(["Riesgo A"])
-        assert _detect_new_risks(current, previous) == ["Riesgo B"]
-
-    def test_no_new_risks_returns_none(self):
-        current = ["Riesgo A"]
-        previous = _serialize_risks(["Riesgo A"])
-        assert _detect_new_risks(current, previous) is None
-
-
 class TestDetectPriceInRange:
     def test_missing_price_or_range_returns_none(self):
         assert _detect_price_in_range(None, {"low": 10, "high": 20}) is None
@@ -138,7 +118,7 @@ class TestRunSmartAlertsCheck:
         mock_db = MagicMock()
         prefs_row = {
             "user_id": "free_user", "push_thesis_changes": True, "push_guidance_changes": False,
-            "push_roic_fcf_deterioration": False, "push_new_risks": False, "push_price_in_range": False,
+            "push_roic_fcf_deterioration": False, "push_price_in_range": False,
         }
         watchlist_rows = [{"user_id": "free_user", "ticker": "AAPL"}]
         lang_rows = [{"user_id": "free_user", "preferred_language": "es"}]
@@ -169,7 +149,7 @@ class TestRunSmartAlertsCheck:
                  return_value={
                      "thesis_change": ("evt-1", "AAPL shifted strategy toward services"),
                      "guidance_change": None, "roic_fcf_deterioration": None,
-                     "new_risks_current": [], "price_in_range_current": None,
+                     "price_in_range_current": None,
                  },
              ):
             await run_smart_alerts_check()
@@ -185,7 +165,7 @@ class TestRunSmartAlertsCheck:
         mock_db = MagicMock()
         prefs_row = {
             "user_id": "user1", "push_thesis_changes": True, "push_guidance_changes": False,
-            "push_roic_fcf_deterioration": False, "push_new_risks": False, "push_price_in_range": False,
+            "push_roic_fcf_deterioration": False, "push_price_in_range": False,
         }
         watchlist_rows = [{"user_id": "user1", "ticker": "AAPL"}]
         lang_rows = [{"user_id": "user1", "preferred_language": "es"}]
@@ -218,7 +198,6 @@ class TestRunSmartAlertsCheck:
                      "thesis_change": ("evt-1", "AAPL shifted strategy toward services"),
                      "guidance_change": None,
                      "roic_fcf_deterioration": None,
-                     "new_risks_current": [],
                      "price_in_range_current": None,
                  },
              ):
@@ -234,7 +213,7 @@ class TestRunSmartAlertsCheck:
     async def test_same_event_id_as_prior_state_does_not_repush(self):
         mock_db = MagicMock()
         prefs_row = {"user_id": "user1", "push_thesis_changes": True, "push_guidance_changes": False,
-                     "push_roic_fcf_deterioration": False, "push_new_risks": False, "push_price_in_range": False}
+                     "push_roic_fcf_deterioration": False, "push_price_in_range": False}
         watchlist_rows = [{"user_id": "user1", "ticker": "AAPL"}]
         state_rows = [{"user_id": "user1", "ticker": "AAPL", "category": "thesis_change", "last_value": "evt-1"}]
         tier_rows = [{"user_id": "user1", "subscription_tier": "premium", "trial_started_at": None, "streak_bonus_premium_until": None}]
@@ -262,7 +241,7 @@ class TestRunSmartAlertsCheck:
                  return_value={
                      "thesis_change": ("evt-1", "Same event as before"),
                      "guidance_change": None, "roic_fcf_deterioration": None,
-                     "new_risks_current": [], "price_in_range_current": None,
+                     "price_in_range_current": None,
                  },
              ):
             await run_smart_alerts_check()

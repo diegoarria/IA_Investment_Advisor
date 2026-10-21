@@ -23,12 +23,16 @@ Category → real existing signal:
   roic_fcf_deterioration    → the cached NIF dashboard's
                               deterioration.factors — "roic"/"fcf_margin"
                               turning "deteriorando" (Deterioration Engine)
-  new_risk                  → research_thesis_drafts.key_risks — a risk
-                              text present now that wasn't in the last
-                              seen list (Thesis Engine, no new AI call)
   price_in_range            → the cached NIF/quick-analysis
                               fair_value_range vs. the last cached price
                               (DCF, already computed)
+
+`new_risk` (research_thesis_drafts.key_risks diffing) was removed
+2026-10-21 — Diego: the pushed text was ungrounded, generic boilerplate
+(the underlying Haiku key_risks prompt has no anti-genericness
+constraint, unlike critical_variables/invalidation_events), so the
+category added no real value. Decided to drop it rather than patch the
+prompt.
 
 Cache-only for the NIF/quick-analysis reads (never triggers a fresh
 valuation run) — same discipline as watchlist.py's batch-scores endpoint
@@ -46,14 +50,13 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 CATEGORIES = (
-    "thesis_change", "guidance_change", "roic_fcf_deterioration", "new_risk", "price_in_range",
+    "thesis_change", "guidance_change", "roic_fcf_deterioration", "price_in_range",
 )
 
 _TOGGLE_COLUMN = {
     "thesis_change": "push_thesis_changes",
     "guidance_change": "push_guidance_changes",
     "roic_fcf_deterioration": "push_roic_fcf_deterioration",
-    "new_risk": "push_new_risks",
     "price_in_range": "push_price_in_range",
 }
 
@@ -82,17 +85,6 @@ def _detect_roic_fcf_direction(nif_cached: Optional[dict]) -> Optional[str]:
     return None
 
 
-def _detect_new_risks(current_risks: list[str], last_value: Optional[str]) -> Optional[list[str]]:
-    """Risk texts present now that weren't in the last-seen serialized
-    list — None (no notification) if there's no real previous state to
-    diff against (first time seeing this ticker) or nothing new."""
-    if last_value is None or not current_risks:
-        return None
-    previous = set(last_value.split("\x1f")) if last_value else set()
-    new_ones = [r for r in current_risks if r and r not in previous]
-    return new_ones or None
-
-
 def _detect_price_in_range(price: Optional[float], fair_value_range: Optional[dict]) -> Optional[str]:
     """'in_range' | 'out_of_range' | None (no real price/range to judge)."""
     if price is None or not fair_value_range:
@@ -101,10 +93,6 @@ def _detect_price_in_range(price: Optional[float], fair_value_range: Optional[di
     if low is None or high is None:
         return None
     return "in_range" if low <= price <= high else "out_of_range"
-
-
-def _serialize_risks(risks: list[str]) -> str:
-    return "\x1f".join(risks)
 
 
 async def _gather_ticker_signals(ticker: str, lang: str = "es") -> dict:
@@ -122,13 +110,11 @@ async def _gather_ticker_signals(ticker: str, lang: str = "es") -> dict:
     from app.core.cache import cache_get
     from app.api.routes.screener import _nif_dashboard_cache_key, _quick_analysis_cache_key
     from app.services.research.knowledge_store import get_company_timeline
-    from app.services.research.thesis_engine import get_thesis_draft
 
     signals_cached = cache_get(_nif_signals_cache_key(ticker))
     nif_cached = cache_get(_nif_dashboard_cache_key(ticker, lang)) or cache_get(_nif_dashboard_cache_key(ticker, "es"))
     quick_cached = cache_get(_quick_analysis_cache_key(ticker, lang)) or cache_get(_quick_analysis_cache_key(ticker, "es"))
     events = await get_company_timeline(ticker, limit=20)
-    draft = await get_thesis_draft(ticker)
 
     price = (signals_cached or {}).get("price")
     if price is None:
@@ -140,13 +126,11 @@ async def _gather_ticker_signals(ticker: str, lang: str = "es") -> dict:
         fair_value_range = ((nif_cached or {}).get("pillars") or {}).get("valuation", {}).get("nuvos_estimate", {}).get("fair_value_range")
     if fair_value_range is None:
         fair_value_range = (quick_cached or {}).get("fair_value_range")
-    risks = [r.get("text") for r in ((draft or {}).get("key_risks") or []) if r.get("text")]
 
     return {
         "thesis_change": _detect_thesis_or_guidance(events, "strategy_change"),
         "guidance_change": _detect_thesis_or_guidance(events, "guidance_change"),
         "roic_fcf_deterioration": _detect_roic_fcf_direction(signals_cached or nif_cached),
-        "new_risks_current": risks,
         "price_in_range_current": _detect_price_in_range(price, fair_value_range),
     }
 
@@ -160,25 +144,6 @@ def _nif_signals_cache_key(ticker: str) -> str:
 
 
 _NIF_SIGNALS_CACHE_TTL = 86400  # 24h — matches _REFRESH_MIN_HOURS, cheap to recompute anyway (zero AI)
-
-
-async def _refresh_dossier_if_stale(ticker: str, lang: str) -> None:
-    """Cost fix, Sep 2026 — used to gate on ALL 4 knowledge snapshots and
-    call the full compose_research_dossier (5 Claude calls: business/
-    competitive/industry/management understanding + thesis draft) whenever
-    ANY of them was stale. But the only thing this job's detectors read
-    from the dossier is thesis_draft.key_risks (`new_risk` category) — the
-    other 4 are pure narrative for the human-facing Dossier UI (see
-    compose_thesis_only's docstring for the full audit trail). Gate on the
-    thesis draft's OWN freshness and only regenerate that."""
-    from app.services.research.knowledge_store import is_snapshot_fresh
-    from app.services.research.thesis_engine import get_thesis_draft
-    from app.services.research.research_orchestrator import compose_thesis_only
-
-    draft = await get_thesis_draft(ticker)
-    if is_snapshot_fresh(draft, _REFRESH_MIN_HOURS):
-        return
-    await compose_thesis_only(ticker, lang)
 
 
 async def _refresh_nif_dashboard_if_stale(ticker: str, lang: str) -> None:
@@ -218,8 +183,8 @@ async def refresh_watchlist_signal_sources() -> None:
     watchlist ticker has research data no older than _REFRESH_MIN_HOURS to
     diff against, instead of relying on someone organically opening that
     ticker's dossier/NIF dashboard. Without this, thesis_change/
-    guidance_change/roic_fcf_deterioration/new_risk/price_in_range silently
-    never fire for tickers nobody happens to view — the real gap flagged
+    guidance_change/roic_fcf_deterioration/price_in_range silently never
+    fire for tickers nobody happens to view — the real gap flagged
     2026-08-30 in this module's own docstring.
 
     Only "es" is prewarmed, not both languages: the underlying signals this
@@ -275,10 +240,6 @@ async def refresh_watchlist_signal_sources() -> None:
         tickers = tickers[:_REFRESH_TICKER_CAP]
 
     for ticker in tickers:
-        try:
-            await _refresh_dossier_if_stale(ticker, "es")
-        except Exception as exc:
-            logger.warning("refresh_watchlist_signal_sources: dossier refresh failed for %s: %s", ticker, exc)
         try:
             await _refresh_nif_dashboard_if_stale(ticker, "es")
         except Exception as exc:
@@ -378,16 +339,6 @@ async def run_smart_alerts_check() -> None:
                     # clears the "deteriorating" state silently (no push for the recovery itself)
                     candidates.append((0, ticker, "roic_fcf_deterioration", None, "mejorando"))
 
-            if prefs.get("push_new_risks"):
-                prior = state_by_key.get((user_id, ticker, "new_risk"))
-                current_risks = signals.get("new_risks_current") or []
-                new_ones = _detect_new_risks(current_risks, prior.get("last_value") if prior else None)
-                if new_ones:
-                    candidates.append((2, ticker, "new_risk", {"risk": new_ones[0]}, _serialize_risks(current_risks)))
-                elif current_risks and prior is None:
-                    # first time seeing this ticker — record the baseline, no push
-                    candidates.append((0, ticker, "new_risk", None, _serialize_risks(current_risks)))
-
             if prefs.get("push_price_in_range"):
                 current = signals.get("price_in_range_current")
                 if current:
@@ -469,8 +420,6 @@ def _alert_copy(ticker: str, category: str, kwargs: dict, lang: str) -> tuple[st
             return f"📊 {ticker}: guidance change detected", kwargs.get("headline") or f"{ticker}'s research timeline recorded a guidance change."
         if category == "roic_fcf_deterioration":
             return f"⚠️ {ticker}: ROIC/FCF trending down", f"{ticker}'s ROIC or FCF margin has been trending downward over its recent history."
-        if category == "new_risk":
-            return f"🚩 {ticker}: new risk in the thesis", kwargs.get("risk") or f"A new risk was added to {ticker}'s research thesis."
         if category == "price_in_range":
             return f"🎯 {ticker} entered its fair value range", f"{ticker}'s price is now inside the fair value range Nuvos calculated."
         return ticker, ""
@@ -480,8 +429,6 @@ def _alert_copy(ticker: str, category: str, kwargs: dict, lang: str) -> tuple[st
         return f"📊 {ticker}: cambio de guidance detectado", kwargs.get("headline") or f"El timeline de investigación de {ticker} registró un cambio de guidance."
     if category == "roic_fcf_deterioration":
         return f"⚠️ {ticker}: tendencia a la baja", f"El ROIC o el margen de FCF de {ticker} viene deteriorándose en su historial reciente."
-    if category == "new_risk":
-        return f"🚩 {ticker}: nuevo riesgo en la tesis", kwargs.get("risk") or f"Se agregó un nuevo riesgo a la tesis de investigación de {ticker}."
     if category == "price_in_range":
         return f"🎯 {ticker} entró en su rango de valor razonable", f"El precio de {ticker} ahora está dentro del rango de valor razonable que calculó Nuvos."
     return ticker, ""

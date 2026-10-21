@@ -31,8 +31,7 @@ from typing import Optional
 async def _compute_deterministic_scores(ticker: str, data: dict) -> dict:
     """Fase 2 real scores (quality/moat/conviction) — zero AI, zero network
     beyond the industry-benchmarks lookup already required for the moat
-    calc. Shared by compose_research_dossier and compose_thesis_only so
-    the two never compute this differently."""
+    calc."""
     import asyncio
     from app.services.quality.quality_engine import build_quality_score_from_analysis
     from app.services.quality.industry_engine import compute_industry_benchmarks
@@ -145,42 +144,3 @@ async def compose_research_dossier(ticker: str, lang: str = "es") -> Optional[di
     }
 
 
-async def compose_thesis_only(ticker: str, lang: str = "es") -> Optional[dict]:
-    """Cost fix, Sep 2026: the proactive Smart Alerts background refresh
-    (smart_alerts_service.refresh_watchlist_signal_sources) used to call
-    the FULL compose_research_dossier for every Premium user's watchlist
-    ticker once a day — 5 separate Claude calls per ticker (business/
-    competitive/industry/management understanding + thesis draft) — but
-    the `new_risk` detector only ever reads thesis_draft.key_risks; the
-    other 4 are pure narrative for the human-facing Dossier UI and are
-    never diffed against by any alert. Confirmed via llm_usage_log: this
-    one background job alone burned $3.37 across 60 watchlist tickers in
-    48h with only 3 (test) Premium users, zero of it from anything a human
-    asked for.
-
-    compute_and_save_thesis_draft reads whatever business/competitive/
-    industry/management snapshot is LATEST via knowledge_store.
-    get_latest_snapshot — it doesn't require this call to have just
-    regenerated them, so skipping those 4 here only means the thesis
-    occasionally reasons over a slightly older (or absent) snapshot until
-    a real user organically opens that ticker's Dossier and
-    compose_research_dossier refreshes them all for real."""
-    from app.services.fundamental_analysis_service import get_fundamental_analysis
-    from app.services.safe_call import safe_call
-    from app.services.research.thesis_engine import compute_and_save_thesis_draft
-
-    data = get_fundamental_analysis(ticker)
-    if not data or not data.get("dcf"):
-        return None
-
-    company_name = data.get("company_name") or ticker
-    scores = await _compute_deterministic_scores(ticker, data)
-
-    thesis_draft = await safe_call(
-        compute_and_save_thesis_draft(
-            ticker, company_name, scores["quality_score"], scores["moat_score"], scores["conviction_score"],
-            scores["margin_of_safety_pct"], scores["fair_value_range"], lang,
-        ),
-        None, "thesis_draft", context=ticker,
-    )
-    return thesis_draft.to_row() if thesis_draft and thesis_draft.has_any_signal else None
