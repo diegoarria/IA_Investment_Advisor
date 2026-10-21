@@ -302,6 +302,20 @@ class TestMacroEventsStayFixed:
         b = self._row("fed_speaker", "Fed Powell Speech", "2026-10-08T14:00:00+00:00")
         assert len(_dedupe_rescheduled([a, b])) == 2
 
+    def test_two_different_releases_sharing_type_and_day_are_both_kept(self):
+        # Diego, 2026-10-21: _dedupe_rescheduled used to only key on the
+        # base name for fed_speaker rows, forcing every other event_type
+        # to "" — two genuinely different releases filed under the same
+        # event_type on the same day (e.g. housing_starts covers both
+        # "Housing Starts" and "Building Permits") would silently collapse
+        # to one. Must never happen, regardless of event_type.
+        from app.services.macro_calendar_service import _dedupe_rescheduled
+        a = self._row("housing_starts", "Housing Starts (Sep)", "2026-10-17T12:30:00+00:00")
+        b = self._row("housing_starts", "Building Permits (Sep)", "2026-10-17T12:30:00+00:00")
+        out = _dedupe_rescheduled([a, b])
+        assert len(out) == 2
+        assert {r["event_name"] for r in out} == {"Housing Starts (Sep)", "Building Permits (Sep)"}
+
     async def test_past_release_stays_on_calendar_with_history_window(self, monkeypatch):
         from datetime import date
         from types import SimpleNamespace

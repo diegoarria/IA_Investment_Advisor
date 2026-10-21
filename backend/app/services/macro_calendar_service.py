@@ -702,8 +702,17 @@ def _dedupe_rescheduled(rows: list[dict]) -> list[dict]:
             d = datetime.fromisoformat(row["event_date_utc"]).astimezone(_ET).date()
         except (KeyError, ValueError):
             continue
+        # Always key on the base name, not just for fed_speaker — two
+        # genuinely different releases can share (event_type, date), e.g.
+        # "housing starts" + "building permits" both file under
+        # event_type=housing_starts on the same release day. Dropping the
+        # name here would silently collapse them to one. Safe now that
+        # event_id (migration 111) is the stable, period-based identity —
+        # this function is only a defensive read-time net for leftover
+        # duplicate rows, not the primary same-release-reworded mechanism
+        # that justified the old fed_speaker-only exception.
         base = _strip_period_suffix(row.get("event_name") or "")
-        key = (row.get("event_type"), d, base if row.get("event_type") == "fed_speaker" else "")
+        key = (row.get("event_type"), d, base)
         cur = best.get(key)
         if cur is None or _rank(row) > _rank(cur):
             best[key] = row
