@@ -201,8 +201,11 @@ La notificación push YA incluye "{{emoji}} {{Empresa}} {{+/-X.X}}% " al inicio 
 "📈 NVIDIA +4.58% "). Tu trabajo es escribir SOLO la continuación que sigue a ese
 porcentaje, como una frase que fluye naturalmente después — no repitas el nombre de la
 empresa ni el porcentaje, eso ya está cubierto. La notificación completa (emoji+empresa+
-%+tu texto) debe caber en ~90-120 caracteres, así que tu parte tiene que ser muy breve:
-máximo ~70 caracteres.
+%+tu texto) debe caber en ~160-190 caracteres, así que tu parte tiene que ser completa
+pero compacta: máximo ~140 caracteres. Diego, 2026-10-21: esta notificación ya NO lleva
+un veredicto de fundamentos aparte (se eliminó) — este es el único texto de la
+notificación además del precio, así que la razón real debe quedar completa, no recortada
+a una frase genérica.
 
 REGLAS:
 1. Escribe una razón si las noticias mencionan CUALQUIERA de estas fuentes/tipos de catalizador
@@ -242,11 +245,11 @@ REGLAS:
    - Empieza con un conector corto y minúscula: "tras...", "por...", "gracias a...",
      "luego de...", "después de..." — fluye directo después del "%", no es una oración
      nueva con mayúscula ni sujeto propio
-   - Menciona el catalizador específico, lo más comprimido posible — sustantivos, no
-     oraciones completas si se puede evitar
+   - Menciona el catalizador específico con el contexto real que lo explica — no una
+     sola palabra suelta, sino la razón completa (quién/qué/por qué), en prosa compacta
    - Tono: directo y claro, sin jerga financiera, sin relleno
-   - LÍMITE DURO: ~70 caracteres. Prioriza cortar adjetivos/detalles secundarios antes que
-     quedarte sin decir el catalizador central
+   - LÍMITE DURO: ~140 caracteres. Prioriza una razón completa y real sobre una frase
+     corta pero vaga — nunca cortes el catalizador central para ahorrar espacio
    - Sin emojis, sin mencionar "Nuvos AI", sin repetir el ticker/porcentaje, sin punto final
    - Solo el texto, nada más
 
@@ -288,11 +291,13 @@ Responde solo con el texto de la razón (sin punto final) o con NO_CATALYST."""
             )
             return NO_CATALYST
 
-        # Hard safety net in case the model ignores the ~70-char guidance above —
-        # tightened from the old 230-char cap now that the full notification
-        # (emoji+empresa+%+esto) targets ~90-120 characters total.
-        if len(result) > 85:
-            truncated = result[:82].rsplit(" ", 1)[0]
+        # Hard safety net in case the model ignores the ~140-char guidance
+        # above — matches the full notification's ~160-190 character target
+        # now that there's no separate verdict clause competing for space
+        # (2026-10-21: removed, see generate_fundamentals_verdict's old
+        # docstring — Diego wants only the real reason, nothing else).
+        if len(result) > 150:
+            truncated = result[:147].rsplit(" ", 1)[0]
             result = truncated + "..."
         return result
 
@@ -308,175 +313,6 @@ Responde solo con el texto de la razón (sin punto final) o con NO_CATALYST."""
         return NO_CATALYST
 
 
-def _fundamentals_snapshot_for_verdict(ticker: str) -> str | None:
-    """Compact, deterministic (no LLM) summary of the company's REAL computed
-    fundamentals — latest-vs-prior-year revenue/margin/FCF/ROIC deltas —
-    built directly from get_fundamental_analysis's trend lists rather than
-    the full format_fundamental_analysis_for_prompt block (that one's meant
-    for chat context and runs ~1000+ tokens; this needs to stay small since
-    it's paid for once per mover per day, same budget class as the WHY call).
-    Returns None when there isn't at least 2 years of real data to compare —
-    never fabricates a trend from a single data point."""
-    from app.services.fundamental_analysis_service import get_fundamental_analysis
-
-    try:
-        data = get_fundamental_analysis(ticker, _compute_peer_dependent_data=False)
-    except Exception as e:
-        logger.warning("_fundamentals_snapshot_for_verdict(%s): fetch failed: %s", ticker, e)
-        return None
-    if not data:
-        return None
-
-    years = data.get("years") or []
-
-    def last_two(trend: list) -> list[tuple]:
-        pairs = [(y, v) for y, v in zip(years, trend or []) if v is not None]
-        return pairs[-2:]
-
-    parts: list[str] = []
-
-    rev = last_two(data.get("revenue_trend") or [])
-    if len(rev) == 2 and rev[0][1]:
-        (y0, v0), (y1, v1) = rev
-        parts.append(f"Ingresos {y0}->{y1}: {(v1 - v0) / abs(v0) * 100:+.0f}%")
-
-    nm = last_two(data.get("net_margin_trend") or [])
-    if len(nm) == 2:
-        (y0, v0), (y1, v1) = nm
-        parts.append(f"Margen neto {y0}->{y1}: {v0:.1f}%->{v1:.1f}%")
-
-    fcf = last_two(data.get("fcf_trend") or [])
-    if len(fcf) == 2:
-        (y0, v0), (y1, v1) = fcf
-        sign0 = "positivo" if v0 >= 0 else "negativo"
-        sign1 = "positivo" if v1 >= 0 else "negativo"
-        parts.append(f"FCF {y0}->{y1}: {sign0}->{sign1}")
-
-    roic = last_two(data.get("roic_trend") or [])
-    if len(roic) == 2:
-        (y0, v0), (y1, v1) = roic
-        parts.append(f"ROIC {y0}->{y1}: {v0:.1f}%->{v1:.1f}%")
-
-    if not parts:
-        return None
-    return " | ".join(parts)
-
-
-async def generate_fundamentals_verdict(ticker: str, change_pct: float) -> str | None:
-    """
-    Diego, 2026-08-30: Premium-only addition to the price-mover and market-
-    crash pushes — not just WHY the stock moved, but whether the move should
-    actually worry the user, grounded ONLY in the company's real computed
-    fundamentals (never invented). Called once per ticker and cached per ET
-    trading day by the caller, same as generate_price_alert_why.
-
-    Returns None (no verdict clause — caller just omits it) when there isn't
-    enough real trend data to ground a verdict in, or the call fails. Never
-    fabricates an opinion from nothing.
-    """
-    import anthropic
-    from app.core.config import settings
-
-    snapshot = await asyncio.to_thread(_fundamentals_snapshot_for_verdict, ticker)
-    if not snapshot:
-        return None
-
-    direction = "cayó" if change_pct < 0 else "subió"
-    prompt = f"""Eres el sistema de notificaciones push de Nuvos AI.
-
-DATOS REALES CALCULADOS de {ticker} (años fiscales más recientes disponibles, NO estimaciones):
-{snapshot}
-
-La acción {direction} {abs(change_pct):.1f}% hoy.
-
-TU TAREA:
-Escribe UNA frase corta (máximo ~55 caracteres, LÍMITE DURO) que le diga al usuario,
-basándote ÚNICAMENTE en los datos reales de arriba, si este movimiento debería
-preocuparle:
-- Elige SOLO el UNO de los datos de arriba que mejor sostiene tu punto — nunca
-  encadenes 2 o 3 métricas en la misma frase. Una notificación con 3 cifras compitiendo
-  no se lee; una con 1 cifra fuerte sí. Deja el resto de los datos para cuando el
-  usuario abra la app.
-- Si los fundamentos siguen sólidos o mejorando, tranquiliza: esto probablemente es
-  ruido de mercado, no algo que amerite revisar la tesis de inversión.
-- Si los fundamentos muestran deterioro real (márgenes cayendo, FCF que pasó a
-  negativo, ROIC bajando), dilo directo: esto sí amerita revisar la tesis.
-- Nunca inventes cifras que no están en los datos de arriba.
-- Es una oración independiente (mayúscula inicial), va DESPUÉS del texto de la razón
-  del movimiento, no antes.
-- Tono directo, sin jerga financiera, sin relleno, sin emojis, sin mencionar "Nuvos AI".
-
-EJEMPLOS BUENOS (nota: UN solo dato, no una lista):
-"ROIC subió a 49% — no es motivo para vender."
-"FCF pasó a negativo — vale la pena revisar tu tesis."
-"Márgenes siguen en 55.6% — esto es ruido, no una señal real."
-
-Responde solo con la frase, nada más."""
-
-    try:
-        from app.services.ai_service import check_daily_spend_cap
-        check_daily_spend_cap()
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        resp = await asyncio.wait_for(
-            client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=60,
-                messages=[{"role": "user", "content": prompt}],
-            ),
-            timeout=15.0,
-        )
-        from app.services.llm_usage import log_llm_usage
-        asyncio.create_task(log_llm_usage(None, "price_alert_verdict", "claude-haiku-4-5-20251001", resp.usage))
-        result = resp.content[0].text.strip().strip('"').strip("'")
-        if not result:
-            return None
-        if len(result) > 65:
-            truncated = result[:62].rsplit(" ", 1)[0]
-            result = truncated + "..."
-        return result
-    except asyncio.TimeoutError:
-        logger.warning("Claude fundamentals verdict call TIMED OUT for %s (>15s)", ticker)
-        return None
-    except Exception as e:
-        logger.warning("Claude fundamentals verdict call FAILED for %s: %s", ticker, e)
-        return None
-
-
-async def translate_verdict_to_english(verdict_es: str) -> str:
-    """Mirrors translate_why_to_english — cheap standalone translation call
-    kept separate from the main verdict prompt for the same reason (avoid
-    duplicating/drifting the carefully-tuned grounding rules across languages).
-    Falls back to the Spanish text if the call fails."""
-    import anthropic
-    from app.core.config import settings
-
-    prompt = f"""Translate this short English push-notification sentence from Spanish to natural English. It's a standalone sentence (max ~55 characters, one metric only), following a price-move reason clause.
-
-Spanish: "{verdict_es}"
-
-Reply with ONLY the English translation, nothing else."""
-
-    try:
-        from app.services.ai_service import check_daily_spend_cap
-        check_daily_spend_cap()
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        resp = await asyncio.wait_for(
-            client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=50,
-                messages=[{"role": "user", "content": prompt}],
-            ),
-            timeout=10.0,
-        )
-        from app.services.llm_usage import log_llm_usage
-        asyncio.create_task(log_llm_usage(None, "price_alert_verdict_en", "claude-haiku-4-5-20251001", resp.usage))
-        result = resp.content[0].text.strip().strip('"').strip("'")
-        return result or verdict_es
-    except Exception as e:
-        logger.warning("Verdict translation to English failed: %s — falling back to Spanish text", e)
-        return verdict_es
-
-
 async def translate_why_to_english(why_es: str) -> str:
     """Translates an already-generated Spanish WHY clause (from
     generate_price_alert_why) to a natural-sounding English equivalent —
@@ -489,7 +325,7 @@ async def translate_why_to_english(why_es: str) -> str:
     import anthropic
     from app.core.config import settings
 
-    prompt = f"""Translate this short English push-notification clause fragment from Spanish to natural English. It follows a "{{emoji}} {{Ticker}} rose/fell {{X.XX}}%" prefix, so it must flow as a continuation (lowercase start, no period at the end, ~70 characters max).
+    prompt = f"""Translate this push-notification clause fragment from Spanish to natural English. It follows a "{{emoji}} {{Ticker}} rose/fell {{X.XX}}%" prefix, so it must flow as a continuation (lowercase start, no period at the end, ~140 characters max — keep the full real reason, don't shorten it to a vague summary).
 
 Spanish: "{why_es}"
 

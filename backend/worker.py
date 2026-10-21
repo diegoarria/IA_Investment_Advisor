@@ -1162,8 +1162,22 @@ async def job_market_close():
     db = get_supabase()
     try:
         # ── 1. Fetch indices via Finnhub (Railway-safe, no yfinance) ────────────
+        # Diego, 2026-10-21: confirmed live — a transient Finnhub hiccup at
+        # exactly 4:05pm ET made BOTH index quotes AND the batch portfolio-
+        # price fetch below come back empty, which used to fall straight
+        # through to a push literally reading "S&P 500 s/d · Nasdaq s/d"
+        # instead of the real personalized "hoy ganaste $X" — a useless,
+        # confusing notification is worse than none. One retry after a
+        # short pause before accepting the failure; _finnhub_quote itself
+        # has zero retries (single HTTP attempt), so this is the one place
+        # that absorbs an ordinary transient blip.
         spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
         qqq_q = await asyncio.to_thread(_finnhub_quote, "QQQ")
+        if spy_q is None and qqq_q is None:
+            logger.warning("job_market_close: both SPY and QQQ quotes failed — retrying once in 10s")
+            await asyncio.sleep(10)
+            spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
+            qqq_q = await asyncio.to_thread(_finnhub_quote, "QQQ")
         sp500_pct  = spy_q["pct"]  if spy_q else None
         nasdaq_pct = qqq_q["pct"]  if qqq_q else None
         sp_px      = spy_q["curr"] if spy_q else None
@@ -1268,6 +1282,22 @@ async def job_market_close():
 
         # ── 4. Fetch all portfolio prices concurrently via Finnhub ───────────────
         prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
+        # Same transient-blip retry as the indices above — a batch fetch
+        # that comes back near-empty relative to how many tickers were
+        # requested is the exact condition that made _calc_portfolio_
+        # close_data return all-None for every user (total_prev stays 0
+        # when none of their tickers are in `prices`), turning every
+        # premium user's personalized "hoy ganaste $X" into the generic
+        # no-data fallback at once.
+        if all_tickers and len(prices) < len(all_tickers) * 0.5:
+            logger.warning(
+                "job_market_close: portfolio price batch came back mostly empty (%d/%d tickers) — retrying once in 10s",
+                len(prices), len(all_tickers),
+            )
+            await asyncio.sleep(10)
+            retry_prices = await _finnhub_prices_batch(list(all_tickers))
+            if len(retry_prices) > len(prices):
+                prices = retry_prices
 
         # ── 5. Build shared index lines ───────────────────────────────────────
         sp_line = f"S&P 500: {sp500_pct:+.2f}%"  if sp500_pct  is not None else "S&P 500: N/D"
@@ -1331,32 +1361,58 @@ async def job_market_close():
                             else:
                                 your_word = "Your portfolio" if is_en else "Tu portafolio"
                                 push_body = f"{your_word} {user_pct:+.1f}% · S&P 500 {sp_cl} · Nasdaq {nq_cl}"
-                        else:
+                        elif sp500_pct is not None or nasdaq_pct is not None:
+                            # This user's own position prices weren't
+                            # available (even after the retry above), but
+                            # the indices are real — a genuine, if
+                            # unpersonalized, "how the market did" is still
+                            # honest to send.
                             push_title = f"📊 {first}, market close" if is_en else f"📊 {first}, cierre de mercado"
                             push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl}"
-                        await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
-                        sent_push += 1
+                        else:
+                            # Nothing real to say at all — this user's own
+                            # prices AND both indices failed, even after
+                            # retrying once. Diego, 2026-10-21: a push
+                            # reading "S&P 500 s/d · Nasdaq s/d" instead of
+                            # the real "hoy ganaste $X" is worse than no
+                            # push — skip sending rather than show it.
+                            logger.warning("job_market_close(%s): no real data after retry (own prices and both indices) — skipping push, not sending a no-data placeholder", uid)
+                            push_title = push_body = None
+                        if push_title:
+                            await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
+                            sent_push += 1
 
                 elif uid in push_capable and not has_portfolio:
                     # No portfolio (free or premium): a two-line, jargon-free
                     # explainer of how the market did — educational, no advice.
-                    if is_en:
+                    # Diego, 2026-10-21: same "never send a no-data
+                    # placeholder" discipline as the portfolio branch above —
+                    # if both indices failed even after the retry, there's
+                    # nothing real to tell this user; skip rather than send
+                    # "S&P 500: N/D · Nasdaq: N/D".
+                    if sp500_pct is None and nasdaq_pct is None:
+                        logger.warning("job_market_close(%s): skipping generic push, no real index data after retry", uid)
+                    elif is_en:
                         body = f"The market closed. {indices}. In short: the S&P 500 tracks the 500 largest US companies — when it rises, they were generally doing well that day."
                         await send_push(uid, "market_close", "📊 How the market closed today", body, {"screen": "home"}, db)
+                        sent_push += 1
                     else:
                         body = f"El mercado cerró. {indices}. En corto: el S&P 500 mide a las 500 empresas más grandes de EE. UU.; cuando sube, en general les fue bien ese día."
                         await send_push(uid, "market_close", "📊 Así cerró el mercado hoy", body, {"screen": "home"}, db)
-                    sent_push += 1
+                        sent_push += 1
 
                 elif uid in push_capable:
                     # Free: generic push only, no portfolio data, subtle upgrade nudge
-                    if is_en:
+                    if sp500_pct is None and nasdaq_pct is None:
+                        logger.warning("job_market_close(%s): skipping free-tier push, no real index data after retry", uid)
+                    elif is_en:
                         body = f"The market closed. {indices}. With Premium you can see your portfolio's exact performance. 📊"
                         await send_push(uid, "market_close", "📊 The market has closed", body, {"screen": "portfolio"}, db)
+                        sent_push += 1
                     else:
                         body = f"El mercado cerró. {indices}. Con Premium puedes ver el rendimiento exacto de tu portafolio. 📊"
                         await send_push(uid, "market_close", "📊 El mercado ha cerrado", body, {"screen": "portfolio"}, db)
-                    sent_push += 1
+                        sent_push += 1
             except Exception as e:
                 # One user's bad/missing data must never take down everyone
                 # else's notification for the day — this loop previously had
@@ -2779,12 +2835,9 @@ async def job_portfolio_alerts():
         from app.services.notification_engine import _today_et
         from app.services.price_alert_service import (
             NO_CATALYST, should_send_price_alert, translate_why_to_english,
-            generate_fundamentals_verdict, translate_verdict_to_english,
         )
         ticker_why:     dict[str, str] = {}
         ticker_why_en:  dict[str, str] = {}
-        ticker_verdict:    dict[str, str] = {}
-        ticker_verdict_en: dict[str, str] = {}
         ticker_title:   dict[str, str] = {}
         today_et = _today_et()
         for ticker, pct in movers.items():
@@ -2810,26 +2863,12 @@ async def job_portfolio_alerts():
                 # stale answer never survives to bias tomorrow's re-generation.
                 cache_set(cache_key, {"why": why, "why_en": why_en, "pct": pct}, ttl=12 * 3600)
                 await asyncio.sleep(0.05)
-
-            # Premium-only "does this actually threaten your thesis" verdict,
-            # grounded in real computed fundamentals — cached alongside WHY,
-            # same 1-call-per-ticker-per-day budget. Diego, 2026-08-30.
-            verdict_cache_key = f"price_verdict:{ticker}:{today_et}"
-            verdict_cached = cache_get(verdict_cache_key)
-            if verdict_cached is not None:
-                if verdict_cached.get("verdict"):
-                    ticker_verdict[ticker] = verdict_cached["verdict"]
-                if verdict_cached.get("verdict_en"):
-                    ticker_verdict_en[ticker] = verdict_cached["verdict_en"]
-            else:
-                verdict = await generate_fundamentals_verdict(ticker, pct)
-                verdict_en = None
-                if verdict:
-                    ticker_verdict[ticker] = verdict
-                    verdict_en = await translate_verdict_to_english(verdict)
-                    ticker_verdict_en[ticker] = verdict_en
-                cache_set(verdict_cache_key, {"verdict": verdict, "verdict_en": verdict_en}, ttl=12 * 3600)
-                await asyncio.sleep(0.05)
+            # 2026-10-21, Diego: removed the separate "does this threaten
+            # your thesis" fundamentals verdict (margins/ROIC/FCF judgment)
+            # that used to be appended here — he wants only the real reason
+            # for the move, nothing else. See price_alert_service.py's
+            # generate_price_alert_why docstring/prompt, now allowed a
+            # fuller ~140-char reason instead of squeezing room for both.
 
         # 6. Batch-fetch user profiles (name + tier + trial + language) once
         all_uids  = list(user_tickers.keys())
@@ -2924,21 +2963,6 @@ async def job_portfolio_alerts():
                             )
                         else:
                             body = f"{prefix} {why}."
-
-                        # Append the real-fundamentals verdict only if there's
-                        # room — "si hay espacio en la notificación" (Diego,
-                        # 2026-08-30). Never truncates the reason to fit it.
-                        # Cap tightened from 230→170 (Diego, 2026-09-02): a push
-                        # this long reads as a wall of text nobody actually
-                        # reads — generate_fundamentals_verdict now targets a
-                        # single strongest metric (~55 chars) instead of
-                        # stacking 2-3, so 170 total comfortably fits prefix +
-                        # why + one-metric verdict without cutting the why.
-                        verdict = ticker_verdict_en.get(ticker) if (is_en and ticker in ticker_verdict_en) else ticker_verdict.get(ticker)
-                        if verdict:
-                            candidate = f"{body} {verdict}"
-                            if len(candidate) <= 170:
-                                body = candidate
                     else:
                         # Free tier — plain price alert, no WHY
                         body = (
@@ -6990,7 +7014,19 @@ async def main():
     scheduler.add_job(job_ipo_alerts,            "cron",                        hour=7,       minute=45,    timezone="America/New_York")
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_dividend_income,      "cron", hour=9,       minute=0,     timezone="America/New_York")
-    scheduler.add_job(job_earnings_watch,       "cron", day_of_week="mon-fri", hour="7-18",  minute="*/15", timezone="America/New_York")
+    # misfire_grace_time=0 (overrides the 600s default above): confirmed
+    # live, 2026-10-21 — a Railway worker restart's misfire catch-up run of
+    # this job produced a real DUPLICATE earnings push (same user/ticker/
+    # day, ~35min after the first), despite the dedup lock correctly
+    # blocking every normal 15-min grid tick before and after it (Diego:
+    # "los reportes trimestrales... se están mandando varias veces"). A
+    # missed tick here is harmless — the next one 15 minutes later re-polls
+    # the exact same "has this ticker reported today" check, so there is no
+    # real benefit to catching up a missed run, only the proven risk of a
+    # duplicate. Root cause of the lock itself not holding across the
+    # catch-up run wasn't nailed down further; removing the catch-up firing
+    # closes the actual reported symptom regardless.
+    scheduler.add_job(job_earnings_watch,       "cron", day_of_week="mon-fri", hour="7-18",  minute="*/15", timezone="America/New_York", misfire_grace_time=0)
     scheduler.add_job(job_morning_brief,        "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
     scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
     # Same 9:30 slot as job_market_open — the two are mutually exclusive by
@@ -7005,8 +7041,12 @@ async def main():
     # Market opens 9:30 ET — first two runs (9:30, 9:35) get their own cron
     # since a single hour="9-15" field can't start mid-hour; 10-15 continues
     # the normal every-5-min cadence.
-    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour=9,       minute="30,35,40,45,50,55", timezone="America/New_York")
-    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York")
+    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour=9,       minute="30,35,40,45,50,55", timezone="America/New_York", misfire_grace_time=0)
+    # misfire_grace_time=0: same fix/reasoning as job_earnings_watch above —
+    # this job also relies on a daily dedup lock + runs every 5 min anyway,
+    # so a restart catch-up run only risks reproducing the same proven
+    # duplicate-push bug for no real benefit.
+    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York", misfire_grace_time=0)
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=5,     timezone="America/New_York")
     # Second fire, only actually acted on when today is a NYSE early-close
     # day (see job_market_close's own early-close guard) — captures the
@@ -7119,7 +7159,8 @@ async def main():
     # ── Every 15 min, 8am-3pm ET Mon-Fri: CPI/Core CPI/PCE/Core PCE/NFP/
     # Unemployment/FOMC/GDP push — covers every tracked release's window
     # (8:30am for most, 2pm ET for FOMC). See job_macro_event_watch's docstring.
-    scheduler.add_job(job_macro_event_watch, "cron", day_of_week="mon-fri", hour="8-15", minute="*/15", timezone="America/New_York")
+    # misfire_grace_time=0 — same reasoning as job_earnings_watch above.
+    scheduler.add_job(job_macro_event_watch, "cron", day_of_week="mon-fri", hour="8-15", minute="*/15", timezone="America/New_York", misfire_grace_time=0)
 
     # ── Sunday 7:05pm ET: index futures just came online for the week (5 min
     # after market.py's futures window opens at 7pm ET) ──────────────────────
@@ -7134,7 +7175,8 @@ async def main():
 
     # ── AI Portfolio Manager — proactive alerts (written earlier, now scheduled) ──
     scheduler.add_job(job_risk_mgmt_push,        "cron", day_of_week="fri",     hour=15, minute=0, timezone="America/New_York")
-    scheduler.add_job(job_market_crash_alert,    "cron", day_of_week="mon-fri", hour="9-15", minute="*/5", timezone="America/New_York")
+    # misfire_grace_time=0 — same reasoning as job_earnings_watch above.
+    scheduler.add_job(job_market_crash_alert,    "cron", day_of_week="mon-fri", hour="9-15", minute="*/5", timezone="America/New_York", misfire_grace_time=0)
     # "La IA encontró algo" — roughly every 2h during market hours, never more
     scheduler.add_job(job_ai_insight_scan,       "cron", day_of_week="mon-fri", hour="9,11,13,15", minute=30, timezone="America/New_York")
     scheduler.add_job(job_reengagement_push,     "cron",                        hour=11, minute=0, timezone="America/New_York")
