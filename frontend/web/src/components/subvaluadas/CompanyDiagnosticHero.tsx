@@ -30,7 +30,7 @@ import { TrendingUp, TrendingDown, Minus, ShieldCheck, Lightbulb, ChevronDown, C
 import { GlowCard, RingGauge, IconSquare, GOLD } from "@/components/subvaluadas/radarUi";
 import { fmtPrice } from "@/lib/types/stock";
 import { _SCENARIO_COLOR, _valuationStatus, _VERDICT_COLOR, _VERDICT_EMOJI } from "@/components/subvaluadas/shared";
-import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 type ScenarioKey = "bear" | "base" | "bull";
 
@@ -44,7 +44,7 @@ const _GOLD = GOLD;
 export function CompanyDiagnosticHero({
   data, locked, onUnlock,
 }: {
-  data: CompanyDiagnosticData;
+  data: FullCompanyDiagnosticData;
   locked?: boolean;
   onUnlock?: () => void;
 }) {

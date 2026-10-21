@@ -2913,6 +2913,80 @@ def _company_diagnostic_cache_key(ticker: str, lang: str, tier: str = "free") ->
     return f"company_diagnostic:v10:{lang}:{ticker}{suffix}"
 
 
+def _universe_identity(ticker: str) -> tuple[str, str]:
+    """(companyName, sector) from the real curated UNIVERSE list — free,
+    in-memory, no network call. Falls back to the bare ticker/empty string
+    for a ticker outside the curated list (never fabricated)."""
+    row = next((u for u in UNIVERSE if u["ticker"] == ticker), None)
+    return (row["name"], row["sector"]) if row else (ticker, "")
+
+
+async def _degraded_diagnostic(ticker: str, lang: str, persisted: dict | None) -> dict:
+    """2026-10-20: the live rebuild AND the Redis stale-cache fallback both
+    came up empty for `ticker` — before giving up with a 404, check the
+    durable company_valuations table (Supabase, migrations/114). Diego:
+    "si falla un proveedor, conservar y mostrar la última valoración
+    válida, con su fecha real" / "si nunca se ha podido calcular... mostrar
+    un estado de no disponibilidad sin inventar números, puntajes ni
+    escenarios." Returns a `CompanyDiagnosticData`-shaped dict either way —
+    `dataAvailability` tells the frontend which of the two it got (see
+    CompanyDiagnosticCard.tsx's own early-return branches for each)."""
+    from app.services.valuation.numeric_helpers import calc_margin_of_safety
+
+    company_name, sector = _universe_identity(ticker)
+    is_valid = bool(persisted) and persisted.get("validation_status") == "valid"
+
+    base = {
+        "ticker": ticker, "companyName": company_name, "sector": sector, "exchange": "",
+        "score": None, "scoreLabel": None, "pillarScores": None, "badges": None,
+        "oneLinerPitch": None, "investmentThesis": None, "revenueBreakdown": None,
+        "moatPoints": None, "competitorComparison": None, "sectorComparison": None,
+        "financialHealth": None, "roicAdjustedForBuybacks": None, "sectorModelNote": None,
+        "noiseVsReality": None, "actionPlan": None, "_earnings_period": None,
+    }
+
+    if not is_valid:
+        logger.warning(
+            "company_diagnostic(%s): no live data and no persisted valuation — showing 'unavailable' state, not 404",
+            ticker,
+        )
+        return {**base, "dataAvailability": "unavailable", "valuation": None}
+
+    # A live quote is cheap (one Finnhub call) and a genuinely different
+    # provider than whatever just failed (FMP/Fiscal.ai/yfinance) — worth
+    # trying even here, same discipline as the stale-cache fallback above.
+    try:
+        quote = await asyncio.to_thread(fh_quote, ticker)
+    except Exception:
+        quote = None
+    current_price = (quote or {}).get("price")
+    base_fv = persisted.get("intrinsic_value_usd")
+    assumptions = persisted.get("assumptions") or {}
+
+    logger.warning(
+        "company_diagnostic(%s): no live data — falling back to persisted valuation from %s",
+        ticker, persisted.get("computed_at"),
+    )
+    return {
+        **base,
+        "dataAvailability": "valuation_only",
+        "valuationAsOf": persisted.get("computed_at"),
+        "valuation": {
+            "currentPrice": current_price,
+            "conservative": assumptions.get("bear"),
+            "baseFairValue": base_fv,
+            "optimistic": assumptions.get("bull"),
+            "marginOfSafetyPercent": calc_margin_of_safety(base_fv, current_price) if current_price else None,
+            "peCurrent": None, "peHistoricalAvg": None, "evFcf": None,
+            "fcfAssumptions": assumptions.get("fcf_assumptions"), "waccDetails": None,
+            "analystTarget": None, "priceHistoryContext": None, "fairValueChart": None,
+            "peForward": None, "peNormalized": None, "fairPeBreakdown": None,
+            "classification": None, "scenarioBreakdown": None, "sensitivityGrid": None,
+            "shadowDualTrack": None,
+        },
+    }
+
+
 async def _company_diagnostic_result(query: str, lang: str | None, user_id: str | None, use_ai: bool = True) -> dict:
     """Shared core for company_diagnostic (authenticated) and
     company_diagnostic_public (guest) — identical real data for both, only
@@ -3018,9 +3092,12 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
             return _apply_live_quote_diagnostic(stale, fresh_quote, lang)
         logger.warning(
             "company_diagnostic(%s): get_fundamental_analysis/build_company_diagnostic returned falsy on both "
-            "attempts, and no previously-cached diagnostic exists to fall back to", ticker,
+            "attempts, and no previously-cached diagnostic exists to fall back to — checking the durable "
+            "company_valuations table before giving up", ticker,
         )
-        raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
+        from app.services.company_valuation_service import get_persisted_valuation
+        persisted = await get_persisted_valuation(ticker)
+        return await _degraded_diagnostic(ticker, lang, persisted)
     # (data and diagnostic are both guaranteed non-None past this point —
     # either the rebuild succeeded, or the stale-cache fallback above
     # already returned, or the 404 above already raised.)
@@ -3053,6 +3130,14 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
 
     diagnostic["_earnings_period"] = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
     cache_set(cache_key, diagnostic, _COMPANY_DIAGNOSTIC_CACHE_TTL)
+
+    # Write-through to the durable company_valuations table (2026-10-20) —
+    # fire-and-forget: `data` was already fetched above for this exact
+    # request, so this is just a cheap Supabase write, no second fetch, and
+    # must never delay or fail the user's own response.
+    from app.services.company_valuation_service import persist_from_fetched_data
+    asyncio.create_task(persist_from_fetched_data(ticker, data))
+
     return diagnostic
 
 

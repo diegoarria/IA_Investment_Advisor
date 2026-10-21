@@ -42,7 +42,10 @@ export interface ValuationScenarios {
   optimistic: number;
   currentPrice: number;
   marginOfSafetyPercent: number;
-  peCurrent: number;
+  // 2026-10-20: nullable now — the "valuation_only" degraded state
+  // (CompanyDiagnosticData.dataAvailability) never has a fresh EPS/P/E
+  // computation, only the persisted intrinsic value + a live price.
+  peCurrent: number | null;
   // Real historical P/E is legitimately missing for plenty of real tickers
   // (confirmed live for CPRT/JPM/AAPL) — never gated server-side, so this
   // must stay nullable here too.
@@ -210,26 +213,38 @@ export interface CompanyDiagnosticData {
   // staleAsOf carries the fiscal period ("2026-Q2") that data reflects.
   stale?: boolean;
   staleAsOf?: string | null;
+  // 2026-10-20: set only in the two degraded states — every real
+  // provider is down right now AND there's no fresh/stale Redis cache
+  // either. "valuation_only" means Supabase's durable company_valuations
+  // table (migrations/114) had a real, previously-computed value to fall
+  // back on (shown with `valuationAsOf`, its real computed_at date);
+  // "unavailable" means that table has never had one either — a genuine
+  // "no hay valoración todavía" state, never a fabricated placeholder.
+  // Absent (undefined) is the normal case: a full, real diagnostic.
+  dataAvailability?: "valuation_only" | "unavailable";
+  valuationAsOf?: string | null;
   ticker: string;
   companyName: string;
   sector: string;
   exchange: string;
-  score: number; // 0-100
-  scoreLabel: string;
-  pillarScores: {
+  // Absent in both degraded states above — never a fabricated 0/"" score
+  // standing in for "we don't actually know this right now."
+  score?: number; // 0-100
+  scoreLabel?: string;
+  pillarScores?: {
     quality: number; // 0-100
     trust: number; // 0-100
     value: number; // 0-100
     simplicity: number; // 0-100
   };
-  badges: string[];
-  oneLinerPitch: string;
+  badges?: string[];
+  oneLinerPitch?: string;
   // Real, on-demand AI narrative — null when the underlying model call
   // failed (never a fabricated placeholder; see ai_service.generate_
   // company_diagnostic_narrative's own docstring).
   investmentThesis: string | null;
-  revenueBreakdown: { category: string; percentage: number }[];
-  moatPoints: string[];
+  revenueBreakdown?: { category: string; percentage: number }[];
+  moatPoints?: string[];
   // Optional: omitted when no real peer could be found for this ticker
   // (a pre-existing sector/industry-taxonomy gap upstream, not fabricated
   // as "no competitor exists") — see company_diagnostic_service.py.
@@ -242,7 +257,7 @@ export interface CompanyDiagnosticData {
   // data — same discipline as competitorComparison above, never a
   // fabricated "sector average."
   sectorComparison: SectorComparison | null;
-  financialHealth: {
+  financialHealth?: {
     longTermDebt: string;
     netCash: string;
     roic: string;
@@ -254,8 +269,10 @@ export interface CompanyDiagnosticData {
   // munching-crown.md) — true when buybacks compressed Stockholders Equity
   // enough that ROIC's denominator switched to operating invested capital
   // (Total Assets - Current Liabilities) instead of the standard one.
-  roicAdjustedForBuybacks: boolean;
-  valuation: ValuationScenarios;
+  roicAdjustedForBuybacks?: boolean;
+  // Absent only in the "unavailable" state — "valuation_only" still has a
+  // real (partial) one; see ValuationScenarios' own 2026-10-20 note.
+  valuation?: ValuationScenarios | null;
   // Real, computed caution about the valuation method itself — e.g. a
   // financial-sector implied P/B too far from real/peer multiples. Shown
   // right below the verdict, alongside the real number, never in place of it.
@@ -268,6 +285,46 @@ export interface CompanyDiagnosticData {
     profile: string;
     strategy: string;
   } | null;
+}
+
+// 2026-10-20: the narrow, pre-10-20 shape — every field the "full" card
+// always had, none of it optional. All the deep-dive sub-components
+// (Hero, the 4 pillars, ValuationTabs, CompetitorTable) declare their own
+// `data` prop as THIS type, not CompanyDiagnosticData, specifically so
+// their bodies can keep reading `data.valuation.baseFairValue` etc.
+// directly, with no new null-checks scattered through them — CompanyDiagnosticCard.tsx
+// is the ONLY place that sees the broader, possibly-degraded
+// CompanyDiagnosticData, and isFullDiagnostic() below is what lets it
+// prove to TypeScript (not just assume) that only a true full diagnostic
+// ever reaches those sub-components.
+export type FullCompanyDiagnosticData = CompanyDiagnosticData & {
+  dataAvailability?: undefined;
+  score: number;
+  scoreLabel: string;
+  pillarScores: {
+    quality: number;
+    trust: number;
+    value: number;
+    simplicity: number;
+  };
+  badges: string[];
+  oneLinerPitch: string;
+  revenueBreakdown: { category: string; percentage: number }[];
+  moatPoints: string[];
+  financialHealth: {
+    longTermDebt: string;
+    netCash: string;
+    roic: string;
+    operatingMargin: string;
+    netMargin: string;
+    operatingCashFlow: string;
+  };
+  roicAdjustedForBuybacks: boolean;
+  valuation: ValuationScenarios;
+};
+
+export function isFullDiagnostic(data: CompanyDiagnosticData): data is FullCompanyDiagnosticData {
+  return !data.dataAvailability;
 }
 
 export const mockCopartData: CompanyDiagnosticData = {

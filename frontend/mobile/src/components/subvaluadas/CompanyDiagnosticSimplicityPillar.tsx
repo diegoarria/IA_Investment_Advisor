@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ExpandableSection, DiagSectionScore, DiagRaisedBlock, DiagEyebrow, DiagIconDot } from "./companyDiagnosticShared";
-import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
 // Mirror of web's CompanyDiagnosticSimplicityPillar.tsx.
 
@@ -12,8 +12,8 @@ export function CompanyDiagnosticSimplicityPillar({
   score, noiseVsReality, actionPlan, colors,
 }: {
   score: number;
-  noiseVsReality: CompanyDiagnosticData["noiseVsReality"];
-  actionPlan: CompanyDiagnosticData["actionPlan"];
+  noiseVsReality: FullCompanyDiagnosticData["noiseVsReality"];
+  actionPlan: FullCompanyDiagnosticData["actionPlan"];
   colors: any;
 }) {
   const { t } = useTranslation();

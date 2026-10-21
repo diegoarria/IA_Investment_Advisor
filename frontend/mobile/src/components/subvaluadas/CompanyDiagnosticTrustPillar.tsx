@@ -3,7 +3,7 @@ import { View, Text } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { ExpandableSection, DiagRaisedBlock, ExplainableValue, DiagSectionScore } from "./companyDiagnosticShared";
-import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
 // Mirror of web's CompanyDiagnosticTrustPillar.tsx.
 
@@ -11,7 +11,7 @@ export function CompanyDiagnosticTrustPillar({
   score, financialHealth, roicAdjustedForBuybacks, colors,
 }: {
   score: number;
-  financialHealth: CompanyDiagnosticData["financialHealth"];
+  financialHealth: FullCompanyDiagnosticData["financialHealth"];
   roicAdjustedForBuybacks?: boolean;
   colors: any;
 }) {

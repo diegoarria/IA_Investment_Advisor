@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { fmtPrice, SCENARIO_COLOR, scoreColor } from "../../lib/types/companyDiagnostic";
-import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 import { ExplainableValue, RingGauge } from "./companyDiagnosticShared";
 import { LinearGradient } from "expo-linear-gradient";
 import { CompanyDiagnosticQualityPillar } from "./CompanyDiagnosticQualityPillar";
@@ -63,7 +63,7 @@ function StepCard({ children, colors }: { children: React.ReactNode; colors: any
   );
 }
 
-function ValuationTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k: string, o?: Record<string, unknown>) => string; colors: any }) {
+function ValuationTab({ data, t, colors }: { data: FullCompanyDiagnosticData; t: (k: string, o?: Record<string, unknown>) => string; colors: any }) {
   const { classification, fairPeBreakdown, scenarioBreakdown, waccDetails, shadowDualTrack } = data.valuation;
   const hasShadowFcf = shadowDualTrack?.applicable && shadowDualTrack.fcfTrackValue != null;
 
@@ -208,7 +208,7 @@ function ValuationTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k:
   );
 }
 
-function ScenariosTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k: string) => string; colors: any }) {
+function ScenariosTab({ data, t, colors }: { data: FullCompanyDiagnosticData; t: (k: string) => string; colors: any }) {
   const sb = data.valuation.scenarioBreakdown;
   if (!sb) return null;
   const rows: { key: "bear" | "base" | "bull"; label: string }[] = [
@@ -246,7 +246,7 @@ function ScenariosTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k:
   );
 }
 
-function ComparablesTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k: string) => string; colors: any }) {
+function ComparablesTab({ data, t, colors }: { data: FullCompanyDiagnosticData; t: (k: string) => string; colors: any }) {
   const { sectorComparison, competitorComparison } = data;
   return (
     <View style={{ gap: 16 }}>
@@ -293,7 +293,7 @@ function ComparablesTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (
 
 const _BUCKET_COLOR: Record<"cheap" | "normal" | "expensive", string> = { cheap: "#4FA695", normal: _GOLD, expensive: "#DD6E63" };
 
-function HistoryTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k: string, o?: Record<string, unknown>) => string; colors: any }) {
+function HistoryTab({ data, t, colors }: { data: FullCompanyDiagnosticData; t: (k: string, o?: Record<string, unknown>) => string; colors: any }) {
   const ctx = data.valuation.priceHistoryContext;
   if (!ctx) return null;
   const { percentileCheaperThan, daysUsed, todayBucket, buckets } = ctx;
@@ -381,7 +381,7 @@ function HistoryTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k: s
   );
 }
 
-export function CompanyDiagnosticValuationTabs({ data, colors }: { data: CompanyDiagnosticData; colors: any }) {
+export function CompanyDiagnosticValuationTabs({ data, colors }: { data: FullCompanyDiagnosticData; colors: any }) {
   const { t } = useTranslation();
   const { valuation, sectorComparison, competitorComparison } = data;
   const [tab, setTab] = useState<TabKey | PillarKey>("valuation");

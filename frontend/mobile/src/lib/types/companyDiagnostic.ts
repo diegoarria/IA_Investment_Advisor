@@ -30,7 +30,9 @@ export interface ValuationScenarios {
   optimistic: number;
   currentPrice: number;
   marginOfSafetyPercent: number;
-  peCurrent: number;
+  // 2026-10-20: nullable — the "valuation_only" degraded state
+  // (CompanyDiagnosticData.dataAvailability) never has a fresh EPS/P/E.
+  peCurrent: number | null;
   peHistoricalAvg: number | null;
   evFcf: number | null;
   fcfAssumptions: {
@@ -126,10 +128,69 @@ export interface CompanyDiagnosticData {
   // search limit — data is still real (never fabricated); the card dims
   // everything but name/logo/price and shows an upgrade CTA.
   locked?: boolean;
+  // Diego, 2026-09-23 (web parity — see web's own type for the fuller
+  // note): set when every real provider was down and the backend served
+  // the last real, previously-computed diagnostic instead of failing.
+  stale?: boolean;
+  staleAsOf?: string | null;
+  // 2026-10-20: set only in the two degraded states — every real
+  // provider is down AND there's no fresh/stale cache either.
+  // "valuation_only" = a real persisted value exists (company_valuations,
+  // Supabase) to fall back on, shown with `valuationAsOf`; "unavailable"
+  // = that table has never had one either. Absent = normal full card.
+  dataAvailability?: "valuation_only" | "unavailable";
+  valuationAsOf?: string | null;
   ticker: string;
   companyName: string;
   sector: string;
   exchange: string;
+  score?: number;
+  scoreLabel?: string;
+  pillarScores?: {
+    quality: number;
+    trust: number;
+    value: number;
+    simplicity: number;
+  };
+  badges?: string[];
+  oneLinerPitch?: string;
+  investmentThesis: string | null;
+  revenueBreakdown?: { category: string; percentage: number }[];
+  moatPoints?: string[];
+  competitorComparison: {
+    competitorName: string;
+    rows: CompetitorComparison[];
+    conclusion: string;
+  } | null;
+  sectorComparison: SectorComparison | null;
+  financialHealth?: {
+    longTermDebt: string;
+    netCash: string;
+    roic: string;
+    operatingMargin: string;
+    netMargin: string;
+    operatingCashFlow: string;
+  };
+  roicAdjustedForBuybacks?: boolean;
+  valuation?: ValuationScenarios | null;
+  sectorModelNote: { sector_type: string; detalle: string } | null;
+  noiseVsReality: {
+    marketSaw: string;
+    nuvosReality: string;
+  } | null;
+  actionPlan: {
+    profile: string;
+    strategy: string;
+  } | null;
+}
+
+// 2026-10-20 — mirror of web's own type. See web's doc comment for why
+// this exists: every deep-dive sub-component (Hero, pillars,
+// ValuationTabs) declares its `data` prop as THIS type, never the
+// broader CompanyDiagnosticData, so isFullDiagnostic() is what proves to
+// TypeScript only a true full diagnostic ever reaches them.
+export type FullCompanyDiagnosticData = CompanyDiagnosticData & {
+  dataAvailability?: undefined;
   score: number;
   scoreLabel: string;
   pillarScores: {
@@ -140,15 +201,8 @@ export interface CompanyDiagnosticData {
   };
   badges: string[];
   oneLinerPitch: string;
-  investmentThesis: string | null;
   revenueBreakdown: { category: string; percentage: number }[];
   moatPoints: string[];
-  competitorComparison: {
-    competitorName: string;
-    rows: CompetitorComparison[];
-    conclusion: string;
-  } | null;
-  sectorComparison: SectorComparison | null;
   financialHealth: {
     longTermDebt: string;
     netCash: string;
@@ -159,15 +213,10 @@ export interface CompanyDiagnosticData {
   };
   roicAdjustedForBuybacks: boolean;
   valuation: ValuationScenarios;
-  sectorModelNote: { sector_type: string; detalle: string } | null;
-  noiseVsReality: {
-    marketSaw: string;
-    nuvosReality: string;
-  } | null;
-  actionPlan: {
-    profile: string;
-    strategy: string;
-  } | null;
+};
+
+export function isFullDiagnostic(data: CompanyDiagnosticData): data is FullCompanyDiagnosticData {
+  return !data.dataAvailability;
 }
 
 export function fmtPrice(v: number | null | undefined, currency = "USD"): string {

@@ -11,14 +11,14 @@
 import { useTranslation } from "react-i18next";
 import { Award } from "lucide-react";
 import { _SCENARIO_COLOR } from "@/components/subvaluadas/shared";
-import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 const _NUVOS_ADVANTAGE_COLOR = _SCENARIO_COLOR.bull;
 
 export function CompanyDiagnosticCompetitorTable({
   competitorComparison,
 }: {
-  competitorComparison: NonNullable<CompanyDiagnosticData["competitorComparison"]>;
+  competitorComparison: NonNullable<FullCompanyDiagnosticData["competitorComparison"]>;
 }) {
   const { t } = useTranslation();
   const { competitorName, rows, conclusion } = competitorComparison;

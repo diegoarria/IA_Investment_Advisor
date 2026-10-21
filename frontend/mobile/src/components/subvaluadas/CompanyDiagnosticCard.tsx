@@ -7,7 +7,7 @@ import { CompanyDiagnosticValuationTabs } from "./CompanyDiagnosticValuationTabs
 import { SelfCheckQuiz } from "./SelfCheckQuiz";
 import { GlowCard } from "./companyDiagnosticShared";
 import { CompanyDiagnosticBacktestPanel } from "./CompanyDiagnosticBacktestPanel";
-import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
+import { isFullDiagnostic, type CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
 // Mobile mirror of web's CompanyDiagnosticCard.tsx — hero + 4 collapsible
 // pillars, Tesis Final, guía de metodología, Self-Check y disclaimer legal.
@@ -60,6 +60,63 @@ export function CompanyDiagnosticCard({
 }) {
   const { t } = useTranslation();
   const [assumptionsOpen, setAssumptionsOpen] = useState(false);
+
+  // 2026-10-20: mirror of web's own guard — see its doc comment. Rendered
+  // before any sub-component that assumes a full diagnostic.
+  if (!isFullDiagnostic(data)) {
+    const valuation = data.valuation;
+    return (
+      <GlowCard colors={colors} style={{ gap: 10 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View style={{ width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: valuation ? "#22c55e1f" : "#f59e0b1f" }}>
+            <Ionicons name={valuation ? "trending-up" : "alert-circle-outline"} size={18} color={valuation ? "#22c55e" : "#f59e0b"} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }} numberOfLines={1}>
+              {data.companyName} ({data.ticker})
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+              {valuation ? t("companyDiagnostic.valuationOnly.subtitle") : t("companyDiagnostic.unavailable.subtitle")}
+            </Text>
+          </View>
+        </View>
+        {valuation ? (
+          <View style={{ gap: 8 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ fontSize: 10, textTransform: "uppercase", color: colors.textDim }}>{t("companyDiagnostic.thermometer.conservative")}</Text>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text }}>{valuation.conservative != null ? `$${valuation.conservative.toFixed(2)}` : "—"}</Text>
+              </View>
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ fontSize: 10, textTransform: "uppercase", color: colors.textDim }}>{t("companyDiagnostic.thermometer.baseFairValue")}</Text>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: colors.accentLight }}>{valuation.baseFairValue != null ? `$${valuation.baseFairValue.toFixed(2)}` : "—"}</Text>
+              </View>
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ fontSize: 10, textTransform: "uppercase", color: colors.textDim }}>{t("companyDiagnostic.thermometer.optimistic")}</Text>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text }}>{valuation.optimistic != null ? `$${valuation.optimistic.toFixed(2)}` : "—"}</Text>
+              </View>
+            </View>
+            {valuation.currentPrice != null && (
+              <Text style={{ fontSize: 12, color: colors.textSub, textAlign: "center" }}>
+                {t("companyDiagnostic.kpi.currentPrice")}: ${valuation.currentPrice.toFixed(2)}
+                {valuation.marginOfSafetyPercent != null && ` · ${t("companyDiagnostic.kpi.marginOfSafety")}: ${valuation.marginOfSafetyPercent.toFixed(1)}%`}
+              </Text>
+            )}
+            {data.valuationAsOf && (
+              <Text style={{ fontSize: 11, color: colors.textDim, textAlign: "center" }}>
+                {t("companyDiagnostic.valuationOnly.asOf", { date: data.valuationAsOf })}
+              </Text>
+            )}
+          </View>
+        ) : (
+          <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textSub }}>
+            {t("companyDiagnostic.unavailable.body")}
+          </Text>
+        )}
+      </GlowCard>
+    );
+  }
+
   const methodologyParagraphs = t("companyDiagnostic.methodology.paragraphs", { returnObjects: true }) as string[];
 
   const content = (

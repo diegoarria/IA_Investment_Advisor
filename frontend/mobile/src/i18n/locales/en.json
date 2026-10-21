@@ -3824,6 +3824,14 @@
     }
   },
   "companyDiagnostic": {
+    "valuationOnly": {
+      "subtitle": "Showing the last calculated valuation — the full analysis isn't available right now.",
+      "asOf": "Calculated on {{date}}"
+    },
+    "unavailable": {
+      "subtitle": "We don't have a valuation for this company yet",
+      "body": "We couldn't calculate a real value for this company right now. Try again later — we never show a made-up number."
+    },
     "locked": {
       "title": "You used your 3 free searches this week",
       "body": "This is the real diagnostic for this company. Go Premium to see it in full, with no limits.",

@@ -10,13 +10,13 @@ import { Shield } from "lucide-react";
 import { PillarSection, RaisedTile } from "@/components/subvaluadas/radarUi";
 import { ExplainableValue } from "@/components/ui/ExplainableValue";
 import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyDiagnosticSectionScore";
-import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 export function CompanyDiagnosticTrustPillar({
   score, financialHealth, roicAdjustedForBuybacks,
 }: {
   score: number;
-  financialHealth: CompanyDiagnosticData["financialHealth"];
+  financialHealth: FullCompanyDiagnosticData["financialHealth"];
   roicAdjustedForBuybacks?: boolean;
 }) {
   const { t } = useTranslation();

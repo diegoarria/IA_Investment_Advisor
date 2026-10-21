@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ExpandableSection, DiagSectionScore, DiagIconDot } from "./companyDiagnosticShared";
 import { SCENARIO_COLOR } from "../../lib/types/companyDiagnostic";
-import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
 // Mirror of web's CompanyDiagnosticQualityPillar.tsx + CompanyDiagnosticCompetitorTable.tsx
 // — RN has no responsive breakpoints, so the competitor "Duelo de Titanes"
@@ -29,7 +29,7 @@ function SubCard({ icon, title, children, colors, tint }: { icon: React.ReactNod
 
 const NUVOS_ADVANTAGE_COLOR = SCENARIO_COLOR.bull;
 
-function CompetitorTable({ competitorComparison, colors }: { competitorComparison: NonNullable<CompanyDiagnosticData["competitorComparison"]>; colors: any }) {
+function CompetitorTable({ competitorComparison, colors }: { competitorComparison: NonNullable<FullCompanyDiagnosticData["competitorComparison"]>; colors: any }) {
   const { t } = useTranslation();
   const { competitorName, rows, conclusion } = competitorComparison;
   return (
@@ -74,9 +74,9 @@ export function CompanyDiagnosticQualityPillar({
   score, revenueBreakdown, moatPoints, competitorComparison, colors,
 }: {
   score: number;
-  revenueBreakdown: CompanyDiagnosticData["revenueBreakdown"];
+  revenueBreakdown: FullCompanyDiagnosticData["revenueBreakdown"];
   moatPoints: string[];
-  competitorComparison: CompanyDiagnosticData["competitorComparison"];
+  competitorComparison: FullCompanyDiagnosticData["competitorComparison"];
   colors: any;
 }) {
   const { t } = useTranslation();

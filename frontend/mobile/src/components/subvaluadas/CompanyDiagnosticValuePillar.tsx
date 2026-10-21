@@ -6,7 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ExpandableSection, DiagRaisedBlock, ExplainableValue, DiagSectionScore, DiagEyebrow } from "./companyDiagnosticShared";
 import { CompanyDiagnosticBuyZonePanel } from "./CompanyDiagnosticBuyZonePanel";
 import { valuationStatus, VERDICT_COLOR, VERDICT_EMOJI, fmtPrice } from "../../lib/types/companyDiagnostic";
-import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
 // Mirror of web's CompanyDiagnosticValuePillar.tsx.
 
@@ -18,7 +18,7 @@ export function CompanyDiagnosticValuePillar({
   score: number;
   ticker: string;
   companyName: string;
-  valuation: CompanyDiagnosticData["valuation"];
+  valuation: FullCompanyDiagnosticData["valuation"];
   colors: any;
 }) {
   const { t } = useTranslation();

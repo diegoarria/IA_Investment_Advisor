@@ -21,7 +21,7 @@ import { CompanyDiagnosticQualityPillar } from "@/components/subvaluadas/Company
 import { CompanyDiagnosticTrustPillar } from "@/components/subvaluadas/CompanyDiagnosticTrustPillar";
 import { CompanyDiagnosticValuePillar } from "@/components/subvaluadas/CompanyDiagnosticValuePillar";
 import { CompanyDiagnosticSimplicityPillar } from "@/components/subvaluadas/CompanyDiagnosticSimplicityPillar";
-import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 type TabKey = "valuation" | "scenarios" | "comparables" | "history";
 type PillarKey = "quality" | "trust" | "value" | "simplicity";
@@ -50,7 +50,7 @@ const _ADJUSTMENT_EXPLANATION_KEY: Record<string, string> = {
 // as separate stacked cards below. The 4 pillar components themselves
 // (CompanyDiagnosticQualityPillar etc.) are untouched, real, and already
 // rich — this only changes WHERE they render, not what they show.
-export function CompanyDiagnosticValuationTabs({ data }: { data: CompanyDiagnosticData }) {
+export function CompanyDiagnosticValuationTabs({ data }: { data: FullCompanyDiagnosticData }) {
   const { t, i18n } = useTranslation();
   const { valuation, sectorComparison, competitorComparison } = data;
   const [tab, setTab] = useState<TabKey | PillarKey>("valuation");
@@ -221,7 +221,7 @@ function StepCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ValuationTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string, o?: Record<string, unknown>) => string }) {
+function ValuationTab({ data, t }: { data: FullCompanyDiagnosticData; t: (k: string, o?: Record<string, unknown>) => string }) {
   const { classification, fairPeBreakdown, scenarioBreakdown, waccDetails, shadowDualTrack } = data.valuation;
   const hasShadowFcf = shadowDualTrack?.applicable && shadowDualTrack.fcfTrackValue != null;
 
@@ -442,7 +442,7 @@ function ValuationTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string,
   );
 }
 
-function ScenariosTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string) => string }) {
+function ScenariosTab({ data, t }: { data: FullCompanyDiagnosticData; t: (k: string) => string }) {
   const sb = data.valuation.scenarioBreakdown;
   const grid = data.valuation.sensitivityGrid;
   if (!sb) return null;
@@ -527,7 +527,7 @@ function ScenariosTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string)
   );
 }
 
-function ComparablesTab({ data, t }: { data: CompanyDiagnosticData; t: (k: string) => string }) {
+function ComparablesTab({ data, t }: { data: FullCompanyDiagnosticData; t: (k: string) => string }) {
   const { sectorComparison, competitorComparison } = data;
   return (
     <div className="space-y-4">
@@ -662,7 +662,7 @@ function _fullDateLabel(dateStr: string, lang: string): string {
 function FairValueLineChart({
   chart, ticker, t, lang,
 }: {
-  chart: NonNullable<CompanyDiagnosticData["valuation"]["fairValueChart"]>;
+  chart: NonNullable<FullCompanyDiagnosticData["valuation"]["fairValueChart"]>;
   ticker: string;
   t: (k: string, o?: Record<string, unknown>) => string;
   lang: string;
@@ -819,7 +819,7 @@ function FairValueLineChart({
   );
 }
 
-function HistoryTab({ data, t, lang }: { data: CompanyDiagnosticData; t: (k: string, o?: Record<string, unknown>) => string; lang: string }) {
+function HistoryTab({ data, t, lang }: { data: FullCompanyDiagnosticData; t: (k: string, o?: Record<string, unknown>) => string; lang: string }) {
   const ctx = data.valuation.priceHistoryContext;
   if (!ctx) return null;
   const { percentileCheaperThan, daysUsed, todayBucket, buckets } = ctx;

@@ -7,14 +7,14 @@ import { useTranslation } from "react-i18next";
 import { Lightbulb, Megaphone, CheckCheck, UserCircle, Navigation } from "lucide-react";
 import { PillarSection, RaisedTile, Eyebrow, IconDot } from "@/components/subvaluadas/radarUi";
 import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyDiagnosticSectionScore";
-import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 export function CompanyDiagnosticSimplicityPillar({
   score, noiseVsReality, actionPlan,
 }: {
   score: number;
-  noiseVsReality: CompanyDiagnosticData["noiseVsReality"];
-  actionPlan: CompanyDiagnosticData["actionPlan"];
+  noiseVsReality: FullCompanyDiagnosticData["noiseVsReality"];
+  actionPlan: FullCompanyDiagnosticData["actionPlan"];
 }) {
   const { t } = useTranslation();
 

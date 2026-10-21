@@ -89,8 +89,6 @@ def compute_numeric_valuation(ticker: str) -> dict:
     fabricate, never silently succeed" discipline as the rest of this
     codebase's valuation path."""
     from app.services.fundamental_analysis_service import get_fundamental_analysis
-    from app.services.company_diagnostic_service import _primary_scenarios, _fallback_relative_scenarios
-    from app.api.routes.screener import _latest_reported_earnings_period
 
     try:
         data = get_fundamental_analysis(ticker)
@@ -100,6 +98,19 @@ def compute_numeric_valuation(ticker: str) -> dict:
 
     if not data:
         return {"validation_status": "insufficient_data", "error_detail": "no fundamental data available"}
+
+    return scenarios_from_fetched_data(ticker, data)
+
+
+def scenarios_from_fetched_data(ticker: str, data: dict) -> dict:
+    """Same result shape as compute_numeric_valuation, but takes a `data`
+    dict the caller ALREADY fetched via get_fundamental_analysis — used by
+    the live /company-diagnostic route (screener.py) to persist a write-
+    through valuation from its own existing fetch, instead of this module
+    re-fetching the same ticker a second time (2026-10-20, "sin recalcular
+    innecesariamente los estados financieros")."""
+    from app.services.company_diagnostic_service import _primary_scenarios, _fallback_relative_scenarios
+    from app.api.routes.screener import _latest_reported_earnings_period
 
     dcf = data.get("dcf") or {}
     if not dcf:
@@ -122,7 +133,7 @@ def compute_numeric_valuation(ticker: str) -> dict:
     try:
         financial_report_period = _latest_reported_earnings_period(ticker) or None
     except Exception as e:
-        logger.info("compute_numeric_valuation(%s): earnings-period lookup failed: %s", ticker, e)
+        logger.info("scenarios_from_fetched_data(%s): earnings-period lookup failed: %s", ticker, e)
         financial_report_period = None
 
     return {
@@ -329,3 +340,25 @@ async def backfill_universe(
             await asyncio.sleep(sleep_s)
 
     return results
+
+
+async def persist_from_fetched_data(ticker: str, data: dict) -> None:
+    """Write-through save for the live /company-diagnostic route (2026-10-
+    20): once a real, successful card build already has `data` in hand,
+    persist its numeric valuation too — no second fetch (uses
+    scenarios_from_fetched_data, not compute_numeric_valuation), so this
+    costs one cheap Supabase write, nothing more. Meant to be fired via
+    asyncio.create_task — never awaited inline, since a slow/failed
+    Supabase write must never delay or fail the user's own response.
+    Swallows its own errors for the same reason; logs instead of raising."""
+    try:
+        computed = scenarios_from_fetched_data(ticker, data)
+        if computed["validation_status"] != "valid":
+            return  # don't persist insufficient_data here — that's a genuine
+            # "couldn't build a diagnostic at all" case the route already
+            # handles separately; this path only fires after a successful
+            # card build, so a non-valid result here would be surprising
+            # and isn't the case this write-through exists for.
+        await persist_valuation(ticker, computed)
+    except Exception as e:
+        logger.info("persist_from_fetched_data(%s): skipped, non-fatal: %s", ticker, e)

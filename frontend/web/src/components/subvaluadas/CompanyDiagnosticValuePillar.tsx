@@ -22,7 +22,7 @@ import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyD
 import { CompanyDiagnosticBuyZonePanel } from "@/components/subvaluadas/CompanyDiagnosticBuyZonePanel";
 import { _valuationStatus, _VERDICT_COLOR, _VERDICT_EMOJI } from "@/components/subvaluadas/shared";
 import { fmtPrice } from "@/lib/types/stock";
-import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 export const COMPANY_DIAGNOSTIC_VALUE_PILLAR_ID = "company-diagnostic-value-pillar";
 
@@ -34,7 +34,7 @@ export function CompanyDiagnosticValuePillar({
   score: number;
   ticker: string;
   companyName: string;
-  valuation: CompanyDiagnosticData["valuation"];
+  valuation: FullCompanyDiagnosticData["valuation"];
 }) {
   const { t } = useTranslation();
   const [selectedScenario, setSelectedScenario] = useState<ScenarioKey>("baseFairValue");

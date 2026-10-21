@@ -5,7 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { GlowCard, RingGauge } from "./companyDiagnosticShared";
 import { useTranslation } from "react-i18next";
 import { valuationStatus, VERDICT_COLOR, VERDICT_EMOJI, SCENARIO_COLOR, fmtPrice } from "../../lib/types/companyDiagnostic";
-import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
 // Mobile mirror of web's CompanyDiagnosticHero.tsx — see
 // /Users/diegoarria/.claude/plans/dapper-scribbling-honey.md, Fase 3.
@@ -34,7 +34,7 @@ const _GOLD = "#D4A24C";
 
 type ScenarioKey = "bear" | "base" | "bull";
 
-export function CompanyDiagnosticHero({ data, colors }: { data: CompanyDiagnosticData; colors: any }) {
+export function CompanyDiagnosticHero({ data, colors }: { data: FullCompanyDiagnosticData; colors: any }) {
   const { t } = useTranslation();
   const [scenario, setScenario] = useState<ScenarioKey>("base");
   const [whyOpen, setWhyOpen] = useState(false);
@@ -259,7 +259,7 @@ export function CompanyDiagnosticHero({ data, colors }: { data: CompanyDiagnosti
 function MobileShadowBlend({
   shadowDualTrack, colors, t,
 }: {
-  shadowDualTrack: Extract<NonNullable<CompanyDiagnosticData["valuation"]["shadowDualTrack"]>, { applicable: true }>;
+  shadowDualTrack: Extract<NonNullable<FullCompanyDiagnosticData["valuation"]["shadowDualTrack"]>, { applicable: true }>;
   colors: any;
   t: (k: string, o?: Record<string, unknown>) => string;
 }) {
@@ -306,7 +306,7 @@ function MobileShadowBlend({
 function MobilePEWaterfall({
   breakdown, colors, t,
 }: {
-  breakdown: NonNullable<CompanyDiagnosticData["valuation"]["fairPeBreakdown"]>;
+  breakdown: NonNullable<FullCompanyDiagnosticData["valuation"]["fairPeBreakdown"]>;
   colors: any;
   t: (k: string, o?: Record<string, unknown>) => string;
 }) {

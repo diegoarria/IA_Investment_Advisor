@@ -1429,6 +1429,14 @@
   "companyDiagnostic": {
     "staleNotice": "Estos datos podrían estar desactualizados (corresponden al período {{period}}) — no pudimos actualizarlos justo ahora porque nuestras fuentes de datos externas no respondieron. Son reales, solo no los más recientes.",
     "staleNoticeUnknownPeriod": "más reciente disponible",
+    "valuationOnly": {
+      "subtitle": "Mostrando la última valoración calculada — el análisis completo no está disponible en este momento.",
+      "asOf": "Calculado el {{date}}"
+    },
+    "unavailable": {
+      "subtitle": "Aún no tenemos una valoración para esta empresa",
+      "body": "No pudimos calcular un valor real para esta empresa en este momento. Vuelve a intentarlo más tarde — nunca mostramos un número inventado."
+    },
     "locked": {
       "title": "Usaste tus 3 búsquedas gratis de esta semana",
       "body": "Este es el diagnóstico real de esta empresa. Actívate Premium para verlo completo, sin límites.",

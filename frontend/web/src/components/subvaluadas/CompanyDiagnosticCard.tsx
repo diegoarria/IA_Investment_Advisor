@@ -20,7 +20,8 @@ import { CompanyDiagnosticHero } from "@/components/subvaluadas/CompanyDiagnosti
 import { CompanyDiagnosticValuationTabs } from "@/components/subvaluadas/CompanyDiagnosticValuationTabs";
 import { CompanyDiagnosticSelfCheckQuiz } from "@/components/subvaluadas/CompanyDiagnosticSelfCheckQuiz";
 import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
-import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
+import { isFullDiagnostic, type CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
+import { AlertTriangle, TrendingUp } from "lucide-react";
 
 // Bolds every dollar-amount ("$2.8 mil millones", "$3,400M") and percentage
 // ("9.7%") found in a narrative string — used only for the Tesis Final
@@ -63,6 +64,67 @@ export function CompanyDiagnosticCard({
   onUnlock?: () => void;
 }) {
   const { t } = useTranslation();
+
+  // 2026-10-20: every real provider was down AND there's no cache to fall
+  // back on — company_valuations (Supabase, migrations/114) is the last
+  // resort. Rendered here, before any of the deep-dive sub-components
+  // (Hero, pillars, ValuationTabs) ever run, since those assume a full
+  // diagnostic and would otherwise need null-checks scattered everywhere
+  // for a case that's rare by design. isFullDiagnostic narrows `data` for
+  // everything below this guard, not just a runtime check.
+  if (!isFullDiagnostic(data)) {
+    const valuation = data.valuation;
+    return (
+      <GlowCard className="space-y-3">
+        <div className="flex items-center gap-3">
+          <IconSquare color={valuation ? "#22c55e" : "#f59e0b"}>
+            {valuation ? <TrendingUp className="w-[18px] h-[18px]" style={{ color: "#22c55e" }} /> : <AlertTriangle className="w-[18px] h-[18px]" style={{ color: "#f59e0b" }} />}
+          </IconSquare>
+          <div className="flex-1 min-w-0">
+            <p className="text-base font-extrabold tracking-tight truncate" style={{ color: "var(--text)" }}>
+              {data.companyName} ({data.ticker})
+            </p>
+            <p className="text-xs leading-4 mt-0.5" style={{ color: "var(--muted)" }}>
+              {valuation ? t("companyDiagnostic.valuationOnly.subtitle") : t("companyDiagnostic.unavailable.subtitle")}
+            </p>
+          </div>
+        </div>
+        {valuation ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--dim)" }}>{t("companyDiagnostic.thermometer.conservative")}</p>
+                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{valuation.conservative != null ? `$${valuation.conservative.toFixed(2)}` : "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--dim)" }}>{t("companyDiagnostic.thermometer.baseFairValue")}</p>
+                <p className="text-sm font-bold" style={{ color: "var(--accent-l)" }}>{valuation.baseFairValue != null ? `$${valuation.baseFairValue.toFixed(2)}` : "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--dim)" }}>{t("companyDiagnostic.thermometer.optimistic")}</p>
+                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{valuation.optimistic != null ? `$${valuation.optimistic.toFixed(2)}` : "—"}</p>
+              </div>
+            </div>
+            {valuation.currentPrice != null && (
+              <p className="text-xs text-center" style={{ color: "var(--sub)" }}>
+                {t("companyDiagnostic.kpi.currentPrice")}: ${valuation.currentPrice.toFixed(2)}
+                {valuation.marginOfSafetyPercent != null && ` · ${t("companyDiagnostic.kpi.marginOfSafety")}: ${valuation.marginOfSafetyPercent.toFixed(1)}%`}
+              </p>
+            )}
+            {data.valuationAsOf && (
+              <p className="text-[11px] text-center" style={{ color: "var(--dim)" }}>
+                {t("companyDiagnostic.valuationOnly.asOf", { date: data.valuationAsOf })}
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-[13px] leading-5" style={{ color: "var(--sub)" }}>
+            {t("companyDiagnostic.unavailable.body")}
+          </p>
+        )}
+      </GlowCard>
+    );
+  }
 
   const methodologyParagraphs = t("companyDiagnostic.methodology.paragraphs", { returnObjects: true }) as string[];
 

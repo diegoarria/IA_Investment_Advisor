@@ -3,7 +3,7 @@ import { View, Text, PanResponder } from "react-native";
 import Svg, { Path, Line, Circle, Polygon, Text as SvgText } from "react-native-svg";
 import { useTranslation } from "react-i18next";
 import { fmtPrice } from "../../lib/types/companyDiagnostic";
-import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
 // Mobile mirror of web's FairValueLineChart (CompanyDiagnosticValuationTabs.tsx)
 // — same real "Precio real vs. valor razonable" data (data.valuation.
@@ -65,7 +65,7 @@ function _fullDateLabel(dateStr: string, lang: string): string {
   return lang.startsWith("en") ? `${abbr} ${Number(d)}, '${y.slice(2)}` : `${Number(d)} ${abbr} '${y.slice(2)}`;
 }
 
-export function CompanyDiagnosticFairValueChart({ data, colors }: { data: CompanyDiagnosticData; colors: any }) {
+export function CompanyDiagnosticFairValueChart({ data, colors }: { data: FullCompanyDiagnosticData; colors: any }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const chart = data.valuation.fairValueChart;

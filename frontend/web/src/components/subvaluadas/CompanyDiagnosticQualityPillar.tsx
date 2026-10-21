@@ -11,16 +11,16 @@ import { PillarSection, TintSubCard, IconDot, GOLD_LIGHT } from "@/components/su
 import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyDiagnosticSectionScore";
 import { CompanyDiagnosticCompetitorTable } from "@/components/subvaluadas/CompanyDiagnosticCompetitorTable";
 import { CompanyDiagnosticSectorComparison } from "@/components/subvaluadas/CompanyDiagnosticSectorComparison";
-import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
+import type { FullCompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 export function CompanyDiagnosticQualityPillar({
   score, revenueBreakdown, moatPoints, competitorComparison, sectorComparison, ticker,
 }: {
   score: number;
-  revenueBreakdown: CompanyDiagnosticData["revenueBreakdown"];
+  revenueBreakdown: FullCompanyDiagnosticData["revenueBreakdown"];
   moatPoints: string[];
-  competitorComparison: CompanyDiagnosticData["competitorComparison"];
-  sectorComparison: CompanyDiagnosticData["sectorComparison"];
+  competitorComparison: FullCompanyDiagnosticData["competitorComparison"];
+  sectorComparison: FullCompanyDiagnosticData["sectorComparison"];
   ticker: string;
 }) {
   const { t } = useTranslation();
