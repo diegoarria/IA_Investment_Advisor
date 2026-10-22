@@ -206,6 +206,9 @@ def _usd_rate(currency: str) -> Optional[float]:
     # everything else in this file, proven reliable) has its own forex
     # quote endpoint — try it before giving up, same honesty rule as
     # before: a bad/zero rate still returns None, never a fabricated 1:1.
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return None
     try:
         r = requests.get(
             f"{FMP_BASE}/quote",
@@ -393,6 +396,10 @@ class FMPProvider(FinancialProvider):
         return bool(FMP_KEY)
 
     def _get(self, path: str, params: dict | None = None) -> list[dict]:
+        from app.core.fmp_budget import fmp_call_allowed
+        if not fmp_call_allowed():
+            logger.warning("FMPProvider._get(%s): shared FMP budget exhausted, skipping this call", path)
+            return []
         try:
             r = requests.get(
                 f"{FMP_BASE}/{path}",
@@ -553,6 +560,9 @@ def get_revenue_segments(symbol: str, by: str = "product", limit: int = 1) -> li
     cached = cache_get(ck)
     if cached is not None:
         return cached[:limit]
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return []
     try:
         r = requests.get(
             f"{FMP_BASE}/{path}",
@@ -576,6 +586,9 @@ def get_beta(symbol: str) -> Optional[float]:
     CAPM-based cost of equity instead of a flat sector guess. None if
     unavailable."""
     if not FMP_KEY:
+        return None
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
         return None
     try:
         r = requests.get(
@@ -616,6 +629,9 @@ def get_fmp_quote_price(symbol: str) -> Optional[float]:
     cached = cache_get(ck)
     if cached is not None:
         return cached
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return None
     try:
         r = requests.get(
             f"{FMP_BASE}/quote",
@@ -658,6 +674,9 @@ def get_historical_prices_near_dates(symbol: str, dates: list[str]) -> dict[str,
     if cached is not None:
         rows = cached
     else:
+        from app.core.fmp_budget import fmp_call_allowed
+        if not fmp_call_allowed():
+            return result
         try:
             r = requests.get(
                 f"{FMP_BASE}/historical-price-eod/light",
@@ -704,6 +723,9 @@ def get_shares_float(symbol: str) -> Optional[dict]:
     cached = cache_get(ck)
     if cached is not None:
         return cached
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return None
     try:
         r = requests.get(
             f"{FMP_BASE}/shares-float",
@@ -742,6 +764,9 @@ def get_risk_free_rate() -> Optional[float]:
     cached = cache_get(ck)
     if cached is not None:
         return cached
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return None
     try:
         r = requests.get(
             f"{FMP_BASE}/treasury-rates",
@@ -1335,6 +1360,9 @@ def _fmp_quarterly_income_raw(symbol: str) -> list[dict]:
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return []
     try:
         r = requests.get(
             f"{FMP_BASE}/income-statement",
@@ -1402,6 +1430,9 @@ def get_annual_cashflow_detail(symbol: str, limit: int = 8) -> list[dict]:
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return []
     try:
         r = requests.get(
             f"{FMP_BASE}/cash-flow-statement",
@@ -1468,6 +1499,9 @@ def get_company_profile_fmp(symbol: str) -> dict:
     cached = cache_get(ck)
     if cached is not None:
         return cached
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return {}
     try:
         r = requests.get(
             f"{FMP_BASE}/profile",
@@ -1514,6 +1548,9 @@ def get_analyst_price_target_fmp(symbol: str) -> dict | None:
     cached = cache_get(ck)
     if cached is not None:
         return cached
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return None
     try:
         r = requests.get(
             f"{FMP_BASE}/price-target-consensus",
@@ -1577,6 +1614,9 @@ def get_daily_price_history(symbol: str, start_date: str, end_date: str) -> list
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return []
     try:
         r = requests.get(
             f"{FMP_BASE}/historical-price-eod/light",
@@ -1604,6 +1644,9 @@ def get_income_statement_annual(symbol: str, limit: int = 8) -> list[dict]:
     than `FMPProvider`'s 5-year plan cap. Returns [] if FMP isn't
     configured or the request fails."""
     if not FMP_KEY:
+        return []
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
         return []
     try:
         r = requests.get(

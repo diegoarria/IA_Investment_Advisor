@@ -247,14 +247,20 @@ def test_transient_no_data_never_demotes_an_existing_valid_row(monkeypatch):
     providers transiently empty at once is indistinguishable at the
     compute layer from "genuinely not enough data" — refresh_if_needed
     must still never let that demote a real previously-valid row to
-    insufficient_data; it must log it as a failure instead."""
+    insufficient_data; it must log it as a failure instead.
+
+    Stores the existing row under "BRK-B" (the canonical, normalized
+    form persist_valuation would actually have written — see
+    TestTickerNormalization below) but still calls refresh_if_needed with
+    the dotted "BRK.B" spelling, so this also exercises normalize_ticker_
+    symbol finding the same row end-to-end."""
     db = _FakeDB()
     monkeypatch.setattr(cvs, "get_supabase", lambda: db)
     import app.core.cache as cache_mod
     cache_mod._mem.clear()
 
     existing_row = {
-        "id": str(uuid.uuid4()), "ticker": "BRK.B", "intrinsic_value_usd": 1035561.12, "currency": "USD",
+        "id": str(uuid.uuid4()), "ticker": "BRK-B", "intrinsic_value_usd": 1035561.12, "currency": "USD",
         "methodology": "gqv", "model_version": cvs.MODEL_VERSION, "financial_report_period": "2026-Q2",
         "assumptions": {}, "validation_status": "valid", "is_current": True,
         "computed_at": "2020-01-01T00:00:00+00:00",  # old enough that the 24h freshness fallback won't apply either
@@ -270,7 +276,7 @@ def test_transient_no_data_never_demotes_an_existing_valid_row(monkeypatch):
     result = _run(cvs.refresh_if_needed("BRK.B"))
     assert result["validation_status"] == "failed", "must be logged as a failure, never as insufficient_data, when a valid row already exists"
 
-    current = _current_rows(db, "BRK.B")
+    current = _current_rows(db, "BRK-B")
     assert len(current) == 1
     assert current[0]["intrinsic_value_usd"] == 1035561.12, "the real previous valid value must still be current"
     assert current[0]["validation_status"] == "valid"
@@ -345,3 +351,50 @@ def test_backfill_processes_all_and_resumes_after_interruption(monkeypatch):
     # Exactly 5 current rows exist, one per ticker — no duplicates, no gaps.
     for t in universe:
         assert len(_current_rows(db, t)) == 1
+
+
+class TestTickerNormalization:
+    """2026-10-21, Nuvos Radar structural audit: confirmed live that
+    "BRK.B" and "BRK-B" existed as two separate is_current=true rows for
+    the same real company, because this module only ever did a bare
+    .upper() while the route layer (screener._resolve_quick_ticker)
+    normalized the dual-class dot to a hyphen. Every persistence-layer
+    entry point must key on the same canonical form."""
+
+    def test_dot_suffix_becomes_hyphen(self):
+        assert cvs.normalize_ticker_symbol("BRK.B") == "BRK-B"
+        assert cvs.normalize_ticker_symbol("BF.B") == "BF-B"
+
+    def test_already_hyphenated_is_unchanged(self):
+        assert cvs.normalize_ticker_symbol("BRK-B") == "BRK-B"
+
+    def test_lowercase_is_uppercased(self):
+        assert cvs.normalize_ticker_symbol("brk.b") == "BRK-B"
+        assert cvs.normalize_ticker_symbol("aapl") == "AAPL"
+
+    def test_plain_ticker_unaffected(self):
+        assert cvs.normalize_ticker_symbol("AMZN") == "AMZN"
+
+    def test_canonicalize_suffix_preserves_case(self):
+        # Unlike normalize_ticker_symbol, the route layer's own helper
+        # must NOT change case — screener._resolve_quick_ticker relies on
+        # comparing the result against its own uppercased form to decide
+        # whether the user deliberately typed a literal ticker.
+        assert cvs.canonicalize_ticker_suffix("BRK.B") == "BRK-B"
+        assert cvs.canonicalize_ticker_suffix("brk.b") == "brk-b"
+
+    def test_get_persisted_valuation_normalizes_dotted_lookup(self, monkeypatch):
+        db = _FakeDB()
+        monkeypatch.setattr(cvs, "get_supabase", lambda: db)
+        import app.core.cache as cache_mod
+        cache_mod._mem.clear()
+        _run(cvs.persist_valuation("BRK-B", {
+            "validation_status": "valid", "intrinsic_value_usd": 751.86,
+            "currency": "USD", "methodology": "gqv", "model_version": cvs.MODEL_VERSION,
+            "financial_report_period": "2026-Q2", "assumptions": {},
+        }))
+        # A lookup using the dotted spelling must find the same row the
+        # hyphenated spelling wrote — not come back empty.
+        result = _run(cvs.get_persisted_valuation("BRK.B"))
+        assert result is not None
+        assert result["intrinsic_value_usd"] == 751.86

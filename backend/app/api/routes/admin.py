@@ -234,6 +234,94 @@ async def admin_backfill_macro_event_identity(user: dict = Depends(get_current_u
     return {"status": "ok", **result}
 
 
+_company_valuation_backfill_task: "asyncio.Task | None" = None
+_company_valuation_backfill_last_result: dict | None = None
+
+
+@router.post("/backfill-company-valuations")
+async def admin_backfill_company_valuations(
+    limit: int = 5, max_tickers_per_minute: float = 2.0, user: dict = Depends(get_current_user),
+):
+    """Nuvos Radar structural fix (Phase 3, 2026-10-21): persists a real
+    computed valuation for `limit` tickers from the full 927-ticker
+    UNIVERSE into company_valuations, via the existing, paced, resumable
+    `backfill_universe()` (company_valuation_service.py) — never a 927-
+    ticker sweep by default. `limit` defaults to a small, deliberately
+    conservative number so this can never accidentally fire the full
+    universe without an explicit, informed `limit=927` (or omitted/0 for
+    "all") passed by whoever calls it. Resumable by construction
+    (refresh_if_needed skips a ticker whose persisted row is already
+    current) — calling this again after a partial run or interruption
+    only does real work for tickers not yet covered.
+
+    Fire-and-forget (same real-incident rationale as /admin/refresh-
+    undervalued-screener above — a 927-ticker run can take well over an
+    hour even paced; an HTTP request/proxy timeout must never cancel it
+    mid-sweep). Respects the shared FMP budget's background share
+    (app.core.fmp_budget) — paced slowly enough on its own
+    (max_tickers_per_minute) that it should rarely even approach that
+    share, but the budget is the real backstop regardless. Never calls
+    build_company_diagnostic or ai_service — no AI narrative, no Claude
+    tokens, for any ticker, ever (see backfill_universe's own docstring)."""
+    await _require_admin(user)
+    global _company_valuation_backfill_task, _company_valuation_backfill_last_result
+    if _company_valuation_backfill_task is not None and not _company_valuation_backfill_task.done():
+        return {"status": "already_running", "note": "A backfill is already in progress — check /admin/company-valuations-backfill-status instead of starting another one."}
+
+    from app.api.routes.screener import UNIVERSE
+    from app.services.company_valuation_service import backfill_universe
+
+    tickers = [u["ticker"] for u in UNIVERSE]
+    effective_limit = None if not limit else limit
+
+    async def _run():
+        global _company_valuation_backfill_last_result
+        try:
+            result = await backfill_universe(tickers, max_tickers_per_minute=max_tickers_per_minute, limit=effective_limit)
+            _company_valuation_backfill_last_result = result
+            logger.info("admin_backfill_company_valuations: background backfill completed: %s", result)
+        except Exception as exc:
+            logger.error("admin_backfill_company_valuations: background backfill failed: %s", exc, exc_info=True)
+
+    _company_valuation_backfill_task = asyncio.create_task(_run())
+    return {
+        "status": "started",
+        "universe_size": len(tickers),
+        "limit": effective_limit or len(tickers),
+        "max_tickers_per_minute": max_tickers_per_minute,
+        "note": "Running in the background — check /admin/company-valuations-backfill-status for progress/coverage.",
+    }
+
+
+@router.get("/company-valuations-backfill-status")
+async def admin_company_valuations_backfill_status(user: dict = Depends(get_current_user)):
+    """Real, immediate coverage check — how many of the 927 UNIVERSE
+    tickers currently have a valid, current persisted valuation, plus
+    whether a backfill is running right now in THIS process (same
+    same-process caveat as /admin/undervalued-screener-status above)."""
+    await _require_admin(user)
+    from app.api.routes.screener import UNIVERSE
+    from app.core.database import get_supabase, run_query
+
+    db = get_supabase()
+    universe_tickers = {u["ticker"] for u in UNIVERSE}
+    result = await run_query(
+        db.table("company_valuations").select("ticker,validation_status").eq("is_current", True)
+    )
+    rows = result.data or []
+    valid = [r for r in rows if r.get("validation_status") == "valid" and r.get("ticker") in universe_tickers]
+    insufficient = [r for r in rows if r.get("validation_status") == "insufficient_data" and r.get("ticker") in universe_tickers]
+
+    return {
+        "universe_size": len(universe_tickers),
+        "valid_current_rows": len(valid),
+        "insufficient_data_current_rows": len(insufficient),
+        "coverage_pct": round(len(valid) / len(universe_tickers) * 100, 1) if universe_tickers else 0,
+        "backfill_running_in_this_process": _company_valuation_backfill_task is not None and not _company_valuation_backfill_task.done(),
+        "last_run_result": _company_valuation_backfill_last_result,
+    }
+
+
 @router.post("/test-market-open")
 async def test_market_open(user: dict = Depends(get_current_user)):
     """Fires the REAL market-open data fetch (live Finnhub ^GSPC/^IXIC quotes,

@@ -1728,8 +1728,8 @@ def _resolve_quick_ticker(query: str) -> str | None:
     # external search or 404'd downstream as the literal, wrong "BRK.B".
     # Same single-letter-class-suffix rule _yf_symbol already applies for
     # Yahoo Finance lookups (see market.py), applied here before matching.
-    import re as _re
-    stripped = _re.sub(r'\.([A-Za-z])$', r'-\1', query.strip())
+    from app.services.company_valuation_service import canonicalize_ticker_suffix
+    stripped = canonicalize_ticker_suffix(query)
 
     universe_match = _match_universe(stripped)
     if universe_match:
@@ -3006,6 +3006,8 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
     ticker = await asyncio.to_thread(_resolve_quick_ticker, query)
     if not ticker:
         raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
+    from app.services.company_valuation_service import normalize_ticker_symbol
+    ticker = normalize_ticker_symbol(ticker)
 
     tier = "premium" if use_ai else "free"
     cache_key = _company_diagnostic_cache_key(ticker, lang, tier=tier)
@@ -3028,6 +3030,23 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
     from app.services.fundamental_analysis_service import get_fundamental_analysis
     from app.services.company_diagnostic_service import build_company_diagnostic
     from app.services.ai_service import generate_company_diagnostic_narrative
+    from app.services.company_valuation_service import get_persisted_valuation
+
+    # Diego, 2026-10-21: checked BEFORE attempting a live build — cheap
+    # (Redis-fast-pathed) and lets a valid, current persisted valuation
+    # short-circuit the retry+sleep below instead of only being consulted
+    # after BOTH live attempts already failed. Confirmed live that AMZN
+    # had a perfectly good persisted valuation the whole time the user saw
+    # "no disponible" — the two live attempts (plus the 2.5s backoff
+    # between them) pushed this endpoint's total latency past what a
+    # client/proxy will wait for, so the request never lived long enough
+    # to reach the persisted-fallback code that WOULD have served it.
+    # Still attempts a real live build first (full diagnostic — score,
+    # narrative, competitor comparison — is strictly better than
+    # valuation-only when it works), just no longer wastes a second
+    # attempt once we already have something real to fall back to.
+    persisted = await get_persisted_valuation(ticker)
+    has_fresh_persisted = bool(persisted) and persisted.get("validation_status") == "valid"
 
     async def _attempt_build() -> tuple[dict | None, dict | None]:
         d = await asyncio.to_thread(get_fundamental_analysis, ticker)
@@ -3054,30 +3073,16 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         # e.g. the FMP 300 calls/min Starter-plan cap getting exceeded
         # under load, confirmed live 2026-09-07) than a genuine "not
         # enough data" verdict. Diego: "esta pantalla NUNCA debe fallar,
-        # SIEMPRE debe abrir." One retry after a short backoff before the
-        # 404 the user actually sees — cheap relative to this endpoint's
-        # own ~15s compute time.
-        logger.warning("company_diagnostic(%s): first attempt failed (had_data=%s), retrying once", ticker, bool(data))
-        await asyncio.sleep(2.5)
-        data, diagnostic = await _attempt_build()
-    if not data or not diagnostic:
-        # Diego, 2026-09-23: "esta pantalla NUNCA debe fallar, SIEMPRE debe
-        # abrir" — the 2 attempts above already cover a transient blip, but
-        # confirmed live: when EVERY financial-data provider (FMP + Fiscal.ai
-        # + yfinance) is simultaneously rate-limited/down, both attempts fail
-        # for even a completely normal, liquid ticker like AAPL. `cached`
-        # above (this cache's own 90-day ceiling, see
-        # _COMPANY_DIAGNOSTIC_CACHE_TTL) already held a perfectly good,
-        # previously-computed diagnostic for this exact ticker — it was only
-        # skipped above because a NEW earnings period was reported since,
-        # not because it's wrong. A real, slightly-stale diagnostic is
-        # always better than a hard failure: serve it, clearly marked as
-        # stale, instead of discarding it and 404ing.
+        # SIEMPRE debe abrir."
+        logger.warning("company_diagnostic(%s): first attempt failed (had_data=%s)", ticker, bool(data))
+        # A stale-but-full diagnostic (this cache's own 90-day ceiling,
+        # see _COMPANY_DIAGNOSTIC_CACHE_TTL — only skipped above because a
+        # NEW earnings period was reported since, not because it's wrong)
+        # has real narrative/scores, strictly more complete than the
+        # persisted-valuation fallback below — serve it directly instead
+        # of burning a second live attempt first.
         if cached:
-            logger.warning(
-                "company_diagnostic(%s): rebuild failed after retry, falling back to stale cache (earnings period changed)",
-                ticker,
-            )
+            logger.warning("company_diagnostic(%s): serving stale cache instead of retrying (earnings period changed)", ticker)
             stale = dict(cached)
             stale["stale"] = True
             stale["staleAsOf"] = stale.get("_earnings_period")
@@ -3090,17 +3095,36 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
             except Exception:
                 fresh_quote = None
             return _apply_live_quote_diagnostic(stale, fresh_quote, lang)
+        # Diego, 2026-10-21: a valid, CURRENT persisted valuation already
+        # in hand (checked above, before the first attempt) means there's
+        # no need to wait out a second live attempt + its 2.5s backoff
+        # before showing the user something real — go straight to the
+        # valuation_only state. Confirmed live this is what let AMZN's
+        # request latency exceed what a client/proxy would wait for,
+        # hiding a perfectly good persisted valuation behind a timeout.
+        if has_fresh_persisted:
+            logger.warning("company_diagnostic(%s): persisted valuation available — skipping retry, serving valuation_only", ticker)
+            return await _degraded_diagnostic(ticker, lang, persisted)
+        logger.warning("company_diagnostic(%s): no stale cache or persisted valuation — retrying once", ticker)
+        await asyncio.sleep(2.5)
+        data, diagnostic = await _attempt_build()
+    if not data or not diagnostic:
+        # Reached only when: the first attempt failed, there was no stale
+        # cache and no persisted valuation to fall back to immediately,
+        # and the retry also failed — confirmed live: when EVERY
+        # financial-data provider (FMP + Fiscal.ai + yfinance) is
+        # simultaneously rate-limited/down, both attempts can fail even
+        # for a completely normal, liquid ticker. `persisted` was already
+        # looked up above (and was falsy/non-valid, or we wouldn't be
+        # here) — no second Supabase read needed.
         logger.warning(
             "company_diagnostic(%s): get_fundamental_analysis/build_company_diagnostic returned falsy on both "
-            "attempts, and no previously-cached diagnostic exists to fall back to — checking the durable "
-            "company_valuations table before giving up", ticker,
+            "attempts, and no stale cache or persisted valuation exists — showing 'unavailable'", ticker,
         )
-        from app.services.company_valuation_service import get_persisted_valuation
-        persisted = await get_persisted_valuation(ticker)
         return await _degraded_diagnostic(ticker, lang, persisted)
     # (data and diagnostic are both guaranteed non-None past this point —
-    # either the rebuild succeeded, or the stale-cache fallback above
-    # already returned, or the 404 above already raised.)
+    # either the rebuild succeeded, or one of the fallbacks above already
+    # returned, or the 404 above already raised.)
 
     narrative = None
     if use_ai:

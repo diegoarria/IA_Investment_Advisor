@@ -44,13 +44,40 @@ logger = logging.getLogger(__name__)
 # recognizably stale even though its number isn't literally wrong.
 MODEL_VERSION = "v1"
 
+
+def canonicalize_ticker_suffix(ticker: str) -> str:
+    """Dot -> hyphen for dual-class share suffixes (BRK.B -> BRK-B) — FMP
+    and this codebase's UNIVERSE list both use the hyphen form, never a
+    dot, even though the dot form is how it's commonly written/quoted.
+    Does NOT change case — screener._resolve_quick_ticker's own
+    case-sensitivity check (an already-uppercase input is trusted as a
+    deliberate literal ticker) depends on the original case surviving
+    this step, so case normalization is a separate function below."""
+    import re
+    return re.sub(r'\.([A-Za-z])$', r'-\1', ticker.strip())
+
+
+def normalize_ticker_symbol(ticker: str) -> str:
+    """The one canonical form every persistence-layer caller (company_
+    valuations reads/writes, the backfill, the future weekly refresh)
+    must key on. Confirmed live 2026-10-21: before this existed, "BRK.B"
+    and "BRK-B" ended up as two separate `is_current=true` rows in
+    company_valuations for the same real company, because the route
+    layer normalized dots to hyphens (screener._resolve_quick_ticker) but
+    this module only ever did a bare `.upper()`. Any caller that writes
+    or reads a persisted valuation — including a future caller that never
+    goes through the route's resolver — must use this, not `.upper()`
+    alone."""
+    return canonicalize_ticker_suffix(ticker).upper()
+
+
 _CLAIM_TTL_S = 600  # 10 min — generous for one ticker's real compute time, short enough that a crashed worker self-heals fast
 _READ_CACHE_TTL_S = 3600  # Redis fast-path in front of Supabase reads; Supabase stays authoritative
 _READ_CACHE_KEY = "company_valuation:v1:{ticker}"
 
 
 def _claim_key(ticker: str) -> str:
-    return f"company_valuation_claim:v1:{ticker.upper()}"
+    return f"company_valuation_claim:v1:{normalize_ticker_symbol(ticker)}"
 
 
 def claim_ticker(ticker: str) -> Optional[str]:
@@ -158,7 +185,7 @@ async def get_persisted_valuation(ticker: str) -> Optional[dict]:
     never been computed. Redis fast-path in front of Supabase, same role
     Redis already plays everywhere in this codebase — Supabase stays the
     source of truth; a cache miss or expiry always falls through to it."""
-    ticker = ticker.upper()
+    ticker = normalize_ticker_symbol(ticker)
     cache_key = _READ_CACHE_KEY.format(ticker=ticker)
     cached = cache_get(cache_key)
     if cached is not None:
@@ -175,7 +202,7 @@ async def get_persisted_valuation(ticker: str) -> Optional[dict]:
 
 async def _invalidate_read_cache(ticker: str) -> None:
     from app.core.cache import cache_delete
-    cache_delete(_READ_CACHE_KEY.format(ticker=ticker.upper()))
+    cache_delete(_READ_CACHE_KEY.format(ticker=normalize_ticker_symbol(ticker)))
 
 
 async def persist_valuation(ticker: str, computed: dict) -> dict:
@@ -187,7 +214,7 @@ async def persist_valuation(ticker: str, computed: dict) -> dict:
     history (is_current=false) and NEVER touches the existing current
     row — a transient FMP/Finnhub hiccup can never erase a real,
     previously-valid valuation."""
-    ticker = ticker.upper()
+    ticker = normalize_ticker_symbol(ticker)
     db = get_supabase()
 
     if computed["validation_status"] == "failed":
@@ -228,7 +255,7 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
     that hasn't actually changed. Claims a short cross-process lock first
     so a concurrent caller for the same ticker backs off instead of
     duplicating the real work."""
-    ticker = ticker.upper()
+    ticker = normalize_ticker_symbol(ticker)
     token = claim_ticker(ticker)
     if token is None:
         existing = await get_persisted_valuation(ticker)
@@ -266,8 +293,15 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
                     return existing
         # compute_numeric_valuation does real blocking HTTP calls — off the
         # event loop, same convention the live /company-diagnostic route
-        # already uses for get_fundamental_analysis.
-        computed = await asyncio.to_thread(compute_numeric_valuation, ticker)
+        # already uses for get_fundamental_analysis. Wrapped in
+        # fmp_background() so every FMP call this triggers (however many
+        # layers deep) draws from the shared budget's background share,
+        # not the live-user share — refresh_if_needed is what both the
+        # 927-ticker backfill and the future weekly refresh call, neither
+        # of which should be able to starve a real user's own request.
+        from app.core.fmp_budget import fmp_background
+        with fmp_background():
+            computed = await asyncio.to_thread(compute_numeric_valuation, ticker)
         # 2026-10-20, confirmed live for BRK.B: all 3 financial-data
         # providers (FMP/Fiscal.ai/yfinance) transiently empty at once is
         # a real, observed outage pattern, indistinguishable at this layer

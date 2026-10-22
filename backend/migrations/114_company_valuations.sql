@@ -2,9 +2,11 @@
 -- intrinsic valuations — Supabase becomes the source of truth; Redis stays
 -- as a fast-path cache in front of it, not the only copy.
 --
--- NOT YET APPLIED — drafted for review per Diego's 2026-10-20 request.
--- Shared platform data (not per-user), mirrors macro_calendar's public-read
--- RLS pattern rather than cash_holdings' per-user one.
+-- Applied 2026-10-20/21 — confirmed live in production (157 rows as of
+-- 2026-10-21; re-running this file now fails on "policy already exists",
+-- which is expected and not a problem). Shared platform data (not
+-- per-user), mirrors macro_calendar's public-read RLS pattern rather than
+-- cash_holdings' per-user one.
 
 CREATE TABLE IF NOT EXISTS company_valuations (
   id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
