@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Diego, 2026-10-21 — temporary full-site maintenance page while the
-// Railway security incident (builds paused platform-wide) blocks us from
-// redeploying the backend with a working Anthropic key (the old one was
-// disabled before the new one could be rolled out, breaking Arthur/AI
-// features live). Flip to false and push to restore the real app —
-// Vercel is independent of Railway, so this takes effect immediately.
-const MAINTENANCE_MODE = true;
+// Diego, 2026-10-21/22 — temporary full-site maintenance page during the
+// Railway security incident (builds paused platform-wide). Railway
+// restored deploys for this account 2026-10-22 and the backend is back
+// up — restoring the real app. (Note: Arthur/AI features may still
+// briefly error until ANTHROPIC_API_KEY is updated in Railway to the
+// rotated key — a lesser degradation than full maintenance.)
+const MAINTENANCE_MODE = false;
 
 const MAINTENANCE_HTML = `<!doctype html>
 <html lang="es">
