@@ -2866,6 +2866,8 @@ async def job_portfolio_alerts():
                     # very next run (5 min later) tries again fresh instead
                     # of being stuck on the failure for 12h.
                     logger.warning("Portfolio alerts: WHY call failed for %s — sending generic copy this run, NOT caching so the next run retries", ticker)
+                    from app.services.system_health import log_system_event
+                    log_system_event("price_alert_why_failed", f"{ticker} ({pct:+.2f}%)")
                     ticker_why[ticker] = NO_CATALYST
                     continue
                 ticker_why[ticker] = why

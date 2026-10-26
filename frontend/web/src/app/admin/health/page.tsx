@@ -61,6 +61,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   broker_sync_failed: "Sync de broker (Plaid/IOL/IBKR) falló",
   arthur_fallback: "Arthur usó respuesta genérica (modelo principal falló)",
   arthur_total_failure: "Arthur falló por completo (usuario vio error)",
+  price_alert_why_failed: "Alerta de precio: no se pudo generar el motivo (Claude/Perplexity falló)",
 };
 
 export default function AdminHealthPage() {
