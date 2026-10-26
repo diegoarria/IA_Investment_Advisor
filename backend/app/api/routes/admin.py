@@ -7,6 +7,7 @@ other's data (fixed separately). This is a one-way, read-only snapshot
 instead: safer, simpler, and sufficient for support/debugging."""
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -378,6 +379,132 @@ async def test_market_open(user: dict = Depends(get_current_user)):
     }
 
 
+@router.get("/users-list")
+async def users_list(user: dict = Depends(get_current_user)):
+    """Diego, 2026-10-26: "quiero que salgan todos los usuarios de una, el
+    plan que tienen, si están pagando, si tienen portafolio importado, si
+    reciben notificaciones, cuántas" — one table instead of searching
+    emails one at a time. Only ~20 users total, so this fetches
+    everything in a handful of queries and aggregates in Python rather
+    than adding pagination machinery nothing here needs yet.
+
+    `is_paying` is a DB-only approximation (stripe_customer_id present,
+    source isn't manual_comp, and currently entitled per
+    is_premium_active) — it does NOT call Stripe live for every row, so a
+    subscription that lapsed on Stripe's side without yet flipping
+    subscription_tier here could still show as paying. For a definitive
+    per-user answer use /admin/stripe-subscription-debug."""
+    await _require_admin(user)
+    db = get_supabase()
+
+    from app.core.subscription import is_premium_active
+    from app.core.database import find_auth_user
+
+    profiles_res, portfolio_res, watchlist_res = await asyncio.gather(
+        run_query(
+            db.table("user_profiles").select(
+                "user_id, name, subscription_tier, subscription_source, stripe_customer_id, "
+                "trial_started_at, premium_until, streak_bonus_premium_until, has_broker, "
+                "broker_name, has_investments, push_token, created_at"
+            )
+        ),
+        run_query(db.table("user_portfolio").select("user_id, positions")),
+        run_query(db.table("watchlist").select("user_id")),
+        return_exceptions=True,
+    )
+    profiles = [] if isinstance(profiles_res, Exception) else (profiles_res.data or [])
+
+    positions_by_user: dict[str, int] = {}
+    if not isinstance(portfolio_res, Exception):
+        for row in (portfolio_res.data or []):
+            uid = row.get("user_id")
+            positions_by_user[uid] = positions_by_user.get(uid, 0) + len(_agg_positions([row]))
+
+    watchlist_by_user: dict[str, int] = {}
+    if not isinstance(watchlist_res, Exception):
+        for row in (watchlist_res.data or []):
+            uid = row.get("user_id")
+            watchlist_by_user[uid] = watchlist_by_user.get(uid, 0) + 1
+
+    # Paginated via .range(), not a single .limit() call — PostgREST
+    # silently caps a single request at 1000 rows (same issue documented
+    # on llm_usage_summary below), and this table alone already has ~8000
+    # rows in a 30-day window, so a plain select here would have quietly
+    # undercounted every user's notification total.
+    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    notif_by_user: dict[str, int] = {}
+    page_size = 1000
+    offset = 0
+    while True:
+        res = await run_query(
+            db.table("notification_log").select("user_id, status")
+            .gte("sent_at", thirty_days_ago)
+            .range(offset, offset + page_size - 1)
+        )
+        page = res.data or []
+        for row in page:
+            if row.get("status") == "sent":
+                uid = row.get("user_id")
+                notif_by_user[uid] = notif_by_user.get(uid, 0) + 1
+        if len(page) < page_size:
+            break
+        offset += page_size
+
+    # Bulk auth lookup: N individual find_auth_user() calls would be N
+    # extra round-trips for something list_users() already returns in one
+    # — safe here specifically because there are only ~20 users total,
+    # well under GoTrue admin's default page=1/per_page=50 (see
+    # find_auth_user's docstring on why that default is NOT safe in
+    # general, e.g. for the password-reset lookup paths).
+    try:
+        auth_users = await asyncio.to_thread(db.auth.admin.list_users)
+        email_by_id = {u.id: u.email for u in auth_users}
+    except Exception as e:
+        logger.warning("users_list: bulk auth lookup failed, falling back to per-user: %s", e)
+        email_by_id = {}
+        for p in profiles:
+            found = await find_auth_user(db, user_id=p["user_id"])
+            if found:
+                email_by_id[p["user_id"]] = found.email
+
+    rows = []
+    for p in profiles:
+        uid = p["user_id"]
+        tier = p.get("subscription_tier") or "free"
+        trial_started = p.get("trial_started_at")
+        premium_until = p.get("premium_until")
+        streak_until = p.get("streak_bonus_premium_until")
+        active = is_premium_active(tier, trial_started, streak_until, premium_until)
+        effective_tier = "premium" if active else "free"
+        is_trial = effective_tier == "premium" and tier not in ("premium", "pro")
+        source = p.get("subscription_source")
+        is_paying = bool(
+            effective_tier == "premium" and p.get("stripe_customer_id") and source != "manual_comp" and not is_trial
+        )
+        rows.append({
+            "user_id": uid,
+            "email": email_by_id.get(uid),
+            "name": p.get("name"),
+            "raw_tier": tier,
+            "effective_tier": effective_tier,
+            "is_trial": is_trial,
+            "is_paying": is_paying,
+            "subscription_source": source,
+            "has_stripe_customer": bool(p.get("stripe_customer_id")),
+            "premium_until": premium_until,
+            "portfolio_positions": positions_by_user.get(uid, 0),
+            "portfolio_imported": bool(p.get("has_broker") or p.get("has_investments")),
+            "broker_name": p.get("broker_name"),
+            "watchlist_count": watchlist_by_user.get(uid, 0),
+            "push_enabled": bool(p.get("push_token")),
+            "notifications_sent_30d": notif_by_user.get(uid, 0),
+            "created_at": p.get("created_at"),
+        })
+
+    rows.sort(key=lambda r: r.get("created_at") or "", reverse=True)
+    return {"count": len(rows), "users": rows}
+
+
 @router.get("/user-snapshot")
 async def get_user_snapshot(email: str, user: dict = Depends(get_current_user)):
     await _require_admin(user)
@@ -502,6 +629,39 @@ async def set_premium(body: SetPremiumBody, user: dict = Depends(get_current_use
     cache_delete(f"sync:all:{target['id']}")
     logger.warning("Admin set_premium: %s -> enabled=%s by %s", body.email, body.enabled, user.get("email"))
     return {"email": body.email, "enabled": body.enabled}
+
+
+@router.post("/resync-subscription")
+async def resync_subscription(body: dict, user: dict = Depends(get_current_user)):
+    """Diego, 2026-10-26: found via /admin/users-list that it wasn't just
+    his own account — at least 2 other real Stripe-paying users had
+    subscription_tier='premium' with a premium_until that had already
+    passed (both right around the Oct 21-22 Railway security incident,
+    which paused this backend's builds/deploys and very likely dropped
+    whatever renewal webhook Stripe sent then). Because the raw column
+    still read 'premium', GET /billing/status's own self-heal
+    (sync_subscription) never triggered for them — that path only fires
+    when subscription_tier is already 'free'.
+
+    Reuses subscription_sync.sync_subscription() as-is: it asks Stripe
+    directly for this user's real active/trialing subscription and
+    repairs tier + premium_until + stripe_customer_id from there. Safe to
+    call on anyone — it only ever upgrades, never touches a manual_comp
+    grant, and does nothing if Stripe shows no active subscription (that
+    case needs a human to look at Stripe, not an automatic downgrade)."""
+    await _require_admin(user)
+    email = (body.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=422, detail="Falta el correo")
+    db = get_supabase()
+    target = await _find_user_by_email(email, db)
+    if not target:
+        raise HTTPException(status_code=404, detail="No existe un usuario con ese correo")
+
+    from app.services.subscription_sync import sync_subscription
+    result = await sync_subscription(db, target["id"], email)
+    logger.warning("Admin resync_subscription: %s -> %s (by %s)", email, result, user.get("email"))
+    return result
 
 
 @router.get("/business-overview")

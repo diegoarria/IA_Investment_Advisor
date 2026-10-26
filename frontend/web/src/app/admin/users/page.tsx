@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Loader2, Search, User, Wallet, Star, TrendingUp, ShieldCheck } from "lucide-react";
+import { Loader2, Search, User, Wallet, TrendingUp, ShieldCheck, Users as UsersIcon, RefreshCw, AlertTriangle } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { adminApi } from "@/lib/api";
 
@@ -18,7 +18,61 @@ interface Snapshot {
   progress: Record<string, any>;
 }
 
+interface UserRow {
+  user_id: string;
+  email: string | null;
+  name: string | null;
+  raw_tier: string;
+  effective_tier: "premium" | "free";
+  is_trial: boolean;
+  is_paying: boolean;
+  subscription_source: string | null;
+  has_stripe_customer: boolean;
+  premium_until: string | null;
+  portfolio_positions: number;
+  portfolio_imported: boolean;
+  broker_name: string | null;
+  watchlist_count: number;
+  push_enabled: boolean;
+  notifications_sent_30d: number;
+  created_at: string | null;
+}
+
 const fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+
+// A raw tier of "premium" that is_premium_active() would now reject (an
+// expired premium_until that never got refreshed by a renewal webhook —
+// exactly the bug found 2026-10-26, affecting Diego's own account plus 2
+// other real Stripe payers, all three lapsing right around the Railway
+// security incident). Surfacing this in the table is the whole point —
+// the raw "Plan: premium" column alone is what hid this the first time.
+function isLapsed(u: UserRow): boolean {
+  return u.raw_tier === "premium" && u.effective_tier === "free";
+}
+
+// Mirrors backend app/core/subscription.py::is_premium_active — needed
+// here because showing raw `profile.subscription_tier` alone (what this
+// panel used to do) is EXACTLY what hid the 2026-10-26 bug: it read
+// "premium" even for an account whose premium_until had already passed.
+function snapshotIsActive(p: Record<string, any>): boolean {
+  const tier = p.subscription_tier || "free";
+  if (tier === "premium" || tier === "pro") {
+    if (p.premium_until) {
+      const until = new Date(p.premium_until).getTime();
+      if (!Number.isNaN(until)) return until > Date.now();
+    }
+    return true;
+  }
+  if (p.trial_started_at) {
+    const started = new Date(p.trial_started_at).getTime();
+    if (!Number.isNaN(started) && (Date.now() - started) / 86400000 < 30) return true;
+  }
+  if (p.streak_bonus_premium_until) {
+    const bonusEnd = new Date(p.streak_bonus_premium_until).getTime();
+    if (!Number.isNaN(bonusEnd) && bonusEnd > Date.now()) return true;
+  }
+  return false;
+}
 
 export default function AdminUserLookupPage() {
   const router = useRouter();
@@ -29,24 +83,68 @@ export default function AdminUserLookupPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [togglingPremium, setTogglingPremium] = useState(false);
 
+  const [users, setUsers] = useState<UserRow[] | null>(null);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [resyncingEmail, setResyncingEmail] = useState<string | null>(null);
+
   useEffect(() => {
     if (!userId || !isAuthenticated) return;
     if (userId !== ADMIN_UID) router.push("/");
   }, [userId, isAuthenticated, router]);
 
-  const handleSearch = async () => {
-    if (!email.trim()) return;
+  const loadUsers = async () => {
+    setUsersLoading(true);
+    setUsersError(null);
+    try {
+      const res = await adminApi.usersList();
+      setUsers(res.data.users);
+    } catch (err: any) {
+      setUsersError(err?.response?.data?.detail ?? "No se pudo cargar la lista de usuarios.");
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userId !== ADMIN_UID) return;
+    loadUsers();
+  }, [userId]);
+
+  const handleResync = async (targetEmail: string) => {
+    setResyncingEmail(targetEmail);
+    try {
+      await adminApi.resyncSubscription(targetEmail);
+      await loadUsers();
+      if (snapshot?.email === targetEmail) {
+        const res = await adminApi.getUserSnapshot(targetEmail);
+        setSnapshot(res.data);
+      }
+    } catch (err: any) {
+      setUsersError(err?.response?.data?.detail ?? "No se pudo resincronizar con Stripe.");
+    } finally {
+      setResyncingEmail(null);
+    }
+  };
+
+  const fetchSnapshot = async (target: string) => {
+    if (!target.trim()) return;
     setLoading(true);
     setError(null);
     setSnapshot(null);
     try {
-      const res = await adminApi.getUserSnapshot(email.trim());
+      const res = await adminApi.getUserSnapshot(target.trim());
       setSnapshot(res.data);
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "No se pudo cargar el perfil.");
     } finally {
       setLoading(false);
     }
+  };
+  const handleSearch = () => fetchSnapshot(email);
+  const viewUser = (targetEmail: string) => {
+    setEmail(targetEmail);
+    fetchSnapshot(targetEmail);
   };
 
   const isManualPremium = snapshot?.profile.subscription_tier === "premium"
@@ -75,13 +173,130 @@ export default function AdminUserLookupPage() {
 
   if (userId && userId !== ADMIN_UID) return null;
 
+  const lapsedCount = users?.filter(isLapsed).length ?? 0;
+
   return (
     <div className="h-screen overflow-y-auto p-6" style={{ background: "var(--bg)" }}>
-      <div className="max-w-2xl mx-auto space-y-5">
+      <div className="max-w-6xl mx-auto space-y-8">
+
+        {/* ── Todos los usuarios ── */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--text)" }}>
+                <UsersIcon className="w-5 h-5" /> Todos los usuarios {users && <span style={{ color: "var(--muted)" }}>({users.length})</span>}
+              </h1>
+              <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+                Plan, pago, portafolio importado y notificaciones de cada cuenta, en un solo lugar.
+              </p>
+            </div>
+            <button
+              onClick={loadUsers}
+              disabled={usersLoading}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold"
+              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text)" }}
+            >
+              {usersLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              Refrescar
+            </button>
+          </div>
+
+          {usersError && <p className="text-sm" style={{ color: "#f87171" }}>{usersError}</p>}
+
+          {lapsedCount > 0 && (
+            <div className="rounded-xl border p-3 flex items-center gap-2" style={{ borderColor: "#f59e0b", background: "rgba(245,158,11,0.08)" }}>
+              <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: "#f59e0b" }} />
+              <p className="text-xs" style={{ color: "#f59e0b" }}>
+                {lapsedCount} cuenta{lapsedCount > 1 ? "s" : ""} de Stripe con el plan vencido sin renovarse (columna Plan en amarillo) — probablemente por el incidente de Railway del 21-22 de octubre. Dale "Resync" para corregirlas desde Stripe.
+              </p>
+            </div>
+          )}
+
+          {usersLoading && !users && <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent)" }} />}
+
+          {users && (
+            <div className="rounded-xl border overflow-x-auto" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+              <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    {["Usuario", "Plan", "Pagando", "Portafolio", "Watchlist", "Push", "Notif. 30d", "Registrado", ""].map((h) => (
+                      <th key={h} className="text-left px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u) => {
+                    const lapsed = isLapsed(u);
+                    return (
+                      <tr key={u.user_id} style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td className="px-3 py-2.5">
+                          <p className="font-bold truncate max-w-[180px]" style={{ color: "var(--text)" }}>{u.name || "—"}</p>
+                          <p className="text-[11px] truncate max-w-[180px]" style={{ color: "var(--muted)" }}>{u.email}</p>
+                        </td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          {lapsed ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.35)" }}>
+                              <AlertTriangle className="w-3 h-3" /> Vencido
+                            </span>
+                          ) : u.effective_tier === "premium" ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(0,212,126,0.12)", color: "var(--accent-l, #00e887)", border: "1px solid rgba(0,212,126,0.3)" }}>
+                              {u.is_trial ? "Trial" : u.subscription_source === "manual_comp" ? "Manual" : "Premium"}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
+                              Free
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5" style={{ color: u.is_paying ? "var(--text)" : "var(--dim)" }}>{u.is_paying ? "Sí" : "No"}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: "var(--text)" }}>
+                          {u.portfolio_positions} pos.{u.portfolio_imported && (
+                            <span className="text-[11px] ml-1" style={{ color: "var(--muted)" }}>({u.broker_name || "broker"})</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5" style={{ color: "var(--text)" }}>{u.watchlist_count}</td>
+                        <td className="px-3 py-2.5" style={{ color: u.push_enabled ? "var(--text)" : "var(--dim)" }}>{u.push_enabled ? "Sí" : "No"}</td>
+                        <td className="px-3 py-2.5" style={{ color: "var(--text)" }}>{u.notifications_sent_30d}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: "var(--muted)" }}>{u.created_at?.slice(0, 10) ?? "—"}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            {lapsed && (
+                              <button
+                                onClick={() => u.email && handleResync(u.email)}
+                                disabled={resyncingEmail === u.email}
+                                className="text-[11px] font-bold px-2 py-1 rounded-lg flex items-center gap-1"
+                                style={{ background: "#f59e0b", color: "#000" }}
+                              >
+                                {resyncingEmail === u.email ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                Resync
+                              </button>
+                            )}
+                            <button
+                              onClick={() => u.email && viewUser(u.email)}
+                              className="text-[11px] font-bold px-2 py-1 rounded-lg"
+                              style={{ background: "var(--raised)", color: "var(--text)", border: "1px solid var(--border)" }}
+                            >
+                              Ver
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* ── Buscar y ver detalle de un usuario ── */}
+        <section className="space-y-3">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>Ver perfil de usuario</h1>
+          <h2 className="text-base font-bold" style={{ color: "var(--text)" }}>Ver detalle de un usuario</h2>
           <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
-            Vista de solo lectura — busca por correo para ver el perfil completo de cualquier cuenta.
+            Busca por correo (o pulsa "Ver" en la tabla de arriba) para ver el perfil completo de una cuenta.
           </p>
         </div>
 
@@ -120,11 +335,32 @@ export default function AdminUserLookupPage() {
                 <p style={{ color: "var(--text)" }}><b>Correo:</b> {snapshot.email}</p>
                 <p style={{ color: "var(--text)" }}><b>País:</b> {snapshot.profile.country ?? "—"}</p>
                 <p style={{ color: "var(--text)" }}><b>Riesgo:</b> {snapshot.profile.risk_tolerance ?? "—"}</p>
-                <p style={{ color: "var(--text)" }}><b>Plan:</b> {snapshot.profile.subscription_tier ?? "free"}</p>
+                <p style={{ color: "var(--text)" }}>
+                  <b>Plan real (tabla):</b> {snapshot.profile.subscription_tier ?? "free"}
+                  {snapshot.profile.subscription_tier === "premium" && !snapshotIsActive(snapshot.profile) && (
+                    <span className="ml-1.5 text-[11px] font-bold" style={{ color: "#f59e0b" }}>⚠ vencido, premium_until ya pasó</span>
+                  )}
+                </p>
                 <p style={{ color: "var(--text)" }}><b>Trial desde:</b> {snapshot.profile.trial_started_at?.slice(0, 10) ?? "—"}</p>
                 <p style={{ color: "var(--text)" }}><b>Estilo inversión:</b> {snapshot.profile.investing_style ?? "—"}</p>
                 <p style={{ color: "var(--text)" }}><b>Nivel:</b> {snapshot.profile.knowledge_level ?? "—"}</p>
               </div>
+              {snapshot.profile.subscription_tier === "premium" && !snapshotIsActive(snapshot.profile) && (
+                <div className="mt-3 rounded-lg border p-3 flex items-center justify-between gap-3" style={{ borderColor: "#f59e0b", background: "rgba(245,158,11,0.08)" }}>
+                  <p className="text-xs" style={{ color: "#f59e0b" }}>
+                    La app le muestra Free aunque este panel diga "premium" — su plan venció el {snapshot.profile.premium_until?.slice(0, 10)} y nunca se renovó.
+                  </p>
+                  <button
+                    onClick={() => handleResync(snapshot.email)}
+                    disabled={resyncingEmail === snapshot.email}
+                    className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1"
+                    style={{ background: "#f59e0b", color: "#000" }}
+                  >
+                    {resyncingEmail === snapshot.email ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Resync con Stripe
+                  </button>
+                </div>
+              )}
               <div className="mt-4 pt-3 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
                 <div>
                   <p className="text-xs font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
@@ -195,6 +431,7 @@ export default function AdminUserLookupPage() {
 
           </div>
         )}
+        </section>
       </div>
     </div>
   );

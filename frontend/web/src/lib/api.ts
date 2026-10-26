@@ -824,6 +824,9 @@ export const adminApi = {
   getUserSnapshot: (email: string) => api.get("/api/admin/user-snapshot", { params: { email } }),
   setPremium: (email: string, enabled: boolean) =>
     api.post("/api/admin/set-premium", { email, enabled }),
+  usersList: () => api.get("/api/admin/users-list"),
+  resyncSubscription: (email: string) =>
+    api.post("/api/admin/resync-subscription", { email }),
   testMarketOpen: () => api.post("/api/admin/test-market-open"),
   testPriceAlertWhy: (ticker: string, pct: number) =>
     api.post("/api/admin/test-price-alert-why", null, { params: { ticker, pct } }),
