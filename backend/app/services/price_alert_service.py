@@ -13,6 +13,20 @@ logger = logging.getLogger(__name__)
 # Sentinel returned when no specific catalyst is found — callers should skip the notification.
 NO_CATALYST = "__NO_CATALYST__"
 
+# Sentinel for a Claude call that FAILED (timeout, bad/rotated API key, rate
+# limit, etc.) — as opposed to Claude genuinely judging there's no real
+# catalyst in the data it was given. Diego, 2026-10-26: confirmed live —
+# a single job_portfolio_alerts run during a bad ANTHROPIC_API_KEY window
+# (around the Railway security incident's key rotation) made every mover
+# in that one run collapse to NO_CATALYST, and because job_portfolio_alerts
+# caches the WHY result per ticker per ET trading day for 12h (see
+# worker.py), that one bad run's failures got served to every user holding
+# any of those ~7 tickers for the rest of the day, looking identical to a
+# genuine "no catalyst" finding. WHY_CALL_FAILED exists so the caller can
+# tell the two apart and skip caching only the failure case — see
+# job_portfolio_alerts' cache_set call.
+WHY_CALL_FAILED = "__WHY_CALL_FAILED__"
+
 
 async def should_send_price_alert(user_id: str, ticker: str, db, category: str | None = None) -> bool:
     """
@@ -303,14 +317,16 @@ Responde solo con el texto de la razón (sin punto final) o con NO_CATALYST."""
 
     except asyncio.TimeoutError:
         # Distinguishing this from "genuinely no catalyst" (above) is the whole
-        # point — a timeout here silently used to look identical to a real
-        # NO_CATALYST in the notification the user sees, making it impossible
-        # to tell "there really was no news" from "the API was just slow."
-        logger.warning("Claude price alert WHY call TIMED OUT for %s (>15s) — treating as NO_CATALYST but this is a failure, not a real finding", ticker)
-        return NO_CATALYST
+        # point — returning NO_CATALYST here used to look identical to a real
+        # "no news" finding in the notification the user sees, AND got cached
+        # as one for 12h (see job_portfolio_alerts) — making a transient
+        # timeout masquerade as a confirmed non-finding for the rest of the
+        # trading day. WHY_CALL_FAILED lets the caller skip caching this.
+        logger.warning("Claude price alert WHY call TIMED OUT for %s (>15s) — this is a failure, not a real finding", ticker)
+        return WHY_CALL_FAILED
     except Exception as e:
-        logger.warning("Claude price alert WHY call FAILED for %s: %s — treating as NO_CATALYST but this is a failure, not a real finding", ticker, e)
-        return NO_CATALYST
+        logger.warning("Claude price alert WHY call FAILED for %s: %s — this is a failure, not a real finding", ticker, e)
+        return WHY_CALL_FAILED
 
 
 async def translate_why_to_english(why_es: str) -> str:

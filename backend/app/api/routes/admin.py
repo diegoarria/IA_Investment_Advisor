@@ -68,7 +68,7 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
     import os
     import worker
     from app.services.notification_engine import send_push
-    from app.services.price_alert_service import NO_CATALYST
+    from app.services.price_alert_service import NO_CATALYST, WHY_CALL_FAILED
 
     ticker = ticker.upper().strip()
     perplexity_configured = bool(getattr(settings, "perplexity_api_key", "") or os.getenv("PERPLEXITY_API_KEY", ""))
@@ -89,7 +89,7 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
     emoji = worker._move_emoji(ticker, pct)
     verb = "subió" if pct >= 0 else "bajó"
     prefix = f"{emoji} {ticker} {verb} {pct:+.2f}%"
-    if final_result == NO_CATALYST:
+    if final_result in (NO_CATALYST, WHY_CALL_FAILED):
         push_body = f"{prefix} — sin catalizador claro, posible volatilidad de mercado."
     else:
         push_body = f"{prefix} {final_result}."
@@ -111,6 +111,7 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
         "claude_was_called": claude_called,
         "final_result": final_result,
         "is_no_catalyst": final_result == NO_CATALYST,
+        "is_call_failure": final_result == WHY_CALL_FAILED,
         "push_title": push_title,
         "push_body": push_body,
     }

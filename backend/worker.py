@@ -2834,7 +2834,7 @@ async def job_portfolio_alerts():
         from app.core.cache import cache_get, cache_set
         from app.services.notification_engine import _today_et
         from app.services.price_alert_service import (
-            NO_CATALYST, should_send_price_alert, translate_why_to_english,
+            NO_CATALYST, WHY_CALL_FAILED, should_send_price_alert, translate_why_to_english,
         )
         ticker_why:     dict[str, str] = {}
         ticker_why_en:  dict[str, str] = {}
@@ -2852,6 +2852,20 @@ async def job_portfolio_alerts():
             else:
                 price = prices[ticker]["curr"]
                 why = (await get_price_alert_why_with_diagnostics(ticker, pct, price))["why"]
+                if why == WHY_CALL_FAILED:
+                    # Diego, 2026-10-26: confirmed live — a transient Claude
+                    # failure (bad/rotating API key, timeout) used to be
+                    # written to the 12h cache below as if it were a
+                    # confirmed "no catalyst" finding, so one bad run
+                    # poisoned every ticker it touched for the rest of the
+                    # trading day. This run's users still get the graceful
+                    # "no clear catalyst" copy (better than a raw error
+                    # sentinel in a push), but NOTHING is cached, so the
+                    # very next run (5 min later) tries again fresh instead
+                    # of being stuck on the failure for 12h.
+                    logger.warning("Portfolio alerts: WHY call failed for %s — sending generic copy this run, NOT caching so the next run retries", ticker)
+                    ticker_why[ticker] = NO_CATALYST
+                    continue
                 ticker_why[ticker] = why
                 why_en = None
                 if why == NO_CATALYST:
