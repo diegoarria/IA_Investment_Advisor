@@ -827,6 +827,9 @@ export const adminApi = {
   usersList: () => api.get("/api/admin/users-list"),
   resyncSubscription: (email: string) =>
     api.post("/api/admin/resync-subscription", { email }),
+  subscriptionAuditLog: (email?: string, limit: number = 200) =>
+    api.get("/api/admin/subscription-audit-log", { params: { email, limit } }),
+  systemHealth: () => api.get("/api/admin/system-health"),
   testMarketOpen: () => api.post("/api/admin/test-market-open"),
   testPriceAlertWhy: (ticker: string, pct: number) =>
     api.post("/api/admin/test-price-alert-why", null, { params: { ticker, pct } }),

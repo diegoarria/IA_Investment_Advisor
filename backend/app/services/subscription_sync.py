@@ -52,8 +52,12 @@ async def _customer_ids_for_user(user_id: str, email: str | None, known_customer
     return [i for i in ids if not (i in seen or seen.add(i))]
 
 
-async def sync_subscription(db, user_id: str, email: str | None = None) -> dict:
-    """Returns {"premium": bool, "customer_id": str|None, "status": str|None}."""
+async def sync_subscription(db, user_id: str, email: str | None = None, actor: str = "stripe_self_heal") -> dict:
+    """Returns {"premium": bool, "customer_id": str|None, "status": str|None}.
+    `actor` labels the subscription_audit_log entry this writes when it finds
+    an active subscription — defaults to the automatic self-heal path (GET
+    /billing/status), overridden by callers like /admin/resync-subscription
+    that trigger this directly."""
     if not settings.stripe_secret_key:
         return {"premium": False, "customer_id": None, "status": None}
     stripe.api_key = settings.stripe_secret_key
@@ -92,6 +96,11 @@ async def sync_subscription(db, user_id: str, email: str | None = None) -> dict:
     await run_query(db.table("user_profiles").update(update).eq("user_id", user_id))
     cache_delete(f"profile:{user_id}")
     cache_delete(f"sync:all:{user_id}")
+    from app.services.subscription_audit import log_subscription_change
+    log_subscription_change(
+        user_id, actor, tier="premium", source="stripe", premium_until=update.get("premium_until"),
+        reason=f"Stripe status={sub.get('status')}",
+    )
     logger.warning(
         "subscription_sync: activated Premium for user=%s from Stripe (customer=%s, previously linked=%s, status=%s)",
         user_id, cid, profile.get("stripe_customer_id"), sub.get("status"),

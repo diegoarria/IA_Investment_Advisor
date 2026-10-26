@@ -589,6 +589,12 @@ async def stripe_webhook(request: Request):
             )
             cache_delete(f"profile:{user_id}")
             cache_delete(f"sync:all:{user_id}")
+            from app.services.subscription_audit import log_subscription_change
+            log_subscription_change(
+                user_id, "stripe_webhook:checkout.session.completed",
+                tier="premium", source="stripe",
+                reason="Plan Duo" if is_duo else "Nueva suscripción",
+            )
 
             # Admin purchase notification — Diego, 2026-09-15. Best-effort
             # interval lookup (monthly/yearly) via the subscription Stripe
@@ -613,7 +619,7 @@ async def stripe_webhook(request: Request):
     elif event["type"] in ("customer.subscription.deleted", "customer.subscription.paused"):
         customer_id = event["data"]["object"].get("customer")
         if customer_id:
-            await _downgrade_by_customer_id(customer_id, db)
+            await _downgrade_by_customer_id(customer_id, db, event_type=event["type"])
             await _invalidate_profile_cache_by_customer(customer_id, db)
             await _revoke_duo_secondary(customer_id, db)
 
@@ -633,7 +639,7 @@ async def stripe_webhook(request: Request):
         customer_id = sub.get("customer")
         status = sub.get("status")
         if customer_id and status in ("unpaid", "canceled", "incomplete_expired"):
-            await _downgrade_by_customer_id(customer_id, db)
+            await _downgrade_by_customer_id(customer_id, db, event_type=f"customer.subscription.updated:{status}")
             await _invalidate_profile_cache_by_customer(customer_id, db)
             await _revoke_duo_secondary(customer_id, db)
         elif customer_id and status == "active":
@@ -654,6 +660,12 @@ async def stripe_webhook(request: Request):
                 db.table("user_profiles").update(update).eq("stripe_customer_id", customer_id)
             )
             await _invalidate_profile_cache_by_customer(customer_id, db)
+            from app.services.subscription_audit import log_subscription_change_by_customer_id
+            await log_subscription_change_by_customer_id(
+                db, customer_id, "stripe_webhook:customer.subscription.updated",
+                tier="premium", source="stripe", premium_until=update.get("premium_until"),
+                reason="Retry de pago recuperado (status volvió a active)",
+            )
 
     elif event["type"] == "invoice.payment_failed":
         # Deliberately a no-op for subscription_tier: a failed invoice alone
@@ -721,6 +733,13 @@ async def stripe_webhook(request: Request):
             updated = await run_query(
                 db.table("user_profiles").update(update).eq("stripe_customer_id", customer_id)
             )
+            from app.services.subscription_audit import log_subscription_change
+            for row in ((updated.data if updated else None) or []):
+                log_subscription_change(
+                    row["user_id"], "stripe_webhook:invoice.payment_succeeded",
+                    tier="premium", source="stripe", premium_until=update.get("premium_until"),
+                    reason=billing_reason,
+                )
             if not (updated and updated.data):
                 # No profile is linked to THIS Stripe customer — the payment came
                 # from a customer whose id was never saved on the profile (a checkout
@@ -739,6 +758,11 @@ async def stripe_webhook(request: Request):
                         )
                         cache_delete(f"profile:{owner_id}")
                         cache_delete(f"sync:all:{owner_id}")
+                        log_subscription_change(
+                            owner_id, "stripe_webhook:invoice.payment_succeeded",
+                            tier="premium", source="stripe", premium_until=update.get("premium_until"),
+                            reason=f"{billing_reason} (customer no vinculado, se enlazó por email/metadata)",
+                        )
                     else:
                         logger.error("webhook: paid invoice for customer %s but no user could be resolved", customer_id)
                 except Exception as e:
@@ -769,7 +793,7 @@ async def stripe_webhook(request: Request):
     return {"received": True}
 
 
-async def _downgrade_by_customer_id(customer_id: str, db) -> None:
+async def _downgrade_by_customer_id(customer_id: str, db, event_type: str = "") -> None:
     """Sets subscription_tier='free' for every profile on this Stripe
     customer, EXCEPT rows manually granted permanent premium
     (subscription_source='manual_comp', see migration 079). Those users
@@ -796,6 +820,12 @@ async def _downgrade_by_customer_id(customer_id: str, db) -> None:
     await run_query(
         db.table("user_profiles").update({"subscription_tier": "free"}).in_("user_id", user_ids)
     )
+    from app.services.subscription_audit import log_subscription_change
+    for uid in user_ids:
+        log_subscription_change(
+            uid, f"stripe_webhook:{event_type or 'downgrade'}", tier="free",
+            reason="Suscripción cancelada/impaga en Stripe",
+        )
 
 
 async def _safe_to_downgrade_duo_secondary(secondary_id: str, db) -> bool:
@@ -1195,7 +1225,8 @@ async def _revoke_duo_secondary(primary_customer_id: str, db):
             # only whether we also reset THEIR tier back to free depends
             # on whether that tier actually came from this pairing.
             update = {"duo_primary_user_id": None}
-            if await _safe_to_downgrade_duo_secondary(secondary_id, db):
+            downgraded = await _safe_to_downgrade_duo_secondary(secondary_id, db)
+            if downgraded:
                 update["subscription_tier"] = "free"
                 logger.info("Duo secondary %s reverted to free", secondary_email)
             else:
@@ -1205,6 +1236,12 @@ async def _revoke_duo_secondary(primary_customer_id: str, db):
             )
             cache_delete(f"profile:{secondary_id}")
             cache_delete(f"sync:all:{secondary_id}")
+            if downgraded:
+                from app.services.subscription_audit import log_subscription_change
+                log_subscription_change(
+                    secondary_id, "duo_revocation", tier="free",
+                    reason="Plan Duo del titular cancelado/pausado",
+                )
         await run_query(
             db.table("user_profiles")
             .update({"duo_secondary_user_id": None, "duo_invite_status": None})
@@ -1277,7 +1314,8 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
         # old secondary's pairing always ends here, but their tier only
         # resets if it actually came from this pairing.
         update: dict = {"duo_primary_user_id": None}
-        if await _safe_to_downgrade_duo_secondary(old_secondary_id, db):
+        downgraded_old = await _safe_to_downgrade_duo_secondary(old_secondary_id, db)
+        if downgraded_old:
             update["subscription_tier"] = "free"
             logger.info("Duo setup: revoked stale secondary=%s for primary=%s (replaced by %s)", old_secondary_id, user_id, secondary_id)
         else:
@@ -1287,6 +1325,12 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
         )
         cache_delete(f"profile:{old_secondary_id}")
         cache_delete(f"sync:all:{old_secondary_id}")
+        if downgraded_old:
+            from app.services.subscription_audit import log_subscription_change
+            log_subscription_change(
+                old_secondary_id, "duo_setup", tier="free",
+                reason="Reemplazado por un nuevo secundario en el plan Duo",
+            )
 
     # 3. Record the invite as PENDING — no premium grant, no bidirectional
     # link yet. Those only happen when the secondary accepts.
@@ -1361,6 +1405,8 @@ async def accept_duo_invite(user_id: str = Depends(get_current_user_id)):
     )
     cache_delete(f"profile:{user_id}")
     cache_delete(f"sync:all:{user_id}")
+    from app.services.subscription_audit import log_subscription_change
+    log_subscription_change(user_id, "duo_accept", tier="premium", reason=f"Aceptó invitación Duo de {primary_id}")
 
     if primary_row.get("duo_invite_status") != "accepted":
         await run_query(

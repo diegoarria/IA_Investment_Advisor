@@ -653,6 +653,13 @@ async def set_premium(body: SetPremiumBody, user: dict = Depends(get_current_use
         "Admin set_premium: %s -> enabled=%s duration=%s premium_until=%s by %s",
         body.email, body.enabled, body.duration, premium_until, user.get("email"),
     )
+    from app.services.subscription_audit import log_subscription_change
+    log_subscription_change(
+        target["id"], f"admin:{user.get('email')}",
+        tier=update["subscription_tier"], source=update.get("subscription_source"),
+        premium_until=premium_until,
+        reason=f"Manual {'grant' if body.enabled else 'revoke'} ({body.duration})",
+    )
     return {"email": body.email, "enabled": body.enabled, "premium_until": premium_until}
 
 
@@ -684,9 +691,119 @@ async def resync_subscription(body: dict, user: dict = Depends(get_current_user)
         raise HTTPException(status_code=404, detail="No existe un usuario con ese correo")
 
     from app.services.subscription_sync import sync_subscription
-    result = await sync_subscription(db, target["id"], email)
+    result = await sync_subscription(db, target["id"], email, actor=f"admin_resync:{user.get('email')}")
     logger.warning("Admin resync_subscription: %s -> %s (by %s)", email, result, user.get("email"))
     return result
+
+
+@router.get("/subscription-audit-log")
+async def subscription_audit_log(email: str | None = None, limit: int = 200, user: dict = Depends(get_current_user)):
+    """Diego, 2026-10-26: "quién (tú, Stripe, un cron) cambió el plan de
+    cada usuario y cuándo" — reads migration 117's subscription_audit_log,
+    written by every tier/source/premium_until write site (see
+    app/services/subscription_audit.py). Without `email`, returns the most
+    recent `limit` entries across every user; with it, every entry for
+    that one account, oldest state changes first so the feed reads as a
+    timeline."""
+    await _require_admin(user)
+    db = get_supabase()
+
+    q = db.table("subscription_audit_log").select("*").order("created_at", desc=not email)
+    if email:
+        target = await _find_user_by_email(email, db)
+        if not target:
+            raise HTTPException(status_code=404, detail="No existe un usuario con ese correo")
+        q = q.eq("user_id", target["id"])
+    q = q.limit(max(1, min(limit, 1000)))
+    res = await run_query(q)
+    rows = res.data or []
+
+    # Attach emails for the "all users" view — bulk lookup, same reasoning
+    # as users_list (small user base, well under GoTrue's default page size).
+    email_by_id: dict[str, str | None] = {}
+    if not email:
+        try:
+            auth_users = await asyncio.to_thread(db.auth.admin.list_users)
+            email_by_id = {u.id: u.email for u in auth_users}
+        except Exception as e:
+            logger.warning("subscription_audit_log: bulk auth lookup failed: %s", e)
+        for r in rows:
+            r["email"] = email_by_id.get(r.get("user_id"))
+    else:
+        for r in rows:
+            r["email"] = email
+
+    return {"count": len(rows), "entries": rows}
+
+
+@router.get("/system-health")
+async def system_health(user: dict = Depends(get_current_user)):
+    """Diego, 2026-10-26: "un panel de salud del sistema... en vez de
+    enterarte por quejas de usuarios o porque yo lo encuentro buceando en
+    Railway." Combines two sources:
+
+    1. notification_log (migration 011) — already records every push
+       attempt with status in ('sent','failed','skipped'); this just reads
+       today's counts by category instead of adding a parallel log.
+    2. system_event_log (migration 118, app/services/system_health.py) —
+       NEW: broker sync failures (Plaid/IOL/IBKR Flex) and Arthur fallback/
+       total-failure events. Only has data from whenever this deployed
+       forward — there's no historical backfill, it's a new log."""
+    await _require_admin(user)
+    db = get_supabase()
+    from datetime import datetime, timedelta, timezone
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    # Paginated via .range() — same PostgREST 1000-row cap already
+    # documented on llm_usage_summary/users_list; today's push volume can
+    # plausibly exceed that.
+    notif_rows: list[dict] = []
+    offset, page_size = 0, 1000
+    while True:
+        res = await run_query(
+            db.table("notification_log").select("category,status")
+            .gte("sent_at", today_start).range(offset, offset + page_size - 1)
+        )
+        page = res.data or []
+        notif_rows.extend(page)
+        if len(page) < page_size:
+            break
+        offset += page_size
+
+    notif_by_category: dict[str, dict[str, int]] = {}
+    for r in notif_rows:
+        cat = r.get("category") or "unknown"
+        status = r.get("status") or "sent"
+        bucket = notif_by_category.setdefault(cat, {"sent": 0, "failed": 0, "skipped": 0, "delivered": 0})
+        bucket[status] = bucket.get(status, 0) + 1
+    notif_problems = {
+        cat: counts for cat, counts in notif_by_category.items()
+        if counts.get("failed") or counts.get("skipped")
+    }
+
+    event_res = await run_query(
+        db.table("system_event_log").select("*").gte("created_at", today_start)
+        .order("created_at", desc=True).limit(500)
+    )
+    events = event_res.data or []
+    events_by_type: dict[str, int] = {}
+    for e in events:
+        et = e.get("event_type") or "unknown"
+        events_by_type[et] = events_by_type.get(et, 0) + 1
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "notifications_today": {
+            "total": len(notif_rows),
+            "by_category": notif_by_category,
+            "categories_with_problems": notif_problems,
+        },
+        "system_events_today": {
+            "total": len(events),
+            "by_type": events_by_type,
+            "recent": events[:50],
+        },
+    }
 
 
 @router.get("/business-overview")

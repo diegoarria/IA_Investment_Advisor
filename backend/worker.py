@@ -2295,6 +2295,8 @@ async def job_sync_connected_brokers():
                     await inbound_import.reconcile_broker_holdings(uid, name, positions)
                 except Exception as e:
                     logger.warning("job_sync_connected_brokers: %s/%s failed: %s", uid, provider, e)
+                    from app.services.system_health import log_system_event
+                    log_system_event("broker_sync_failed", f"{provider}: {e}", user_id=uid)
     except Exception as e:
         logger.error("job_sync_connected_brokers failed: %s", e)
 

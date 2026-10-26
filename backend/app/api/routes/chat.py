@@ -67,6 +67,8 @@ async def _resilient_reply(collect, model: str, message: str, history) -> str:
             logger.warning("_resilient_reply: empty reply from %s (attempt %d)", m, attempt + 1)
         except Exception as e:
             logger.error("_resilient_reply: %s failed (attempt %d): %s", m, attempt + 1, e)
+    from app.services.system_health import log_system_event
+    log_system_event("arthur_fallback", f"primary={model} + haiku retry both failed, falling back to generic answer")
     try:
         generic = await asyncio.wait_for(
             ai_service.generate_generic_answer(message, conversation_history=history), timeout=45,
@@ -75,6 +77,7 @@ async def _resilient_reply(collect, model: str, message: str, history) -> str:
             return generic
     except Exception as e:
         logger.error("_resilient_reply: generic fallback failed: %s", e)
+    log_system_event("arthur_total_failure", f"primary={model}, haiku retry, and generic fallback all failed")
     raise HTTPException(status_code=503, detail="Arthur tuvo un problema temporal. Intenta de nuevo.")
 
 

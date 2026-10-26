@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Users, Bell, Wrench, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, Bell, Wrench, ShieldCheck, HeartPulse } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 
 const ADMIN_UID = "86961402-9072-4670-9f73-b2aa91930b04";
@@ -10,6 +10,7 @@ const NAV = [
   { href: "/admin/overview", label: "Negocio", icon: LayoutDashboard },
   { href: "/admin/users", label: "Usuarios", icon: Users },
   { href: "/admin/notifications", label: "Notificaciones", icon: Bell },
+  { href: "/admin/health", label: "Salud", icon: HeartPulse },
   { href: "/admin/diagnostics", label: "Diagnósticos", icon: Wrench },
 ];
 
