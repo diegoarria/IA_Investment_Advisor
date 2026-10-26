@@ -415,6 +415,56 @@ async def get_user_snapshot(email: str, user: dict = Depends(get_current_user)):
     }
 
 
+@router.get("/stripe-subscription-debug")
+async def stripe_subscription_debug(email: str, user: dict = Depends(get_current_user)):
+    """Diego, 2026-10-26: diagnosing why a real paying user's app showed
+    Free — needed to see the actual Stripe subscription object (status,
+    current_period_end, cancel_at_period_end) next to what's stored in
+    user_profiles, since the Stripe secret key only exists on Railway and
+    can't be queried from a local shell. Read-only, admin-only."""
+    await _require_admin(user)
+    db = get_supabase()
+    target = await _find_user_by_email(email, db)
+    if not target:
+        raise HTTPException(status_code=404, detail="No existe un usuario con ese correo")
+
+    prof_res = await run_query(
+        db.table("user_profiles")
+        .select("subscription_tier, subscription_source, stripe_customer_id, premium_until, trial_started_at")
+        .eq("user_id", target["id"]).maybe_single()
+    )
+    profile = (prof_res.data if prof_res else None) or {}
+
+    import stripe
+    from app.core.config import settings
+    if not settings.stripe_secret_key:
+        raise HTTPException(status_code=503, detail="Stripe no está configurado en este entorno")
+    stripe.api_key = settings.stripe_secret_key
+
+    from app.services.subscription_sync import _customer_ids_for_user
+    customer_ids = await _customer_ids_for_user(target["id"], email, profile.get("stripe_customer_id"))
+
+    subs_out = []
+    for cid in customer_ids:
+        try:
+            subs = stripe.Subscription.list(customer=cid, status="all", limit=10)
+        except Exception as e:
+            subs_out.append({"customer_id": cid, "error": str(e)})
+            continue
+        for s in subs.get("data") or []:
+            subs_out.append({
+                "customer_id": cid,
+                "subscription_id": s.get("id"),
+                "status": s.get("status"),
+                "current_period_end": s.get("current_period_end"),
+                "cancel_at_period_end": s.get("cancel_at_period_end"),
+                "canceled_at": s.get("canceled_at"),
+                "latest_invoice": s.get("latest_invoice"),
+            })
+
+    return {"profile": profile, "stripe_customer_ids_checked": customer_ids, "subscriptions": subs_out}
+
+
 class SetPremiumBody(BaseModel):
     email: str
     enabled: bool
