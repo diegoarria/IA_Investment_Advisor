@@ -87,73 +87,50 @@ export default function NotificationAnalyticsPage() {
   const maxRate = Math.max(...cats.map((r) => r.open_rate), 1);
 
   return (
-    <div style={{ background: "#0f1117", color: "#fff", fontFamily: "system-ui,sans-serif", height: "100vh", overflowY: "auto" }}>
-      <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="h-screen overflow-y-auto p-6" style={{ background: "var(--bg)" }}>
+      <div className="max-w-4xl mx-auto space-y-6">
 
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 mb-8">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)" }}
-            >
-              <Bell className="w-5 h-5 text-green-400" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Notification Analytics</h1>
-              <p style={{ color: "#6b7280", fontSize: 13 }}>Admin · Nuvos AI</p>
-            </div>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>Notificaciones</h1>
+            <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+              Analíticas de apertura y pruebas de envío en vivo.
+            </p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap justify-end">
-            {closeResult === "sent" && <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Push cierre enviado</span>}
-            {closeResult === "error" && <span style={{ color: "#ef4444", fontSize: 13, fontWeight: 600 }}>✗ Error al enviar</span>}
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {closeResult === "sent" && <span className="text-xs font-bold" style={{ color: "#34d399" }}>✓ Push cierre enviado</span>}
+            {closeResult === "error" && <span className="text-xs font-bold" style={{ color: "#f87171" }}>✗ Error al enviar</span>}
             <button
               onClick={testMarketClosePush}
               disabled={closeSending}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm"
-              style={{
-                background: closeSending ? "rgba(251,191,36,0.1)" : "rgba(251,191,36,0.12)",
-                border: "1px solid rgba(251,191,36,0.35)",
-                color: "#fbbf24",
-                cursor: closeSending ? "not-allowed" : "pointer",
-              }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
+              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text)" }}
             >
-              {closeSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+              {closeSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
               Test cierre
             </button>
-            {testResult === "sent" && <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Alerta enviada</span>}
-            {testResult === "no_channel" && <span style={{ color: "#f59e0b", fontSize: 13, fontWeight: 600 }}>⚠ Sin canal push</span>}
-            {testResult === "error" && <span style={{ color: "#ef4444", fontSize: 13, fontWeight: 600 }}>✗ Error al enviar</span>}
+            {testResult === "sent" && <span className="text-xs font-bold" style={{ color: "#34d399" }}>✓ Alerta enviada</span>}
+            {testResult === "no_channel" && <span className="text-xs font-bold" style={{ color: "#fbbf24" }}>⚠ Sin canal push</span>}
+            {testResult === "error" && <span className="text-xs font-bold" style={{ color: "#f87171" }}>✗ Error al enviar</span>}
             <button
               onClick={sendTestAlert}
               disabled={testSending}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm"
-              style={{
-                background: testSending ? "rgba(34,197,94,0.1)" : "rgba(34,197,94,0.15)",
-                border: "1px solid rgba(34,197,94,0.4)",
-                color: "#22c55e",
-                cursor: testSending ? "not-allowed" : "pointer",
-              }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white"
+              style={{ background: "var(--accent)" }}
             >
-              {testSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {testSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
               Probar alerta
             </button>
           </div>
         </div>
 
         {/* Analytics body */}
-        {loading && (
-          <div className="flex justify-center py-16">
-            <Loader2 className="w-8 h-8 animate-spin text-green-500" />
-          </div>
-        )}
+        {loading && <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent)" }} />}
 
         {!loading && analyticsError && (
-          <div
-            className="rounded-2xl p-6 mb-8 text-center"
-            style={{ background: "#1a1d27", border: "1px solid rgba(239,68,68,0.3)" }}
-          >
-            <p style={{ color: "#ef4444", fontSize: 14 }}>
+          <div className="rounded-xl border p-4 text-center" style={{ borderColor: "#f87171", background: "rgba(248,113,113,0.08)" }}>
+            <p className="text-sm" style={{ color: "#f87171" }}>
               No se pudieron cargar las analíticas. Verifica que el endpoint esté disponible.
             </p>
           </div>
@@ -162,70 +139,60 @@ export default function NotificationAnalyticsPage() {
         {!loading && !analyticsError && (
           <>
             {/* Totals */}
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              {[
-                { label: "Hoy",         value: totals.today, Icon: Bell },
-                { label: "Esta semana", value: totals.week,  Icon: TrendingUp },
-                { label: "Este mes",    value: totals.month, Icon: BarChart2 },
-              ].map(({ label, value, Icon }) => (
-                <div key={label} className="rounded-2xl p-5" style={{ background: "#1a1d27", border: "1px solid #2a2d3a" }}>
-                  <div className="flex items-center gap-2 mb-3" style={{ color: "#22c55e" }}>
-                    <Icon className="w-5 h-5" />
-                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: "#6b7280" }}>
-                      {label}
-                    </span>
+            <section className="space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Enviadas</p>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Hoy",         value: totals.today, Icon: Bell },
+                  { label: "Esta semana", value: totals.week,  Icon: TrendingUp },
+                  { label: "Este mes",    value: totals.month, Icon: BarChart2 },
+                ].map(({ label, value, Icon }) => (
+                  <div key={label} className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                    <div className="flex items-center gap-1.5 mb-2" style={{ color: "var(--muted)" }}>
+                      <Icon className="w-3.5 h-3.5" />
+                      <p className="text-xs font-bold uppercase tracking-wide">{label}</p>
+                    </div>
+                    <p className="text-2xl font-black" style={{ color: "var(--text)" }}>{value.toLocaleString()}</p>
                   </div>
-                  <p style={{ fontSize: 36, fontWeight: 900, color: "#fff", margin: 0 }}>
-                    {value.toLocaleString()}
-                  </p>
-                  <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 0" }}>enviadas</p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </section>
 
             {/* Open rate by category */}
-            <div className="rounded-2xl overflow-hidden" style={{ background: "#1a1d27", border: "1px solid #2a2d3a" }}>
-              <div className="px-5 py-4" style={{ borderBottom: "1px solid #2a2d3a" }}>
-                <p style={{ color: "#22c55e", fontSize: 11, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", margin: 0 }}>
-                  Tasa de apertura por categoría — últimos 30 días
-                </p>
-              </div>
-              <div className="p-5 space-y-4">
+            <section className="space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+                Tasa de apertura por categoría — últimos 30 días
+              </p>
+              <div className="rounded-xl border p-4 space-y-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
                 {cats.length === 0 ? (
-                  <p style={{ color: "#6b7280", fontSize: 14, textAlign: "center", padding: "24px 0" }}>
+                  <p className="text-sm text-center py-4" style={{ color: "var(--muted)" }}>
                     Sin datos todavía. Los datos aparecen una vez que se envían notificaciones.
                   </p>
                 ) : cats.map((row) => {
-                  const barColor = row.open_rate > 20 ? "#22c55e" : row.open_rate > 10 ? "#f59e0b" : "#6b7280";
+                  const barColor = row.open_rate > 20 ? "#34d399" : row.open_rate > 10 ? "#fbbf24" : "var(--muted)";
                   return (
                     <div key={row.category}>
                       <div className="flex justify-between items-center mb-1.5">
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#d1d5db" }}>
+                        <span className="text-sm font-bold capitalize" style={{ color: "var(--text)" }}>
                           {row.category.replace(/_/g, " ")}
                         </span>
                         <div className="flex items-center gap-3">
-                          <span style={{ fontSize: 12, color: "#6b7280" }}>
-                            {row.opened}/{row.sent}
-                          </span>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: barColor, minWidth: 44, textAlign: "right" }}>
-                            {row.open_rate}%
-                          </span>
+                          <span className="text-xs" style={{ color: "var(--muted)" }}>{row.opened}/{row.sent}</span>
+                          <span className="text-sm font-bold w-11 text-right" style={{ color: barColor }}>{row.open_rate}%</span>
                         </div>
                       </div>
-                      <div style={{ height: 8, background: "#2a2d3a", borderRadius: 4, overflow: "hidden" }}>
+                      <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
                         <div style={{
-                          height: "100%",
-                          borderRadius: 4,
+                          height: "100%", borderRadius: 4,
                           width: `${(row.open_rate / maxRate) * 100}%`,
-                          background: barColor,
-                          transition: "width 0.6s ease",
+                          background: barColor, transition: "width 0.6s ease",
                         }} />
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </section>
           </>
         )}
 

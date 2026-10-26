@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, PlayCircle } from "lucide-react";
+import { Loader2, PlayCircle, Bell, RefreshCw, Newspaper, DollarSign } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { adminApi } from "@/lib/api";
 
@@ -153,7 +153,7 @@ export default function AdminDiagnosticsPage() {
         {/* ── Mercado Abierto ── */}
         <section className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
           <div>
-            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>🔔 Mercado Abierto</p>
+            <p className="text-sm font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}><Bell className="w-4 h-4" /> Mercado Abierto</p>
             <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
               Trae S&P 500/Nasdaq reales ahora mismo y te manda un push de prueba solo a ti.
             </p>
@@ -174,7 +174,7 @@ export default function AdminDiagnosticsPage() {
         {/* ── Refrescar Oportunidades (screener por sector) ── */}
         <section className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
           <div>
-            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>🔄 Refrescar Oportunidades</p>
+            <p className="text-sm font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}><RefreshCw className="w-4 h-4" /> Refrescar Oportunidades</p>
             <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
               Fuerza el refresh completo del screener (todos los sectores) ahora mismo, en vez de esperar al cron del domingo 12:05pm ET. Úsalo después de un deploy que cambie el cache-key del screener — si no, cada sector se ve vacío hasta el próximo domingo.
             </p>
@@ -222,7 +222,7 @@ export default function AdminDiagnosticsPage() {
         {/* ── Por qué de alerta de precio ── */}
         <section className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
           <div>
-            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>📰 Por qué de alerta de precio</p>
+            <p className="text-sm font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}><Newspaper className="w-4 h-4" /> Por qué de alerta de precio</p>
             <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
               Corre el pipeline real (Perplexity + Finnhub + Claude) para un ticker y te dice en qué paso falla si sale "NO_CATALYST".
             </p>
@@ -262,7 +262,7 @@ export default function AdminDiagnosticsPage() {
         {/* ── Consumo de tokens (LLM usage) ── */}
         <section className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
           <div>
-            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>💰 Consumo de tokens</p>
+            <p className="text-sm font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}><DollarSign className="w-4 h-4" /> Consumo de tokens</p>
             <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
               Gasto real en USD por usuario, agregado desde llm_usage_log.
             </p>

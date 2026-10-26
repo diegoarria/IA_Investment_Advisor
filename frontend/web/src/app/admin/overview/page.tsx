@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, RefreshCw, Users, Crown, TrendingDown, Activity, Lock, DollarSign, Trash2, Plus } from "lucide-react";
+import { Loader2, RefreshCw, Users, Crown, TrendingDown, Activity, Lock, DollarSign, Trash2, Plus, LayoutGrid, Wallet, LineChart } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { adminApi } from "@/lib/api";
 import { setReturnTo } from "@/lib/returnTo";
@@ -280,6 +280,7 @@ export default function AdminBusinessOverviewPage() {
   const [newCostName, setNewCostName] = useState("");
   const [newCostAmount, setNewCostAmount] = useState("");
   const [savingCost, setSavingCost] = useState(false);
+  const [tab, setTab] = useState<"resumen" | "ingresos" | "producto">("resumen");
 
   // Diego, 2026-09-27: a lost session used to leave this page stuck retrying
   // with "Invalid token format" and no way out. Any sign the session is gone
@@ -416,6 +417,12 @@ export default function AdminBusinessOverviewPage() {
     value: h.wau != null && h.total_users ? Math.round((h.wau / h.total_users) * 1000) / 10 : null,
   }));
 
+  const TABS: { key: typeof tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { key: "resumen", label: "Resumen", icon: LayoutGrid },
+    { key: "ingresos", label: "Ingresos y costos", icon: Wallet },
+    { key: "producto", label: "Producto", icon: LineChart },
+  ];
+
   return (
     <div className="h-screen overflow-y-auto p-6" style={{ background: "var(--bg)" }}>
       <div className="max-w-4xl mx-auto space-y-6">
@@ -438,6 +445,20 @@ export default function AdminBusinessOverviewPage() {
           </button>
         </div>
 
+        <div className="flex gap-1.5 p-1 rounded-xl w-fit" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+          {TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+              style={tab === key ? { background: "var(--accent)", color: "#fff" } : { color: "var(--muted)" }}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+
         {loading && <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent)" }} />}
         {error && <p className="text-sm" style={{ color: "#f87171" }}>{error}</p>}
         {data && (data.degraded || data.stale) && (
@@ -448,7 +469,7 @@ export default function AdminBusinessOverviewPage() {
           </p>
         )}
 
-        {data && (
+        {data && tab === "resumen" && (
           <>
             {/* Usuarios */}
             <section className="space-y-3">
@@ -524,7 +545,11 @@ export default function AdminBusinessOverviewPage() {
                 Se cuenta a quien inició sesión, se registró o escribió a Arthur hoy. Quien solo abre la app con la sesión ya guardada puede no aparecer. Se actualiza cada minuto.
               </p>
             </section>
+          </>
+        )}
 
+        {data && tab === "ingresos" && (
+          <>
             {/* Stripe */}
             <section className="space-y-3">
               <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Ingresos (Stripe)</p>
@@ -629,7 +654,11 @@ export default function AdminBusinessOverviewPage() {
             </section>
 
             {llmUsage && <CostGuardSection usage={llmUsage} />}
+          </>
+        )}
 
+        {data && tab === "producto" && (
+          <>
             {/* PostHog */}
             <section className="space-y-3">
               <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Uso del producto (PostHog)</p>

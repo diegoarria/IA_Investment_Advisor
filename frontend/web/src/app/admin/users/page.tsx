@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Loader2, Search, User, Wallet, Star, TrendingUp } from "lucide-react";
+import { Loader2, Search, User, Wallet, Star, TrendingUp, ShieldCheck } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { adminApi } from "@/lib/api";
 
@@ -27,6 +27,7 @@ export default function AdminUserLookupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [togglingPremium, setTogglingPremium] = useState(false);
 
   useEffect(() => {
     if (!userId || !isAuthenticated) return;
@@ -45,6 +46,30 @@ export default function AdminUserLookupPage() {
       setError(err?.response?.data?.detail ?? "No se pudo cargar el perfil.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const isManualPremium = snapshot?.profile.subscription_tier === "premium"
+    && snapshot?.profile.subscription_source === "manual_comp";
+
+  const handleTogglePremium = async () => {
+    if (!snapshot) return;
+    setTogglingPremium(true);
+    try {
+      const enable = !isManualPremium;
+      await adminApi.setPremium(snapshot.email, enable);
+      setSnapshot({
+        ...snapshot,
+        profile: {
+          ...snapshot.profile,
+          subscription_tier: enable ? "premium" : "free",
+          subscription_source: enable ? "manual_comp" : null,
+        },
+      });
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "No se pudo cambiar el plan.");
+    } finally {
+      setTogglingPremium(false);
     }
   };
 
@@ -99,6 +124,27 @@ export default function AdminUserLookupPage() {
                 <p style={{ color: "var(--text)" }}><b>Trial desde:</b> {snapshot.profile.trial_started_at?.slice(0, 10) ?? "—"}</p>
                 <p style={{ color: "var(--text)" }}><b>Estilo inversión:</b> {snapshot.profile.investing_style ?? "—"}</p>
                 <p style={{ color: "var(--text)" }}><b>Nivel:</b> {snapshot.profile.knowledge_level ?? "—"}</p>
+              </div>
+              <div className="mt-4 pt-3 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+                <div>
+                  <p className="text-xs font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
+                    <ShieldCheck className="w-3.5 h-3.5" /> Premium manual
+                  </p>
+                  <p className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>
+                    {isManualPremium
+                      ? "Activado — protegido de webhooks/sync de Stripe."
+                      : "Apagado — el plan depende de Stripe/trial normal."}
+                  </p>
+                </div>
+                <button
+                  onClick={handleTogglePremium}
+                  disabled={togglingPremium}
+                  className="px-4 py-2 rounded-xl text-sm font-bold text-white flex items-center gap-1.5"
+                  style={{ background: isManualPremium ? "#dc2626" : "var(--accent)" }}
+                >
+                  {togglingPremium ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {isManualPremium ? "Quitar Premium" : "Dar Premium"}
+                </button>
               </div>
             </section>
 

@@ -415,6 +415,45 @@ async def get_user_snapshot(email: str, user: dict = Depends(get_current_user)):
     }
 
 
+class SetPremiumBody(BaseModel):
+    email: str
+    enabled: bool
+
+
+@router.post("/set-premium")
+async def set_premium(body: SetPremiumBody, user: dict = Depends(get_current_user)):
+    """Manual Premium on/off for a single user, with no dependency on
+    Stripe or any sync job. Diego, 2026-10-26: after this account kept
+    flipping back to Free on its own, he wants a single button he
+    controls directly — not another automated path that can misfire the
+    same way webhooks/sync jobs have before.
+
+    Uses subscription_source='manual_comp' (migration 079) on enable —
+    the SAME flag that every downgrade path in billing.py
+    (_downgrade_by_customer_id, _safe_to_downgrade_duo_secondary) already
+    checks and refuses to touch. So a manually-granted user here is
+    immune to the Stripe webhook / duo-revocation bugs that caused the
+    original complaint, by construction, not by adding a new check.
+    Disabling clears it back to a plain free row."""
+    await _require_admin(user)
+    db = get_supabase()
+    target = await _find_user_by_email(body.email, db)
+    if not target:
+        raise HTTPException(status_code=404, detail="No existe un usuario con ese correo")
+
+    update = (
+        {"subscription_tier": "premium", "subscription_source": "manual_comp", "premium_until": None}
+        if body.enabled
+        else {"subscription_tier": "free", "subscription_source": None}
+    )
+    await run_query(db.table("user_profiles").update(update).eq("user_id", target["id"]))
+    from app.core.cache import cache_delete
+    cache_delete(f"profile:{target['id']}")
+    cache_delete(f"sync:all:{target['id']}")
+    logger.warning("Admin set_premium: %s -> enabled=%s by %s", body.email, body.enabled, user.get("email"))
+    return {"email": body.email, "enabled": body.enabled}
+
+
 @router.get("/business-overview")
 async def business_overview(force_refresh: bool = False, user: dict = Depends(get_current_user)):
     """Diego, 2026-09-14: users/premium/churn/product-usage in one place
