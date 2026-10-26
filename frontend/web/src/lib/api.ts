@@ -833,6 +833,8 @@ export const adminApi = {
   testMarketOpen: () => api.post("/api/admin/test-market-open"),
   testPriceAlertWhy: (ticker: string, pct: number) =>
     api.post("/api/admin/test-price-alert-why", null, { params: { ticker, pct } }),
+  clearPriceWhyCache: (tickers: string) =>
+    api.post("/api/admin/clear-price-why-cache", null, { params: { tickers } }),
   llmUsage: (days: number = 1) =>
     api.get("/api/admin/llm-usage", { params: { days } }),
   refreshUndervaluedScreener: () => api.post("/api/admin/refresh-undervalued-screener"),

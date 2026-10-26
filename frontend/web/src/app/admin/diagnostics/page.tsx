@@ -32,6 +32,9 @@ export default function AdminDiagnosticsPage() {
   const [whyLoading, setWhyLoading] = useState(false);
   const [whyResult, setWhyResult] = useState<any>(null);
   const [whyError, setWhyError] = useState<string | null>(null);
+  const [clearCacheLoading, setClearCacheLoading] = useState(false);
+  const [clearCacheResult, setClearCacheResult] = useState<any>(null);
+  const [clearCacheError, setClearCacheError] = useState<string | null>(null);
 
   const [usageDays, setUsageDays] = useState("1");
   const [usageLoading, setUsageLoading] = useState(false);
@@ -79,6 +82,22 @@ export default function AdminDiagnosticsPage() {
       setWhyError(err?.response?.data?.detail ?? "Error al ejecutar la prueba.");
     } finally {
       setWhyLoading(false);
+    }
+  };
+
+  const runClearCache = async () => {
+    const tickers = ticker.split(",").map((t) => t.trim()).filter(Boolean).join(",");
+    if (!tickers) return;
+    setClearCacheLoading(true);
+    setClearCacheError(null);
+    setClearCacheResult(null);
+    try {
+      const res = await adminApi.clearPriceWhyCache(tickers.toUpperCase());
+      setClearCacheResult(res.data);
+    } catch (err: any) {
+      setClearCacheError(err?.response?.data?.detail ?? "Error al limpiar el caché.");
+    } finally {
+      setClearCacheLoading(false);
     }
   };
 
@@ -225,6 +244,7 @@ export default function AdminDiagnosticsPage() {
             <p className="text-sm font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}><Newspaper className="w-4 h-4" /> Por qué de alerta de precio</p>
             <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
               Corre el pipeline real (Perplexity + Finnhub + Claude) para un ticker y te dice en qué paso falla si sale "NO_CATALYST".
+              Para varios tickers a la vez (separados por coma), usa "Limpiar caché de hoy" — borra la respuesta guardada de cada uno para que la próxima vez se recalcule de cero en vez de reusar un resultado viejo.
             </p>
           </div>
           <div className="flex gap-2">
@@ -232,7 +252,7 @@ export default function AdminDiagnosticsPage() {
               type="text"
               value={ticker}
               onChange={(e) => setTicker(e.target.value)}
-              placeholder="Ticker (ej. NVDA)"
+              placeholder="Ticker(s), ej. NVDA o DUOL,GEV,CLS"
               className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none"
               style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
             />
@@ -246,17 +266,30 @@ export default function AdminDiagnosticsPage() {
               style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
             />
           </div>
-          <button
-            onClick={runPriceAlertWhy}
-            disabled={whyLoading || !ticker.trim()}
-            className="px-4 py-2.5 rounded-xl text-sm font-bold text-white flex items-center gap-1.5"
-            style={{ background: "var(--accent)" }}
-          >
-            {whyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-            Ejecutar prueba
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={runPriceAlertWhy}
+              disabled={whyLoading || !ticker.trim()}
+              className="px-4 py-2.5 rounded-xl text-sm font-bold text-white flex items-center gap-1.5"
+              style={{ background: "var(--accent)" }}
+            >
+              {whyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+              Ejecutar prueba
+            </button>
+            <button
+              onClick={runClearCache}
+              disabled={clearCacheLoading || !ticker.trim()}
+              className="px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5"
+              style={{ background: "var(--raised)", color: "var(--text)", border: "1px solid var(--border)" }}
+            >
+              {clearCacheLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Limpiar caché de hoy
+            </button>
+          </div>
           {whyError && <p className="text-sm" style={{ color: "#f87171" }}>{whyError}</p>}
           {whyResult && <JsonBlock data={whyResult} />}
+          {clearCacheError && <p className="text-sm" style={{ color: "#f87171" }}>{clearCacheError}</p>}
+          {clearCacheResult && <JsonBlock data={clearCacheResult} />}
         </section>
 
         {/* ── Consumo de tokens (LLM usage) ── */}

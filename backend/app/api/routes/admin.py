@@ -117,6 +117,42 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
     }
 
 
+@router.post("/clear-price-why-cache")
+async def clear_price_why_cache(tickers: str, user: dict = Depends(get_current_user)):
+    """Diego, 2026-10-26: the WHY_CALL_FAILED fix (job_portfolio_alerts no
+    longer caches a transient failure as a confirmed NO_CATALYST) only
+    stops FUTURE poisoning — it does nothing for a `price_why:{ticker}:
+    {today_et}` key that was ALREADY written to Redis by a bad run BEFORE
+    that fix deployed. Confirmed live: DUOL was moving in the same original
+    bad batch as GEV/CLS/SEZL/IREN/BE, so even after the fix shipped, the
+    manual diagnostic test (which never reads the cache) found the real
+    lawsuit catalyst while the actual push — which DOES read the cache —
+    still served the stale NO_CATALYST, because that key was already
+    sitting in Redis from before the deploy and the 12h TTL hadn't expired.
+
+    `tickers` is a comma-separated list — purges each one's WHY cache for
+    TODAY only. Doesn't resend anything (should_send_price_alert's daily
+    dedup already fired), it just means the NEXT time that ticker needs a
+    WHY (e.g. for a different user who hasn't been alerted yet today, or
+    job_market_crash_alert reusing today's cached WHY) recomputes for real
+    instead of reusing the stale answer."""
+    await _require_admin(user)
+    from app.core.cache import cache_delete
+    from app.services.notification_engine import _today_et
+
+    today_et = _today_et()
+    cleared = []
+    for t in tickers.split(","):
+        t = t.strip().upper()
+        if not t:
+            continue
+        cache_delete(f"price_why:{t}:{today_et}")
+        cache_delete(f"price_verdict:{t}:{today_et}")
+        cleared.append(t)
+    logger.warning("Admin clear_price_why_cache: %s (by %s)", cleared, user.get("email"))
+    return {"cleared": cleared, "today_et": today_et}
+
+
 _refresh_task: "asyncio.Task | None" = None
 
 
