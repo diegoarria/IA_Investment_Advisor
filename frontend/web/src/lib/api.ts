@@ -822,8 +822,8 @@ export const voiceCallsApi = {
 
 export const adminApi = {
   getUserSnapshot: (email: string) => api.get("/api/admin/user-snapshot", { params: { email } }),
-  setPremium: (email: string, enabled: boolean) =>
-    api.post("/api/admin/set-premium", { email, enabled }),
+  setPremium: (email: string, enabled: boolean, duration: string = "none") =>
+    api.post("/api/admin/set-premium", { email, enabled, duration }),
   usersList: () => api.get("/api/admin/users-list"),
   resyncSubscription: (email: string) =>
     api.post("/api/admin/resync-subscription", { email }),

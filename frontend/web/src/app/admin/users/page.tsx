@@ -40,6 +40,17 @@ interface UserRow {
 
 const fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
+// Mirrors backend's MANUAL_PREMIUM_DURATIONS_DAYS — the only durations
+// the admin panel offers, by design (Diego: "solo estas").
+const PREMIUM_DURATIONS: { value: string; label: string }[] = [
+  { value: "none", label: "Sin vencimiento" },
+  { value: "30d", label: "30 días" },
+  { value: "60d", label: "60 días" },
+  { value: "90d", label: "90 días" },
+  { value: "120d", label: "120 días" },
+  { value: "1y", label: "1 año" },
+];
+
 // A raw tier of "premium" that is_premium_active() would now reject (an
 // expired premium_until that never got refreshed by a renewal webhook —
 // exactly the bug found 2026-10-26, affecting Diego's own account plus 2
@@ -82,6 +93,7 @@ export default function AdminUserLookupPage() {
   const [error, setError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [togglingPremium, setTogglingPremium] = useState(false);
+  const [premiumDuration, setPremiumDuration] = useState("none");
 
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [usersLoading, setUsersLoading] = useState(true);
@@ -155,13 +167,14 @@ export default function AdminUserLookupPage() {
     setTogglingPremium(true);
     try {
       const enable = !isManualPremium;
-      await adminApi.setPremium(snapshot.email, enable);
+      const res = await adminApi.setPremium(snapshot.email, enable, premiumDuration);
       setSnapshot({
         ...snapshot,
         profile: {
           ...snapshot.profile,
           subscription_tier: enable ? "premium" : "free",
           subscription_source: enable ? "manual_comp" : null,
+          premium_until: res.data.premium_until ?? null,
         },
       });
     } catch (err: any) {
@@ -361,26 +374,42 @@ export default function AdminUserLookupPage() {
                   </button>
                 </div>
               )}
-              <div className="mt-4 pt-3 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+              <div className="mt-4 pt-3 border-t flex items-center justify-between gap-3 flex-wrap" style={{ borderColor: "var(--border)" }}>
                 <div>
                   <p className="text-xs font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
                     <ShieldCheck className="w-3.5 h-3.5" /> Premium manual
                   </p>
                   <p className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>
                     {isManualPremium
-                      ? "Activado — protegido de webhooks/sync de Stripe."
+                      ? snapshot.profile.premium_until
+                        ? `Activado — vence el ${snapshot.profile.premium_until.slice(0, 10)}.`
+                        : "Activado — sin vencimiento."
                       : "Apagado — el plan depende de Stripe/trial normal."}
                   </p>
                 </div>
-                <button
-                  onClick={handleTogglePremium}
-                  disabled={togglingPremium}
-                  className="px-4 py-2 rounded-xl text-sm font-bold text-white flex items-center gap-1.5"
-                  style={{ background: isManualPremium ? "#dc2626" : "var(--accent)" }}
-                >
-                  {togglingPremium ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {isManualPremium ? "Quitar Premium" : "Dar Premium"}
-                </button>
+                <div className="flex items-center gap-2">
+                  {!isManualPremium && (
+                    <select
+                      value={premiumDuration}
+                      onChange={(e) => setPremiumDuration(e.target.value)}
+                      className="px-2.5 py-2 rounded-xl text-xs font-bold outline-none"
+                      style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
+                    >
+                      {PREMIUM_DURATIONS.map((d) => (
+                        <option key={d.value} value={d.value}>{d.label}</option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    onClick={handleTogglePremium}
+                    disabled={togglingPremium}
+                    className="px-4 py-2 rounded-xl text-sm font-bold text-white flex items-center gap-1.5"
+                    style={{ background: isManualPremium ? "#dc2626" : "var(--accent)" }}
+                  >
+                    {togglingPremium ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {isManualPremium ? "Quitar Premium" : "Dar Premium"}
+                  </button>
+                </div>
               </div>
             </section>
 

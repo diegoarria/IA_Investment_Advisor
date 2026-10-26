@@ -592,9 +592,16 @@ async def stripe_subscription_debug(email: str, user: dict = Depends(get_current
     return {"profile": profile, "stripe_customer_ids_checked": customer_ids, "subscriptions": subs_out}
 
 
+# Diego, 2026-10-26: "por diferentes fases de vencimiento... solo estas" —
+# a fixed menu, not a free-text date picker, so there's no way to fat-finger
+# a typo'd expiration from the admin panel.
+MANUAL_PREMIUM_DURATIONS_DAYS = {"none": None, "30d": 30, "60d": 60, "90d": 90, "120d": 120, "1y": 365}
+
+
 class SetPremiumBody(BaseModel):
     email: str
     enabled: bool
+    duration: str = "none"
 
 
 @router.post("/set-premium")
@@ -611,15 +618,29 @@ async def set_premium(body: SetPremiumBody, user: dict = Depends(get_current_use
     checks and refuses to touch. So a manually-granted user here is
     immune to the Stripe webhook / duo-revocation bugs that caused the
     original complaint, by construction, not by adding a new check.
-    Disabling clears it back to a plain free row."""
+    Disabling clears it back to a plain free row.
+
+    `duration` picks premium_until from MANUAL_PREMIUM_DURATIONS_DAYS
+    (default "none" = never expires, the original behavior). Expiry is
+    enforced by the SAME is_premium_active() check already used for
+    Stripe/trial premium — nothing extra needed for this to actually
+    cut off access, and the daily trial_reset job (see trial_reset.py)
+    already treats any non-active row as free regardless of source."""
     await _require_admin(user)
+    if body.duration not in MANUAL_PREMIUM_DURATIONS_DAYS:
+        raise HTTPException(status_code=422, detail=f"Duración inválida: {body.duration}")
     db = get_supabase()
     target = await _find_user_by_email(body.email, db)
     if not target:
         raise HTTPException(status_code=404, detail="No existe un usuario con ese correo")
 
+    premium_until = None
+    days = MANUAL_PREMIUM_DURATIONS_DAYS[body.duration]
+    if body.enabled and days is not None:
+        premium_until = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+
     update = (
-        {"subscription_tier": "premium", "subscription_source": "manual_comp", "premium_until": None}
+        {"subscription_tier": "premium", "subscription_source": "manual_comp", "premium_until": premium_until}
         if body.enabled
         else {"subscription_tier": "free", "subscription_source": None}
     )
@@ -627,8 +648,11 @@ async def set_premium(body: SetPremiumBody, user: dict = Depends(get_current_use
     from app.core.cache import cache_delete
     cache_delete(f"profile:{target['id']}")
     cache_delete(f"sync:all:{target['id']}")
-    logger.warning("Admin set_premium: %s -> enabled=%s by %s", body.email, body.enabled, user.get("email"))
-    return {"email": body.email, "enabled": body.enabled}
+    logger.warning(
+        "Admin set_premium: %s -> enabled=%s duration=%s premium_until=%s by %s",
+        body.email, body.enabled, body.duration, premium_until, user.get("email"),
+    )
+    return {"email": body.email, "enabled": body.enabled, "premium_until": premium_until}
 
 
 @router.post("/resync-subscription")
