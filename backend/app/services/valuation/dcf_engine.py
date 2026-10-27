@@ -161,6 +161,26 @@ def recency_weighted_average(pairs: list[tuple[int, float]]) -> Optional[float]:
     return sum((i + 1) * v for i, v in pairs) / weight_sum
 
 
+def mixed_regime_reliability(pairs: list[tuple[int, float]], anchor: Optional[float], *, thin_threshold: float = 0.02) -> bool:
+    """True if `anchor` (a recency_weighted_average of `pairs`) is a
+    trustworthy 10-year projection base; False if `pairs` swings between
+    positive and negative years AND the weighted average that resulted is
+    too thin (|anchor| < thin_threshold) to represent a stable regime —
+    the anchor could land near zero by averaging a real loss year against
+    a real profit year, not because the business is actually breakeven.
+
+    Same pattern this codebase already applies to avg_fcf_margin (see
+    fundamental_analysis_service.py's _fcf_margin_mixed_regime /
+    _fcf_margin_unreliable_thin_mixed, added for the 2026-09-06 TTWO
+    bug), extracted here so operating_margin_anchor (2026-10-27, AXON)
+    and any future recency-weighted anchor can share one tested
+    implementation instead of a third hand-rolled copy."""
+    if not pairs or anchor is None:
+        return True  # nothing to judge unreliable — caller's own None-handling applies
+    mixed = any(v < 0 for _, v in pairs) and any(v > 0 for _, v in pairs)
+    return not (mixed and abs(anchor) < thin_threshold)
+
+
 def _fade(year_1_value: float, terminal_value: float, yr: int, years: int) -> float:
     """Same linear fade `_project_path` uses, extracted as a pure
     per-year function so it can drive operating margin AND reinvestment

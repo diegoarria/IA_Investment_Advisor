@@ -25,6 +25,7 @@ from app.services.financial_data_service import get_financials, get_revenue_segm
 from app.core.finnhub import fh_quote, fh_profile, fh_price_target, fh_metrics, fh_recommendation
 from app.services.valuation.dcf_engine import (
     project_driver_based_dcf, recency_weighted_average, compute_reinvestment_rate_anchor, is_reit_sector,
+    mixed_regime_reliability,
 )
 from app.services.valuation.robustness import UnstableGordonGrowthError, clamp
 # Fase 1, Incremento 7 (Parte I — modular reorganization): these used to be
@@ -1208,6 +1209,34 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     operating_margin_anchor = recency_weighted_average(om_pairs)
     reinvestment_pairs = [(i, v) for i, v in enumerate(reinvestment_rate_trend) if v is not None]
     reinvestment_rate_anchor = compute_reinvestment_rate_anchor(reinvestment_pairs)
+
+    # 2026-10-27, AXON pilot audit — the same "thin mixed-regime average
+    # isn't a trustworthy 10-year anchor" bug already fixed for
+    # avg_fcf_margin (see _fcf_margin_mixed_regime/_fcf_margin_unreliable_
+    # thin_mixed above) was never ported to operating_margin_anchor, which
+    # feeds the ENTIRE GQV driver-based engine (nuvos_fair_value scenarios,
+    # every implied_* reverse-DCF solve, driver_based_valuation). Confirmed
+    # real case: AXON's operating_margin_trend ([-19.3, 7.8, 10.2, 2.8,
+    # -2.2]%) is driven by genuinely lumpy GAAP stock-based comp (SBC =
+    # 22.8% of latest-year revenue, not a demand-cyclical swing) —
+    # recency-weighted straight into a hollow 1.81% base-case anchor, which
+    # then compounds through 10 years of EBIT and the EV/EBIT terminal
+    # value, producing a $36.30 "intrinsic value" against a $425.87 price
+    # (0.085x — every other ticker in this universe sits at 0.7-0.9x).
+    # This flag does NOT change operating_margin_anchor or any downstream
+    # number — it's a reliability signal only, read by the backfill's
+    # publish-time anomaly guard (company_valuation_service.py) to keep an
+    # unreliable anchor's output out of `valid` until reviewed, never to
+    # nudge the number itself toward the market price.
+    operating_margin_anchor_reliable = mixed_regime_reliability(om_pairs, operating_margin_anchor)
+    operating_margin_anchor_warning = (
+        None if operating_margin_anchor_reliable else
+        "El margen operativo histórico alterna entre años positivos y negativos sin un promedio "
+        "ponderado por recencia claro (thin mixed-regime) — probablemente por un gasto contable "
+        "elevado y variable (ej. compensación en acciones), no por un patrón cíclico de demanda. "
+        "Este ancla no es una base confiable para proyectar 10 años; la valoración resultante "
+        "requiere revisión manual antes de publicarse como válida."
+    )
 
     # ── Hoisted OUT of the `avg_fcf_margin > 0` DCF branch below (Nuvos Fair
     # Value Engine rearchitecture, Priority 3 — see /Users/diegoarria/.claude/
@@ -2700,6 +2729,8 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 "shares_outstanding": round(shares_out, 0),
                 "projected_shares_outstanding": round(projected_shares, 0),
                 "buyback_rate_pct": round(buyback_rate * 100, 1),
+                "operating_margin_anchor_reliable": operating_margin_anchor_reliable,
+                "operating_margin_anchor_warning": operating_margin_anchor_warning,
                 "current_price": price,
                 "scenarios": scenarios,
                 "fair_value_range": combine_fair_value_range(nuvos_fair_value, _fair_value_range(scenarios)),

@@ -3465,6 +3465,109 @@ async def job_prewarm_company_diagnostic_popular():
                 logger.error("job_prewarm_company_diagnostic_popular(%s, %s) failed: %s", ticker, lang, e)
 
 
+_BACKFILL_LOCK_KEY = "job_backfill_company_valuations_lock:v1"
+_BACKFILL_LOCK_TTL_S = 600  # 10 min — generous for one small batch, short enough a crashed tick self-heals
+
+
+async def job_backfill_company_valuations_batch():
+    """Nuvos Radar structural fix, 2026-10-27. The 2026-10-27 read-only
+    audit found that company_valuation_service.py's backfill_universe()
+    — paced, FMP-budget-aware, cross-process-locked, "never demote a
+    valid row" by construction, fully built since the 2026-10-20/21
+    persistence work — has never actually been called against the full
+    927-ticker UNIVERSE anywhere in this codebase. That is the entire
+    reason only 21/927 tickers carried a persisted valuation: coverage
+    was a pure side effect of which tickers happened to get real user
+    traffic (job_prewarm_company_diagnostic_popular's 20-ticker list),
+    never a deliberate process. This job is that deliberate process.
+
+    Runs ONE small, paced slice of the pending backlog per tick — never
+    the full 927 in a single call, which would run for hours inside one
+    scheduler invocation and block this job's own future ticks. Fully
+    resumable without any in-memory or Redis-only cursor: the pending/
+    retry/stale classification (get_pending_tickers) is re-derived fresh
+    from company_valuations on every tick, so a crash, redeploy, or
+    manual stop between ticks loses no progress — the next tick just
+    re-reads the real DB state.
+
+    Disabled by default (BACKFILL_ENABLED unset) so this cannot start
+    spending FMP/Finnhub/Yahoo quota the moment it deploys. Diego turns
+    it on only after reviewing BACKFILL_DRY_RUN=true's report — see the
+    2026-10-27 backfill deliverable doc for the exact criteria.
+
+    Env vars (all optional, safe defaults):
+      BACKFILL_ENABLED             "true" to actually run (default: off)
+      BACKFILL_DRY_RUN             "true" to only log bucket counts +
+                                    the next slice, zero external calls,
+                                    zero writes, regardless of ENABLED
+      BACKFILL_BATCH_SIZE          tickers processed per tick (default 5)
+      BACKFILL_MAX_TICKERS_PER_MINUTE  pacing passed to backfill_universe
+                                    (default 2.0 — see that function's
+                                    own docstring for the FMP-quota math)
+      BACKFILL_TICKER_ALLOWLIST    2026-10-27 pilot control: comma-separated
+                                    tickers. When set, every ticker NOT in
+                                    this list is categorically excluded from
+                                    classification and processing — not just
+                                    deprioritized — regardless of what else
+                                    is pending in the full 927 universe. Used
+                                    for the 10-ticker controlled pilot; unset
+                                    (default) means the full universe.
+    """
+    import os
+    from app.api.routes.screener import UNIVERSE
+    from app.core.cache import acquire_lock, release_lock
+    from app.services.company_valuation_service import (
+        backfill_universe, circuit_is_open, get_pending_tickers,
+    )
+
+    dry_run = os.getenv("BACKFILL_DRY_RUN", "false").strip().lower() == "true"
+    enabled = os.getenv("BACKFILL_ENABLED", "false").strip().lower() == "true"
+    if not enabled and not dry_run:
+        return  # the common case until Diego explicitly opts in
+
+    batch_size = int(os.getenv("BACKFILL_BATCH_SIZE", "5"))
+    max_per_minute = float(os.getenv("BACKFILL_MAX_TICKERS_PER_MINUTE", "2.0"))
+
+    allowlist_raw = os.getenv("BACKFILL_TICKER_ALLOWLIST", "").strip()
+    if allowlist_raw:
+        allowlist = {t.strip().upper() for t in allowlist_raw.split(",") if t.strip()}
+        all_tickers = [c["ticker"] for c in UNIVERSE if c["ticker"].upper() in allowlist]
+        logger.info("job_backfill_company_valuations_batch: ALLOWLIST active — restricted to %s", sorted(all_tickers))
+    else:
+        all_tickers = [c["ticker"] for c in UNIVERSE]
+    buckets = await get_pending_tickers(all_tickers)
+    priority = buckets["no_valuation"] + buckets["retry_eligible"] + buckets["stale"]
+
+    if dry_run:
+        logger.info(
+            "job_backfill_company_valuations_batch DRY RUN — universe=%d no_valuation=%d "
+            "retry_eligible=%d backing_off=%d stale=%d already_valid=%d — next %d would be processed: %s",
+            len(all_tickers), len(buckets["no_valuation"]), len(buckets["retry_eligible"]),
+            len(buckets["backing_off"]), len(buckets["stale"]), len(buckets["already_valid"]),
+            batch_size, priority[:batch_size],
+        )
+        return
+
+    if not priority:
+        logger.info("job_backfill_company_valuations_batch: nothing pending — universe fully covered")
+        return
+
+    if circuit_is_open():
+        logger.warning("job_backfill_company_valuations_batch: circuit breaker open — skipping this tick")
+        return
+
+    token = acquire_lock(_BACKFILL_LOCK_KEY, ttl=_BACKFILL_LOCK_TTL_S, fail_closed_on_redis_error=True)
+    if token is None:
+        logger.info("job_backfill_company_valuations_batch: another run already in progress — skipping this tick")
+        return
+    try:
+        slice_ = priority[:batch_size]
+        results = await backfill_universe(slice_, max_tickers_per_minute=max_per_minute)
+        logger.info("job_backfill_company_valuations_batch: processed %d tickers — %s", len(slice_), results)
+    finally:
+        release_lock(_BACKFILL_LOCK_KEY, token)
+
+
 async def job_prewarm_nif_dashboard_default():
     """DISABLED, Diego 2026-09-11 (cost audit) — no longer registered with
     the scheduler (see setup, below), kept here only so it can be turned
@@ -7245,6 +7348,15 @@ async def main():
     # since they're independent caches.
     scheduler.add_job(job_prewarm_company_diagnostic_popular, "cron", day_of_week="mon-fri", hour="9,15", minute=40, timezone="America/New_York", next_run_time=datetime.now() + timedelta(minutes=5))
     scheduler.add_job(job_belvo_resync_all,               "interval", hours=6)
+
+    # 2026-10-27 Radar backfill — see job_backfill_company_valuations_batch's
+    # own docstring. No-ops unless BACKFILL_ENABLED/BACKFILL_DRY_RUN is set,
+    # so registering the tick itself is safe before Diego opts in. Scheduled
+    # ONLY outside NYSE hours (evenings/early morning ET + all day weekends)
+    # so a real run, once enabled, never competes with interactive Radar
+    # traffic for the same FMP/Finnhub/Yahoo quota.
+    scheduler.add_job(job_backfill_company_valuations_batch, "cron", day_of_week="mon-fri", hour="0-7,20-23", minute="*/10", timezone="America/New_York")
+    scheduler.add_job(job_backfill_company_valuations_batch, "cron", day_of_week="sat,sun", minute="*/10", timezone="America/New_York")
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)

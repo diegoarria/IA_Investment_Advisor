@@ -14,6 +14,7 @@ from app.services.valuation.dcf_engine import (
     project_driver_based_dcf,
     select_discount_rate,
     compute_reinvestment_rate_anchor,
+    mixed_regime_reliability,
     DriverBasedDcfResult,
 )
 from app.services.valuation.robustness import UnstableGordonGrowthError
@@ -53,6 +54,60 @@ class TestRecencyWeightedAverage:
         # not renumbered sequentially
         result = recency_weighted_average([(0, 0.10), (2, 0.30)])
         assert result == pytest.approx((1 * 0.10 + 3 * 0.30) / 4)
+
+
+class TestMixedRegimeReliability:
+    """2026-10-27, AXON backfill-pilot audit: operating_margin_anchor had
+    no equivalent of avg_fcf_margin's mixed-regime guard. AXON's real
+    5-year operating-margin trend ([-19.3, 7.8, 10.2, 2.8, -2.2]%, driven
+    by lumpy GAAP stock-based comp, not demand cyclicality) recency-
+    weighted into a hollow 1.81% anchor, which the GQV engine then
+    compounded into a $36.30 "intrinsic value" against a $425.87 real
+    price."""
+
+    def test_axon_real_trend_flagged_unreliable(self):
+        om_pairs = [(0, -0.193), (1, 0.078), (2, 0.102), (3, 0.028), (4, -0.022)]
+        anchor = recency_weighted_average(om_pairs)
+        assert anchor == pytest.approx(0.0181, abs=0.001)
+        assert mixed_regime_reliability(om_pairs, anchor) is False
+
+    def test_all_positive_trend_is_reliable_even_if_thin(self):
+        # thin (near-zero) average alone must never be the trigger —
+        # only a thin average THAT ALSO came from a sign-flipping trend.
+        om_pairs = [(0, 0.01), (1, 0.01), (2, 0.01)]
+        anchor = recency_weighted_average(om_pairs)
+        assert mixed_regime_reliability(om_pairs, anchor) is True
+
+    def test_mixed_regime_with_large_anchor_is_reliable(self):
+        # sign-flipping alone must never be the trigger either — only
+        # when it also produces a thin (<2%) weighted average.
+        om_pairs = [(0, -0.05), (1, 0.30), (2, 0.35)]
+        anchor = recency_weighted_average(om_pairs)
+        assert abs(anchor) >= 0.02
+        assert mixed_regime_reliability(om_pairs, anchor) is True
+
+    def test_real_pilot_tickers_all_reliable(self):
+        # 2026-10-27 pilot: none of APP/ROST/ADM/CVX/AMP/ABBV/ADBE's real
+        # operating-margin trends share AXON's defect.
+        real_trends_pct = {
+            "APP": [5.4, -1.7, 41.9, 59.3, 75.8],
+            "ROST": [12.3, 10.6, 11.3, 12.2, 11.9],
+            "ADM": [3.5, 4.1, 4.3, 2.4, 1.8],
+            "CVX": [10.3, 16.9, 17.2, 15.0, 9.0],
+            "AMP": [26.7, 28.8, 22.1, 25.6, 25.5],
+            "ABBV": [31.9, 31.2, 23.5, 16.2, 32.8],
+            "ADBE": [36.8, 34.6, 34.3, 31.3, 36.6],
+        }
+        for ticker, trend in real_trends_pct.items():
+            om_pairs = [(i, m / 100) for i, m in enumerate(trend)]
+            anchor = recency_weighted_average(om_pairs)
+            assert mixed_regime_reliability(om_pairs, anchor) is True, (
+                f"{ticker} unexpectedly flagged unreliable (anchor={anchor})"
+            )
+
+    def test_empty_or_none_anchor_is_reliable_by_default(self):
+        assert mixed_regime_reliability([], None) is True
+        assert mixed_regime_reliability([(0, 0.01)], None) is True
 
 
 class TestComputeReinvestmentRateAnchor:

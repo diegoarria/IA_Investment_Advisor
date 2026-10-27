@@ -41,14 +41,29 @@ class _FakeTable:
         self._insert_row = dict(row)
         return self
 
+    def update(self, data):
+        self._update_data = dict(data)
+        return self
+
+    def in_(self, field, values):
+        self._in_filters = getattr(self, "_in_filters", {})
+        self._in_filters[field] = set(values)
+        return self
+
     def execute(self):
         if hasattr(self, "_insert_row"):
             row = {**self._insert_row}
             row.setdefault("id", str(uuid.uuid4()))
             self.db.rows.append(row)
             return _FakeResult([row])
-        # plain select, filtered
         rows = [r for r in self.db.rows if all(r.get(k) == v for k, v in self._filters.items())]
+        if hasattr(self, "_in_filters"):
+            for field, values in self._in_filters.items():
+                rows = [r for r in rows if r.get(field) in values]
+        if hasattr(self, "_update_data"):
+            for r in rows:
+                r.update(self._update_data)
+            return _FakeResult(rows)
         return _FakeResult(rows)
 
 
@@ -61,7 +76,7 @@ class _FakeRpc:
     def execute(self):
         assert self.fn_name == "set_current_company_valuation"
         p = self.params
-        assert p["p_validation_status"] in ("valid", "insufficient_data"), (
+        assert p["p_validation_status"] in ("valid", "insufficient_data", "under_review"), (
             "the RPC must never be called for a 'failed' result — that path is a plain insert"
         )
         ticker = p["p_ticker"]
@@ -398,3 +413,75 @@ class TestTickerNormalization:
         result = _run(cvs.get_persisted_valuation("BRK.B"))
         assert result is not None
         assert result["intrinsic_value_usd"] == 751.86
+
+
+class TestAnomalyReviewGuard:
+    """2026-10-27, AXON backfill-pilot audit: a completed (non-failing)
+    computation can still be untrustworthy. _anomaly_review_reason must
+    flag it for human review (validation_status='under_review') without
+    ever touching the computed number itself — never nudging it toward
+    the market price."""
+
+    def test_unreliable_operating_margin_anchor_triggers_review(self):
+        dcf = {"operating_margin_anchor_reliable": False, "operating_margin_anchor_warning": "thin mixed-regime anchor"}
+        scenarios = {"base": 36.30, "current_price": 425.87}
+        reason = cvs._anomaly_review_reason(scenarios, dcf)
+        assert reason == "thin mixed-regime anchor"
+
+    def test_extreme_low_ratio_triggers_review_even_without_margin_flag(self):
+        dcf = {"operating_margin_anchor_reliable": True}
+        scenarios = {"base": 36.30, "current_price": 425.87}  # 0.085x
+        reason = cvs._anomaly_review_reason(scenarios, dcf)
+        assert reason is not None and "ratio" in reason
+
+    def test_extreme_high_ratio_triggers_review(self):
+        dcf = {"operating_margin_anchor_reliable": True}
+        scenarios = {"base": 600.0, "current_price": 100.0}  # 6x
+        reason = cvs._anomaly_review_reason(scenarios, dcf)
+        assert reason is not None
+
+    def test_normal_gap_within_universe_range_is_not_flagged(self):
+        # real pilot tickers sat at 0.7-0.9x-equivalent gaps (12-27%) — this
+        # guard must never fire on that normal range.
+        dcf = {"operating_margin_anchor_reliable": True}
+        for base, price in [(301.06, 320.0), (220.95, 230.09), (102.49, 110.0), (410.08, 420.0)]:
+            assert cvs._anomaly_review_reason({"base": base, "current_price": price}, dcf) is None
+
+    def test_missing_margin_flag_key_defaults_to_reliable(self):
+        # the Priority-3 minimal dcf fallback branch doesn't set this key
+        # at all — must not be misread as unreliable.
+        dcf = {}
+        scenarios = {"base": 100.0, "current_price": 110.0}
+        assert cvs._anomaly_review_reason(scenarios, dcf) is None
+
+    def test_persist_valuation_writes_under_review_status(self, monkeypatch):
+        db = _FakeDB()
+        monkeypatch.setattr(cvs, "get_supabase", lambda: db)
+        import app.core.cache as cache_mod
+        cache_mod._mem.clear()
+        row = _run(cvs.persist_valuation("AXON", {
+            "validation_status": "under_review",
+            "error_detail": "thin mixed-regime operating-margin anchor",
+            "intrinsic_value_usd": 36.30, "currency": "USD", "methodology": "gqv",
+            "model_version": cvs.MODEL_VERSION, "financial_report_period": "2026-06-30",
+            "assumptions": {"bear": 27.19, "bull": 46.71},
+        }))
+        assert row["validation_status"] == "under_review"
+        assert row["is_current"] is True, "under_review must still present on the ticker's page, same as insufficient_data"
+        # Backoff advances (treated like insufficient_data), never resets to 0 as 'valid' would.
+        assert row["attempt_count"] >= 1
+
+    def test_under_review_never_silently_becomes_valid_on_resume(self, monkeypatch):
+        db = _FakeDB()
+        monkeypatch.setattr(cvs, "get_supabase", lambda: db)
+        import app.core.cache as cache_mod
+        cache_mod._mem.clear()
+        _run(cvs.persist_valuation("AXON", {
+            "validation_status": "under_review", "error_detail": "flagged",
+            "intrinsic_value_usd": 36.30, "currency": "USD", "methodology": "gqv",
+            "model_version": cvs.MODEL_VERSION, "financial_report_period": "2026-06-30",
+            "assumptions": {},
+        }))
+        rows = [r for r in db.rows if r["ticker"] == "AXON" and r["is_current"]]
+        assert len(rows) == 1
+        assert rows[0]["validation_status"] == "under_review"

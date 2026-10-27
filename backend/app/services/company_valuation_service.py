@@ -30,10 +30,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from app.core.cache import acquire_lock, release_lock, cache_get, cache_set
+from app.core.cache import acquire_lock, release_lock, cache_get, cache_set, cache_incr
 from app.core.database import get_supabase, run_query
 
 logger = logging.getLogger(__name__)
@@ -74,6 +76,120 @@ def normalize_ticker_symbol(ticker: str) -> str:
 _CLAIM_TTL_S = 600  # 10 min — generous for one ticker's real compute time, short enough that a crashed worker self-heals fast
 _READ_CACHE_TTL_S = 3600  # Redis fast-path in front of Supabase reads; Supabase stays authoritative
 _READ_CACHE_KEY = "company_valuation:v1:{ticker}"
+
+# ── Backoff for failed/insufficient_data retries (migration 115 columns) ──
+# 2026-10-27: the backfill job (worker.py job_backfill_company_valuations_
+# batch) needs to tell "never attempted" apart from "failed recently, not
+# due for retry yet" apart from "failed a while ago, retry now" without
+# re-deriving that from the growing history table on every tick — these
+# three nullable columns (attempt_count/last_attempt_at/next_retry_at) on
+# the *current* row are that answer, kept in sync by persist_valuation().
+_BACKOFF_BASE_MINUTES = 30
+_BACKOFF_CAP_MINUTES = 24 * 60  # never wait more than a day between retries
+_BACKOFF_JITTER_PCT = 0.2  # avoid every stuck ticker retrying in lockstep
+
+
+def _compute_backoff(prior_attempt_count: int) -> tuple[int, Optional[str]]:
+    """Returns (new_attempt_count, next_retry_at ISO string) for a failed/
+    insufficient_data outcome. Exponential with jitter, capped at 24h."""
+    new_attempt_count = prior_attempt_count + 1
+    base_minutes = min(_BACKOFF_BASE_MINUTES * (2 ** prior_attempt_count), _BACKOFF_CAP_MINUTES)
+    jitter = base_minutes * _BACKOFF_JITTER_PCT * (random.random() * 2 - 1)
+    minutes = max(1.0, base_minutes + jitter)
+    next_retry_at = (datetime.now(timezone.utc) + timedelta(minutes=minutes)).isoformat()
+    return new_attempt_count, next_retry_at
+
+
+# ── Circuit breaker for the backfill job ──────────────────────────────────
+# 2026-10-27 Radar reliability audit: a provider-wide outage (confirmed
+# live — Yahoo Finance returning 429 for AMZN/ROST/TJX during the audit)
+# must pause the WHOLE backfill run, not just mark individual tickers
+# failed one by one while continuing to hammer a provider that's already
+# struggling. Same soft-counter pattern as app/core/fmp_budget.py
+# (cache_incr, fixed window, not millisecond-precise — acceptable for a
+# protective breaker, not a billing-accurate meter).
+_CIRCUIT_ATTEMPTS_KEY = "company_valuation_backfill:circuit:attempts:v1"
+_CIRCUIT_FAILURES_KEY = "company_valuation_backfill:circuit:failures:v1"
+_CIRCUIT_OPEN_KEY = "company_valuation_backfill:circuit:open:v1"
+_CIRCUIT_WINDOW_S = 900  # 15 min fixed window
+_CIRCUIT_MIN_SAMPLE = 8  # don't trip on the first couple of unlucky tickers
+_CIRCUIT_FAILURE_RATE_THRESHOLD = 0.5
+_CIRCUIT_COOLDOWN_S = 1800  # 30 min pause once tripped
+
+
+def circuit_is_open() -> bool:
+    return cache_get(_CIRCUIT_OPEN_KEY) is not None
+
+
+def record_backfill_outcome(validation_status: str) -> None:
+    """Only call this for a REAL compute attempt (not a skip-because-
+    fresh or a claimed-elsewhere no-op) — see backfill_universe below."""
+    attempts = cache_incr(_CIRCUIT_ATTEMPTS_KEY, ttl=_CIRCUIT_WINDOW_S)
+    if validation_status == "failed":
+        failures = cache_incr(_CIRCUIT_FAILURES_KEY, ttl=_CIRCUIT_WINDOW_S)
+    else:
+        failures = cache_get(_CIRCUIT_FAILURES_KEY) or 0
+    if attempts >= _CIRCUIT_MIN_SAMPLE and failures / attempts > _CIRCUIT_FAILURE_RATE_THRESHOLD:
+        cache_set(_CIRCUIT_OPEN_KEY, True, ttl=_CIRCUIT_COOLDOWN_S)
+        logger.warning(
+            "backfill circuit breaker OPEN: %d/%d failures in %ds window — pausing %ds",
+            failures, attempts, _CIRCUIT_WINDOW_S, _CIRCUIT_COOLDOWN_S,
+        )
+
+
+async def get_pending_tickers(universe_tickers: list[str]) -> dict[str, list[str]]:
+    """Classifies every ticker in `universe_tickers` by querying
+    company_valuations' CURRENT rows — the single source of truth both
+    the backfill job's real processing and BACKFILL_DRY_RUN's report use,
+    so a dry-run's bucket counts are never approximate or stale relative
+    to what a real run would actually do a moment later.
+
+    Buckets, in the job's processing priority order:
+      - no_valuation: never has a current row at all (the 906/927 gap
+        confirmed by the 2026-10-27 live audit).
+      - retry_eligible: current row is insufficient_data/under_review and
+        its backoff window (next_retry_at) has elapsed, or was never set.
+      - backing_off: current row is insufficient_data/under_review but
+        still inside its backoff window.
+      - stale: current row is valid but computed under an older
+        MODEL_VERSION than today's.
+      - already_valid: current row is valid under today's MODEL_VERSION.
+        refresh_if_needed will still no-op these until the real financial
+        report period changes, so the backfill job never schedules them.
+    """
+    tickers = [normalize_ticker_symbol(t) for t in universe_tickers]
+    db = get_supabase()
+    result = await run_query(
+        db.table("company_valuations")
+        .select("ticker,validation_status,model_version,next_retry_at")
+        .in_("ticker", tickers)
+        .eq("is_current", True)
+    )
+    rows_by_ticker = {r["ticker"]: r for r in (result.data or [])}
+
+    now = datetime.now(timezone.utc)
+    buckets: dict[str, list[str]] = {
+        "no_valuation": [], "retry_eligible": [], "backing_off": [], "stale": [], "already_valid": [],
+    }
+    for ticker in tickers:
+        row = rows_by_ticker.get(ticker)
+        if row is None:
+            buckets["no_valuation"].append(ticker)
+            continue
+        status = row.get("validation_status")
+        if status == "valid":
+            bucket = "already_valid" if row.get("model_version") == MODEL_VERSION else "stale"
+            buckets[bucket].append(ticker)
+            continue
+        next_retry_at_raw = row.get("next_retry_at")
+        due = now
+        if next_retry_at_raw:
+            try:
+                due = datetime.fromisoformat(next_retry_at_raw.replace("Z", "+00:00"))
+            except Exception:
+                due = now
+        buckets["retry_eligible" if due <= now else "backing_off"].append(ticker)
+    return buckets
 
 
 def _claim_key(ticker: str) -> str:
@@ -163,8 +279,12 @@ def scenarios_from_fetched_data(ticker: str, data: dict) -> dict:
         logger.info("scenarios_from_fetched_data(%s): earnings-period lookup failed: %s", ticker, e)
         financial_report_period = None
 
+    review_reason = _anomaly_review_reason(scenarios, dcf)
+    validation_status = "under_review" if review_reason else "valid"
+
     return {
-        "validation_status": "valid",
+        "validation_status": validation_status,
+        "error_detail": review_reason,
         "intrinsic_value_usd": scenarios["base"],
         "currency": "USD",
         "methodology": _methodology_label(scenarios, dcf),
@@ -178,6 +298,38 @@ def scenarios_from_fetched_data(ticker: str, data: dict) -> dict:
             "peer_count": scenarios.get("_peer_count"),
         },
     }
+
+
+# Backfill-pilot audit, 2026-10-27 (AXON) — a completed, non-failing
+# computation can still be untrustworthy. These two triggers never adjust
+# a single number the engine produced; they only decide whether that
+# number is allowed to present as `valid` or must wait for human review
+# as `under_review`. Deliberately conservative (wide bands) — this must
+# never fire on the normal 12-27% intrinsic-vs-price spread already seen
+# across this universe's real tickers.
+_REVIEW_GAP_RATIO_LOW = 0.20   # intrinsic < 20% of price
+_REVIEW_GAP_RATIO_HIGH = 5.0   # intrinsic > 5x price
+
+
+def _anomaly_review_reason(scenarios: dict, dcf: dict) -> Optional[str]:
+    """None when the valuation is trustworthy; otherwise a human-readable
+    reason to store in error_detail and surface as validation_status=
+    'under_review' instead of 'valid'."""
+    if dcf.get("operating_margin_anchor_reliable") is False:
+        return dcf.get("operating_margin_anchor_warning") or (
+            "operating_margin_anchor computed from a thin mixed-regime trend — unreliable 10-year anchor"
+        )
+
+    base = scenarios.get("base")
+    price = scenarios.get("current_price")
+    if base is not None and price and price > 0:
+        ratio = base / price
+        if ratio < _REVIEW_GAP_RATIO_LOW or ratio > _REVIEW_GAP_RATIO_HIGH:
+            return (
+                f"intrinsic/price ratio {ratio:.3f}x fuera del rango esperado "
+                f"({_REVIEW_GAP_RATIO_LOW}x-{_REVIEW_GAP_RATIO_HIGH}x) — requiere revisión manual antes de publicarse como válida"
+            )
+    return None
 
 
 async def get_persisted_valuation(ticker: str) -> Optional[dict]:
@@ -205,7 +357,7 @@ async def _invalidate_read_cache(ticker: str) -> None:
     cache_delete(_READ_CACHE_KEY.format(ticker=normalize_ticker_symbol(ticker)))
 
 
-async def persist_valuation(ticker: str, computed: dict) -> dict:
+async def persist_valuation(ticker: str, computed: dict, prior_attempt_count: int = 0) -> dict:
     """Writes `compute_numeric_valuation`'s output to Supabase. A 'valid'
     or 'insufficient_data' result atomically becomes the new current row
     (via the set_current_company_valuation RPC — see migrations/114's own
@@ -213,11 +365,21 @@ async def persist_valuation(ticker: str, computed: dict) -> dict:
     separate calls from here). A 'failed' result is logged as plain
     history (is_current=false) and NEVER touches the existing current
     row — a transient FMP/Finnhub hiccup can never erase a real,
-    previously-valid valuation."""
+    previously-valid valuation.
+
+    `prior_attempt_count` (the existing current row's attempt_count, 0 if
+    none) drives the migration-115 backoff columns: a 'valid' result
+    resets the backoff entirely; 'failed'/'insufficient_data' advance it.
+    These columns are maintained here, not in the migration-114 RPC
+    itself, so that RPC's original atomicity guarantee needs no change —
+    a crash between the RPC and this follow-up update only leaves retry
+    *timing* stale, never the valuation itself, which already committed."""
     ticker = normalize_ticker_symbol(ticker)
     db = get_supabase()
+    now_iso = datetime.now(timezone.utc).isoformat()
 
     if computed["validation_status"] == "failed":
+        new_attempt_count, next_retry_at = _compute_backoff(prior_attempt_count)
         row = {
             "ticker": ticker,
             "currency": "USD",
@@ -226,6 +388,9 @@ async def persist_valuation(ticker: str, computed: dict) -> dict:
             "validation_status": "failed",
             "error_detail": computed.get("error_detail"),
             "is_current": False,
+            "attempt_count": new_attempt_count,
+            "last_attempt_at": now_iso,
+            "next_retry_at": next_retry_at,
         }
         await run_query(db.table("company_valuations").insert(row))
         return row
@@ -242,8 +407,28 @@ async def persist_valuation(ticker: str, computed: dict) -> dict:
             "p_validation_status": computed["validation_status"],
         })
     )
+    row = (result.data or [{}])[0] if isinstance(result.data, list) else result.data
+
+    if computed["validation_status"] in ("insufficient_data", "under_review"):
+        new_attempt_count, next_retry_at = _compute_backoff(prior_attempt_count)
+    else:  # 'valid' — a real success resets backoff entirely
+        new_attempt_count, next_retry_at = 0, None
+    try:
+        row_id = row.get("id") if isinstance(row, dict) else None
+        if row_id:
+            await run_query(
+                db.table("company_valuations").update({
+                    "attempt_count": new_attempt_count,
+                    "last_attempt_at": now_iso,
+                    "next_retry_at": next_retry_at,
+                }).eq("id", row_id)
+            )
+            row = {**row, "attempt_count": new_attempt_count, "last_attempt_at": now_iso, "next_retry_at": next_retry_at}
+    except Exception as e:
+        logger.warning("persist_valuation(%s): backoff-tracking update failed (non-fatal): %s", ticker, e)
+
     await _invalidate_read_cache(ticker)
-    return (result.data or [{}])[0] if isinstance(result.data, list) else result.data
+    return row
 
 
 async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
@@ -259,7 +444,10 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
     token = claim_ticker(ticker)
     if token is None:
         existing = await get_persisted_valuation(ticker)
-        return existing or {"ticker": ticker, "validation_status": "claimed_elsewhere"}
+        row = existing or {"ticker": ticker, "validation_status": "claimed_elsewhere"}
+        # Not a real compute attempt — the backfill job's circuit breaker
+        # must never count this (see backfill_universe below).
+        return {**row, "_backfill_attempted": False}
 
     try:
         # Fetched regardless of `force` — even a forced recompute must
@@ -275,7 +463,7 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
             except Exception:
                 current_period = None
             if current_period and current_period == existing.get("financial_report_period"):
-                return existing
+                return {**existing, "_backfill_attempted": False}
             # The earnings-period signal itself is unavailable right now
             # (Finnhub plan/outage — confirmed happens for real, not just
             # in tests) — rather than always recomputing blindly (which
@@ -283,14 +471,13 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
             # down), fall back to a plain time-based freshness check: a
             # row computed within the last 24h is still trusted as-is.
             if current_period is None and existing.get("computed_at"):
-                from datetime import datetime, timezone
                 try:
                     computed_at = datetime.fromisoformat(existing["computed_at"].replace("Z", "+00:00"))
                     age_hours = (datetime.now(timezone.utc) - computed_at).total_seconds() / 3600
                 except Exception:
                     age_hours = None
                 if age_hours is not None and age_hours < 24:
-                    return existing
+                    return {**existing, "_backfill_attempted": False}
         # compute_numeric_valuation does real blocking HTTP calls — off the
         # event loop, same convention the live /company-diagnostic route
         # already uses for get_fundamental_analysis. Wrapped in
@@ -314,7 +501,9 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
         # enough data for this ticker).
         if computed["validation_status"] == "insufficient_data" and existing and existing.get("validation_status") == "valid":
             computed = {"validation_status": "failed", "error_detail": f"demoted from insufficient_data (prior valid row exists): {computed.get('error_detail')}"}
-        return await persist_valuation(ticker, computed)
+        prior_attempt_count = (existing or {}).get("attempt_count") or 0
+        row = await persist_valuation(ticker, computed, prior_attempt_count=prior_attempt_count)
+        return {**row, "_backfill_attempted": True}
     finally:
         release_claim(ticker, token)
 
@@ -342,17 +531,39 @@ async def backfill_universe(
     real, durable rows behind.
 
     Never calls build_company_diagnostic or ai_service — no competitor/
-    sector comparison fan-out, no AI narrative, for any ticker, ever."""
+    sector comparison fan-out, no AI narrative, for any ticker, ever.
+
+    2026-10-27: now circuit-breaker aware — if a provider-wide outage has
+    tripped the breaker (record_backfill_outcome, above), this stops
+    issuing NEW real compute attempts for the remainder of `tickers` and
+    reports them as `circuit_breaker_skipped` rather than quietly working
+    through a list while a provider is clearly struggling. Only counts a
+    REAL attempt (row["_backfill_attempted"] is True, set by
+    refresh_if_needed) toward the breaker — a claimed-elsewhere or
+    already-fresh skip carries no provider-health signal."""
     if limit:
         tickers = tickers[:limit]
-    results: dict[str, int] = {"valid": 0, "insufficient_data": 0, "failed": 0, "skipped_claimed": 0, "unchanged": 0}
+    results: dict[str, int] = {
+        "valid": 0, "insufficient_data": 0, "failed": 0,
+        "skipped_claimed": 0, "unchanged": 0, "circuit_breaker_skipped": 0,
+    }
     batch_interval = 60.0 / max_tickers_per_minute if max_tickers_per_minute > 0 else 0.0
 
-    for ticker in tickers:
+    for i, ticker in enumerate(tickers):
+        if circuit_is_open():
+            logger.warning(
+                "backfill_universe: circuit breaker open — stopping at ticker %d/%d (%s)",
+                i, len(tickers), ticker,
+            )
+            results["circuit_breaker_skipped"] += len(tickers) - i
+            break
+
         t0 = time.monotonic()
         try:
             row = await refresh_if_needed(ticker)
             status = row.get("validation_status")
+            if row.get("_backfill_attempted"):
+                record_backfill_outcome(status)
             if status == "claimed_elsewhere":
                 results["skipped_claimed"] += 1
             elif status == "valid":
@@ -366,6 +577,7 @@ async def backfill_universe(
             logger.info("backfill_universe(%s): %s", ticker, status)
         except Exception:
             logger.exception("backfill_universe(%s): unexpected error", ticker)
+            record_backfill_outcome("failed")
             results["failed"] += 1
 
         elapsed = time.monotonic() - t0
