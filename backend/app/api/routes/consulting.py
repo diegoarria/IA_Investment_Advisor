@@ -28,6 +28,8 @@ after that route's own ownership check on the path's enrollment_id prefix.
 """
 import asyncio
 import logging
+import zoneinfo
+from datetime import datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
@@ -168,6 +170,106 @@ async def create_session(body: CreateSessionBody, user: dict = Depends(get_curre
         })
     )
     log_consulting_action(user.get("email") or user["id"], "session_created", body.enrollment_id)
+    return res.data[0] if res and res.data else {}
+
+
+# ── Self-service scheduling ───────────────────────────────────────────────
+# consulting_availability (migration 122) is an instructor's RECURRING
+# weekly pattern, not individual slot rows — open slots are computed here
+# by expanding that pattern over the next few weeks and subtracting
+# already-booked sessions, so there's nothing to keep in sync when an
+# instructor changes their hours (see app/api/routes/consulting_admin.py's
+# PUT /availability, where staff set that pattern).
+
+_TZ = zoneinfo.ZoneInfo("America/Mexico_City")
+
+
+def _parse_time(s: str) -> time:
+    return datetime.strptime(s[:8], "%H:%M:%S").time()
+
+
+async def _compute_open_slots(db, instructor_id: str, days_ahead: int = 21) -> list[str]:
+    avail_res = await run_query(db.table("consulting_availability").select("*").eq("instructor_id", instructor_id))
+    availability = avail_res.data or []
+    if not availability:
+        return []
+
+    enroll_res = await run_query(db.table("consulting_enrollments").select("id").eq("instructor_id", instructor_id))
+    enrollment_ids = [e["id"] for e in (enroll_res.data or [])]
+    taken: set[datetime] = set()
+    if enrollment_ids:
+        now_utc = datetime.now(timezone.utc)
+        sess_res = await run_query(
+            db.table("consulting_sessions").select("scheduled_at")
+            .in_("enrollment_id", enrollment_ids)
+            .neq("status", "canceled")
+            .gte("scheduled_at", now_utc.isoformat())
+            .lte("scheduled_at", (now_utc + timedelta(days=days_ahead)).isoformat())
+        )
+        for s in (sess_res.data or []):
+            try:
+                taken.add(datetime.fromisoformat(s["scheduled_at"].replace("Z", "+00:00")))
+            except Exception:
+                pass
+
+    now_local = datetime.now(_TZ)
+    slots: list[str] = []
+    for offset in range(days_ahead):
+        day = (now_local + timedelta(days=offset)).date()
+        weekday = day.weekday()
+        for a in availability:
+            if a["weekday"] != weekday:
+                continue
+            start_t, end_t = _parse_time(a["start_time"]), _parse_time(a["end_time"])
+            step = timedelta(minutes=a["slot_minutes"])
+            cur = datetime.combine(day, start_t, tzinfo=_TZ)
+            end_dt = datetime.combine(day, end_t, tzinfo=_TZ)
+            while cur + step <= end_dt:
+                if cur > now_local and cur.astimezone(timezone.utc) not in taken:
+                    slots.append(cur.astimezone(timezone.utc).isoformat())
+                cur += step
+    slots.sort()
+    return slots
+
+
+@router.get("/availability")
+async def get_availability(user: dict = Depends(get_current_user)):
+    await _require_role(user, ("student",))
+    enrollment = await _require_own_active_enrollment(user["id"])
+    if not enrollment.get("instructor_id"):
+        return {"slots": [], "has_instructor": False}
+    db = get_supabase()
+    slots = await _compute_open_slots(db, enrollment["instructor_id"])
+    return {"slots": slots, "has_instructor": True}
+
+
+class BookSessionBody(BaseModel):
+    scheduled_at: str  # must be one of the slots GET /availability just returned
+
+
+@router.post("/sessions/book")
+async def book_session(body: BookSessionBody, user: dict = Depends(get_current_user)):
+    await _require_role(user, ("student",))
+    enrollment = await _require_own_active_enrollment(user["id"])
+    if not enrollment.get("instructor_id"):
+        raise HTTPException(status_code=422, detail="Todavía no tienes un mentor asignado para agendar sesiones.")
+    db = get_supabase()
+    try:
+        requested = datetime.fromisoformat(body.scheduled_at.replace("Z", "+00:00"))
+    except Exception:
+        raise HTTPException(status_code=422, detail="Fecha inválida")
+    # Re-check against live availability right before booking — the slot
+    # list the client has could be a few minutes stale (another student
+    # booked it meanwhile).
+    open_slots = await _compute_open_slots(db, enrollment["instructor_id"])
+    if not any(abs((requested - datetime.fromisoformat(s.replace("Z", "+00:00"))).total_seconds()) < 60 for s in open_slots):
+        raise HTTPException(status_code=409, detail="Ese horario ya no está disponible. Elige otro.")
+    res = await run_query(
+        db.table("consulting_sessions").insert({
+            "enrollment_id": enrollment["id"], "scheduled_at": body.scheduled_at, "status": "scheduled",
+        })
+    )
+    log_consulting_action(user.get("email") or user["id"], "session_booked", enrollment["id"])
     return res.data[0] if res and res.data else {}
 
 

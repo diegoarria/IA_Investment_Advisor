@@ -9,6 +9,7 @@ const NAV = [
   { href: "/consulting/dashboard", label: "Dashboard", icon: "home" },
   { href: "/consulting/program", label: "Mi Programa", icon: "flag" },
   { href: "/consulting/sessions", label: "Mis Sesiones", icon: "calendar" },
+  { href: "/consulting/book-session", label: "Agendar sesión", icon: "plus" },
   { href: "/consulting/assignments", label: "Mis Entregas", icon: "clipboard" },
   { href: "/consulting/progress", label: "Mi Progreso", icon: "chart" },
   { href: "/consulting/resources", label: "Recursos", icon: "book" },
@@ -32,6 +33,7 @@ function Icon({ name }: { name: string }) {
     case "chart": return <svg {...common}><path d="M5 19V10M12 19V5M19 19v-7" /></svg>;
     case "book": return <svg {...common}><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11l2 2h5.5A1.5 1.5 0 0 1 20 7.5v11A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5Z" /></svg>;
     case "award": return <svg {...common}><circle cx="12" cy="9" r="5" /><path d="M9 13.5 7 21l5-3 5 3-2-7.5" /></svg>;
+    case "plus": return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>;
     default: return null;
   }
 }

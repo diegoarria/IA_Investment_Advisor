@@ -881,6 +881,8 @@ export const consultingApi = {
   },
   graduation: () => api.get("/api/consulting/graduation"),
   signedUrl: (path: string) => api.get(`/api/consulting/documents/${path}/signed-url`),
+  availability: () => api.get("/api/consulting/availability"),
+  bookSession: (scheduledAt: string) => api.post("/api/consulting/sessions/book", { scheduled_at: scheduledAt }),
 };
 
 // MY NUVOS admin panel (nuvosai.com/consulting/admin) — staff-only, talks
@@ -905,6 +907,10 @@ export const consultingAdminApi = {
     api.put(`/api/consulting/admin/reports/${reportId}`, body),
   publishReport: (reportId: string) => api.post(`/api/consulting/admin/reports/${reportId}/publish`),
   cohorts: () => api.get("/api/consulting/admin/cohorts"),
+  calendar: (days: number = 30) => api.get("/api/consulting/admin/calendar", { params: { days } }),
+  myAvailability: () => api.get("/api/consulting/admin/availability"),
+  setMyAvailability: (blocks: { weekday: number; start_time: string; end_time: string; slot_minutes?: number }[]) =>
+    api.put("/api/consulting/admin/availability", { blocks }),
   createEnrollment: (body: {
     full_name: string; email: string; company?: string; role_title?: string;
     cohort_id: string; instructor_id?: string; payment_plan?: string;

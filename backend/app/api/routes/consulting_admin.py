@@ -412,6 +412,92 @@ async def publish_report(report_id: str, user: dict = Depends(get_current_user))
     return {"ok": True}
 
 
+# ── Calendar ──────────────────────────────────────────────────────────────
+
+@router.get("/calendar")
+async def admin_calendar(days: int = 30, user: dict = Depends(get_current_user)):
+    """Every scheduled session in the next `days` days, in the staff
+    member's own scope — an instructor sees only their own students'
+    sessions, program_admin sees everyone's."""
+    db = get_supabase()
+    role, uid = await _staff_scope(db, user)
+    q = db.table("consulting_enrollments").select("id, instructor_id, user_id")
+    if role == "instructor":
+        q = q.eq("instructor_id", uid)
+    enroll_res = await run_query(q)
+    enrollments = enroll_res.data or []
+    if not enrollments:
+        return {"sessions": []}
+    ids = [e["id"] for e in enrollments]
+    enrollment_by_id = {e["id"]: e for e in enrollments}
+
+    now = datetime.now(timezone.utc)
+    sess_res = await run_query(
+        db.table("consulting_sessions").select("*")
+        .in_("enrollment_id", ids).eq("status", "scheduled")
+        .gte("scheduled_at", now.isoformat())
+        .lte("scheduled_at", (now + timedelta(days=days)).isoformat())
+        .order("scheduled_at")
+    )
+    sessions = sess_res.data or []
+
+    user_ids = list({enrollment_by_id[s["enrollment_id"]]["user_id"] for s in sessions if s["enrollment_id"] in enrollment_by_id})
+    profile_by_user: dict[str, str] = {}
+    if user_ids:
+        prof_res = await run_query(db.table("consulting_profiles").select("user_id, full_name").in_("user_id", user_ids))
+        profile_by_user = {p["user_id"]: p["full_name"] for p in (prof_res.data or [])}
+
+    out = []
+    for s in sessions:
+        e = enrollment_by_id.get(s["enrollment_id"], {})
+        out.append({
+            "session_id": s["id"], "enrollment_id": s["enrollment_id"],
+            "scheduled_at": s["scheduled_at"], "agenda": s.get("agenda"),
+            "participant_name": profile_by_user.get(e.get("user_id", ""), "(sin nombre)"),
+        })
+    return {"sessions": out}
+
+
+# ── Availability (what students see as open slots) ──────────────────────
+
+@router.get("/availability")
+async def get_my_availability(user: dict = Depends(get_current_user)):
+    db = get_supabase()
+    _, uid = await _staff_scope(db, user)
+    res = await run_query(db.table("consulting_availability").select("*").eq("instructor_id", uid).order("weekday"))
+    return {"availability": res.data or []}
+
+
+class AvailabilityBlock(BaseModel):
+    weekday: int
+    start_time: str
+    end_time: str
+    slot_minutes: int = 50
+
+
+class AvailabilityBody(BaseModel):
+    blocks: list[AvailabilityBlock]
+
+
+@router.put("/availability")
+async def set_my_availability(body: AvailabilityBody, user: dict = Depends(get_current_user)):
+    """Replaces the whole weekly pattern in one call — staff edits their
+    hours as a set, not row by row, so a changed schedule can never leave
+    a stale block behind that they forgot to delete."""
+    db = get_supabase()
+    _, uid = await _staff_scope(db, user)
+    await run_query(db.table("consulting_availability").delete().eq("instructor_id", uid))
+    if body.blocks:
+        await run_query(
+            db.table("consulting_availability").insert([
+                {"instructor_id": uid, "weekday": b.weekday, "start_time": b.start_time, "end_time": b.end_time, "slot_minutes": b.slot_minutes}
+                for b in body.blocks
+            ])
+        )
+    log_consulting_action(user.get("email") or user["id"], "availability_updated", None, f"{len(body.blocks)} bloques")
+    return {"ok": True}
+
+
 # ── Cohorts (for the "alta de alumno" form) ──────────────────────────────
 
 @router.get("/cohorts")
