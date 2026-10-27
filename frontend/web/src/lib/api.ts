@@ -883,4 +883,35 @@ export const consultingApi = {
   signedUrl: (path: string) => api.get(`/api/consulting/documents/${path}/signed-url`),
 };
 
+// MY NUVOS admin panel (nuvosai.com/consulting/admin) — staff-only, talks
+// to backend/app/api/routes/consulting_admin.py. Never called from any
+// student-facing page.
+export const consultingAdminApi = {
+  participants: () => api.get("/api/consulting/admin/participants"),
+  participant: (enrollmentId: string) => api.get(`/api/consulting/admin/participants/${enrollmentId}`),
+  competencies: (enrollmentId: string) => api.get(`/api/consulting/admin/participants/${enrollmentId}/competencies`),
+  addPrivateNote: (enrollmentId: string, note: string) =>
+    api.post("/api/consulting/admin/private-notes", { enrollment_id: enrollmentId, note }),
+  updatePayment: (enrollmentId: string, body: { status: string; plan?: string; next_charge_at?: string; notes?: string }) =>
+    api.put(`/api/consulting/admin/payments/${enrollmentId}`, body),
+  closeSession: (body: {
+    enrollment_id: string; session_id?: string; scheduled_at?: string;
+    topics: string; objectives_met: string; strengths: string; growth_areas: string;
+    competency_id?: string; competency_level?: string;
+    exercise_title?: string; exercise_due_at?: string; next_session_at?: string;
+  }) => api.post("/api/consulting/admin/close-session", body),
+  getReport: (reportId: string) => api.get(`/api/consulting/admin/reports/${reportId}`),
+  updateReport: (reportId: string, body: Partial<{ summary: string; achievements: string; strengths: string; growth_areas: string; next_assignment_text: string }>) =>
+    api.put(`/api/consulting/admin/reports/${reportId}`, body),
+  publishReport: (reportId: string) => api.post(`/api/consulting/admin/reports/${reportId}/publish`),
+  cohorts: () => api.get("/api/consulting/admin/cohorts"),
+  createEnrollment: (body: {
+    full_name: string; email: string; company?: string; role_title?: string;
+    cohort_id: string; instructor_id?: string; payment_plan?: string;
+  }) => api.post("/api/consulting/admin/enrollments", body),
+  auditLog: (limit: number = 200) => api.get("/api/consulting/admin/audit", { params: { limit } }),
+  team: () => api.get("/api/consulting/admin/team"),
+  updateTeamRole: (userId: string, role: string) => api.put(`/api/consulting/admin/team/${userId}/role`, { role }),
+};
+
 export default api;

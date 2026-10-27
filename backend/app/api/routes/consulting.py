@@ -26,6 +26,7 @@ The backend is the only thing that ever touches it directly; the browser
 only ever gets a short-lived signed URL via GET /documents/{path}/signed-url,
 after that route's own ownership check on the path's enrollment_id prefix.
 """
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -177,13 +178,17 @@ async def list_assignments(user: dict = Depends(get_current_user)):
     await _require_role(user, ("student",))
     enrollment = await _require_own_active_enrollment(user["id"])
     db = get_supabase()
-    assignments_res = await run_query(
-        db.table("consulting_assignments").select("*").eq("module_id", enrollment.get("current_module_id"))
+    # Two sources: module-wide assignments (shared by everyone in the
+    # current module) and one-off exercises assigned to THIS enrollment
+    # specifically (migration 121 — e.g. one assigned when a staff member
+    # closes a session, see consulting_admin.py's close-session route).
+    module_res, adhoc_res, submissions_res = await asyncio.gather(
+        run_query(db.table("consulting_assignments").select("*").eq("module_id", enrollment.get("current_module_id"))),
+        run_query(db.table("consulting_assignments").select("*").eq("enrollment_id", enrollment["id"])),
+        run_query(db.table("consulting_submissions").select("*").eq("enrollment_id", enrollment["id"])),
     )
-    submissions_res = await run_query(
-        db.table("consulting_submissions").select("*").eq("enrollment_id", enrollment["id"])
-    )
-    return {"assignments": assignments_res.data or [], "submissions": submissions_res.data or []}
+    assignments = (module_res.data or []) + (adhoc_res.data or [])
+    return {"assignments": assignments, "submissions": submissions_res.data or []}
 
 
 @router.post("/assignments/{assignment_id}/submit")
