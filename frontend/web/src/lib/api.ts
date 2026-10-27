@@ -907,6 +907,7 @@ export const consultingAdminApi = {
     api.put(`/api/consulting/admin/reports/${reportId}`, body),
   publishReport: (reportId: string) => api.post(`/api/consulting/admin/reports/${reportId}/publish`),
   cohorts: () => api.get("/api/consulting/admin/cohorts"),
+  claimAdmin: (password: string) => api.post("/api/consulting/admin/claim-admin", { password }),
   calendar: (days: number = 30) => api.get("/api/consulting/admin/calendar", { params: { days } }),
   myAvailability: () => api.get("/api/consulting/admin/availability"),
   setMyAvailability: (blocks: { weekday: number; start_time: string; end_time: string; slot_minutes?: number }[]) =>

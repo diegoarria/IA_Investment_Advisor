@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
-import { consultingApi } from "@/lib/api";
+import { consultingApi, consultingAdminApi } from "@/lib/api";
 import AdminSidebar from "./AdminSidebar";
 
 interface AdminMe {
@@ -38,17 +38,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const [me, setMe] = useState<AdminMe | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "denied" | "error">("loading");
+  const [overridePassword, setOverridePassword] = useState("");
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (authRestoring) return;
-    if (!isAuthenticated || !userId) {
-      router.replace("/consulting");
-      return;
-    }
-    let cancelled = false;
+  const checkAccess = () => {
     consultingApi.me()
       .then((res) => {
-        if (cancelled) return;
         if (res.data.role === "student") {
           setStatus("denied");
         } else {
@@ -57,11 +53,34 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         }
       })
       .catch((err) => {
-        if (cancelled) return;
         setStatus(err?.response?.status === 403 ? "denied" : "error");
       });
-    return () => { cancelled = true; };
+  };
+
+  useEffect(() => {
+    if (authRestoring) return;
+    if (!isAuthenticated || !userId) {
+      router.replace("/consulting");
+      return;
+    }
+    checkAccess();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isAuthenticated, authRestoring, router]);
+
+  const claimAdmin = async () => {
+    setClaiming(true);
+    setClaimError(null);
+    try {
+      await consultingAdminApi.claimAdmin(overridePassword);
+      setOverridePassword("");
+      setStatus("loading");
+      checkAccess();
+    } catch (err: any) {
+      setClaimError(err?.response?.data?.detail ?? "No se pudo verificar la contraseña.");
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   if (status === "loading" || authRestoring) {
     return <CenteredState><p style={{ fontSize: 14, color: V.inkSoft }}>Cargando panel admin…</p></CenteredState>;
@@ -70,7 +89,25 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     return (
       <CenteredState>
         <h1 style={{ fontFamily: "var(--font-serif)", fontSize: 22, color: V.navy, margin: "0 0 10px" }}>No tienes acceso al panel admin</h1>
-        <p style={{ fontSize: 14, color: V.inkSoft, lineHeight: 1.6, margin: 0 }}>Este panel es solo para instructores y administradores del programa.</p>
+        <p style={{ fontSize: 14, color: V.inkSoft, lineHeight: 1.6, margin: "0 0 24px" }}>Este panel es solo para instructores y administradores del programa.</p>
+        <div style={{ textAlign: "left", background: "#FFFFFF", border: "1px solid rgba(14,30,58,0.12)", borderRadius: 4, padding: 20 }}>
+          <p style={{ margin: "0 0 10px", fontSize: 12.5, fontWeight: 600, color: V.navy }}>¿Eres tú, Diego? Recupera el acceso</p>
+          <input
+            type="password"
+            value={overridePassword}
+            onChange={(e) => setOverridePassword(e.target.value)}
+            placeholder="Contraseña de recuperación"
+            style={{ width: "100%", boxSizing: "border-box", height: 38, borderRadius: 4, border: "1px solid rgba(14,30,58,0.22)", padding: "0 10px", fontSize: 13, marginBottom: 10 }}
+          />
+          {claimError && <p style={{ margin: "0 0 10px", fontSize: 12, color: "#B94A37" }}>{claimError}</p>}
+          <button
+            onClick={claimAdmin}
+            disabled={claiming || !overridePassword}
+            style={{ width: "100%", height: 38, borderRadius: 4, fontSize: 12.5, fontWeight: 600, border: "none", background: V.navy, color: "#FAF7F1", cursor: "pointer", opacity: claiming ? 0.7 : 1 }}
+          >
+            {claiming ? "Verificando…" : "Recuperar acceso de administrador"}
+          </button>
+        </div>
       </CenteredState>
     );
   }

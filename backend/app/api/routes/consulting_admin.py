@@ -595,6 +595,34 @@ async def admin_audit_log(limit: int = 200, user: dict = Depends(get_current_use
     return {"entries": res.data or []}
 
 
+# ── Break-glass admin access ──────────────────────────────────────────────
+
+class ClaimAdminBody(BaseModel):
+    password: str
+
+
+@router.post("/claim-admin")
+async def claim_admin(body: ClaimAdminBody, user: dict = Depends(get_current_user)):
+    """Self-heals the CALLER's own role to program_admin given the shared
+    override password (settings.consulting_admin_override_password) —
+    does not touch anyone else's role, and works regardless of what this
+    account's current consulting_user_roles row says (including none at
+    all, or 'student'). Requires being logged in already (get_current_user)
+    — this only ever repairs the role of whoever is asking, it is not a
+    general-purpose login bypass."""
+    from app.core.config import settings
+    if not settings.consulting_admin_override_password:
+        raise HTTPException(status_code=503, detail="No hay contraseña de recuperación configurada.")
+    if body.password != settings.consulting_admin_override_password:
+        raise HTTPException(status_code=403, detail="Contraseña incorrecta.")
+    db = get_supabase()
+    await run_query(
+        db.table("consulting_user_roles").upsert({"user_id": user["id"], "role": "program_admin"}, on_conflict="user_id")
+    )
+    log_consulting_action(user.get("email") or user["id"], "admin_access_self_healed", None, "vía contraseña de recuperación")
+    return {"ok": True}
+
+
 # ── Team / permissions ────────────────────────────────────────────────────
 
 @router.get("/team")
