@@ -158,14 +158,6 @@ class Settings(BaseSettings):
     vapid_claim_email: str = "mailto:diego.arria19@gmail.com"
     # Comma-separated emails allowed to use the read-only admin "view as" panel
     admin_emails: str = "diego.arria19@gmail.com"
-    # Break-glass for MY NUVOS admin access — 2026-10-27: Diego's own
-    # consulting_user_roles row got silently overwritten to 'student' by
-    # a bug in the enrollment form (fixed), locking him out of
-    # /consulting/admin with no way back in except a direct DB edit.
-    # Knowing this password lets a logged-in account self-heal its own
-    # role back to program_admin (POST /consulting/admin/claim-admin)
-    # without depending on the DB role being correct in the first place.
-    consulting_admin_override_password: str = ""
 
     class Config:
         env_file = ".env"
