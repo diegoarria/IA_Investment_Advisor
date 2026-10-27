@@ -97,3 +97,40 @@ class TestTeamManagementIsAdminOnly:
             with pytest.raises(HTTPException) as exc:
                 await ca.update_team_role("someone", ca.RoleUpdateBody(role="program_admin"), {"id": "instr1", "email": "i@nuvosai.com"})
         assert exc.value.status_code == 403
+
+
+class TestCreateEnrollmentNeverDemotesAnExistingStaffRole:
+    """Confirmed live, 2026-10-27: Diego tested "Nuevo alumno" with his
+    own (program_admin) email and got silently demoted to 'student' —
+    an unconditional upsert here overwrote whatever role already
+    existed. Enrolling someone must only ever SET a role when the
+    account has none yet; it must never touch an existing one."""
+
+    @pytest.mark.asyncio
+    async def test_existing_staff_role_is_left_untouched(self):
+        body = ca.NewEnrollmentBody(full_name="Diego Arria", email="diego.arria19@gmail.com", cohort_id="cohort1")
+        existing_user = MagicMock(id="diego-uid")
+        role_select_result = AsyncMock()
+        role_select_result.data = {"role": "program_admin"}  # already has a staff role
+        enroll_insert_result = AsyncMock()
+        enroll_insert_result.data = [{"id": "enroll-new"}]
+        payment_insert_result = AsyncMock()
+        payment_insert_result.data = [{}]
+        profile_upsert_result = AsyncMock()
+
+        mock_run_query = AsyncMock(side_effect=[
+            profile_upsert_result,   # consulting_profiles upsert
+            role_select_result,      # consulting_user_roles select — already program_admin
+            enroll_insert_result,    # consulting_enrollments insert
+            payment_insert_result,   # consulting_payments insert
+        ])
+
+        with patch.object(ca, "get_supabase", return_value=MagicMock()), \
+             patch("app.api.routes.consulting._get_role", new=AsyncMock(return_value="program_admin")), \
+             patch("app.core.database.find_auth_user", new=AsyncMock(return_value=existing_user)), \
+             patch.object(ca, "run_query", mock_run_query):
+            await ca.create_enrollment(body, {"id": "admin1", "email": "a@nuvosai.com"})
+
+        # Exactly 4 run_query calls — no 5th call inserting/upserting
+        # role='student' over the existing program_admin role.
+        assert mock_run_query.call_count == 4

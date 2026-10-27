@@ -557,9 +557,18 @@ async def create_enrollment(body: NewEnrollmentBody, user: dict = Depends(get_cu
             "user_id": user_id, "full_name": body.full_name, "company": body.company, "role_title": body.role_title,
         }, on_conflict="user_id")
     )
-    await run_query(
-        db.table("consulting_user_roles").upsert({"user_id": user_id, "role": "student"}, on_conflict="user_id")
+    # Diego, 2026-10-27: confirmed live — testing this form with his own
+    # (program_admin) email silently demoted him to 'student', because an
+    # upsert here unconditionally overwrites whatever role already
+    # existed. Enrolling someone must never touch an existing staff role
+    # — only set 'student' when this account has NO role yet.
+    existing_role_res = await run_query(
+        db.table("consulting_user_roles").select("role").eq("user_id", user_id).maybe_single()
     )
+    if not (existing_role_res and existing_role_res.data):
+        await run_query(
+            db.table("consulting_user_roles").insert({"user_id": user_id, "role": "student"})
+        )
     enroll_res = await run_query(
         db.table("consulting_enrollments").insert({
             "user_id": user_id, "cohort_id": body.cohort_id, "instructor_id": body.instructor_id,
