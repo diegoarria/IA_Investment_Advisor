@@ -11,6 +11,7 @@ import GuestSignupFlashcard from "@/components/GuestSignupFlashcard";
 import GuestFlagGuard from "@/components/GuestFlagGuard";
 import ReferralApplyProvider from "@/components/ReferralApplyProvider";
 import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
+import InvestingAppChrome from "@/components/InvestingAppChrome";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -45,13 +46,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ThemeProvider>
             <GlobalErrorBoundary>
               {children}
-              <GuestFlagGuard />
-              <SubscriptionStatusProvider />
-              <ReferralApplyProvider />
-              <UpsellProvider />
-              <FeedbackBanner />
-              <SessionExpiredBanner />
-              <GuestSignupFlashcard />
+              <InvestingAppChrome>
+                <GuestFlagGuard />
+                <SubscriptionStatusProvider />
+                <ReferralApplyProvider />
+                <UpsellProvider />
+                <FeedbackBanner />
+                <SessionExpiredBanner />
+                <GuestSignupFlashcard />
+              </InvestingAppChrome>
             </GlobalErrorBoundary>
           </ThemeProvider>
         </PostHogProvider>

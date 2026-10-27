@@ -851,4 +851,36 @@ export const adminApi = {
   deleteOperatingCost: (id: string) => api.delete(`/api/admin/operating-costs/${id}`),
 };
 
+// MY NUVOS (Nuvos Consulting) — talks to the same backend, same httpOnly
+// cookie auth, but a completely separate set of accounts/tables (see
+// backend/app/api/routes/consulting.py). Deliberately its own object
+// rather than folded into another export, mirroring the backend's own
+// isolation from every investing-app route.
+export const consultingApi = {
+  me: () => api.get("/api/consulting/me"),
+  program: () => api.get("/api/consulting/program"),
+  sessions: () => api.get("/api/consulting/sessions"),
+  session: (id: string) => api.get(`/api/consulting/sessions/${id}`),
+  assignments: () => api.get("/api/consulting/assignments"),
+  submitAssignment: (assignmentId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post(`/api/consulting/assignments/${assignmentId}/submit`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
+  progress: () => api.get("/api/consulting/progress"),
+  resources: () => api.get("/api/consulting/resources"),
+  finalProject: () => api.get("/api/consulting/final-project"),
+  submitFinalProject: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post("/api/consulting/final-project/submit", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
+  graduation: () => api.get("/api/consulting/graduation"),
+  signedUrl: (path: string) => api.get(`/api/consulting/documents/${path}/signed-url`),
+};
+
 export default api;
