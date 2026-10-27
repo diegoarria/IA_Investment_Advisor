@@ -85,11 +85,17 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   return (
     <AdminMeContext.Provider value={me}>
-      <div style={{ width: "100%", maxWidth: 1680, margin: "0 auto", minHeight: "100vh", display: "flex", flexWrap: "wrap", background: V.bg }}>
-        <AdminSidebar name={me!.email ?? undefined} isAdmin={me!.role === "program_admin"} />
-        <main style={{ flex: "999 1 560px", minWidth: 0, padding: "40px 44px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 24 }}>
-          {children}
-        </main>
+      {/* html,body are overflow:hidden globally — without this wrapper's
+          own height:100vh + overflowY:auto, any admin page taller than
+          the viewport (the participants table, the expediente) was
+          simply unreachable, no scrollbar anywhere. */}
+      <div style={{ height: "100vh", overflowY: "auto", background: V.bg }}>
+        <div style={{ width: "100%", maxWidth: 1680, margin: "0 auto", minHeight: "100vh", display: "flex", flexWrap: "wrap", background: V.bg }}>
+          <AdminSidebar name={me!.email ?? undefined} isAdmin={me!.role === "program_admin"} />
+          <main style={{ flex: "999 1 560px", minWidth: 0, padding: "40px 44px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 24 }}>
+            {children}
+          </main>
+        </div>
       </div>
     </AdminMeContext.Provider>
   );

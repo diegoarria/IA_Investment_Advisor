@@ -42,6 +42,7 @@ export default function ConsultingLoginPage() {
   };
 
   return (
+    <div style={{ height: "100vh", overflowY: "auto" }}>
     <div style={{ width: "100%", minHeight: "100vh", display: "flex", flexWrap: "wrap" }}>
 
       {/* Left — brand panel */}
@@ -106,6 +107,7 @@ export default function ConsultingLoginPage() {
         </div>
       </div>
 
+    </div>
     </div>
   );
 }

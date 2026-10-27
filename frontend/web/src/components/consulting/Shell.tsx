@@ -104,11 +104,17 @@ export default function ConsultingShell({ children }: { children: React.ReactNod
 
   return (
     <ConsultingMeContext.Provider value={me}>
-      <div style={{ width: "100%", maxWidth: 1440, margin: "0 auto", minHeight: "100vh", display: "flex", flexWrap: "wrap", background: V.bg }}>
-        <ConsultingSidebar name={me!.email ?? undefined} initials={initials} />
-        <main style={{ flex: "999 1 560px", minWidth: 0, padding: 56, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 32 }}>
-          {children}
-        </main>
+      {/* html,body are overflow:hidden globally (the investing app's own
+          pages each scroll internally) — without this wrapper's own
+          height:100vh + overflowY:auto, any /consulting page taller than
+          the viewport was simply unreachable, no scrollbar anywhere. */}
+      <div style={{ height: "100vh", overflowY: "auto", background: V.bg }}>
+        <div style={{ width: "100%", maxWidth: 1440, margin: "0 auto", minHeight: "100vh", display: "flex", flexWrap: "wrap", background: V.bg }}>
+          <ConsultingSidebar name={me!.email ?? undefined} initials={initials} />
+          <main style={{ flex: "999 1 560px", minWidth: 0, padding: 56, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 32 }}>
+            {children}
+          </main>
+        </div>
       </div>
     </ConsultingMeContext.Provider>
   );
