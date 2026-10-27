@@ -32,6 +32,7 @@ from typing import Optional
 from app.services.fundamental_analysis_service import get_fundamental_analysis
 from app.services.relative_valuation_service import _find_peers
 from app.services.quality.moat_engine import compute_moat_score
+from app.services.valuation.numeric_helpers import calc_upside_potential_pct
 
 # Diego, 2026-09-09 (perf audit): price-history/chart, competitor
 # comparison, and sector comparison are three genuinely independent real
@@ -206,12 +207,14 @@ def _fallback_relative_scenarios(dcf: dict, data: dict) -> Optional[dict]:
     # paid X% below what it's really worth" — not price; see that helper's
     # own docstring on why this isn't reinvented inline here).
     margin_of_safety_pct = rv.get("margin_of_safety_pct")
+    upside_potential_pct = calc_upside_potential_pct(base, current_price)
     return {
         "bear": round(min(bear, bull), 2),
         "base": round(base, 2),
         "bull": round(max(bear, bull), 2),
         "current_price": current_price,
         "margin_of_safety_pct": margin_of_safety_pct,
+        "upside_potential_pct": upside_potential_pct,
         "uncertainty_profile": None,
         "reality_gate_pass_rate": None,
         "source": "relative_valuation",
@@ -807,12 +810,23 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
     _sector_future = _DIAG_ENRICHMENT_POOL.submit(_sector_comparison, ticker, data, dcf, sector, industry, lang)
 
     price_history_context, fair_value_chart = _price_history_future.result()
+    # Same reliability guard the backfill write path applies before
+    # persisting to `company_valuations` (company_valuation_service.py's
+    # _anomaly_review_reason) — a gap closed 2026-10-27: AXON's live-built
+    # card was presenting an unreliable operating_margin_anchor-derived
+    # value as `valid` even though the persisted/backfill path already
+    # knew to flag it `under_review`. One shared rule, never two.
+    from app.services.company_valuation_service import _anomaly_review_reason
+    _review_reason = _anomaly_review_reason(scenarios, dcf)
     valuation = {
         "conservative": scenarios["bear"],
         "baseFairValue": scenarios["base"],
         "optimistic": scenarios["bull"],
         "currentPrice": scenarios["current_price"],
         "marginOfSafetyPercent": mos,
+        "upsidePotentialPercent": calc_upside_potential_pct(scenarios.get("base"), scenarios.get("current_price")),
+        "validationStatus": "under_review" if _review_reason else "valid",
+        "reviewReason": _review_reason,
         "peCurrent": data.get("pe_ratio"),
         "peHistoricalAvg": historical_median_pe,
         "evFcf": data.get("ev_fcf"),

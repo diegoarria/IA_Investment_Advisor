@@ -2860,6 +2860,17 @@ async def nif_dashboard(query: str, lang: str | None = None, user_id: str = Depe
 # looked at it in a while; a long ceiling here costs storage, not correctness.
 _COMPANY_DIAGNOSTIC_CACHE_TTL = 2 * 365 * 24 * 3600  # 2 years
 
+# 2026-10-27 (AXON backfill-pilot audit) — this cache's 2-year TTL means a
+# diagnostic cached before the live-rebuild path started applying the
+# reliability guard (build_company_diagnostic's `valuation.validationStatus`,
+# company_diagnostic_service.py) could otherwise be served as "valid"
+# forever without ever passing through the guard. Bumped whenever the
+# diagnostic dict's SHAPE gains a new financial-status field that older
+# cache entries structurally can't have — a mismatch below is treated as a
+# cache miss (selective, lazy invalidation on next read; never a bulk
+# Redis flush) rather than trusted as-is.
+_DIAGNOSTIC_SCHEMA_VERSION = 2
+
 
 def _company_diagnostic_cache_key(ticker: str, lang: str, tier: str = "free") -> str:
     # tier: same free/premium split as _quick_analysis_cache_key — "free"
@@ -3016,6 +3027,9 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
     # — Diego, 2026-09-07: sub-1s cache-hit loads.
     quote_task = asyncio.create_task(asyncio.to_thread(fh_quote, ticker))
     cached = cache_get(cache_key)
+    if cached and cached.get("_schema_version") != _DIAGNOSTIC_SCHEMA_VERSION:
+        logger.info("company_diagnostic(%s): cached entry predates schema v%s — treating as miss", ticker, _DIAGNOSTIC_SCHEMA_VERSION)
+        cached = None
     if cached:
         current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
         cached_period = cached.get("_earnings_period")
@@ -3153,6 +3167,7 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         diagnostic["actionPlan"] = None
 
     diagnostic["_earnings_period"] = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+    diagnostic["_schema_version"] = _DIAGNOSTIC_SCHEMA_VERSION
     cache_set(cache_key, diagnostic, _COMPANY_DIAGNOSTIC_CACHE_TTL)
 
     # Write-through to the durable company_valuations table (2026-10-20) —

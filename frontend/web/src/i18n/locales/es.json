@@ -1429,6 +1429,10 @@
   "companyDiagnostic": {
     "staleNotice": "Estos datos podrían estar desactualizados (corresponden al período {{period}}) — no pudimos actualizarlos justo ahora porque nuestras fuentes de datos externas no respondieron. Son reales, solo no los más recientes.",
     "staleNoticeUnknownPeriod": "más reciente disponible",
+    "underReview": {
+      "title": "Valoración en revisión",
+      "body": "Los números de esta ficha son reales y quedan trazables, pero nuestro sistema detectó algo inusual en el cálculo (por ejemplo, un historial financiero poco estable) y no debe tratarse todavía como una conclusión validada. Estamos revisándola."
+    },
     "valuationOnly": {
       "subtitle": "Mostrando la última valoración calculada — el análisis completo no está disponible en este momento.",
       "asOf": "Calculado el {{date}}"

@@ -143,8 +143,25 @@ export function CompanyDiagnosticCard({
     <div>
       <CompanyDiagnosticHero data={data} locked={locked} onUnlock={onUnlock} />
 
-      {(data.stale || data.sectorModelNote) && (
+      {(data.stale || data.sectorModelNote || data.valuation.validationStatus === "under_review") && (
         <GlowCard className="mt-4 space-y-3.5">
+          {/* 2026-10-27 (AXON backfill-pilot audit): a completed, non-
+              failing valuation can still trip the reliability guard
+              (e.g. an operating-margin anchor built from a thin
+              mixed-regime trend, or an intrinsic/price gap far outside
+              this universe's normal range). The numbers are real and
+              traceable — never hidden, never adjusted — but must not
+              read as a validated conclusion until a human reviews it. */}
+          {data.valuation.validationStatus === "under_review" && (
+            <div className="rounded-[14px] px-3.5 py-3" style={{ background: "rgba(239,68,68,0.08)", borderLeft: "3px solid #ef4444" }}>
+              <p className="text-[10px] font-extrabold uppercase mb-1" style={{ color: "#ef4444" }}>
+                {t("companyDiagnostic.underReview.title")}
+              </p>
+              <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>
+                {t("companyDiagnostic.underReview.body")}
+              </p>
+            </div>
+          )}
           {/* Diego, 2026-09-23: "esta pantalla NUNCA debe fallar" — shown
               only when every real data provider was unavailable and the
               backend served the last real, previously-computed diagnostic. */}

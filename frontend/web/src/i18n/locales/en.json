@@ -1429,6 +1429,10 @@
   "companyDiagnostic": {
     "staleNotice": "This data may be out of date (from period {{period}}) — we couldn't refresh it right now because our external data sources didn't respond. It's real, just not the most recent.",
     "staleNoticeUnknownPeriod": "latest available",
+    "underReview": {
+      "title": "Valuation under review",
+      "body": "The numbers on this card are real and traceable, but our system flagged something unusual in the calculation (e.g. an unstable financial history) and it shouldn't be treated as a validated conclusion yet. We're reviewing it."
+    },
     "valuationOnly": {
       "subtitle": "Showing the last calculated valuation — the full analysis isn't available right now.",
       "asOf": "Calculated on {{date}}"

@@ -114,6 +114,11 @@ async def test_stale_full_cache_outranks_persisted_valuation_only(monkeypatch):
     stale_cached = {
         "ticker": "AMZN", "companyName": "Amazon", "score": 82, "scoreLabel": "Sólida",
         "_earnings_period": "2026-Q2",  # older than the "current" 2026-Q3 below -> triggers a rebuild attempt
+        # 2026-10-27 (AXON closeout): a cache entry missing this is treated
+        # as pre-dating the reliability guard and rejected outright
+        # (test_company_diagnostic_under_review.py) — this fixture
+        # represents an ordinary, current-schema stale entry instead.
+        "_schema_version": screener._DIAGNOSTIC_SCHEMA_VERSION,
     }
     persisted = {
         "intrinsic_value_usd": 215.90, "computed_at": "2026-10-21T05:24:44+00:00",

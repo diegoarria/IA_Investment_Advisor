@@ -69,6 +69,20 @@ def calc_margin_of_safety(intrinsic_value_per_share: Optional[float], price: Opt
     return round((intrinsic_value_per_share - price) / intrinsic_value_per_share * 100, 1)
 
 
+def calc_upside_potential_pct(intrinsic_value_per_share: Optional[float], price: Optional[float]) -> Optional[float]:
+    """Distinct metric from `calc_margin_of_safety` — denominator is `price`,
+    not intrinsic value: "if I buy today, how much could this re-rate?" vs.
+    margin of safety's "how big is my cushion relative to what it's really
+    worth?". The two read close for small gaps but diverge sharply for large
+    ones (e.g. intrinsic=$150/price=$100 -> MoS 33.3%, upside 50.0%) — never
+    substitute one for the other. Returns None if price is missing/non-
+    positive (division by zero) or intrinsic value is missing, never a
+    fabricated 0%."""
+    if price is None or price <= 0 or intrinsic_value_per_share is None:
+        return None
+    return round((intrinsic_value_per_share - price) / price * 100, 1)
+
+
 def derive_fcf(cfo: Optional[float], capex: Optional[float]) -> Optional[float]:
     """FCF = CFO + Capex (capex reported as a negative outflow by every
     provider this codebase uses). Fase 1.5, Incremento 14 (dedup) — this

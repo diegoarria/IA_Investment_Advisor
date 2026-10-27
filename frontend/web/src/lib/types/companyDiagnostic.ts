@@ -42,6 +42,22 @@ export interface ValuationScenarios {
   optimistic: number;
   currentPrice: number;
   marginOfSafetyPercent: number;
+  // Distinct metric from marginOfSafetyPercent — denominator is price, not
+  // intrinsic value ("how much could this re-rate" vs. "how big is my
+  // cushion"). Never substitute one for the other (2026-10-27 audit —
+  // a loose, uncommitted backend edit had briefly conflated the two under
+  // the margin-of-safety name).
+  // Optional (not set on the degraded "valuation_only" fallback shape,
+  // which reuses this same interface for its own partial `data.valuation`
+  // — only the full live/backfill build path populates these).
+  upsidePotentialPercent?: number | null;
+  // 2026-10-27 (AXON backfill-pilot audit): a completed, non-failing
+  // valuation can still be untrustworthy (e.g. an operating-margin anchor
+  // built from a thin mixed-regime trend). "under_review" means the
+  // numbers above are real and traceable but must NOT be presented as a
+  // validated conclusion — render a warning, never hide the card.
+  validationStatus?: "valid" | "under_review";
+  reviewReason?: string | null;
   // 2026-10-20: nullable now — the "valuation_only" degraded state
   // (CompanyDiagnosticData.dataAvailability) never has a fresh EPS/P/E
   // computation, only the persisted intrinsic value + a live price.
