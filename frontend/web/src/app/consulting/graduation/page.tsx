@@ -50,7 +50,7 @@ function GraduationInner() {
         </svg>
         <div style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "rgba(250,247,241,.5)", fontWeight: 600 }}>Nuvos Consulting certifica que</div>
         <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 30, color: "var(--c-ivory)", margin: "10px 0", fontWeight: 500 }}>{me.email}</h2>
-        <p style={{ margin: 0, fontSize: 14.5, color: "rgba(250,247,241,.7)" }}>completó el Programa Ejecutivo de Liderazgo</p>
+        <p style={{ margin: 0, fontSize: 14.5, color: "rgba(250,247,241,.7)" }}>completó el Programa de Educación en Inversión</p>
         <p style={{ margin: "24px 0 0", fontSize: 13, color: "rgba(250,247,241,.45)" }}>
           {new Date(grad.completed_at).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
         </p>

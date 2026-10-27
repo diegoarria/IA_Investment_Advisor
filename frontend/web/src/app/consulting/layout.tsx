@@ -20,7 +20,7 @@ const hanken = Hanken_Grotesk({
 
 export const metadata: Metadata = {
   title: "My Nuvos — Nuvos Consulting",
-  description: "Portal privado del Programa Ejecutivo de Liderazgo",
+  description: "Portal privado del Programa de Educación en Inversión",
 };
 
 // Scopes the navy/ivory/champagne palette as CSS custom properties under

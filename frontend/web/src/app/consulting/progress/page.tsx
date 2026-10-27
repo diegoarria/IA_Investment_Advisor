@@ -24,7 +24,7 @@ function ProgressInner() {
       <div>
         <h1 style={{ fontFamily: "var(--font-serif)", fontWeight: 500, color: "var(--c-navy)", fontSize: 30, margin: 0 }}>Mi Progreso</h1>
         <p style={{ margin: "8px 0 0", fontSize: 14, color: "var(--c-ink-soft)", maxWidth: 560, lineHeight: 1.6 }}>
-          Un seguimiento cualitativo de cómo evolucionan tus habilidades de liderazgo, con la lectura directa de tu mentor.
+          Un seguimiento cualitativo de cómo evoluciona tu criterio como inversionista, con la lectura directa de tu mentor.
         </p>
       </div>
 

@@ -65,9 +65,12 @@ export default function ConsultingLoginPage() {
         </div>
         <div style={{ position: "relative", maxWidth: 460 }}>
           <p style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 30, lineHeight: 1.45, fontWeight: 400, color: "var(--c-ivory)", margin: 0 }}>
-            "El liderazgo que transforma una organización empieza por el que se transforma a sí mismo."
+            "Invertir también es para ti."
           </p>
-          <p style={{ margin: "24px 0 0", fontSize: 13, color: "rgba(250,247,241,.55)" }}>Programa Ejecutivo de Liderazgo</p>
+          <p style={{ margin: "16px 0 0", fontSize: 14, color: "rgba(250,247,241,.7)", lineHeight: 1.5 }}>
+            No necesitas ser un experto para empezar a aprender. Descubre cómo funcionan las empresas, comprende sus números y desarrolla tu propio criterio.
+          </p>
+          <p style={{ margin: "24px 0 0", fontSize: 13, color: "rgba(250,247,241,.55)" }}>Programa de Educación en Inversión</p>
         </div>
         <div style={{ position: "relative", fontSize: 12, color: "rgba(250,247,241,.4)" }}>© 2026 Nuvos Consulting. Acceso exclusivo para participantes activos.</div>
       </div>
