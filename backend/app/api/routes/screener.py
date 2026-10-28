@@ -3063,7 +3063,23 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
     has_fresh_persisted = bool(persisted) and persisted.get("validation_status") == "valid"
 
     async def _attempt_build() -> tuple[dict | None, dict | None]:
-        d = await asyncio.to_thread(get_fundamental_analysis, ticker)
+        try:
+            d = await asyncio.to_thread(get_fundamental_analysis, ticker)
+        except Exception:
+            # 2026-10-28 P0 hotfix: confirmed live (production, intermittent
+            # under concurrent load — a 10-request burst against
+            # AAPL/MSFT/GOOGL/TSLA/JPM/V/HD got a ~50% hit rate of a fast
+            # <1s generic 500) that this call was the ONLY unguarded step
+            # in the whole live-rebuild path — unlike build_company_
+            # diagnostic right below, which already had a try/except.
+            # Whatever raises here must degrade to the persisted/stale-
+            # cache fallback below, never crash the whole request into
+            # main.py's generic 500 handler — that's exactly what turned a
+            # stable, already-`valid` ticker like AAPL into "Valoración no
+            # disponible" / "Error 404 (unknown)" for the user, despite
+            # having a perfectly good persisted row the entire time.
+            logger.exception("company_diagnostic(%s): get_fundamental_analysis raised", ticker)
+            return None, None
         if not d:
             return None, None
         # Wrapped so an unexpected exception here (a real code bug hitting
