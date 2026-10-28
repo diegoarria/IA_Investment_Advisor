@@ -344,9 +344,24 @@ async def get_persisted_valuation(ticker: str) -> Optional[dict]:
         return cached or None  # a cached explicit "no row" is stored as {} below
 
     db = get_supabase()
-    result = await run_query(
-        db.table("company_valuations").select("*").eq("ticker", ticker).eq("is_current", True).limit(1)
-    )
+    try:
+        result = await run_query(
+            db.table("company_valuations").select("*").eq("ticker", ticker).eq("is_current", True).limit(1)
+        )
+    except Exception:
+        # 2026-10-28 P0: this was the ONLY unguarded Supabase call on the
+        # /company-diagnostic cache-miss path (screener.py's
+        # _company_diagnostic_result calls this unconditionally, before
+        # _attempt_build even starts) — a transient Postgrest/connection
+        # hiccup under concurrent load (confirmed reproducible for NVDA:
+        # ~75% failure in a 10-request burst, same "fast <1s generic 500"
+        # signature as the AAPL incident this same day) propagated straight
+        # past every fallback below it into main.py's generic 500 handler.
+        # Treat a failed read exactly like "no row cached yet" — callers
+        # already handle None/falsy by either retrying the live build or
+        # degrading honestly, never by fabricating a valuation.
+        logger.exception("get_persisted_valuation(%s): Supabase read failed", ticker)
+        return None
     row = (result.data or [None])[0]
     cache_set(cache_key, row or {}, ttl=_READ_CACHE_TTL_S)
     return row

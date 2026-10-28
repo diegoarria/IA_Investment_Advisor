@@ -485,3 +485,58 @@ class TestAnomalyReviewGuard:
         rows = [r for r in db.rows if r["ticker"] == "AXON" and r["is_current"]]
         assert len(rows) == 1
         assert rows[0]["validation_status"] == "under_review"
+
+
+class TestGetPersistedValuationSupabaseFailure:
+    """2026-10-28 P0: get_persisted_valuation's Supabase read had no
+    try/except of its own, and the sole call site (screener.py's
+    _company_diagnostic_result, on every cache-miss request) didn't guard
+    it either — a transient Postgrest/connection error under concurrent
+    load propagated straight into main.py's generic 500 handler, bypassing
+    every fallback below it. Reproduced live for NVDA (~75% failure in a
+    10-request burst, same signature as the AAPL incident this same day)."""
+
+    def test_supabase_exception_degrades_to_none_not_raise(self, monkeypatch):
+        import app.core.cache as cache_mod
+        cache_mod._mem.clear()
+
+        async def _boom(*_a, **_k):
+            raise ConnectionError("simulated Supabase/Postgrest outage under load")
+
+        monkeypatch.setattr(cvs, "get_supabase", lambda: _FakeDB())
+        monkeypatch.setattr(cvs, "run_query", _boom)
+
+        result = _run(cvs.get_persisted_valuation("NVDA"))
+        assert result is None  # degrades like "no row yet", never raises
+
+    def test_subsequent_healthy_call_still_works_after_a_failure(self, monkeypatch):
+        # The failure must not poison the module-level state (e.g. a bad
+        # cached None/exception) — a later, healthy call for the same
+        # ticker must succeed normally.
+        import app.core.cache as cache_mod
+        cache_mod._mem.clear()
+        db = _FakeDB()
+        monkeypatch.setattr(cvs, "get_supabase", lambda: db)
+        _run(cvs.persist_valuation("NVDA", {
+            "validation_status": "valid", "intrinsic_value_usd": 216.83,
+            "currency": "USD", "methodology": "gqv", "model_version": cvs.MODEL_VERSION,
+            "financial_report_period": "2026-Q3", "assumptions": {},
+        }))
+        cache_mod._mem.clear()  # force the read path past the fast Redis-equivalent cache
+
+        calls = {"n": 0}
+        real_run_query = cvs.run_query
+
+        async def _flaky(query):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise TimeoutError("simulated transient timeout")
+            return await real_run_query(query)
+
+        monkeypatch.setattr(cvs, "run_query", _flaky)
+        first = _run(cvs.get_persisted_valuation("NVDA"))
+        assert first is None
+        cache_mod._mem.clear()
+        second = _run(cvs.get_persisted_valuation("NVDA"))
+        assert second is not None
+        assert second["intrinsic_value_usd"] == 216.83

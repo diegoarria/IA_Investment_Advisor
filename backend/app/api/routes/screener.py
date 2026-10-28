@@ -3034,7 +3034,18 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
         cached_period = cached.get("_earnings_period")
         if not current_period or current_period == cached_period:
-            return _apply_live_quote_diagnostic(cached, await quote_task, lang)
+            # 2026-10-28 P0: fh_quote has no top-level try/except of its own
+            # (unlike _latest_reported_earnings_period above) — awaiting
+            # this task directly re-raised whatever it threw straight past
+            # every fallback, killing an otherwise-healthy cache-hit
+            # request with a generic 500. _apply_live_quote already
+            # degrades cleanly to the cached price when given None.
+            try:
+                live_quote = await quote_task
+            except Exception:
+                logger.exception("company_diagnostic(%s): fh_quote (cache-hit quote refresh) raised", ticker)
+                live_quote = None
+            return _apply_live_quote_diagnostic(cached, live_quote, lang)
     # Falling through to a rebuild below (cache miss, or stale earnings
     # period) — the fresh build already fetches a near-live price of its
     # own (get_fundamental_analysis), so this speculative quote fetch turns
