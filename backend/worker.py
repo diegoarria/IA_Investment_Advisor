@@ -3512,6 +3512,18 @@ async def job_backfill_company_valuations_batch():
                                     is pending in the full 927 universe. Used
                                     for the 10-ticker controlled pilot; unset
                                     (default) means the full universe.
+      BACKFILL_FULL_SNAPSHOT       2026-10-29, migration 117 extension:
+                                    "true" makes this job build and persist
+                                    the FULL rendered diagnostic (score,
+                                    pillars, competitor/sector comparison,
+                                    fair-PE breakdown — everything
+                                    CompanyDiagnosticCard.tsx renders), not
+                                    just the numeric valuation. Default
+                                    "false" preserves today's exact
+                                    numeric-only behavior unchanged. See
+                                    compute_full_diagnostic_valuation's
+                                    docstring — still never calls Claude/
+                                    ai_service regardless of this flag.
     """
     import os
     from app.api.routes.screener import UNIVERSE
@@ -3527,6 +3539,7 @@ async def job_backfill_company_valuations_batch():
 
     batch_size = int(os.getenv("BACKFILL_BATCH_SIZE", "5"))
     max_per_minute = float(os.getenv("BACKFILL_MAX_TICKERS_PER_MINUTE", "2.0"))
+    full_snapshot = os.getenv("BACKFILL_FULL_SNAPSHOT", "false").strip().lower() == "true"
 
     allowlist_raw = os.getenv("BACKFILL_TICKER_ALLOWLIST", "").strip()
     if allowlist_raw:
@@ -3535,16 +3548,16 @@ async def job_backfill_company_valuations_batch():
         logger.info("job_backfill_company_valuations_batch: ALLOWLIST active — restricted to %s", sorted(all_tickers))
     else:
         all_tickers = [c["ticker"] for c in UNIVERSE]
-    buckets = await get_pending_tickers(all_tickers)
-    priority = buckets["no_valuation"] + buckets["retry_eligible"] + buckets["stale"]
+    buckets = await get_pending_tickers(all_tickers, full_snapshot=full_snapshot)
+    priority = buckets["no_valuation"] + buckets["retry_eligible"] + buckets["stale"] + buckets.get("missing_snapshot", [])
 
     if dry_run:
         logger.info(
-            "job_backfill_company_valuations_batch DRY RUN — universe=%d no_valuation=%d "
-            "retry_eligible=%d backing_off=%d stale=%d already_valid=%d — next %d would be processed: %s",
-            len(all_tickers), len(buckets["no_valuation"]), len(buckets["retry_eligible"]),
-            len(buckets["backing_off"]), len(buckets["stale"]), len(buckets["already_valid"]),
-            batch_size, priority[:batch_size],
+            "job_backfill_company_valuations_batch DRY RUN (full_snapshot=%s) — universe=%d no_valuation=%d "
+            "retry_eligible=%d backing_off=%d stale=%d missing_snapshot=%d already_valid=%d — next %d would be processed: %s",
+            full_snapshot, len(all_tickers), len(buckets["no_valuation"]), len(buckets["retry_eligible"]),
+            len(buckets["backing_off"]), len(buckets["stale"]), len(buckets.get("missing_snapshot", [])),
+            len(buckets["already_valid"]), batch_size, priority[:batch_size],
         )
         return
 
@@ -3562,7 +3575,7 @@ async def job_backfill_company_valuations_batch():
         return
     try:
         slice_ = priority[:batch_size]
-        results = await backfill_universe(slice_, max_tickers_per_minute=max_per_minute)
+        results = await backfill_universe(slice_, max_tickers_per_minute=max_per_minute, full_snapshot=full_snapshot)
         logger.info("job_backfill_company_valuations_batch: processed %d tickers — %s", len(slice_), results)
     finally:
         release_lock(_BACKFILL_LOCK_KEY, token)

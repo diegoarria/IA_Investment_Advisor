@@ -242,7 +242,7 @@ class TestBackfillJobGating:
         monkeypatch.setenv("BACKFILL_DRY_RUN", "true")
         monkeypatch.delenv("BACKFILL_ENABLED", raising=False)
 
-        async def fake_pending(tickers):
+        async def fake_pending(tickers, full_snapshot=False):
             return {
                 "no_valuation": ["AAA"], "retry_eligible": [], "backing_off": [],
                 "stale": [], "already_valid": [],
@@ -262,7 +262,7 @@ class TestBackfillJobGating:
         monkeypatch.setenv("BACKFILL_ENABLED", "true")
         monkeypatch.delenv("BACKFILL_DRY_RUN", raising=False)
 
-        async def fake_pending(tickers):
+        async def fake_pending(tickers, full_snapshot=False):
             return {"no_valuation": ["AAA"], "retry_eligible": [], "backing_off": [], "stale": [], "already_valid": []}
 
         backfill_called = []
@@ -280,7 +280,7 @@ class TestBackfillJobGating:
         monkeypatch.setenv("BACKFILL_ENABLED", "true")
         monkeypatch.delenv("BACKFILL_DRY_RUN", raising=False)
 
-        async def fake_pending(tickers):
+        async def fake_pending(tickers, full_snapshot=False):
             return {"no_valuation": [], "retry_eligible": [], "backing_off": [], "stale": [], "already_valid": ["AAA"]}
 
         backfill_called = []
@@ -303,7 +303,7 @@ class TestBackfillJobGating:
 
         seen_tickers = []
 
-        async def fake_pending(tickers):
+        async def fake_pending(tickers, full_snapshot=False):
             seen_tickers.extend(tickers)
             return {"no_valuation": list(tickers), "retry_eligible": [], "backing_off": [], "stale": [], "already_valid": []}
 
@@ -320,7 +320,7 @@ class TestBackfillJobGating:
         monkeypatch.setenv("BACKFILL_ENABLED", "true")
         monkeypatch.delenv("BACKFILL_DRY_RUN", raising=False)
 
-        async def fake_pending(tickers):
+        async def fake_pending(tickers, full_snapshot=False):
             return {"no_valuation": ["AAA"], "retry_eligible": [], "backing_off": [], "stale": [], "already_valid": []}
 
         monkeypatch.setattr("app.services.company_valuation_service.get_pending_tickers", fake_pending)
