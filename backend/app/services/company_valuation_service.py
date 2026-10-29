@@ -279,13 +279,35 @@ def compute_numeric_valuation(ticker: str) -> dict:
     return scenarios_from_fetched_data(ticker, data)
 
 
-# Migration 117 full-snapshot backfill (2026-10-29). Mirrors screener.py's
-# _LIVE_BUILD_TIMEOUT_S (same hard-cap discipline from the 2026-10-27 P0
-# latency fix) — a separate constant, not an import, because screener.py
-# imports this module lazily/function-local specifically to avoid a
-# circular import (this module -> screener -> this module); importing the
-# other direction here would reintroduce that cycle at module load time.
-_FULL_SNAPSHOT_BUILD_TIMEOUT_S = 8.0
+# Migration 117 full-snapshot backfill (2026-10-29). Deliberately a
+# SEPARATE, LARGER budget from screener.py's _LIVE_BUILD_TIMEOUT_S (8.0s)
+# — that one guards an HTTP request a real user is waiting on; this one
+# guards a background job nobody is waiting on. Reusing the same 8s value
+# here (as the first cut of this feature did) was the actual bug behind
+# the 25-ticker pilot's 6 incomplete snapshots (2026-10-29 Fase de
+# optimización): real per-ticker instrumentation showed build_company_
+# diagnostic alone taking up to 12.53s (NEE — heavy utilities-sector peer
+# enrichment under live Yahoo 429 rate-limiting) and 8.54s (SLB — FMP
+# shared-budget contention), both over the old 8s cap, while most other
+# tickers finished in under 2s — NOT a uniform cause, a tail-latency one.
+# 25s covers that measured tail with real margin without being unbounded.
+#
+# This value MUST stay below backfill_universe's pacing interval
+# (60/max_tickers_per_minute, 30s at the default 2/min) — see the assert
+# in backfill_universe below. That invariant, not this timeout's size, is
+# what actually isolates the backfill from interactive traffic: tickers
+# are processed strictly one at a time, so as long as one ticker's build
+# (even an abandoned one still finishing in the background past its own
+# timeout) can't still be running when the NEXT ticker's build starts,
+# the shared _DIAG_ENRICHMENT_POOL (16 workers) never sees more than one
+# backfill ticker's worth of enrichment tasks at once — independent of
+# whether this constant is 8s or 25s.
+#
+# Not an import of _LIVE_BUILD_TIMEOUT_S because screener.py imports this
+# module lazily/function-local specifically to avoid a circular import
+# (this module -> screener -> this module); importing the other direction
+# here would reintroduce that cycle at module load time.
+_FULL_SNAPSHOT_BUILD_TIMEOUT_S = 25.0
 
 
 def compute_full_diagnostic_valuation(ticker: str) -> dict:
@@ -798,6 +820,19 @@ async def backfill_universe(
         "skipped_claimed": 0, "unchanged": 0, "circuit_breaker_skipped": 0,
     }
     batch_interval = 60.0 / max_tickers_per_minute if max_tickers_per_minute > 0 else 0.0
+    if full_snapshot and batch_interval and batch_interval < _FULL_SNAPSHOT_BUILD_TIMEOUT_S:
+        # The resource-isolation argument above only holds while a ticker's
+        # build (or an abandoned one still finishing past its own timeout)
+        # can't overlap the next ticker's — caught here, not just documented,
+        # so a future config change can't silently reintroduce the
+        # _DIAG_ENRICHMENT_POOL contention this was built to avoid.
+        raise ValueError(
+            f"backfill_universe(full_snapshot=True): max_tickers_per_minute={max_tickers_per_minute} "
+            f"gives a {batch_interval:.1f}s pacing interval, shorter than "
+            f"_FULL_SNAPSHOT_BUILD_TIMEOUT_S={_FULL_SNAPSHOT_BUILD_TIMEOUT_S}s — this would let two "
+            f"tickers' diagnostic builds overlap on the shared enrichment pool. Lower "
+            f"max_tickers_per_minute or shorten the build timeout."
+        )
 
     for i, ticker in enumerate(tickers):
         if circuit_is_open():
