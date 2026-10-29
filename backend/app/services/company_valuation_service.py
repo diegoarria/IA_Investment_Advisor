@@ -234,7 +234,18 @@ def compute_numeric_valuation(ticker: str) -> dict:
     from app.services.fundamental_analysis_service import get_fundamental_analysis
 
     try:
-        data = get_fundamental_analysis(ticker)
+        # 2026-10-27 P0 latency fix: the backfill never needs relative/
+        # historical/industry peer enrichment (the GQV scenarios and the
+        # anomaly guard are both driven by this ticker's OWN historical
+        # trend, not its peers') — and that enrichment submits work to the
+        # same 8-worker pool (_PEER_ENRICHMENT_POOL) real interactive
+        # requests use. Running the backfill with peer-dependent data ON
+        # meant a batch of background jobs could occupy every worker with
+        # abandoned-but-still-running Yahoo/FMP calls, starving a live
+        # user's own 12s-budgeted enrichment attempt — confirmed as a
+        # contributing factor to DLR's 273s hang during the 50-ticker
+        # batch. Disabling it here removes that contention at the source.
+        data = get_fundamental_analysis(ticker, _compute_peer_dependent_data=False)
     except Exception as e:
         logger.warning("compute_numeric_valuation(%s): get_fundamental_analysis raised: %s", ticker, e)
         return {"validation_status": "failed", "error_detail": f"get_fundamental_analysis raised: {e}"}
@@ -438,6 +449,17 @@ async def persist_valuation(
                 "attempt_count": new_attempt_count,
                 "last_attempt_at": now_iso,
                 "next_retry_at": next_retry_at,
+                # set_current_company_valuation's RPC signature (migration
+                # 114/116) has no p_error_detail param, so a 'valid'/
+                # 'under_review'/'insufficient_data' row written through it
+                # never got the human-readable review reason persisted —
+                # found 2026-10-27 during the Fase-2 50-ticker batch, where
+                # PLTR/F landed under_review with error_detail=NULL despite
+                # _anomaly_review_reason() computing a real reason. Folded
+                # into this already-existing follow-up UPDATE rather than
+                # widening the RPC, since this column update is already
+                # unconditional.
+                "error_detail": computed.get("error_detail"),
             }
             # migration 117: only written when a caller actually has a full
             # rich diagnostic in hand (today: the live-build write-through

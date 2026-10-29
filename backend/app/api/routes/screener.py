@@ -2871,6 +2871,18 @@ _COMPANY_DIAGNOSTIC_CACHE_TTL = 2 * 365 * 24 * 3600  # 2 years
 # Redis flush) rather than trusted as-is.
 _DIAGNOSTIC_SCHEMA_VERSION = 2
 
+# 2026-10-27 P0 latency fix: a hard per-attempt cap on the live rebuild
+# path (get_fundamental_analysis + build_company_diagnostic). Diego:
+# "ninguna apertura de ficha debe depender de esperar un DCF, Yahoo o
+# FMP" — confirmed live that an uncapped attempt can run for minutes
+# under provider rate-limiting (DLR: 273s, ending in a client timeout,
+# not a clean failure). This does NOT cancel the underlying thread (a
+# sync call already in flight keeps running to completion in the
+# background, same caveat as _PEER_ENRICHMENT_TIMEOUT_S below it) — it
+# only stops THIS request from waiting past it, so the user always gets
+# an answer (live, or a fallback) within a bounded time.
+_LIVE_BUILD_TIMEOUT_S = 8.0
+
 
 def _company_diagnostic_cache_key(ticker: str, lang: str, tier: str = "free") -> str:
     # tier: same free/premium split as _quick_analysis_cache_key — "free"
@@ -2942,10 +2954,18 @@ async def _degraded_diagnostic(ticker: str, lang: str, persisted: dict | None) -
     escenarios." Returns a `CompanyDiagnosticData`-shaped dict either way —
     `dataAvailability` tells the frontend which of the two it got (see
     CompanyDiagnosticCard.tsx's own early-return branches for each)."""
-    from app.services.valuation.numeric_helpers import calc_margin_of_safety
+    from app.services.valuation.numeric_helpers import calc_margin_of_safety, calc_upside_potential_pct
 
     company_name, sector = _universe_identity(ticker)
-    is_valid = bool(persisted) and persisted.get("validation_status") == "valid"
+    _status = (persisted or {}).get("validation_status")
+    # 2026-10-27: `under_review` is a REAL completed computation (migration
+    # 116) — same as `valid` for "do we have something to show", just not
+    # presentable as a trustworthy number. Previously this only recognized
+    # `valid`, so a persisted under_review row (e.g. AXON) without a
+    # matching full snapshot silently degraded to generic 'unavailable'
+    # instead of carrying its real reviewReason through.
+    is_presentable = _status in ("valid", "under_review")
+    is_valid = _status == "valid"
 
     # migration 117: a full rendered snapshot (score, competitor/sector
     # comparison, fair-PE breakdown, narrative — everything a live build
@@ -2975,7 +2995,7 @@ async def _degraded_diagnostic(ticker: str, lang: str, persisted: dict | None) -
         "noiseVsReality": None, "actionPlan": None, "_earnings_period": None,
     }
 
-    if not is_valid:
+    if not is_presentable:
         logger.warning(
             "company_diagnostic(%s): no live data and no persisted valuation — showing 'unavailable' state, not 404",
             ticker,
@@ -3007,6 +3027,9 @@ async def _degraded_diagnostic(ticker: str, lang: str, persisted: dict | None) -
             "baseFairValue": base_fv,
             "optimistic": assumptions.get("bull"),
             "marginOfSafetyPercent": calc_margin_of_safety(base_fv, current_price) if current_price else None,
+            "upsidePotentialPercent": calc_upside_potential_pct(base_fv, current_price) if current_price else None,
+            "validationStatus": _status,
+            "reviewReason": persisted.get("error_detail") or (persisted.get("assumptions") or {}).get("under_review_reason"),
             "peCurrent": None, "peHistoricalAvg": None, "evFcf": None,
             "fcfAssumptions": assumptions.get("fcf_assumptions"), "waccDetails": None,
             "analystTarget": None, "priceHistoryContext": None, "fairValueChart": None,
@@ -3090,11 +3113,25 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
     # valuation-only when it works), just no longer wastes a second
     # attempt once we already have something real to fall back to.
     persisted = await get_persisted_valuation(ticker)
-    has_fresh_persisted = bool(persisted) and persisted.get("validation_status") == "valid"
+    # 2026-10-27 P0 latency fix: ANY current persisted row — not only
+    # `valid` — means this ticker already has a real, recent answer to
+    # "can we value this." Confirmed live: DLR (REIT, `insufficient_data`
+    # from the backfill) fell through this check into a full live retry on
+    # every single open, and that retry's own peer-enrichment step shares
+    # an 8-worker pool with the backfill job — during a backfill batch,
+    # abandoned-but-still-running enrichment threads from OTHER tickers
+    # can occupy every worker, so a live request's nominal 12s enrichment
+    # budget (_PEER_ENRICHMENT_TIMEOUT_S) can't even start until a worker
+    # frees up. Retrying a ticker we already know lacks a defensible
+    # valuation just pays that risk twice for zero benefit.
+    has_persisted_fallback = bool(persisted)
 
     async def _attempt_build() -> tuple[dict | None, dict | None]:
         try:
-            d = await asyncio.to_thread(get_fundamental_analysis, ticker)
+            d = await asyncio.wait_for(asyncio.to_thread(get_fundamental_analysis, ticker), timeout=_LIVE_BUILD_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            logger.warning("company_diagnostic(%s): get_fundamental_analysis exceeded %ss hard cap — abandoning this attempt", ticker, _LIVE_BUILD_TIMEOUT_S)
+            return None, None
         except Exception:
             # 2026-10-28 P0 hotfix: confirmed live (production, intermittent
             # under concurrent load — a 10-request burst against
@@ -3119,7 +3156,10 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         # surfacing as an opaque, unlabeled 500 indistinguishable from
         # every other failure on this endpoint.
         try:
-            diag = await asyncio.to_thread(build_company_diagnostic, ticker, d, lang)
+            diag = await asyncio.wait_for(asyncio.to_thread(build_company_diagnostic, ticker, d, lang), timeout=_LIVE_BUILD_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            logger.warning("company_diagnostic(%s): build_company_diagnostic exceeded %ss hard cap — abandoning this attempt", ticker, _LIVE_BUILD_TIMEOUT_S)
+            return d, None
         except Exception:
             logger.exception("company_diagnostic(%s): build_company_diagnostic raised", ticker)
             return d, None
@@ -3162,8 +3202,8 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         # valuation_only state. Confirmed live this is what let AMZN's
         # request latency exceed what a client/proxy would wait for,
         # hiding a perfectly good persisted valuation behind a timeout.
-        if has_fresh_persisted:
-            logger.warning("company_diagnostic(%s): persisted valuation available — skipping retry, serving valuation_only", ticker)
+        if has_persisted_fallback:
+            logger.warning("company_diagnostic(%s): persisted row available (status=%s) — skipping retry, serving degraded", ticker, persisted.get("validation_status"))
             return await _degraded_diagnostic(ticker, lang, persisted)
         logger.warning("company_diagnostic(%s): no stale cache or persisted valuation — retrying once", ticker)
         await asyncio.sleep(2.5)
