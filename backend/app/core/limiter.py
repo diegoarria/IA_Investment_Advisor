@@ -55,17 +55,66 @@ def _storage_uri() -> str:
     return "memory://"
 
 
-limiter = Limiter(key_func=_rate_key, storage_uri=_storage_uri())
+limiter = Limiter(
+    key_func=_rate_key,
+    storage_uri=_storage_uri(),
+    # NOT setting headers_enabled=True: slowapi's wrapper calls
+    # `_inject_headers` directly on an endpoint's RAW return value when
+    # that's on, BEFORE FastAPI serializes it — but every one of this app's
+    # ~50 `@limiter.limit`-decorated routes returns a plain dict, not a
+    # Starlette Response, so the global flag makes slowapi raise
+    # "parameter `response` must be an instance of starlette.responses.
+    # Response" on every SUCCESSFUL (under-limit) request to any of them —
+    # confirmed locally, would have been a much bigger regression than the
+    # bug being fixed here. Retry-After is still added below, but only on
+    # the already-a-real-Response 429 path, not the success path.
+    #
+    # Graceful degradation if the Redis-backed limiter store itself becomes
+    # unreachable: slowapi falls back to a local in-memory limiter instead
+    # of raising a storage exception on every request (confirmed live: an
+    # unreachable storage_uri produces an unhandled 500 with this off).
+    # Per-process/approximate across Railway's multiple workers, not as
+    # strict as the real Redis-backed limit, but still real protection
+    # instead of either "every request 500s" or "no limiting at all".
+    in_memory_fallback_enabled=True,
+    in_memory_fallback=["200/minute"],
+)
 
 
-async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     """Wraps slowapi's default 429 handler to also log the trip into
     security_events (migration 033) — previously a rate-limit trip left no
     trace anywhere, so a scan/brute-force burst was invisible even though the
-    protection itself worked."""
+    protection itself worked.
+
+    NOT async, on purpose: slowapi's own `_rate_limit_exceeded_handler` is a
+    plain sync function that returns a `JSONResponse` directly, not a
+    coroutine. The previous version of this wrapper was `async def` and did
+    `return await _rate_limit_exceeded_handler(...)` — awaiting a plain
+    `JSONResponse` raises `TypeError: object JSONResponse can't be used in
+    'await' expression` INSIDE this exception handler itself. Starlette has
+    no handler for an exception raised by an exception handler, so that
+    TypeError propagated all the way up as an unhandled 500 — meaning every
+    legitimate rate-limit trip, app-wide, produced a generic 500 instead of
+    a 429. Confirmed live and locally: requests under the limit returned
+    200, every request once the limit was exceeded returned 500 (not 429),
+    on every endpoint using this shared limiter."""
     from app.core.security import client_ip, log_security_event
     log_security_event(
         "rate_limit_exceeded", ip=client_ip(request), detail=request.url.path,
         user_agent=request.headers.get("user-agent"), accept_language=request.headers.get("accept-language"),
     )
-    return await _rate_limit_exceeded_handler(request, exc)
+    response = _rate_limit_exceeded_handler(request, exc)
+    # Retry-After on this one already-real Response, computed directly from
+    # the window slowapi already resolved for this request — see the
+    # headers_enabled note on `limiter` above for why this isn't done via
+    # that global flag instead.
+    try:
+        import time
+        current_limit = getattr(request.state, "view_rate_limit", None)
+        if current_limit is not None:
+            reset_at, _ = limiter.limiter.get_window_stats(current_limit[0], *current_limit[1])
+            response.headers["Retry-After"] = str(max(1, int(1 + reset_at - time.time())))
+    except Exception:
+        pass
+    return response
