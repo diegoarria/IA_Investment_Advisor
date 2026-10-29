@@ -372,7 +372,10 @@ async def _invalidate_read_cache(ticker: str) -> None:
     cache_delete(_READ_CACHE_KEY.format(ticker=normalize_ticker_symbol(ticker)))
 
 
-async def persist_valuation(ticker: str, computed: dict, prior_attempt_count: int = 0) -> dict:
+async def persist_valuation(
+    ticker: str, computed: dict, prior_attempt_count: int = 0,
+    diagnostic_snapshot: dict | None = None, snapshot_schema_version: int | None = None,
+) -> dict:
     """Writes `compute_numeric_valuation`'s output to Supabase. A 'valid'
     or 'insufficient_data' result atomically becomes the new current row
     (via the set_current_company_valuation RPC — see migrations/114's own
@@ -431,14 +434,23 @@ async def persist_valuation(ticker: str, computed: dict, prior_attempt_count: in
     try:
         row_id = row.get("id") if isinstance(row, dict) else None
         if row_id:
+            follow_up = {
+                "attempt_count": new_attempt_count,
+                "last_attempt_at": now_iso,
+                "next_retry_at": next_retry_at,
+            }
+            # migration 117: only written when a caller actually has a full
+            # rich diagnostic in hand (today: the live-build write-through
+            # path) — never overwrites an existing snapshot with NULL, so a
+            # backfill-only write (no snapshot) can't erase a snapshot a
+            # real user visit already persisted for this ticker.
+            if diagnostic_snapshot is not None:
+                follow_up["diagnostic_snapshot"] = diagnostic_snapshot
+                follow_up["snapshot_schema_version"] = snapshot_schema_version
             await run_query(
-                db.table("company_valuations").update({
-                    "attempt_count": new_attempt_count,
-                    "last_attempt_at": now_iso,
-                    "next_retry_at": next_retry_at,
-                }).eq("id", row_id)
+                db.table("company_valuations").update(follow_up).eq("id", row_id)
             )
-            row = {**row, "attempt_count": new_attempt_count, "last_attempt_at": now_iso, "next_retry_at": next_retry_at}
+            row = {**row, **follow_up}
     except Exception as e:
         logger.warning("persist_valuation(%s): backoff-tracking update failed (non-fatal): %s", ticker, e)
 
@@ -603,7 +615,9 @@ async def backfill_universe(
     return results
 
 
-async def persist_from_fetched_data(ticker: str, data: dict) -> None:
+async def persist_from_fetched_data(
+    ticker: str, data: dict, diagnostic: dict | None = None, snapshot_schema_version: int | None = None,
+) -> None:
     """Write-through save for the live /company-diagnostic route (2026-10-
     20): once a real, successful card build already has `data` in hand,
     persist its numeric valuation too — no second fetch (uses
@@ -611,7 +625,15 @@ async def persist_from_fetched_data(ticker: str, data: dict) -> None:
     costs one cheap Supabase write, nothing more. Meant to be fired via
     asyncio.create_task — never awaited inline, since a slow/failed
     Supabase write must never delay or fail the user's own response.
-    Swallows its own errors for the same reason; logs instead of raising."""
+    Swallows its own errors for the same reason; logs instead of raising.
+
+    `diagnostic` (migration 117, 2026-10-29): the FULL rendered diagnostic
+    dict the route already built for this request (score, competitor
+    comparison, sector comparison, fair-PE breakdown — everything
+    CompanyDiagnosticCard.tsx renders), passed through unchanged so a
+    future fallback/read can serve the exact same rich ficha with zero
+    recomputation. Optional and additive — omitting it just means no
+    snapshot gets persisted this time, same as before this migration."""
     try:
         computed = scenarios_from_fetched_data(ticker, data)
         if computed["validation_status"] != "valid":
@@ -620,6 +642,9 @@ async def persist_from_fetched_data(ticker: str, data: dict) -> None:
             # handles separately; this path only fires after a successful
             # card build, so a non-valid result here would be surprising
             # and isn't the case this write-through exists for.
-        await persist_valuation(ticker, computed)
+        await persist_valuation(
+            ticker, computed,
+            diagnostic_snapshot=diagnostic, snapshot_schema_version=snapshot_schema_version,
+        )
     except Exception as e:
         logger.info("persist_from_fetched_data(%s): skipped, non-fatal: %s", ticker, e)

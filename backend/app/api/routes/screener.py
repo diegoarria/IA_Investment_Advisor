@@ -2947,6 +2947,25 @@ async def _degraded_diagnostic(ticker: str, lang: str, persisted: dict | None) -
     company_name, sector = _universe_identity(ticker)
     is_valid = bool(persisted) and persisted.get("validation_status") == "valid"
 
+    # migration 117: a full rendered snapshot (score, competitor/sector
+    # comparison, fair-PE breakdown, narrative — everything a live build
+    # produces) beats the cut-down reconstruction below whenever one
+    # exists and matches the current frontend contract. An old-schema or
+    # missing snapshot (every row before 2026-10-29, or any row only ever
+    # written by the backfill job rather than a real user visit) falls
+    # through to the pre-existing behavior unchanged.
+    snapshot = persisted.get("diagnostic_snapshot") if persisted else None
+    if snapshot and persisted.get("snapshot_schema_version") == _DIAGNOSTIC_SCHEMA_VERSION:
+        try:
+            quote = await asyncio.to_thread(fh_quote, ticker)
+        except Exception:
+            quote = None
+        result = _apply_live_quote_diagnostic(snapshot, quote, lang)
+        result["valuationAsOf"] = persisted.get("computed_at")
+        result["validationStatus"] = persisted.get("validation_status")
+        result["reviewReason"] = persisted.get("error_detail")
+        return result
+
     base = {
         "ticker": ticker, "companyName": company_name, "sector": sector, "exchange": "",
         "score": None, "scoreLabel": None, "pillarScores": None, "badges": None,
@@ -3202,7 +3221,12 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
     # request, so this is just a cheap Supabase write, no second fetch, and
     # must never delay or fail the user's own response.
     from app.services.company_valuation_service import persist_from_fetched_data
-    asyncio.create_task(persist_from_fetched_data(ticker, data))
+    # migration 117: persist the full rendered diagnostic too (not just the
+    # numeric valuation), so a future read that can't recompute live (a
+    # cold-cache open for a thin-provider-coverage ticker, a provider
+    # outage) can still serve the real ficha instead of the cut-down
+    # fallback in _degraded_diagnostic below.
+    asyncio.create_task(persist_from_fetched_data(ticker, data, diagnostic=diagnostic, snapshot_schema_version=_DIAGNOSTIC_SCHEMA_VERSION))
 
     return diagnostic
 
