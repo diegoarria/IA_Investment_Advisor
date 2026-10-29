@@ -71,6 +71,11 @@ class Settings(BaseSettings):
     # Stripe
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+    # RevenueCat — Apple IAP (iOS mobile app only; web/Stripe untouched).
+    # Authorization header shared secret set in RevenueCat → Project
+    # Settings → Webhooks (NOT a Stripe-style HMAC signature — RevenueCat
+    # just echoes back whatever Authorization value you configure there).
+    revenuecat_webhook_secret: str = ""
     stripe_price_id_monthly: str = ""
     stripe_price_id_yearly: str = ""
     # MXN counterparts (Stripe Price IDs created in MXN) used for users in

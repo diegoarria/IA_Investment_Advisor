@@ -1,4 +1,5 @@
 import asyncio
+import hmac
 import logging
 import stripe
 from datetime import datetime, timezone
@@ -791,6 +792,157 @@ async def stripe_webhook(request: Request):
                     ))
 
     return {"received": True}
+
+
+@router.post("/revenuecat-webhook")
+async def revenuecat_webhook(request: Request):
+    """Apple IAP (mobile app, RevenueCat) side of the same subscription_tier
+    writes the Stripe webhook above does for web — entirely additive, never
+    touches trial_started_at (Nuvos's own 30-day free trial, see
+    app/core/subscription.py) or anything Stripe-sourced.
+
+    RevenueCat's `app_user_id` IS our Supabase user_id directly — the
+    mobile app calls Purchases.logIn(supabase_user_id) right after auth
+    (see src/lib/revenuecat.ts), so no email/customer-id resolution dance
+    is needed here the way the Stripe webhook needs for unlinked customers.
+
+    Auth: RevenueCat doesn't sign payloads like Stripe (HMAC) — it just
+    echoes back whatever Authorization header value you typed into
+    RevenueCat → Project Settings → Webhooks, verbatim, on every request.
+    REVENUECAT_WEBHOOK_SECRET must be set to that exact string."""
+    if not settings.revenuecat_webhook_secret:
+        raise HTTPException(status_code=503, detail="Webhook no configurado")
+    presented = (request.headers.get("authorization") or "").strip()
+    expected = settings.revenuecat_webhook_secret.strip()
+    if not presented or not hmac.compare_digest(presented, expected):
+        logger.error("revenuecat webhook: Authorization header mismatch (present=%s)", bool(presented))
+        raise HTTPException(status_code=401, detail="No autorizado")
+
+    body = await request.json()
+    event = body.get("event") or {}
+    event_type = event.get("type", "")
+    app_user_id = event.get("app_user_id")
+    entitlement_ids = event.get("entitlement_ids") or []
+    product_id = event.get("product_id")
+    environment = event.get("environment")  # SANDBOX | PRODUCTION
+    expiration_ms = event.get("expiration_at_ms")
+
+    if not app_user_id:
+        logger.warning("revenuecat webhook: no app_user_id on event type=%s", event_type)
+        return {"received": True}
+    if app_user_id.startswith("$RCAnonymousID"):
+        # Should never happen — the app always logs in with the real
+        # Supabase user_id before any purchase is possible — but never
+        # write an anonymous RC id into user_profiles if it somehow does.
+        logger.warning("revenuecat webhook: anonymous app_user_id on event type=%s, skipping", event_type)
+        return {"received": True}
+
+    db = get_supabase()
+    from app.services.subscription_audit import log_subscription_change
+    is_duo = "duo" in entitlement_ids
+    is_premium_ent = is_duo or "premium" in entitlement_ids
+
+    # Events that mean "this user is entitled right now" — initial
+    # purchase, renewal, switching products (incl. premium<->duo),
+    # un-cancelling before the period ends, and RevenueCat-side account
+    # merges/transfers.
+    if event_type in ("INITIAL_PURCHASE", "RENEWAL", "PRODUCT_CHANGE", "UNCANCELLATION", "NON_RENEWING_PURCHASE", "TRANSFER"):
+        if not is_premium_ent:
+            logger.warning("revenuecat webhook: %s with no premium/duo entitlement (product=%s, entitlements=%s)", event_type, product_id, entitlement_ids)
+            return {"received": True}
+        update = {"subscription_tier": "premium", "subscription_source": "revenuecat"}
+        if expiration_ms:
+            update["premium_until"] = datetime.fromtimestamp(expiration_ms / 1000, tz=timezone.utc).isoformat()
+        if is_duo:
+            # Only SET duo_plan_purchased_at, never clear it here — a
+            # duo->premium PRODUCT_CHANGE (downgrade) shouldn't silently
+            # drop an already-set-up partner; that's a deliberate choice
+            # the owner makes elsewhere, not a side effect of this event.
+            existing = await run_query(
+                db.table("user_profiles").select("duo_plan_purchased_at").eq("user_id", app_user_id).maybe_single()
+            )
+            if not (existing and existing.data and existing.data.get("duo_plan_purchased_at")):
+                update["duo_plan_purchased_at"] = datetime.now(timezone.utc).isoformat()
+        await run_query(db.table("user_profiles").update(update).eq("user_id", app_user_id))
+        cache_delete(f"profile:{app_user_id}")
+        cache_delete(f"sync:all:{app_user_id}")
+        log_subscription_change(
+            app_user_id, f"revenuecat_webhook:{event_type}", tier="premium", source="revenuecat",
+            premium_until=update.get("premium_until"), reason=f"product={product_id} env={environment}",
+        )
+
+    elif event_type == "CANCELLATION":
+        # Auto-renew turned off but Apple keeps access live until
+        # expiration_at_ms — never downgrade here, only keep premium_until
+        # accurate so is_premium_active() still flips correctly on its own
+        # once that date passes.
+        premium_until = None
+        if expiration_ms:
+            premium_until = datetime.fromtimestamp(expiration_ms / 1000, tz=timezone.utc).isoformat()
+            await run_query(db.table("user_profiles").update({"premium_until": premium_until}).eq("user_id", app_user_id))
+            cache_delete(f"profile:{app_user_id}")
+            cache_delete(f"sync:all:{app_user_id}")
+        log_subscription_change(
+            app_user_id, "revenuecat_webhook:CANCELLATION", source="revenuecat",
+            premium_until=premium_until, reason="Auto-renovación desactivada en Apple",
+        )
+
+    elif event_type == "EXPIRATION":
+        await _downgrade_revenuecat_user(app_user_id, db, event_type)
+
+    elif event_type == "BILLING_ISSUE":
+        log_subscription_change(
+            app_user_id, "revenuecat_webhook:BILLING_ISSUE", source="revenuecat",
+            reason=f"Problema de cobro en Apple, product={product_id}",
+        )
+
+    else:
+        logger.info("revenuecat webhook: unhandled event type %s for user %s", event_type, app_user_id)
+
+    return {"received": True}
+
+
+async def _downgrade_revenuecat_user(user_id: str, db, event_type: str = "") -> None:
+    """EXPIRATION means Apple actually ended the subscription (grace period
+    over, no more retries). Mirrors _downgrade_by_customer_id's guard
+    against stomping manual_comp, keyed by user_id since RevenueCat's
+    app_user_id already IS our user_id — and additionally only acts when
+    subscription_source is 'revenuecat', so a stray/duplicate RC event can
+    never downgrade a user whose real premium is an active Stripe web
+    subscription. Also revokes a linked Duo secondary the same way the
+    Stripe path's _revoke_duo_secondary does."""
+    res = await run_query(
+        db.table("user_profiles")
+        .select("subscription_source, duo_secondary_user_id, duo_secondary_email")
+        .eq("user_id", user_id).maybe_single()
+    )
+    row = res.data or {}
+    if row.get("subscription_source") != "revenuecat":
+        logger.info("revenuecat webhook: EXPIRATION for %s ignored, subscription_source=%r", user_id, row.get("subscription_source"))
+        return
+
+    from app.services.subscription_audit import log_subscription_change
+    await run_query(db.table("user_profiles").update({"subscription_tier": "free"}).eq("user_id", user_id))
+    cache_delete(f"profile:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
+    log_subscription_change(user_id, f"revenuecat_webhook:{event_type}", tier="free", source="revenuecat", reason="Suscripción de Apple expiró")
+
+    secondary_email = row.get("duo_secondary_email")
+    secondary_id = row.get("duo_secondary_user_id") or (await _find_user_id_by_email(secondary_email, db) if secondary_email else None)
+    if secondary_id:
+        update: dict = {"duo_primary_user_id": None}
+        downgraded = await _safe_to_downgrade_duo_secondary(secondary_id, db)
+        if downgraded:
+            update["subscription_tier"] = "free"
+        await run_query(db.table("user_profiles").update(update).eq("user_id", secondary_id))
+        cache_delete(f"profile:{secondary_id}")
+        cache_delete(f"sync:all:{secondary_id}")
+        if downgraded:
+            log_subscription_change(secondary_id, "duo_revocation", tier="free", reason="Plan Duo (Apple) del titular expiró")
+    if secondary_email:
+        await run_query(
+            db.table("user_profiles").update({"duo_secondary_user_id": None, "duo_invite_status": None}).eq("user_id", user_id)
+        )
 
 
 async def _downgrade_by_customer_id(customer_id: str, db, event_type: str = "") -> None:
