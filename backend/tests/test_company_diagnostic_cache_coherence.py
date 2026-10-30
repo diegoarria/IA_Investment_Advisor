@@ -347,3 +347,69 @@ def test_fresh_cache_with_no_newer_persisted_row_is_still_served(monkeypatch):
         return not stale
 
     assert _run(_check()) is True  # cache should be served as-is
+
+
+# ── Integration: convergence even when direct invalidation fails ───────────
+
+def test_republish_converges_via_backstop_even_if_direct_invalidation_fails(monkeypatch):
+    """Diego, PASO 5 (deploy directive): beyond the 10 unit scenarios above,
+    a genuine end-to-end check that a NEW publish makes an old cached entry
+    unusable even when the primary mechanism (direct cache_delete on
+    publish) itself fails outright — exercising the REAL persist_valuation
+    and the REAL get_persisted_valuation, with only cache_delete forced to
+    raise (simulating a Redis outage at invalidation time, not a mocked
+    reconciliation check)."""
+    from app.api.routes import screener as screener_mod
+
+    db = _FakeDB()
+    monkeypatch.setattr(cvs, "get_supabase", lambda: db)
+    db.rows.append({
+        "ticker": "CHTR", "intrinsic_value_usd": 3025.33, "is_current": True,
+        "validation_status": "under_review",
+        "computed_at": "2026-10-29T20:00:00+00:00",
+    })
+
+    key = screener_mod._company_diagnostic_cache_key("CHTR", "es", tier="free")
+    cache_mod.cache_set(key, {
+        "_schema_version": screener_mod._DIAGNOSTIC_SCHEMA_VERSION,
+        "_earnings_period": "2026-Q3",
+        "_valuation_computed_at": "2026-10-29T20:05:00+00:00",  # after the old row's computed_at
+        "valuation": {"baseFairValue": 3025.33},
+    }, ttl=3600)
+
+    # Force the PRIMARY mechanism to fail outright (real Redis outage at
+    # invalidation time) — only for the public diagnostic keys, so this
+    # doesn't also break the separate, pre-existing `_invalidate_read_cache`
+    # call (company_valuation:v1:*) that persist_valuation also makes and
+    # that relies on cache_delete's OWN internal try/except, not this
+    # test's — that's a different, already-safe mechanism, not what's
+    # under test here.
+    def _raise_for_public_key(key, *_a, **_k):
+        if key.startswith("company_diagnostic:"):
+            raise ConnectionError("simulated Redis outage during invalidation")
+
+    monkeypatch.setattr(cvs, "cache_delete", _raise_for_public_key)
+
+    # Real publish — must succeed and must NOT raise, despite the forced
+    # cache_delete failure above (persist_valuation's own try/except around
+    # _invalidate_public_diagnostic_cache is the thing under test here).
+    row = _run(cvs.persist_valuation("CHTR", _computed(1156.84, "under_review")))
+    assert row["intrinsic_value_usd"] == 1156.84
+
+    # The stale cache entry is still sitting there — direct invalidation
+    # genuinely did not run (forced to raise above).
+    still_cached = cache_mod.cache_get(key)
+    assert still_cached is not None and still_cached["valuation"]["baseFairValue"] == 3025.33
+
+    # Backstop: a real read of get_persisted_valuation (Redis-fast-pathed,
+    # same function the route calls) must now report a computed_at newer
+    # than the stale entry's stamp — i.e. the route's reconciliation check
+    # would correctly treat this cache entry as a miss on the very next
+    # read, converging to the real $1,156.84 without needing the direct
+    # invalidation to have worked at all.
+    persisted = _run(cvs.get_persisted_valuation("CHTR"))
+    cached_stamp = still_cached["_valuation_computed_at"]
+    assert persisted["computed_at"] > cached_stamp, (
+        "republish did not produce a computed_at newer than the stale cache "
+        "stamp — the backstop would NOT have caught this case"
+    )
