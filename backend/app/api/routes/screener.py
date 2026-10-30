@@ -3073,6 +3073,37 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         logger.info("company_diagnostic(%s): cached entry predates schema v%s — treating as miss", ticker, _DIAGNOSTIC_SCHEMA_VERSION)
         cached = None
     if cached:
+        # 2026-10-30 P0 (CHTR stale-cache incident) reconciliation backstop:
+        # the earnings-period check below only catches a NEW REPORT, not a
+        # recompute of the SAME period (e.g. a methodology/WACC fix
+        # republished through a backfill/recompute script rather than this
+        # live route) — that's exactly what let CHTR's cache outlive its
+        # own Supabase update (persist_valuation's own direct invalidation,
+        # _invalidate_public_diagnostic_cache, is the primary fix for that;
+        # this is the backstop for whenever it didn't run or Redis dropped
+        # it). `get_persisted_valuation` is Redis-fast-pathed (a separate,
+        # ~1h-TTL key — company_valuation_service.py's _READ_CACHE_KEY),
+        # so this is a cheap check, not a Supabase round trip on every hit.
+        # Entries cached before this fix have no `_valuation_computed_at`
+        # stamp yet — treated as "unknown, trust the cache" rather than a
+        # forced miss, so this doesn't mass-invalidate everything already
+        # cached; it only protects entries written from this point on,
+        # same lazy-invalidation discipline as the schema-version check above.
+        cached_stamp = cached.get("_valuation_computed_at")
+        if cached_stamp:
+            try:
+                from app.services.company_valuation_service import get_persisted_valuation as _get_pv
+                _persisted_check = await _get_pv(ticker)
+            except Exception:
+                _persisted_check = None
+            if _persisted_check and _persisted_check.get("computed_at"):
+                if str(_persisted_check["computed_at"]) > str(cached_stamp):
+                    logger.info(
+                        "company_diagnostic(%s): persisted valuation (%s) is newer than cached entry (%s) — treating as miss",
+                        ticker, _persisted_check["computed_at"], cached_stamp,
+                    )
+                    cached = None
+    if cached:
         current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
         cached_period = cached.get("_earnings_period")
         if not current_period or current_period == cached_period:
@@ -3254,6 +3285,15 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
 
     diagnostic["_earnings_period"] = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
     diagnostic["_schema_version"] = _DIAGNOSTIC_SCHEMA_VERSION
+    # 2026-10-30 P0 (CHTR stale-cache incident): a direct `computed_at`
+    # stamp of what this cache entry is based on, checked against
+    # company_valuations on every cache HIT below — the reconciliation
+    # backstop for whenever the primary mechanism (persist_valuation's
+    # own _invalidate_public_diagnostic_cache, called on every publish)
+    # didn't run or failed to reach Redis. Wall-clock "now", not the
+    # ticker's own valuationAsOf, so it only needs comparing against a
+    # LATER publish — anything persisted after this moment, by any path.
+    diagnostic["_valuation_computed_at"] = datetime.now(timezone.utc).isoformat()
     cache_set(cache_key, diagnostic, _COMPANY_DIAGNOSTIC_CACHE_TTL)
 
     # Write-through to the durable company_valuations table (2026-10-20) —

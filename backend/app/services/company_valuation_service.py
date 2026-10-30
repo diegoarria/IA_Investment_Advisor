@@ -35,7 +35,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from app.core.cache import acquire_lock, release_lock, cache_get, cache_set, cache_incr
+from app.core.cache import acquire_lock, release_lock, cache_get, cache_set, cache_incr, cache_delete
 from app.core.database import get_supabase, run_query
 
 logger = logging.getLogger(__name__)
@@ -394,8 +394,55 @@ async def get_persisted_valuation(ticker: str) -> Optional[dict]:
 
 
 async def _invalidate_read_cache(ticker: str) -> None:
-    from app.core.cache import cache_delete
     cache_delete(_READ_CACHE_KEY.format(ticker=normalize_ticker_symbol(ticker)))
+
+
+# 2026-10-30 P0 (CHTR incident): `_invalidate_read_cache` above only ever
+# cleared THIS module's own internal 1h read-through cache
+# (`company_valuation:v1:*`, the one `get_persisted_valuation` uses) — it
+# never touched the much longer-lived PUBLIC ficha cache screener.py
+# writes under `company_diagnostic:v10:{lang}:{ticker}[:premium]`
+# (`_COMPANY_DIAGNOSTIC_CACHE_TTL` = 2 years). That cache is checked FIRST
+# in `_company_diagnostic_result`, before this table is ever consulted —
+# so any publish that happens outside the live /company-diagnostic route
+# (a backfill run, a one-off recompute script, anything calling
+# `persist_valuation` directly) left a stale v10 entry fully able to
+# outlive the new, correct Supabase row by up to 2 years. Confirmed live:
+# CHTR's Supabase row updated to $1,156.84, its public endpoint kept
+# serving $3,025.33 from a v10 entry cached before the recompute.
+#
+# Deliberately a LAZY import of screener's own key-builder (not a
+# module-level one) — screener.py already imports this module at call
+# time inside several of its functions, so a module-level import here
+# would be circular; by the time any valuation is actually persisted,
+# both modules are already fully loaded.
+def _invalidate_public_diagnostic_cache(ticker: str) -> None:
+    try:
+        from app.api.routes.screener import _company_diagnostic_cache_key
+    except Exception as e:
+        # Never let a refactor of screener.py's private key format turn an
+        # otherwise-successful valuation publish into a crash — worst case
+        # here is the OLD staleness bug returning for this one publish,
+        # not a failed write. Logged loudly so it's never silently stale.
+        logger.warning("_invalidate_public_diagnostic_cache(%s): couldn't import key builder, cache left untouched: %s", ticker, e)
+        return
+    ticker = normalize_ticker_symbol(ticker)
+    for lang in ("es", "en"):
+        for tier in ("free", "premium"):
+            # cache_delete swallows its own Redis errors (app/core/cache.py)
+            # and never raises in real operation — this per-key try/except
+            # is belt-and-suspenders so even an unexpected failure (or a
+            # test double standing in for one) can't abort the remaining
+            # 3 keys, let alone escape this function. A Redis outage here
+            # degrades to "cache left stale for now", never to a failed/
+            # aborted publish — the read-time reconciliation check in
+            # screener.py's _company_diagnostic_result (the
+            # `_valuation_computed_at` stamp) is the backstop for exactly
+            # that case.
+            try:
+                cache_delete(_company_diagnostic_cache_key(ticker, lang, tier=tier))
+            except Exception as e:
+                logger.warning("_invalidate_public_diagnostic_cache(%s): cache_delete raised for lang=%s tier=%s: %s", ticker, lang, tier, e)
 
 
 async def persist_valuation(
@@ -492,6 +539,20 @@ async def persist_valuation(
         logger.warning("persist_valuation(%s): backoff-tracking update failed (non-fatal): %s", ticker, e)
 
     await _invalidate_read_cache(ticker)
+    # Any publish that reaches this point just changed what `ticker`'s
+    # CURRENT valuation is — the public ficha cache must stop serving
+    # whatever it had cached before, in every language/tier combination,
+    # regardless of which code path (live route vs. backfill/recompute
+    # script) produced this publish. Supabase has already committed by
+    # this line — wrapped so even an unexpected bug in the invalidation
+    # helper itself can only leave the cache stale (same failure mode as
+    # today's Redis-unreachable case, covered by the read-time
+    # reconciliation backstop in screener.py), never undo or fail this
+    # already-successful publish.
+    try:
+        _invalidate_public_diagnostic_cache(ticker)
+    except Exception as e:
+        logger.warning("persist_valuation(%s): public cache invalidation raised, publish already committed: %s", ticker, e)
     return row
 
 
