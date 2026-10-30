@@ -556,7 +556,32 @@ def _calc_wacc(
     e, d = market_cap, total_debt
     v = e + d
     wacc = (e / v) * cost_of_equity + (d / v) * cost_of_debt * (1 - tax_rate)
-    wacc = max(min(wacc, 0.20), 0.04)  # sanity floor/ceiling — CAPM with an extreme beta can otherwise produce nonsense
+    # Radar legacy-engine audit, 2026-10-29 — the static 4% floor below was
+    # set back when the risk-free rate was ~1-2%; today's real risk_free_rate
+    # (~5%) makes it non-binding exactly when it matters most. Confirmed live
+    # for two real cases: Ford (equity_weight 23%/debt_weight 77% from Ford
+    # Credit's captive-finance debt sitting in total_debt) computed a 5.02%
+    # WACC, and Charter (13%/87%, aggressive buyback-funded leverage) computed
+    # 4.56% — both BELOW the prevailing 4.99% risk-free rate, which is
+    # economically incoherent (no operating company's blended cost of capital
+    # can be cheaper than a riskless government bond — equity alone must
+    # clear the risk-free rate by definition of a positive equity risk
+    # premium). A near-miss case was found too: General Mills (beta -0.05,
+    # clamped to the 0.3 floor above) computed 4.65%, pushing its intrinsic/
+    # price ratio to 4.51x — just under the 5.0x anomaly-review threshold,
+    # undetected until this audit. The floor is now tied to the SAME
+    # risk_free_rate already flowing through this function (never a fixed
+    # number stale across rate cycles), with a 150bp spread — a conservative
+    # floor even for the safest investment-grade non-financial issuer, well
+    # below the 9% practitioner floor financial_engine.py already applies to
+    # banks/insurers (deliberately not reused here — that floor is sized for
+    # a cost of EQUITY, this one for a blended WACC, which is always lower).
+    # This narrows but does not eliminate Ford's/Charter's extreme ratios
+    # (confirmed: Ford 9.995x->5.44x, Charter 27.76x->10.6x) — both stay
+    # correctly under_review; this fix corrects a real, universal WACC-floor
+    # defect, it does not tune any single company's number toward its price.
+    wacc_floor = max(0.04, risk_free_rate + 0.015)
+    wacc = max(min(wacc, 0.20), wacc_floor)  # sanity floor/ceiling — CAPM with an extreme beta can otherwise produce nonsense
 
     return wacc, {
         "method": "capm",

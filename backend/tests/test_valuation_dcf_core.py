@@ -233,6 +233,29 @@ class TestCalcWacc:
         )
         assert wacc_adj == pytest.approx(wacc_base + 0.01, abs=1e-6)
 
+    def test_wacc_floor_tracks_risk_free_rate_not_a_stale_constant(self):
+        # Radar legacy-engine audit, 2026-10-29 — real bug found auditing
+        # Ford/Charter: the floor used to be a flat 4%, which is BELOW
+        # today's real risk-free rate (~5%), so it never bound for a
+        # heavily-levered or low-beta company even though the resulting
+        # WACC was economically incoherent (cheaper than a government
+        # bond). At a low risk-free rate (1%), the floor should still be
+        # the conservative constant (4%) — unaffected by this fix.
+        wacc_low_rf, _ = _calc_wacc(
+            beta=0.05, risk_free_rate=0.01, market_cap=1e9,
+            total_debt=0, interest_expense=0, tax_rate=0.21, sector=None,
+        )
+        assert wacc_low_rf == pytest.approx(0.04, abs=1e-6)
+        # At today's higher risk-free rate (4.99%), a heavily-levered,
+        # low-beta company's WACC must sit ABOVE the risk-free rate — the
+        # floor now tracks it (rf + 1.5pp), not the stale 4% constant.
+        wacc_high_rf, meta = _calc_wacc(
+            beta=0.69, risk_free_rate=0.0499, market_cap=1e8,
+            total_debt=9e8, interest_expense=4.5e7, tax_rate=0.227, sector=None,
+        )
+        assert wacc_high_rf >= 0.0499
+        assert wacc_high_rf == pytest.approx(0.0649, abs=1e-6)
+
 
 # ── Sector lookup tables ──────────────────────────────────────────────────
 

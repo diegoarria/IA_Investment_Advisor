@@ -302,7 +302,22 @@ def scenarios_from_fetched_data(ticker: str, data: dict) -> dict:
         "model_version": MODEL_VERSION,
         "financial_report_period": financial_report_period,
         "assumptions": {
-            "discount_rate_pct": (dcf.get("wacc_details") or {}).get("wacc_pct"),
+            # Radar legacy-engine audit, 2026-10-29: `dcf["wacc_details"]`
+            # (set by `_calc_wacc`/`financial_engine.build_financial_
+            # fair_value`) never carries a "wacc_pct" key — only `dcf[
+            # "gqv_fair_value"]["wacc_details"]` does, for GQV-methodology
+            # rows. This made every persisted row's assumptions.discount_
+            # rate_pct silently NULL regardless of methodology (confirmed:
+            # every row in company_valuations, GQV or legacy/financial,
+            # had it null) — a real gap for anyone reviewing an under_
+            # review case from Supabase without recomputing the whole
+            # pipeline. `dcf["base_discount_rate_pct"]` is the real,
+            # always-present field (legacy/financial engines) that this
+            # should have read; GQV rows fall back to their own nested copy.
+            "discount_rate_pct": (
+                dcf.get("base_discount_rate_pct")
+                or (dcf.get("gqv_fair_value") or {}).get("wacc_details", {}).get("wacc_pct")
+            ),
             "fcf_assumptions": scenarios.get("fcf_assumptions"),
             "bear": scenarios.get("bear"),
             "bull": scenarios.get("bull"),
