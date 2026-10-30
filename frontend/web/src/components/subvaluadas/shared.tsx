@@ -11,6 +11,20 @@ import {
 import { projectDriverBasedDcf, type DriverBasedDcfInput, type DriverBasedDcfResult } from "@/lib/driverBasedDcf";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { safeToFixed } from "@/lib/numberFormat";
+
+// Radar WACC-persistence audit, 2026-10-29: `discount_rate_pct` (and any
+// other optional/historical financial field rendered with `.toFixed()`)
+// must never crash a ficha just because a field is null/undefined/NaN/
+// Infinity — e.g. every `company_valuations` row persisted before today
+// had `assumptions.discount_rate_pct` silently null (separate persistence
+// bug, now fixed going forward; historical rows intentionally left null,
+// never backfilled with an invented value). Never render "0.0%" for a
+// missing rate — that's a real, misleading number, not an empty state.
+export function _fmtPct(v: number | null | undefined, decimals = 1): string {
+  const s = safeToFixed(v, decimals);
+  return s === null ? "N/D" : `${s}%`;
+}
 
 export interface ChecklistItem {
   key?: string;
@@ -770,7 +784,7 @@ export function _SupuestosSection({ data }: { data: NuvosFairValueData }) {
       {!isFinancial && (
         <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.roicFactorsTitle")} factors={data.terminal_roic_factors} nuvosValuePct={_deriveTerminalRoicPct(base)} />
       )}
-      <_SupuestoSimpleRow title={t(isFinancial ? "subvaluadas.nuvosFairValue.costOfEquity" : "subvaluadas.nuvosFairValue.wacc")} value={`${base.discount_rate_pct.toFixed(1)}%`} />
+      <_SupuestoSimpleRow title={t(isFinancial ? "subvaluadas.nuvosFairValue.costOfEquity" : "subvaluadas.nuvosFairValue.wacc")} value={_fmtPct(base.discount_rate_pct)} />
       {base.exit_multiple !== null && (
         <_ExitMultipleAccordionItem
           title={t(isFinancial ? "subvaluadas.nuvosFairValue.terminalPb" : "subvaluadas.nuvosFairValue.exitMultiple")}
