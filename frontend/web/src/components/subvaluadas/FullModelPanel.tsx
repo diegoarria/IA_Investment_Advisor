@@ -9,6 +9,7 @@ import {
   _solveImpliedGrowth, _solveImpliedDiscountRate, _solveImpliedExitMultiple, deriveBaseInputs,
 } from "./shared";
 import { projectDriverBasedDcf, type DriverBasedDcfInput, type DriverBasedDcfResult } from "@/lib/driverBasedDcf";
+import { safeToFixed } from "@/lib/numberFormat";
 
 type ScenarioName = "bear" | "base" | "bull";
 type TabId = "template" | "projection" | "conversion" | "discount" | "terminal" | "result" | "full";
@@ -48,12 +49,13 @@ function Slider({
   onChange: (v: number) => void;
   referencePoints?: { label: string; value: number }[];
 }) {
+  const safeValue = Number.isFinite(value) ? value : min;
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between mb-1">
         <span className="text-[11px] font-bold" style={{ color: "var(--sub)" }}>{label}</span>
         <span className="text-[12px] font-black tabular-nums" style={{ color: "var(--text)" }}>
-          {value.toFixed(step < 1 ? 1 : 0)}{unit}
+          {safeToFixed(value, step < 1 ? 1 : 0) ?? "N/D"}{unit}
         </span>
       </div>
       <input
@@ -61,21 +63,21 @@ function Slider({
         min={min}
         max={max}
         step={step}
-        value={value}
+        value={safeValue}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         className="w-full accent-current"
         style={{ accentColor: "var(--accent)" }}
       />
       {referencePoints && referencePoints.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-1.5">
-          {referencePoints.map((rp) => (
+          {referencePoints.filter((rp) => Number.isFinite(rp.value)).map((rp) => (
             <button
               key={rp.label}
               onClick={() => onChange(rp.value)}
               className="text-[9.5px] rounded-full px-2 py-0.5"
               style={{ background: "var(--raised)", color: "var(--muted)" }}
             >
-              {rp.label}: <b style={{ color: "var(--sub)" }}>{rp.value.toFixed(1)}{unit}</b>
+              {rp.label}: <b style={{ color: "var(--sub)" }}>{safeToFixed(rp.value, 1) ?? "N/D"}{unit}</b>
             </button>
           ))}
         </div>
