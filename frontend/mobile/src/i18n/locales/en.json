@@ -133,6 +133,8 @@
       "checkoutError": "Error processing payment"
     },
     "duo": {
+      "purchasedTitle": "Duo Plan active!",
+      "purchasedBody": "Go to the Inicio tab to add the email of the person you're sharing it with.",
       "confirmTitle": "Save these 2 accounts?",
       "yourAccountFallback": "Your account",
       "confirmSave": "Save",
@@ -3042,6 +3044,12 @@
     "errorTitle": "Error",
     "paymentError": "Could not open payment. Please try again.",
     "manageOnWeb": "Subscribe or change your plan at nuvosai.com",
+    "subscribeNow": "Subscribe now",
+    "opening": "Opening...",
+    "restorePurchases": "Restore purchases",
+    "restoring": "Restoring...",
+    "restoreDoneTitle": "Done",
+    "restoreDoneBody": "Your purchases were restored.",
     "freeFeatures": [
       "Up to 15 messages a day with Arthur, your investing mentor",
       "Portfolio of up to 10 stocks",
@@ -3674,6 +3682,21 @@
     "couldNotLoadData": "Couldn't load the data",
     "employeesAbbr": "employees",
     "fairValue": "Fair value {{price}}",
+    "targetPrice": {
+      "title": "My Target Price",
+      "subtitle": "We'll notify you when it hits your price",
+      "singleMode": "Single price",
+      "rangeMode": "Price range",
+      "currentPrice": "Current price:",
+      "lowPlaceholder": "Price",
+      "highPlaceholder": "Max price",
+      "createButton": "Save target price",
+      "updateButton": "Update target price",
+      "removeButton": "Remove",
+      "creating": "Saving...",
+      "created": "Saved!",
+      "error": "Couldn't save your target price. Try again."
+    },
     "groups": {
       "profitability": "Profitability",
       "risk": "Risk",

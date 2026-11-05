@@ -331,7 +331,11 @@ export const billingApi = {
   getUsage: () => api.get<UsageSummary>("/api/billing/usage"),
   setOverage: (enabled: boolean, capBlocks?: number) =>
     api.post<UsageSummary>("/api/billing/usage/overage", { enabled, cap_blocks: capBlocks ?? null }),
-  createCheckout: (plan: "monthly" | "yearly" = "monthly") => api.post("/api/billing/create-checkout", { plan }),
+  createCheckout: (plan: "monthly" | "yearly" = "monthly") =>
+    api.post<{ url: string }>("/api/billing/create-checkout", { plan }),
+  // Safety net for a missed webhook after the in-app browser checkout closes — asks
+  // Stripe directly whether this user now has an active subscription.
+  syncSubscription: () => api.post<{ premium: boolean }>("/api/billing/sync-subscription"),
   getStatus: () => api.get("/api/billing/status"),
   getPricing: () => api.get("/api/billing/pricing"),
   brokerCallCheckout: () => api.post("/api/billing/broker-call-checkout"),
@@ -345,7 +349,7 @@ export const billingApi = {
 
 export const upsellsApi = {
   checkout: (offer: string, variant: string, trigger_source: string, extra?: Record<string, unknown>) =>
-    api.post("/api/upsells/checkout", { offer, variant, trigger_source, ...extra }),
+    api.post<{ url?: string; error?: string }>("/api/upsells/checkout", { offer, variant, trigger_source, ...extra }),
 };
 
 export const learnApi = {
@@ -549,8 +553,20 @@ export const watchlistServerApi = {
 
 export const priceAlertsApi = {
   list:   () => api.get("/api/price-alerts"),
-  create: (ticker: string, targetPrice: number, condition: "above" | "below", name?: string) =>
-    api.post("/api/price-alerts", { ticker, target_price: targetPrice, condition, name }),
+  create: (
+    ticker: string,
+    targetPrice: number,
+    condition: "above" | "below" | "range",
+    name?: string,
+    targetPriceHigh?: number
+  ) =>
+    api.post("/api/price-alerts", {
+      ticker,
+      target_price: targetPrice,
+      target_price_high: targetPriceHigh,
+      condition,
+      name,
+    }),
   remove: (ticker: string) => api.delete(`/api/price-alerts/${ticker}`),
 };
 

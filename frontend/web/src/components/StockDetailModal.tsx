@@ -15,6 +15,7 @@ import IncomeStatementTab from "@/components/IncomeStatementTab";
 import BalanceSheetTab from "@/components/BalanceSheetTab";
 import CashFlowTab from "@/components/CashFlowTab";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
+import { TargetPricePanel } from "@/components/stock/TargetPricePanel";
 import PaywallModal from "@/components/PaywallModal";
 import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 
@@ -1239,6 +1240,14 @@ export default function StockDetailModal({ ticker, onClose, initialTab = "chart"
                       </div>
                     </div>
                   )}
+
+                  {/* ── Mi Precio Objetivo ── */}
+                  <TargetPricePanel
+                    ticker={ticker}
+                    companyName={profile?.name ?? null}
+                    price={profile?.current_price ?? null}
+                    currency={profile?.currency}
+                  />
 
                   {/* ── Category grid ── */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">

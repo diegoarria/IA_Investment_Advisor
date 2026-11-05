@@ -137,7 +137,7 @@ def record_backfill_outcome(validation_status: str) -> None:
         )
 
 
-async def get_pending_tickers(universe_tickers: list[str]) -> dict[str, list[str]]:
+async def get_pending_tickers(universe_tickers: list[str], full_snapshot: bool = False) -> dict[str, list[str]]:
     """Classifies every ticker in `universe_tickers` by querying
     company_valuations' CURRENT rows — the single source of truth both
     the backfill job's real processing and BACKFILL_DRY_RUN's report use,
@@ -153,15 +153,28 @@ async def get_pending_tickers(universe_tickers: list[str]) -> dict[str, list[str
         still inside its backoff window.
       - stale: current row is valid but computed under an older
         MODEL_VERSION than today's.
-      - already_valid: current row is valid under today's MODEL_VERSION.
-        refresh_if_needed will still no-op these until the real financial
-        report period changes, so the backfill job never schedules them.
+      - already_valid: current row is valid under today's MODEL_VERSION
+        (and, when `full_snapshot=True`, already carries a complete
+        current-schema snapshot too). refresh_if_needed will still no-op
+        these until the real financial report period changes, so the
+        backfill job never schedules them.
+      - missing_snapshot (only populated when `full_snapshot=True`): a
+        row that's already `valid` under today's MODEL_VERSION — so the
+        plain/numeric-mode backfill would call it "done" and skip it
+        forever — but has no complete current-schema `diagnostic_
+        snapshot` yet (migration 117). This is the real gap full-snapshot
+        mode exists to close: most of today's `valid` rows were written
+        before the snapshot column existed, or by numeric-only backfill
+        runs, and would never otherwise get upgraded.
     """
     tickers = [normalize_ticker_symbol(t) for t in universe_tickers]
     db = get_supabase()
+    select_cols = "ticker,validation_status,model_version,next_retry_at"
+    if full_snapshot:
+        select_cols += ",diagnostic_snapshot,snapshot_schema_version"
     result = await run_query(
         db.table("company_valuations")
-        .select("ticker,validation_status,model_version,next_retry_at")
+        .select(select_cols)
         .in_("ticker", tickers)
         .eq("is_current", True)
     )
@@ -169,7 +182,8 @@ async def get_pending_tickers(universe_tickers: list[str]) -> dict[str, list[str
 
     now = datetime.now(timezone.utc)
     buckets: dict[str, list[str]] = {
-        "no_valuation": [], "retry_eligible": [], "backing_off": [], "stale": [], "already_valid": [],
+        "no_valuation": [], "retry_eligible": [], "backing_off": [], "stale": [],
+        "already_valid": [], "missing_snapshot": [],
     }
     for ticker in tickers:
         row = rows_by_ticker.get(ticker)
@@ -178,8 +192,17 @@ async def get_pending_tickers(universe_tickers: list[str]) -> dict[str, list[str
             continue
         status = row.get("validation_status")
         if status == "valid":
-            bucket = "already_valid" if row.get("model_version") == MODEL_VERSION else "stale"
-            buckets[bucket].append(ticker)
+            if row.get("model_version") != MODEL_VERSION:
+                buckets["stale"].append(ticker)
+                continue
+            if full_snapshot:
+                has_complete_snapshot = (
+                    row.get("diagnostic_snapshot") is not None
+                    and row.get("snapshot_schema_version") == _DIAGNOSTIC_SCHEMA_VERSION_FOR_BACKFILL
+                )
+                buckets["missing_snapshot" if not has_complete_snapshot else "already_valid"].append(ticker)
+            else:
+                buckets["already_valid"].append(ticker)
             continue
         next_retry_at_raw = row.get("next_retry_at")
         due = now
@@ -254,6 +277,152 @@ def compute_numeric_valuation(ticker: str) -> dict:
         return {"validation_status": "insufficient_data", "error_detail": "no fundamental data available"}
 
     return scenarios_from_fetched_data(ticker, data)
+
+
+# Migration 117 full-snapshot backfill (2026-10-29). Deliberately a
+# SEPARATE, LARGER budget from screener.py's _LIVE_BUILD_TIMEOUT_S (8.0s)
+# — that one guards an HTTP request a real user is waiting on; this one
+# guards a background job nobody is waiting on. Reusing the same 8s value
+# here (as the first cut of this feature did) was the actual bug behind
+# the 25-ticker pilot's 6 incomplete snapshots (2026-10-29 Fase de
+# optimización): real per-ticker instrumentation showed build_company_
+# diagnostic alone taking up to 12.53s (NEE — heavy utilities-sector peer
+# enrichment under live Yahoo 429 rate-limiting) and 8.54s (SLB — FMP
+# shared-budget contention), both over the old 8s cap, while most other
+# tickers finished in under 2s — NOT a uniform cause, a tail-latency one.
+# 25s covers that measured tail with real margin without being unbounded.
+#
+# This value MUST stay below backfill_universe's pacing interval
+# (60/max_tickers_per_minute, 30s at the default 2/min) — see the assert
+# in backfill_universe below. That invariant, not this timeout's size, is
+# what actually isolates the backfill from interactive traffic: tickers
+# are processed strictly one at a time, so as long as one ticker's build
+# (even an abandoned one still finishing in the background past its own
+# timeout) can't still be running when the NEXT ticker's build starts,
+# the shared _DIAG_ENRICHMENT_POOL (16 workers) never sees more than one
+# backfill ticker's worth of enrichment tasks at once — independent of
+# whether this constant is 8s or 25s.
+#
+# Not an import of _LIVE_BUILD_TIMEOUT_S because screener.py imports this
+# module lazily/function-local specifically to avoid a circular import
+# (this module -> screener -> this module); importing the other direction
+# here would reintroduce that cycle at module load time.
+_FULL_SNAPSHOT_BUILD_TIMEOUT_S = 25.0
+
+
+def compute_full_diagnostic_valuation(ticker: str) -> dict:
+    """Backfill counterpart to compute_numeric_valuation — same inputs,
+    same `_compute_peer_dependent_data=False` isolation (the DLR-273s
+    fix), but additionally attempts the FULL rendered diagnostic
+    (build_company_diagnostic) so the result can be persisted as a
+    `diagnostic_snapshot` (migration 117), not just a number. Returns a
+    dict with the same keys compute_numeric_valuation returns, PLUS
+    `diagnostic_snapshot`/`snapshot_schema_version` when the full build
+    succeeds — both None when it doesn't (REIT/insufficient-pillar-data
+    tickers, same as the live route's own `build_company_diagnostic`
+    returning None), in which case the caller still has the numeric-only
+    result to persist, same as today.
+
+    Deliberately NEVER calls generate_company_diagnostic_narrative (the
+    Claude/AI step) — this module has no ai_service import by construction
+    (see module docstring), and a mass backfill calling Claude per ticker
+    would be real, unbounded LLM spend against the documented ~$2/day
+    cost-discipline budget (app/core/config.py's daily_llm_spend_cap_usd),
+    for a field (investmentThesis/noiseVsReality/actionPlan) the frontend
+    already treats as optional (same None-fallback the live route itself
+    uses when ITS narrative call fails, screener.py ~line 3251). A ticker
+    opened live by a real user still gets the full AI narrative as normal
+    — this only affects what the backfill pre-persists for tickers no
+    user has visited yet.
+
+    build_company_diagnostic itself still fans out to _DIAG_ENRICHMENT_POOL
+    for competitor/sector comparison (company_diagnostic_service.py, a
+    SEPARATE 16-worker pool from the 8-worker _PEER_ENRICHMENT_POOL the
+    `_compute_peer_dependent_data=False` flag protects) — this is a real,
+    not-fully-isolated shared resource with live interactive traffic.
+    Mitigated, not eliminated, by backfill_universe's existing pacing
+    (one ticker in flight at a time, paced by max_tickers_per_minute) —
+    at most ~2 of 16 workers briefly occupied per backfill ticker, a much
+    smaller footprint than the old uncontrolled concurrent batch run that
+    caused the original DLR incident. Flagged here, not silently assumed
+    safe — a future full isolation would need its own dedicated pool."""
+    from app.services.fundamental_analysis_service import get_fundamental_analysis
+
+    try:
+        data = get_fundamental_analysis(ticker, _compute_peer_dependent_data=False)
+    except Exception as e:
+        logger.warning("compute_full_diagnostic_valuation(%s): get_fundamental_analysis raised: %s", ticker, e)
+        return {"validation_status": "failed", "error_detail": f"get_fundamental_analysis raised: {e}"}
+
+    if not data:
+        return {"validation_status": "insufficient_data", "error_detail": "no fundamental data available"}
+
+    numeric = scenarios_from_fetched_data(ticker, data)
+
+    diagnostic = None
+    try:
+        from app.services.company_diagnostic_service import build_company_diagnostic
+        import concurrent.futures
+        # Hard cap, same pattern as screener.py's _attempt_build — a
+        # background job must never hang indefinitely on a slow provider
+        # either, just because nobody's waiting on an HTTP response.
+        #
+        # Deliberately NOT a `with ThreadPoolExecutor(...) as pool:` block
+        # — found 2026-10-29 via this function's own hang test:
+        # ThreadPoolExecutor.__exit__ calls shutdown(wait=True) by
+        # default, which blocks the CALLER on the very same abandoned
+        # thread future.result()'s timeout just gave up on, defeating the
+        # entire point of the hard cap (a 0.3s-timeout test measured 30s
+        # wall time — the exact "abandoned task still occupies/blocks"
+        # class of bug flagged as an open risk in the 2026-10-29 latency
+        # deploy report). shutdown(wait=False) lets this function return
+        # promptly; the orphaned thread finishes on its own and the pool
+        # object is garbage-collected once it does — no different from
+        # the already-accepted, already-documented risk of an abandoned
+        # live-request attempt continuing to occupy a worker.
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
+            future = pool.submit(build_company_diagnostic, ticker, data, "es")
+            try:
+                diagnostic = future.result(timeout=_FULL_SNAPSHOT_BUILD_TIMEOUT_S)
+            except concurrent.futures.TimeoutError:
+                logger.warning(
+                    "compute_full_diagnostic_valuation(%s): build_company_diagnostic exceeded %ss cap — "
+                    "persisting numeric-only this round", ticker, _FULL_SNAPSHOT_BUILD_TIMEOUT_S,
+                )
+        finally:
+            pool.shutdown(wait=False)
+    except Exception as e:
+        logger.warning("compute_full_diagnostic_valuation(%s): build_company_diagnostic raised: %s", ticker, e)
+        diagnostic = None
+
+    if diagnostic:
+        # Never-fabricated narrative, same discipline as the live route's
+        # own AI-failure fallback — None, not a templated guess, so the
+        # frontend's existing "optional field" handling covers this as-is.
+        diagnostic["oneLinerPitch"] = f"{diagnostic.get('companyName', ticker)} ({ticker}) — {diagnostic.get('scoreLabel', '')}."
+        diagnostic["investmentThesis"] = None
+        diagnostic["noiseVsReality"] = None
+        diagnostic["actionPlan"] = None
+        diagnostic["_backfilled"] = True  # distinguishes a backfill-sourced snapshot from a live-visit one, for observability only — never read by the serving path
+        numeric["diagnostic_snapshot"] = diagnostic
+        numeric["snapshot_schema_version"] = _DIAGNOSTIC_SCHEMA_VERSION_FOR_BACKFILL
+    else:
+        numeric["diagnostic_snapshot"] = None
+        numeric["snapshot_schema_version"] = None
+
+    return numeric
+
+
+# Mirrors screener.py's _DIAGNOSTIC_SCHEMA_VERSION (currently 2) — kept as
+# its own constant for the same lazy-import/circular-import reason as
+# _FULL_SNAPSHOT_BUILD_TIMEOUT_S above. MUST be bumped in lockstep with
+# screener.py's constant whenever the rendered diagnostic shape changes,
+# or a backfill-written snapshot would be silently treated as stale by the
+# read path's version check (safe failure mode — falls back to cut-down
+# reconstruction — but defeats the point of this feature). Covered by
+# test_radar_full_snapshot_backfill.py's version-parity test.
+_DIAGNOSTIC_SCHEMA_VERSION_FOR_BACKFILL = 2
 
 
 def scenarios_from_fetched_data(ticker: str, data: dict) -> dict:
@@ -486,6 +655,36 @@ async def persist_valuation(
         await run_query(db.table("company_valuations").insert(row))
         return row
 
+    # Bug found 2026-10-29 while testing the full-snapshot backfill
+    # extension: set_current_company_valuation's RPC (migration 114) always
+    # INSERTs a brand-new row — its column list has never included
+    # diagnostic_snapshot/snapshot_schema_version (migration 117 widened
+    # the status CHECK/enum, not this INSERT) — so every write through
+    # this RPC silently started the new current row with a NULL snapshot,
+    # regardless of whether the row it just replaced had a real one. The
+    # follow-up UPDATE below only ever WROTE a snapshot when the caller
+    # passed a fresh one; it never preserved an existing one when the
+    # caller didn't (e.g. any numeric-only recompute of an already-
+    # snapshotted ticker) — directly contradicting this module's own
+    # documented guarantee ("a backfill-only write can't erase a snapshot
+    # a real user visit already persisted"). Carry the PRIOR current row's
+    # snapshot forward explicitly whenever this call doesn't have a newer
+    # one of its own, so a plain numeric recompute never regresses a
+    # ticker that already had a rich ficha.
+    carried_snapshot, carried_schema_version = diagnostic_snapshot, snapshot_schema_version
+    if carried_snapshot is None:
+        try:
+            prior = await run_query(
+                db.table("company_valuations").select("diagnostic_snapshot,snapshot_schema_version")
+                .eq("ticker", ticker).eq("is_current", True).limit(1)
+            )
+            prior_row = (prior.data or [None])[0]
+            if prior_row and prior_row.get("diagnostic_snapshot") is not None:
+                carried_snapshot = prior_row["diagnostic_snapshot"]
+                carried_schema_version = prior_row.get("snapshot_schema_version")
+        except Exception as e:
+            logger.warning("persist_valuation(%s): couldn't read prior snapshot to carry forward (non-fatal): %s", ticker, e)
+
     result = await run_query(
         db.rpc("set_current_company_valuation", {
             "p_ticker": ticker,
@@ -523,14 +722,14 @@ async def persist_valuation(
                 # unconditional.
                 "error_detail": computed.get("error_detail"),
             }
-            # migration 117: only written when a caller actually has a full
-            # rich diagnostic in hand (today: the live-build write-through
-            # path) — never overwrites an existing snapshot with NULL, so a
-            # backfill-only write (no snapshot) can't erase a snapshot a
-            # real user visit already persisted for this ticker.
-            if diagnostic_snapshot is not None:
-                follow_up["diagnostic_snapshot"] = diagnostic_snapshot
-                follow_up["snapshot_schema_version"] = snapshot_schema_version
+            # migration 117, fixed 2026-10-29 (see the carry-forward block
+            # above): writes the NEW snapshot when this call built one, or
+            # re-applies the PRIOR row's snapshot so the RPC's bare INSERT
+            # (which never includes this column) can't silently null it —
+            # either way, never leaves a real existing snapshot behind.
+            if carried_snapshot is not None:
+                follow_up["diagnostic_snapshot"] = carried_snapshot
+                follow_up["snapshot_schema_version"] = carried_schema_version
             await run_query(
                 db.table("company_valuations").update(follow_up).eq("id", row_id)
             )
@@ -556,7 +755,7 @@ async def persist_valuation(
     return row
 
 
-async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
+async def refresh_if_needed(ticker: str, force: bool = False, full_snapshot: bool = False) -> dict:
     """The one entry point both the initial backfill and the future
     per-ticker refresh use. Idempotent: if the persisted row already
     reflects the same financial_report_period under the current
@@ -564,7 +763,16 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
     `force=True` — never re-spends real FMP quota recomputing a ticker
     that hasn't actually changed. Claims a short cross-process lock first
     so a concurrent caller for the same ticker backs off instead of
-    duplicating the real work."""
+    duplicating the real work.
+
+    `full_snapshot=True` (migration 117 backfill extension, 2026-10-29):
+    builds and persists the FULL rendered diagnostic (compute_full_
+    diagnostic_valuation), not just the number — AND the usual
+    already-fresh no-op shortcut below is additionally gated on the
+    existing row already carrying a complete current-schema snapshot, so
+    a `valid` row written by numeric-only mode (or before migration 117
+    existed) still gets picked up and upgraded exactly once, instead of
+    being skipped forever as "already done."."""
     ticker = normalize_ticker_symbol(ticker)
     token = claim_ticker(ticker)
     if token is None:
@@ -581,7 +789,12 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
         # below); only the SKIP logic right below this is conditional on
         # `not force`.
         existing = await get_persisted_valuation(ticker)
-        if not force and existing and existing.get("model_version") == MODEL_VERSION:
+        existing_has_complete_snapshot = bool(existing) and (
+            existing.get("diagnostic_snapshot") is not None
+            and existing.get("snapshot_schema_version") == _DIAGNOSTIC_SCHEMA_VERSION_FOR_BACKFILL
+        )
+        needs_snapshot_upgrade = full_snapshot and existing and existing.get("validation_status") == "valid" and not existing_has_complete_snapshot
+        if not force and not needs_snapshot_upgrade and existing and existing.get("model_version") == MODEL_VERSION:
             from app.api.routes.screener import _latest_reported_earnings_period
             try:
                 current_period = _latest_reported_earnings_period(ticker)
@@ -595,7 +808,7 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
             # would defeat quota protection every time this signal is
             # down), fall back to a plain time-based freshness check: a
             # row computed within the last 24h is still trusted as-is.
-            if current_period is None and existing.get("computed_at"):
+            if current_period is None and existing.get("computed_at") and not needs_snapshot_upgrade:
                 try:
                     computed_at = datetime.fromisoformat(existing["computed_at"].replace("Z", "+00:00"))
                     age_hours = (datetime.now(timezone.utc) - computed_at).total_seconds() / 3600
@@ -612,8 +825,9 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
         # 927-ticker backfill and the future weekly refresh call, neither
         # of which should be able to starve a real user's own request.
         from app.core.fmp_budget import fmp_background
+        compute_fn = compute_full_diagnostic_valuation if full_snapshot else compute_numeric_valuation
         with fmp_background():
-            computed = await asyncio.to_thread(compute_numeric_valuation, ticker)
+            computed = await asyncio.to_thread(compute_fn, ticker)
         # 2026-10-20, confirmed live for BRK.B: all 3 financial-data
         # providers (FMP/Fiscal.ai/yfinance) transiently empty at once is
         # a real, observed outage pattern, indistinguishable at this layer
@@ -627,7 +841,11 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
         if computed["validation_status"] == "insufficient_data" and existing and existing.get("validation_status") == "valid":
             computed = {"validation_status": "failed", "error_detail": f"demoted from insufficient_data (prior valid row exists): {computed.get('error_detail')}"}
         prior_attempt_count = (existing or {}).get("attempt_count") or 0
-        row = await persist_valuation(ticker, computed, prior_attempt_count=prior_attempt_count)
+        row = await persist_valuation(
+            ticker, computed, prior_attempt_count=prior_attempt_count,
+            diagnostic_snapshot=computed.get("diagnostic_snapshot"),
+            snapshot_schema_version=computed.get("snapshot_schema_version"),
+        )
         return {**row, "_backfill_attempted": True}
     finally:
         release_claim(ticker, token)
@@ -635,6 +853,7 @@ async def refresh_if_needed(ticker: str, force: bool = False) -> dict:
 
 async def backfill_universe(
     tickers: list[str], max_tickers_per_minute: float = 2.0, limit: Optional[int] = None,
+    full_snapshot: bool = False,
 ) -> dict:
     """Processes `tickers` in small, paced batches instead of one
     unbounded sweep (Diego, 2026-10-20: "con un límite global de llamadas
@@ -655,8 +874,12 @@ async def backfill_universe(
     batching writes, so a stop at ticker 400 of 927 leaves exactly 400
     real, durable rows behind.
 
-    Never calls build_company_diagnostic or ai_service — no competitor/
-    sector comparison fan-out, no AI narrative, for any ticker, ever.
+    By default (`full_snapshot=False`), never calls build_company_
+    diagnostic or ai_service — no competitor/sector comparison fan-out, no
+    AI narrative. `full_snapshot=True` (migration 117 extension) calls
+    build_company_diagnostic (still never ai_service/Claude — see
+    compute_full_diagnostic_valuation's own docstring for why) to persist
+    the full rendered ficha, not just the number.
 
     2026-10-27: now circuit-breaker aware — if a provider-wide outage has
     tripped the breaker (record_backfill_outcome, above), this stops
@@ -673,6 +896,19 @@ async def backfill_universe(
         "skipped_claimed": 0, "unchanged": 0, "circuit_breaker_skipped": 0,
     }
     batch_interval = 60.0 / max_tickers_per_minute if max_tickers_per_minute > 0 else 0.0
+    if full_snapshot and batch_interval and batch_interval < _FULL_SNAPSHOT_BUILD_TIMEOUT_S:
+        # The resource-isolation argument above only holds while a ticker's
+        # build (or an abandoned one still finishing past its own timeout)
+        # can't overlap the next ticker's — caught here, not just documented,
+        # so a future config change can't silently reintroduce the
+        # _DIAG_ENRICHMENT_POOL contention this was built to avoid.
+        raise ValueError(
+            f"backfill_universe(full_snapshot=True): max_tickers_per_minute={max_tickers_per_minute} "
+            f"gives a {batch_interval:.1f}s pacing interval, shorter than "
+            f"_FULL_SNAPSHOT_BUILD_TIMEOUT_S={_FULL_SNAPSHOT_BUILD_TIMEOUT_S}s — this would let two "
+            f"tickers' diagnostic builds overlap on the shared enrichment pool. Lower "
+            f"max_tickers_per_minute or shorten the build timeout."
+        )
 
     for i, ticker in enumerate(tickers):
         if circuit_is_open():
@@ -685,7 +921,7 @@ async def backfill_universe(
 
         t0 = time.monotonic()
         try:
-            row = await refresh_if_needed(ticker)
+            row = await refresh_if_needed(ticker, full_snapshot=full_snapshot)
             status = row.get("validation_status")
             if row.get("_backfill_attempted"):
                 record_backfill_outcome(status)

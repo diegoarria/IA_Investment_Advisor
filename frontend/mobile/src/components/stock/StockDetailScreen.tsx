@@ -23,6 +23,7 @@ import StockCompetitors from "./StockCompetitors";
 import StockFinancials from "./StockFinancials";
 import StockAnalysts from "./StockAnalysts";
 import StockAvatar from "../StockAvatar";
+import { TargetPricePanel } from "./TargetPricePanel";
 import PremiumToolCard from "../PremiumToolCard";
 import PaywallModal from "../PaywallModal";
 import { useSubscriptionStore, hasPremiumAccess } from "../../lib/subscriptionStore";
@@ -175,7 +176,12 @@ function scoreTone(n: number | undefined) {
   return n >= 65 ? "#22c55e" : n >= 45 ? "#f59e0b" : "#ef4444";
 }
 
-function VerdictSection({ ticker }: { ticker: string }) {
+function VerdictSection({ ticker, price, currency, companyName }: {
+  ticker: string;
+  price: number | null;
+  currency?: string;
+  companyName: string | null;
+}) {
   const { t } = useTranslation();
   const { data, loading } = useStockScore(ticker);
 
@@ -264,6 +270,9 @@ function VerdictSection({ ticker }: { ticker: string }) {
       {data.entry_ranges && data.entry_ranges.length > 0 && data.entry_ranges_meta && (
         <EntryRangesCard ranges={data.entry_ranges} meta={data.entry_ranges_meta} />
       )}
+
+      {/* ── Mi Precio Objetivo ── */}
+      <TargetPricePanel ticker={ticker} companyName={companyName} price={price} currency={currency} colors={D} />
 
       {/* ── CORTO / LARGO outlook ── */}
       {(cortoText || largoText) ? (
@@ -662,7 +671,14 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
           </View>
         );
       }
-      return <VerdictSection ticker={ticker} />;
+      return (
+        <VerdictSection
+          ticker={ticker}
+          price={data?.profile?.current_price ?? null}
+          currency={data?.profile?.currency}
+          companyName={data?.profile?.name ?? null}
+        />
+      );
     }
 
     if (activeTab === "financieros") {

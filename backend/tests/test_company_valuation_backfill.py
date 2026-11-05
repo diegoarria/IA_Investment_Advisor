@@ -83,6 +83,38 @@ class TestGetPendingTickers:
         assert buckets["backing_off"] == ["CLS"]
         assert buckets["retry_eligible"] == []
 
+    def test_under_review_row_respects_cooldown_same_as_insufficient_data(self, monkeypatch):
+        """2026-10-29, under_review scaling review (AXON/F/PLTR/CHTR/TAP/
+        CAH/DDOG): the bucketing logic already treats `under_review`
+        exactly like `insufficient_data` for retry gating (any status
+        != 'valid' falls through to the next_retry_at check) — this was
+        true since migration 115/116 landed, but no test named
+        `under_review` explicitly, so a future refactor could silently
+        special-case it without a test catching the regression. Confirms
+        a flagged ticker inside its backoff window is NOT re-queued for
+        a live recompute (no repeated API spend on an unresolved
+        anomaly), and is retry_eligible once the window elapses."""
+        from datetime import datetime, timedelta, timezone
+        db = _FakeDB()
+        monkeypatch.setattr(cvs, "get_supabase", lambda: db)
+        _clear_cache()
+        far_future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        db.rows.append({
+            "id": str(uuid.uuid4()), "ticker": "AXON", "validation_status": "under_review",
+            "model_version": cvs.MODEL_VERSION, "next_retry_at": far_future, "is_current": True,
+        })
+        db.rows.append({
+            "id": str(uuid.uuid4()), "ticker": "CHTR", "validation_status": "under_review",
+            "model_version": cvs.MODEL_VERSION, "next_retry_at": past, "is_current": True,
+        })
+        buckets = _run(cvs.get_pending_tickers(["AXON", "CHTR"]))
+        assert buckets["backing_off"] == ["AXON"]
+        assert buckets["retry_eligible"] == ["CHTR"]
+        # Never silently bucketed as done/valid just because it has a row.
+        assert "AXON" not in buckets["already_valid"]
+        assert "CHTR" not in buckets["already_valid"]
+
     def test_only_queries_is_current_rows_not_history(self, monkeypatch):
         """A ticker with old `is_current=False` failure history but no
         current row at all must still be classified no_valuation — the
@@ -242,7 +274,7 @@ class TestBackfillJobGating:
         monkeypatch.setenv("BACKFILL_DRY_RUN", "true")
         monkeypatch.delenv("BACKFILL_ENABLED", raising=False)
 
-        async def fake_pending(tickers):
+        async def fake_pending(tickers, full_snapshot=False):
             return {
                 "no_valuation": ["AAA"], "retry_eligible": [], "backing_off": [],
                 "stale": [], "already_valid": [],
@@ -262,7 +294,7 @@ class TestBackfillJobGating:
         monkeypatch.setenv("BACKFILL_ENABLED", "true")
         monkeypatch.delenv("BACKFILL_DRY_RUN", raising=False)
 
-        async def fake_pending(tickers):
+        async def fake_pending(tickers, full_snapshot=False):
             return {"no_valuation": ["AAA"], "retry_eligible": [], "backing_off": [], "stale": [], "already_valid": []}
 
         backfill_called = []
@@ -280,7 +312,7 @@ class TestBackfillJobGating:
         monkeypatch.setenv("BACKFILL_ENABLED", "true")
         monkeypatch.delenv("BACKFILL_DRY_RUN", raising=False)
 
-        async def fake_pending(tickers):
+        async def fake_pending(tickers, full_snapshot=False):
             return {"no_valuation": [], "retry_eligible": [], "backing_off": [], "stale": [], "already_valid": ["AAA"]}
 
         backfill_called = []
@@ -303,7 +335,7 @@ class TestBackfillJobGating:
 
         seen_tickers = []
 
-        async def fake_pending(tickers):
+        async def fake_pending(tickers, full_snapshot=False):
             seen_tickers.extend(tickers)
             return {"no_valuation": list(tickers), "retry_eligible": [], "backing_off": [], "stale": [], "already_valid": []}
 
@@ -320,7 +352,7 @@ class TestBackfillJobGating:
         monkeypatch.setenv("BACKFILL_ENABLED", "true")
         monkeypatch.delenv("BACKFILL_DRY_RUN", raising=False)
 
-        async def fake_pending(tickers):
+        async def fake_pending(tickers, full_snapshot=False):
             return {"no_valuation": ["AAA"], "retry_eligible": [], "backing_off": [], "stale": [], "already_valid": []}
 
         monkeypatch.setattr("app.services.company_valuation_service.get_pending_tickers", fake_pending)
