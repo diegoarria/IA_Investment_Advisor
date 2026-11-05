@@ -1,9 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { priceAlertsApi } from "../../lib/api";
 import { fmtPrice } from "../../lib/types/companyDiagnostic";
+import { GlowCard, DiagIconDot } from "../subvaluadas/companyDiagnosticShared";
+
+// Same brand green as web's --brand-green-l / --accent-l — mirrors
+// frontend/web/src/components/stock/TargetPricePanel.tsx exactly, same
+// GlowCard visual system validated across the whole subvaluadas screen.
+const BRAND_GREEN = "#00e887";
+const BRAND_GREEN_D = "#00b96d";
 
 type Condition = "above" | "below" | "range";
 
@@ -66,6 +74,11 @@ export function TargetPricePanel({ ticker, companyName, price, currency = "USD",
   const validRange = validSingle && Number.isFinite(high) && high > low;
   const canSave = mode === "single" ? validSingle : validRange;
 
+  const impliedCondition: "above" | "below" | null = useMemo(() => {
+    if (mode !== "single" || !validSingle) return null;
+    return price != null && low > price ? "above" : "below";
+  }, [mode, validSingle, low, price]);
+
   const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
@@ -76,7 +89,7 @@ export function TargetPricePanel({ ticker, companyName, price, currency = "USD",
         await priceAlertsApi.create(ticker.toUpperCase(), low, "range", name, high);
         setExisting({ ticker: ticker.toUpperCase(), name, target_price: low, target_price_high: high, condition: "range" });
       } else {
-        const condition: Condition = price != null && low > price ? "above" : "below";
+        const condition: Condition = impliedCondition ?? "below";
         await priceAlertsApi.create(ticker.toUpperCase(), low, condition, name);
         setExisting({ ticker: ticker.toUpperCase(), name, target_price: low, target_price_high: null, condition });
       }
@@ -110,105 +123,164 @@ export function TargetPricePanel({ ticker, companyName, price, currency = "USD",
   if (price == null) return null;
 
   return (
-    <View style={{ borderRadius: 18, padding: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <Ionicons name="locate" size={18} color={colors.green} />
+    <GlowCard colors={colors} tint={BRAND_GREEN} strong>
+      {/* Header */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <DiagIconDot name="locate" color={BRAND_GREEN} size={40} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text }} numberOfLines={1}>{t("stockDetailScreen.targetPrice.title")}</Text>
-          <Text style={{ fontSize: 11.5, color: colors.muted }} numberOfLines={1}>{t("stockDetailScreen.targetPrice.subtitle")}</Text>
+          <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }} numberOfLines={1}>
+            {t("stockDetailScreen.targetPrice.title")}
+          </Text>
+          <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
+            {t("stockDetailScreen.targetPrice.subtitle")}
+          </Text>
         </View>
-      </View>
-
-      <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
-        <TouchableOpacity
-          onPress={() => setMode("single")}
-          style={{
-            flex: 1, borderRadius: 12, paddingVertical: 9, alignItems: "center",
-            backgroundColor: mode === "single" ? colors.text : "transparent",
-            borderWidth: 1, borderColor: colors.border,
-          }}
-        >
-          <Text style={{ fontSize: 12, fontWeight: "800", color: mode === "single" ? colors.bg : colors.muted }}>
-            {t("stockDetailScreen.targetPrice.singleMode")}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setMode("range")}
-          style={{
-            flex: 1, borderRadius: 12, paddingVertical: 9, alignItems: "center",
-            backgroundColor: mode === "range" ? colors.text : "transparent",
-            borderWidth: 1, borderColor: colors.border,
-          }}
-        >
-          <Text style={{ fontSize: 12, fontWeight: "800", color: mode === "range" ? colors.bg : colors.muted }}>
-            {t("stockDetailScreen.targetPrice.rangeMode")}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10 }}>
-        {t("stockDetailScreen.targetPrice.currentPrice")} <Text style={{ fontWeight: "800", color: colors.text }}>{fmtPrice(price, currency)}</Text>
-      </Text>
-
-      <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
-        <TextInput
-          keyboardType="numeric"
-          value={lowInput}
-          onChangeText={(v) => { setLowInput(v); setJustSaved(false); setError(null); }}
-          placeholder={t("stockDetailScreen.targetPrice.lowPlaceholder")}
-          placeholderTextColor={colors.muted}
-          style={{ flex: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text, borderWidth: 1, borderColor: colors.border }}
-        />
-        {mode === "range" && (
-          <TextInput
-            keyboardType="numeric"
-            value={highInput}
-            onChangeText={(v) => { setHighInput(v); setJustSaved(false); setError(null); }}
-            placeholder={t("stockDetailScreen.targetPrice.highPlaceholder")}
-            placeholderTextColor={colors.muted}
-            style={{ flex: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text, borderWidth: 1, borderColor: colors.border }}
-          />
+        {existing && !loadingExisting && (
+          <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: `${BRAND_GREEN}1f`, borderWidth: 1, borderColor: `${BRAND_GREEN}55` }}>
+            <Text style={{ fontSize: 9.5, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.4, color: BRAND_GREEN }}>
+              {t("stockDetailScreen.targetPrice.active")}
+            </Text>
+          </View>
         )}
       </View>
 
-      {error && <Text style={{ fontSize: 12, marginBottom: 10, color: "#ef4444" }}>{error}</Text>}
+      {/* Current price + saved target */}
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 18 }}>
+        <View style={{ flex: 1, borderRadius: 16, padding: 13, backgroundColor: `${BRAND_GREEN}14`, borderWidth: 1, borderColor: `${BRAND_GREEN}33` }}>
+          <Text style={{ fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.4, color: colors.muted, marginBottom: 4 }} numberOfLines={1}>
+            {t("stockDetailScreen.targetPrice.currentPrice")}
+          </Text>
+          <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text }} numberOfLines={1} adjustsFontSizeToFit>
+            {fmtPrice(price, currency)}
+          </Text>
+        </View>
+        <View style={{ flex: 1, borderRadius: 16, padding: 13, backgroundColor: existing ? `${BRAND_GREEN}14` : colors.raised, borderWidth: 1, borderColor: existing ? `${BRAND_GREEN}33` : colors.border }}>
+          <Text style={{ fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.4, color: colors.muted, marginBottom: 4 }} numberOfLines={1}>
+            {t("stockDetailScreen.targetPrice.yourTarget")}
+          </Text>
+          <Text style={{ fontSize: 17, fontWeight: "900", color: existing ? BRAND_GREEN : colors.dim }} numberOfLines={1} adjustsFontSizeToFit>
+            {existing
+              ? existing.condition === "range"
+                ? `${fmtPrice(existing.target_price, currency)}–${fmtPrice(existing.target_price_high!, currency)}`
+                : fmtPrice(existing.target_price, currency)
+              : "—"}
+          </Text>
+        </View>
+      </View>
 
-      <View style={{ flexDirection: "row", gap: 8 }}>
+      {/* Mode toggle — same segmented switch language as the scenario toggle */}
+      <View style={{ flexDirection: "row", gap: 6, padding: 5, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.22)", marginBottom: 16 }}>
+        {(["single", "range"] as const).map((m) => {
+          const active = mode === m;
+          return (
+            <TouchableOpacity
+              key={m}
+              onPress={() => { setMode(m); setJustSaved(false); setError(null); }}
+              activeOpacity={0.85}
+              style={{ flex: 1, borderRadius: 14, overflow: "hidden" }}
+            >
+              <LinearGradient
+                colors={active ? [BRAND_GREEN, BRAND_GREEN_D] : ["transparent", "transparent"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={{ paddingVertical: 11, alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5, color: active ? "#061308" : colors.sub }}>
+                  {t(`stockDetailScreen.targetPrice.${m}Mode`)}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Inputs */}
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 8 }}>
+        <View style={{ flex: 1 }}>
+          {mode === "range" && (
+            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4, color: colors.muted, marginBottom: 6 }}>
+              {t("stockDetailScreen.targetPrice.lowLabel")}
+            </Text>
+          )}
+          <TextInput
+            keyboardType="numeric"
+            value={lowInput}
+            onChangeText={(v) => { setLowInput(v); setJustSaved(false); setError(null); }}
+            placeholder={t("stockDetailScreen.targetPrice.lowPlaceholder")}
+            placeholderTextColor={colors.muted}
+            style={{ borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontWeight: "700", color: colors.text, backgroundColor: colors.raised, borderWidth: 1, borderColor: colors.border }}
+          />
+        </View>
+        {mode === "range" && (
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4, color: colors.muted, marginBottom: 6 }}>
+              {t("stockDetailScreen.targetPrice.highLabel")}
+            </Text>
+            <TextInput
+              keyboardType="numeric"
+              value={highInput}
+              onChangeText={(v) => { setHighInput(v); setJustSaved(false); setError(null); }}
+              placeholder={t("stockDetailScreen.targetPrice.highPlaceholder")}
+              placeholderTextColor={colors.muted}
+              style={{ borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontWeight: "700", color: colors.text, backgroundColor: colors.raised, borderWidth: 1, borderColor: colors.border }}
+            />
+          </View>
+        )}
+      </View>
+
+      {mode === "single" && impliedCondition ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
+          <Ionicons name={impliedCondition === "above" ? "arrow-up" : "arrow-down"} size={13} color={BRAND_GREEN} />
+          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.sub }}>
+            {t(`stockDetailScreen.targetPrice.condition.${impliedCondition}`)}
+          </Text>
+        </View>
+      ) : (
+        <View style={{ marginBottom: 16 }} />
+      )}
+
+      {error && (
+        <View style={{ borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, marginBottom: 16, backgroundColor: "rgba(239,68,68,0.1)", borderWidth: 1, borderColor: "rgba(239,68,68,0.3)" }}>
+          <Text style={{ fontSize: 12.5, fontWeight: "600", color: "#f87171" }}>{error}</Text>
+        </View>
+      )}
+
+      {/* Actions */}
+      <View style={{ flexDirection: "row", gap: 10 }}>
         <TouchableOpacity
           onPress={handleSave}
           disabled={!canSave || saving || loadingExisting}
-          style={{
-            flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
-            borderRadius: 12, paddingVertical: 12,
-            backgroundColor: justSaved ? "#22c55e" : colors.green,
-            opacity: !canSave || saving || loadingExisting ? 0.5 : 1,
-          }}
+          activeOpacity={0.85}
+          style={{ flex: 1, borderRadius: 16, overflow: "hidden", opacity: !canSave || saving || loadingExisting ? 0.45 : 1 }}
         >
-          {saving ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Ionicons name={justSaved ? "checkmark" : "notifications"} size={14} color="#fff" />
-          )}
-          <Text style={{ fontSize: 12.5, fontWeight: "800", color: "#fff" }}>
-            {saving
-              ? t("stockDetailScreen.targetPrice.creating")
-              : justSaved
-                ? t("stockDetailScreen.targetPrice.created")
-                : existing
-                  ? t("stockDetailScreen.targetPrice.updateButton")
-                  : t("stockDetailScreen.targetPrice.createButton")}
-          </Text>
+          <LinearGradient colors={[BRAND_GREEN, BRAND_GREEN_D]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14 }}>
+            {saving ? (
+              <ActivityIndicator size="small" color="#061308" />
+            ) : (
+              <Ionicons name={justSaved ? "checkmark" : "notifications"} size={15} color="#061308" />
+            )}
+            <Text style={{ fontSize: 13.5, fontWeight: "900", color: "#061308" }}>
+              {saving
+                ? t("stockDetailScreen.targetPrice.creating")
+                : justSaved
+                  ? t("stockDetailScreen.targetPrice.created")
+                  : existing
+                    ? t("stockDetailScreen.targetPrice.updateButton")
+                    : t("stockDetailScreen.targetPrice.createButton")}
+            </Text>
+          </LinearGradient>
         </TouchableOpacity>
         {existing && (
           <TouchableOpacity
             onPress={handleRemove}
             disabled={removing}
-            style={{ borderRadius: 12, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border, opacity: removing ? 0.6 : 1 }}
+            style={{ borderRadius: 16, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.raised, borderWidth: 1, borderColor: colors.border, opacity: removing ? 0.6 : 1 }}
           >
-            {removing ? <ActivityIndicator size="small" color={colors.muted} /> : <Ionicons name="trash-outline" size={16} color="#ef4444" />}
+            {removing
+              ? <ActivityIndicator size="small" color={colors.muted} />
+              : <Ionicons name="trash-outline" size={17} color="#f87171" />}
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </GlowCard>
   );
 }
