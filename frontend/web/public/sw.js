@@ -29,9 +29,12 @@ self.addEventListener("notificationclick", (event) => {
   // WatchlistEarningsCalendar's initialEventId prop. Several worker.py jobs
   // instead carry a msg/prefill so chat/page.tsx opens Arthur with that
   // question pre-filled (never auto-sent — see chat page's own ?msg= effect).
+  const ticker = event.notification.data?.ticker;
   let url = self.location.origin + "/" + screen;
   // Friday 1:1-call upsell -> straight into the session checkout on the web app.
   if (screen === "products_session") url = self.location.origin + "/products?open=session";
+  // job_target_price_alerts's "Mi Precio Objetivo" push -> straight to that ticker's page.
+  if (screen === "stock_detail" && ticker) url = self.location.origin + "/stock/" + encodeURIComponent(ticker);
   if (screen === "watchlist" && eventId) url += `?macroEventId=${encodeURIComponent(eventId)}`;
   else if (screen === "chat" && event.notification.data?.arthur_session_id) url += `?arthur=${encodeURIComponent(event.notification.data.arthur_session_id)}`;
   else if (screen === "chat" && msg) url += `?msg=${encodeURIComponent(msg)}`;

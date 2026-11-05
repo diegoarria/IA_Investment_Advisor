@@ -1,18 +1,6 @@
-# SQL para crear en Supabase (ejecutar una vez en el SQL Editor):
-# CREATE TABLE IF NOT EXISTS price_alerts (
-#   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-#   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-#   ticker TEXT NOT NULL,
-#   name TEXT,
-#   target_price NUMERIC NOT NULL,
-#   condition TEXT NOT NULL CHECK (condition IN ('above', 'below')),
-#   created_at TIMESTAMPTZ DEFAULT NOW(),
-#   triggered_at TIMESTAMPTZ,
-#   UNIQUE(user_id, ticker)
-# );
-# CREATE INDEX IF NOT EXISTS price_alerts_user_id_idx ON price_alerts(user_id);
-# ALTER TABLE price_alerts ENABLE ROW LEVEL SECURITY;
-# CREATE POLICY "Users manage own price alerts" ON price_alerts FOR ALL USING (auth.uid() = user_id);
+# Table created in migrations/032_rls_hardening.sql, range support
+# (target_price_high, condition='range') added in
+# migrations/120_price_alerts_target_range.sql.
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -31,7 +19,8 @@ class PriceAlertCreate(BaseModel):
     ticker: str
     name: Optional[str] = None
     target_price: float
-    condition: str  # "above" | "below"
+    target_price_high: Optional[float] = None
+    condition: str  # "above" | "below" | "range"
 
 
 @router.get("")
@@ -51,10 +40,17 @@ async def create_alert(
     data: PriceAlertCreate,
     user_id: str = Depends(get_current_user_id),
 ):
-    if data.condition not in ("above", "below"):
-        raise HTTPException(status_code=400, detail="condition must be 'above' or 'below'")
+    if data.condition not in ("above", "below", "range"):
+        raise HTTPException(status_code=400, detail="condition must be 'above', 'below' or 'range'")
     if data.target_price <= 0:
         raise HTTPException(status_code=400, detail="target_price must be positive")
+    if data.condition == "range":
+        if data.target_price_high is None:
+            raise HTTPException(status_code=400, detail="target_price_high is required for condition='range'")
+        if data.target_price_high <= data.target_price:
+            raise HTTPException(status_code=400, detail="target_price_high must be greater than target_price")
+    elif data.target_price_high is not None:
+        raise HTTPException(status_code=400, detail="target_price_high is only valid for condition='range'")
 
     db = get_supabase()
 
@@ -86,6 +82,7 @@ async def create_alert(
         "ticker": data.ticker.upper(),
         "name": data.name or data.ticker.upper(),
         "target_price": data.target_price,
+        "target_price_high": data.target_price_high,
         "condition": data.condition,
         "created_at": now,
         "triggered_at": None,

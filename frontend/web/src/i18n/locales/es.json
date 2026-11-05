@@ -2140,6 +2140,7 @@
       "myPortfolioTab": "Mi Portafolio",
       "toolsTab": "Herramientas",
       "toolsLocked": "Disponible en nivel Básico",
+      "distributionTab": "Mi distribución",
       "saving": "Guardando...",
       "savedOnServer": "Guardado en el servidor",
       "savedOnServerTitle": "Confirmado por el servidor",
@@ -2283,6 +2284,59 @@
     },
     "toolsTab": {
       "subtitle": "Herramientas de análisis avanzado para tu portafolio"
+    },
+    "distribution": {
+      "loading": "Analizando tu portafolio…",
+      "error": {
+        "notAdmin": "No tienes acceso a esta sección.",
+        "notFound": "No encontramos este portafolio.",
+        "generic": "No pudimos calcular la distribución de tu portafolio en este momento. Intenta de nuevo."
+      },
+      "summary": {
+        "title": "Valor de mercado verificado",
+        "noVerifiedValue": "No pudimos verificar el valor de mercado de ninguna posición — revisa las posiciones abajo.",
+        "positions": "Posiciones",
+        "equityPct": "En acciones",
+        "etfPct": "En ETFs",
+        "coverage": "Cobertura de valorización"
+      },
+      "unverifiable": {
+        "title": "No pudimos verificar estas posiciones — no se incluyen en los porcentajes de arriba",
+        "reason": {
+          "no_price": "no encontramos un precio de mercado actual",
+          "currency_unknown": "no pudimos confirmar en qué moneda cotiza",
+          "fx_conversion_failed": "no pudimos convertir su moneda",
+          "unclassified_asset": "no pudimos clasificar este ticker"
+        }
+      },
+      "understand": {
+        "title": "Lo que debes entender",
+        "empty": "No hay suficientes datos todavía para generar observaciones sobre tu portafolio.",
+        "disclaimer": "Estas observaciones se generan con reglas fijas sobre datos reales — nunca con inteligencia artificial, puntuaciones de riesgo ni recomendaciones de compra o venta.",
+        "categoryTitles": {
+          "composition": "Acciones vs. ETFs",
+          "top_holdings": "Tus posiciones principales",
+          "dominant_sector": "Sector dominante",
+          "single_position_concentration": "Concentración en una posición",
+          "coverage_gap": "Datos incompletos"
+        }
+      },
+      "positions": {
+        "title": "Distribución por posiciones"
+      },
+      "sectors": {
+        "title": "Exposición sectorial",
+        "empty": "No hay datos sectoriales suficientes para analizar tu portafolio todavía.",
+        "coverageNote": "Tenemos información sectorial suficiente para analizar el {{pct}} del valor verificado de tu portafolio.",
+        "unclassifiedNote": "{{amount}} de tu portafolio no tiene una clasificación sectorial confiable."
+      },
+      "geography": {
+        "title": "Exposición geográfica",
+        "methodologyNote": "El domicilio de una empresa y la distribución real de los activos dentro de un ETF son dos formas distintas de medir geografía — se muestran por separado, nunca combinadas en una sola cifra.",
+        "etfUnderlying": "Activos subyacentes de tus ETFs",
+        "equityDomicile": "Domicilio de tus acciones individuales",
+        "empty": "No hay datos suficientes todavía."
+      }
     },
     "cash": {
       "title": "Efectivo disponible para invertir",
@@ -4092,6 +4146,21 @@
     "today": "hoy",
     "selectedPeriod": "período seleccionado",
     "totalAnalysts": "{{count}} analistas en total",
+    "targetPrice": {
+      "title": "Mi Precio Objetivo",
+      "subtitle": "Te avisamos cuando llegue a tu precio",
+      "singleMode": "Precio único",
+      "rangeMode": "Rango de precios",
+      "currentPrice": "Precio actual:",
+      "lowPlaceholder": "Precio",
+      "highPlaceholder": "Precio máximo",
+      "createButton": "Guardar precio objetivo",
+      "updateButton": "Actualizar precio objetivo",
+      "removeButton": "Eliminar",
+      "creating": "Guardando...",
+      "created": "¡Guardado!",
+      "error": "No se pudo guardar tu precio objetivo. Intenta de nuevo."
+    },
     "periods": {
       "d1": "1D",
       "d5": "5D",
@@ -4940,6 +5009,179 @@
       "capex": "Inversión en el negocio",
       "capexHint": "Gasto en equipo e instalaciones (CapEx).",
       "trend": "Efectivo del negocio vs. flujo libre"
+    }
+  },
+  "etf": {
+    "detail": {
+      "back": "Volver",
+      "loading": "Cargando {{ticker}}…",
+      "etfBadge": "ETF",
+      "error": {
+        "notAdmin": "No tienes acceso a esta pantalla todavía — está en una fase interna de prueba.",
+        "notEtf": "{{ticker}} no se clasifica como un ETF.",
+        "invalidTicker": "'{{ticker}}' no es un símbolo válido.",
+        "generic": "No pudimos cargar los datos de este ETF en este momento. Intenta de nuevo en unos segundos."
+      },
+      "summary": {
+        "manager": "Gestora",
+        "exchange": "Bolsa",
+        "since": "Desde"
+      },
+      "invests": {
+        "title": "¿En qué invierte?",
+        "holdingsCount": "Contiene {{count}} posiciones distintas. ",
+        "description": "Distribución real reportada por sector y país (no incluye el detalle de cada posición individual).",
+        "bySector": "Por sector",
+        "byCountry": "Por país",
+        "others": "Otros ({{count}}) — ver todos",
+        "seeLess": "Ver menos"
+      },
+      "costs": {
+        "title": "¿Cuánto cuesta?",
+        "expenseRatio": "Comisión anual (expense ratio)",
+        "aum": "Activos bajo gestión (AUM)",
+        "explanationIntro": "El expense ratio es lo que el fondo cobra cada año, automáticamente, sobre el dinero que tienes invertido — no es algo que pagues aparte.",
+        "example": " Por cada $10,000 invertidos, esto representa aproximadamente ${{amount}} al año.",
+        "disclaimer": " Esto no incluye comisiones de tu bróker ni otros costos de invertir.",
+        "suspicious": "Este número se ve inusualmente alto — lo mostramos tal cual lo reporta la fuente, pero conviene verificarlo.",
+        "tier": {
+          "muy_bajo": "Muy bajo",
+          "bajo": "Bajo",
+          "moderado": "Moderado",
+          "alto": "Alto"
+        }
+      },
+      "performance": {
+        "title": "¿Cómo ha evolucionado?",
+        "currentPrice": "Precio actual",
+        "priceChange": "Variación de precio ({{days}} días de historial)",
+        "priceOnlyDisclaimer": "Esta variación es solo del precio — no incluye los dividendos que el fondo haya repartido en ese periodo. El rendimiento total real sería distinto.",
+        "recentDividends": "Dividendos recientes",
+        "currentYield": " · yield actual {{pct}}"
+      },
+      "risks": {
+        "title": "Riesgos a considerar",
+        "sectorConcentration": "Concentración sectorial: el sector {{sector}} representa {{pct}} del fondo{{top3}}. Cuanto más alto, menos diversificado está en ese sentido.",
+        "countryConcentration": "Concentración geográfica: {{pct}} está en {{country}}.",
+        "disclaimer": "Nuvos no asigna una calificación de riesgo a este ETF ni a ningún otro — estos son datos reales de concentración, no una opinión. El desempeño pasado mostrado arriba no garantiza resultados futuros.",
+        "sectorConcentrationTop3Part": " (los 3 sectores principales suman {{pct}})",
+        "limitedHistory": "Este fondo tiene poco historial de precios todavía ({{days}} días) — ten cuidado al sacar conclusiones de su desempeño pasado."
+      },
+      "footer": {
+        "source": "Fuente: Financial Modeling Prep",
+        "structuralUpdated": "Datos estructurales actualizados {{date}}",
+        "priceUpdated": "Precio actualizado {{date}}",
+        "missingFields": " · Algunos datos no estaban disponibles en esta consulta ({{fields}})"
+      },
+      "notAvailable": "No disponible",
+      "metrics": {
+        "expenseRatio": "Comisión anual",
+        "holdingsCount": "Posiciones",
+        "dominantSector": "Sector dominante",
+        "dominantCountry": "País dominante"
+      },
+      "understand": {
+        "title": "Lo que debes entender",
+        "empty": "No hay suficientes datos todavía para generar observaciones sobre este fondo.",
+        "seeData": "Ver el dato que respalda esto",
+        "disclaimer": "Estas observaciones se generan con reglas fijas sobre datos reales — nunca con inteligencia artificial ni como una recomendación.",
+        "categoryTitles": {
+          "sector_concentration": "Concentración sectorial",
+          "geographic_exposure": "Exposición geográfica",
+          "cost": "Costo del fondo"
+        }
+      },
+      "horizon": {
+        "title": "¿Qué debería considerar sobre mi horizonte de inversión?"
+      },
+      "noDescription": "No tenemos todavía una descripción simplificada y validada para este fondo en español."
+    },
+    "explorer": {
+      "title": "Explorar ETFs",
+      "subtitle": "Encuentra fondos cotizados por nombre, ticker o categoría.",
+      "searchPlaceholder": "Busca por nombre o ticker (ej. Vanguard, Technology, VOO)",
+      "searchLoading": "Buscando…",
+      "searchEmpty": "No encontramos ETFs que coincidan con \"{{query}}\".",
+      "searchError": "No pudimos buscar en este momento. Intenta de nuevo.",
+      "categoriesTitle": "Categorías",
+      "categoriesLoading": "Cargando categorías…",
+      "categoriesError": "No pudimos cargar las categorías en este momento.",
+      "categories": {
+        "mercado_amplio": "Mercado amplio",
+        "tecnologia": "Tecnología",
+        "salud": "Salud y biotecnología",
+        "mercados_internacionales": "Mercados internacionales",
+        "financiero_y_energia": "Financiero y energía",
+        "consumo_e_industria": "Consumo e industria"
+      },
+      "resultsTitle": "Resultados",
+      "heroEyebrow": "INVIERTE CON CONOCIMIENTO",
+      "heroTitle": "Encuentra ETFs que quieras entender",
+      "heroSubtitle": "Explora fondos cotizados reales, entiende en qué invierten y qué los hace diferentes — sin recomendaciones, solo información clara.",
+      "cardUnavailable": "No pudimos cargar los datos de este ETF en este momento.",
+      "expenseRatioLabel": "Comisión anual",
+      "expenseRatioExplainer": "Lo que el fondo cobra cada año, automáticamente, sobre el dinero que tienes invertido en él.",
+      "discoveryTitle": "Empieza por conocer estos fondos",
+      "discoveryNote": "Estos son ejemplos educativos de distintos tipos de exposición — no son una recomendación ni representan las mejores opciones disponibles.",
+      "categoryCuratedNote": "Selección curada de ejemplos conocidos — no es una lista exhaustiva de todos los ETFs en esta categoría.",
+      "backToCategories": "Volver a categorías",
+      "loadMore": "Cargar más",
+      "loadingMore": "Cargando más…",
+      "dominantSectorLabel": "Sector dominante",
+      "compareCta": "Comparar"
+    },
+    "compare": {
+      "title": "Comparar ETFs",
+      "subtitle": "Compara entre 2 y 3 ETFs con datos reales — sin recomendaciones, solo diferencias concretas.",
+      "selectorLabel": "ETFs a comparar",
+      "selectorPlaceholder": "Busca por nombre o ticker para agregar",
+      "selectedCount": "{{count}}/3 seleccionados",
+      "remove": "Quitar {{ticker}} de la comparación",
+      "minRequired": "Selecciona al menos 2 ETFs para comparar.",
+      "maxReached": "Ya seleccionaste el máximo de 3 ETFs.",
+      "alreadyAdded": "{{ticker}} ya está en la comparación.",
+      "compareButton": "Comparar",
+      "comparing": "Comparando…",
+      "error": "No pudimos generar la comparación en este momento. Intenta de nuevo.",
+      "notAdmin": "No tienes acceso a esta sección.",
+      "notReadyTitle": "Comparación incompleta",
+      "notReadyBody": "No pudimos cargar al menos dos ETFs válidos, así que no mostramos una comparación. Revisa los ETFs seleccionados.",
+      "unavailableNote": "{{ticker}} no se pudo incluir en la comparación.",
+      "unavailableReason": {
+        "not_etf": "{{ticker}} no se clasifica como un ETF.",
+        "unavailable": "No pudimos obtener los datos de {{ticker}} en este momento."
+      },
+      "identification": {
+        "title": "Identificación"
+      },
+      "sectors": {
+        "title": "Distribución sectorial",
+        "empty": "No hay datos sectoriales disponibles para comparar."
+      },
+      "countries": {
+        "title": "Distribución geográfica",
+        "empty": "No hay datos geográficos disponibles para comparar."
+      },
+      "costsAndPositions": {
+        "title": "Costos y posiciones"
+      },
+      "performance": {
+        "title": "Rendimiento histórico"
+      },
+      "understand": {
+        "title": "Lo que debes entender de esta comparación",
+        "empty": "No hay suficientes diferencias claras entre estos ETFs para generar observaciones todavía.",
+        "disclaimer": "Estas observaciones se generan con reglas fijas sobre datos reales — nunca con inteligencia artificial ni como una recomendación.",
+        "categoryTitles": {
+          "sector_exposure_difference": "Diferencia sectorial",
+          "concentration_difference": "Diferencia de concentración",
+          "cost_difference": "Diferencia de comisión",
+          "geographic_similarity": "Similitud geográfica",
+          "geographic_difference": "Diferencia geográfica"
+        }
+      },
+      "viewFicha": "Ver ficha completa",
+      "ctaFromDetail": "Comparar con otro ETF"
     }
   }
 }

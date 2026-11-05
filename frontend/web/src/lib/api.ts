@@ -765,8 +765,20 @@ export const watchlist = {
 
 export const priceAlerts = {
   list: () => api.get("/api/price-alerts"),
-  create: (ticker: string, targetPrice: number, condition: "above" | "below", name?: string) =>
-    api.post("/api/price-alerts", { ticker, target_price: targetPrice, condition, name }),
+  create: (
+    ticker: string,
+    targetPrice: number,
+    condition: "above" | "below" | "range",
+    name?: string,
+    targetPriceHigh?: number
+  ) =>
+    api.post("/api/price-alerts", {
+      ticker,
+      target_price: targetPrice,
+      target_price_high: targetPriceHigh,
+      condition,
+      name,
+    }),
   remove: (ticker: string) => api.delete(`/api/price-alerts/${encodeURIComponent(ticker)}`),
 };
 
@@ -811,6 +823,23 @@ export const belvoApi = {
 
 export const benchmarkApi = {
   getMine: () => api.get("/api/benchmark/me"),
+};
+
+// Nuvos ETF Fase 2A — admin-gated (backend returns 403 for non-admin
+// accounts), not linked from main navigation yet.
+export const etfApi = {
+  getOverview: (ticker: string, lang: string = "es") => api.get(`/api/etf/${ticker}`, { params: { lang }, timeout: 20000 }),
+  search: (q: string, limit = 20) => api.get("/api/etf/search", { params: { q, limit } }),
+  getCategories: () => api.get("/api/etf/categories"),
+  getCards: (tickers: string[], lang: string = "es") => api.get("/api/etf/cards", { params: { tickers: tickers.join(","), lang } }),
+  compare: (tickers: string[], lang: string = "es") => api.get("/api/etf/compare", { params: { tickers: tickers.join(","), lang }, timeout: 20000 }),
+};
+
+// Nuvos Plus — Fase 4B, admin-gated (backend returns 403 for non-admin
+// accounts), not linked from main navigation yet beyond "Mi portafolio"'s
+// own "Mi distribución" tab.
+export const portfolioExposureApi = {
+  get: (portfolioId: string = "default") => api.get(`/api/portfolio-exposure/${portfolioId}`, { timeout: 25000 }),
 };
 
 export const voiceCallsApi = {

@@ -133,6 +133,8 @@
       "checkoutError": "Error al procesar pago"
     },
     "duo": {
+      "purchasedTitle": "¡Duo Plan activo!",
+      "purchasedBody": "Ve a la pestaña Inicio para agregar el correo de la persona con quien lo compartes.",
       "confirmTitle": "¿Guardar estas 2 cuentas?",
       "yourAccountFallback": "Tu cuenta",
       "confirmSave": "Guardar",
@@ -3042,6 +3044,12 @@
     "errorTitle": "Error",
     "paymentError": "No se pudo abrir el pago. Intenta de nuevo.",
     "manageOnWeb": "Suscríbete o cambia de plan desde nuvosai.com",
+    "subscribeNow": "Suscribirme",
+    "opening": "Abriendo...",
+    "restorePurchases": "Restaurar compras",
+    "restoring": "Restaurando...",
+    "restoreDoneTitle": "Listo",
+    "restoreDoneBody": "Tus compras fueron restauradas.",
     "freeFeatures": [
       "Hasta 15 mensajes al día con Arthur, tu mentor de inversión",
       "Portafolio de hasta 10 acciones",
@@ -3674,6 +3682,21 @@
     "couldNotLoadData": "No se pudieron cargar los datos",
     "employeesAbbr": "emp.",
     "fairValue": "Valor justo {{price}}",
+    "targetPrice": {
+      "title": "Mi Precio Objetivo",
+      "subtitle": "Te avisamos cuando llegue a tu precio",
+      "singleMode": "Precio único",
+      "rangeMode": "Rango de precios",
+      "currentPrice": "Precio actual:",
+      "lowPlaceholder": "Precio",
+      "highPlaceholder": "Precio máximo",
+      "createButton": "Guardar precio objetivo",
+      "updateButton": "Actualizar precio objetivo",
+      "removeButton": "Eliminar",
+      "creating": "Guardando...",
+      "created": "¡Guardado!",
+      "error": "No se pudo guardar tu precio objetivo. Intenta de nuevo."
+    },
     "groups": {
       "profitability": "Rentabilidad",
       "risk": "Riesgo",

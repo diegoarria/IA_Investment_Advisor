@@ -2629,6 +2629,73 @@ async def get_price_alert_why_with_diagnostics(ticker: str, pct: float, price: f
     return {"why": why, "finnhub_news": news, "perplexity_context": web_context}
 
 
+def _fetch_intraday_prices(tickers_list: list[str]) -> dict[str, dict]:
+    """Fetch intraday prices via Nasdaq API (real-time, no API key, works from
+    cloud IPs). Primary: api.nasdaq.com/api/quote/{sym}/info — returns
+    lastSalePrice + netChange. prev = curr - netChange (official previous
+    close equivalent). Fallback: Finnhub for any tickers Nasdaq doesn't cover.
+
+    Shared by job_portfolio_alerts and job_target_price_alerts — both need
+    the same production-safe price source (plain yfinance silently returns
+    nothing from Railway's cloud IP, see the now-deleted check_custom_price_
+    alerts, which used it and never actually fired a single alert)."""
+    import requests
+    import time
+
+    result: dict[str, dict] = {}
+    tickers_clean = list(set(tickers_list))
+    if not tickers_clean:
+        return result
+
+    HEADERS = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    for sym in tickers_clean:
+        for assetclass in ("stocks", "etf"):
+            try:
+                r = requests.get(
+                    f"https://api.nasdaq.com/api/quote/{sym}/info",
+                    params={"assetclass": assetclass},
+                    headers=HEADERS,
+                    timeout=8,
+                )
+                if r.status_code != 200:
+                    continue
+                d    = r.json()["data"]["primaryData"]
+                curr = float(d["lastSalePrice"].replace("$", "").replace(",", ""))
+                net  = float(d["netChange"].replace("+", "").replace(",", ""))
+                prev = curr - net
+                if curr > 0 and prev > 0:
+                    result[sym] = {"curr": curr, "prev": prev}
+                break  # got data — stop trying asset classes
+            except Exception:
+                pass
+        time.sleep(0.15)  # respectful rate limit
+
+    # Finnhub fallback for tickers Nasdaq API missed (e.g. BRK-B, ETFs)
+    missing = [t for t in tickers_clean if t not in result]
+    if missing:
+        try:
+            from app.core.finnhub import fh_quote as _fh_q
+            for t in missing:
+                try:
+                    q = _fh_q(t)
+                    if q and q.get("price") and q.get("prev_close"):
+                        result[t] = {"prev": q["prev_close"], "curr": q["price"]}
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning("Finnhub fallback: %s", e)
+
+    return result
+
+
 async def job_portfolio_alerts():
     """Every 30 min weekday market hours — push price movers (≥2%) for portfolio + watchlist.
     All users (no premium gate). Batch-fetches all tickers once, fans out per user.
@@ -2743,68 +2810,9 @@ async def job_portfolio_alerts():
         if not all_tickers:
             return
 
-        # 3. Fetch intraday prices via Nasdaq API (real-time, no API key, works from cloud IPs).
-        #    Primary: api.nasdaq.com/api/quote/{sym}/info — returns lastSalePrice + netChange.
-        #    prev = curr - netChange (official previous close equivalent).
-        #    Fallback: yfinance download for any tickers the Nasdaq API doesn't cover.
-        def _fetch_prices_for_alerts(tickers_list: list[str]) -> dict[str, dict]:
-            import requests
-            import time
-
-            result: dict[str, dict] = {}
-            tickers_clean = list(set(tickers_list))
-            if not tickers_clean:
-                return result
-
-            HEADERS = {
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                ),
-                "Accept": "application/json",
-                "Accept-Language": "en-US,en;q=0.9",
-            }
-
-            for sym in tickers_clean:
-                for assetclass in ("stocks", "etf"):
-                    try:
-                        r = requests.get(
-                            f"https://api.nasdaq.com/api/quote/{sym}/info",
-                            params={"assetclass": assetclass},
-                            headers=HEADERS,
-                            timeout=8,
-                        )
-                        if r.status_code != 200:
-                            continue
-                        d    = r.json()["data"]["primaryData"]
-                        curr = float(d["lastSalePrice"].replace("$", "").replace(",", ""))
-                        net  = float(d["netChange"].replace("+", "").replace(",", ""))
-                        prev = curr - net
-                        if curr > 0 and prev > 0:
-                            result[sym] = {"curr": curr, "prev": prev}
-                        break  # got data — stop trying asset classes
-                    except Exception:
-                        pass
-                time.sleep(0.15)  # respectful rate limit
-
-            # Finnhub fallback for tickers Nasdaq API missed (e.g. BRK-B, ETFs)
-            missing = [t for t in tickers_clean if t not in result]
-            if missing:
-                try:
-                    from app.core.finnhub import fh_quote as _fh_q
-                    for t in missing:
-                        try:
-                            q = _fh_q(t)
-                            if q and q.get("price") and q.get("prev_close"):
-                                result[t] = {"prev": q["prev_close"], "curr": q["price"]}
-                        except Exception:
-                            pass
-                except Exception as e:
-                    logger.warning("Finnhub fallback: %s", e)
-
-            return result
-
-        prices = await asyncio.to_thread(_fetch_prices_for_alerts, list(all_tickers))
+        # 3. Fetch intraday prices via the shared Nasdaq/Finnhub helper (see
+        #    _fetch_intraday_prices above job_portfolio_alerts).
+        prices = await asyncio.to_thread(_fetch_intraday_prices, list(all_tickers))
         logger.info("Portfolio alerts: fetched %d/%d tickers", len(prices), len(all_tickers))
         if not prices:
             logger.warning("Portfolio alerts: price fetch returned empty")
@@ -3014,6 +3022,128 @@ async def job_portfolio_alerts():
         logger.info("Portfolio alerts: %d movers, %d pushes sent", len(movers), sent)
     except Exception as e:
         logger.error("job_portfolio_alerts failed: %s", e)
+
+
+async def job_target_price_alerts():
+    """Every 5 min weekday market hours (same cadence as job_portfolio_alerts)
+    — checks every un-triggered price_alerts row ("Mi Precio Objetivo", stock
+    detail screen) against the live price and pushes when the price enters
+    the user's saved target (single price or range).
+
+    Replaces the old check_custom_price_alerts/scan_and_notify_all_users
+    path (removed from notification_service.py) — that path was never
+    actually scheduled anywhere and fetched prices via plain yfinance, which
+    silently returns nothing from Railway's cloud IP in production, so it
+    never fired a single real alert. This job reuses the same Nasdaq/Finnhub
+    price source and enqueue_push delivery path job_portfolio_alerts already
+    proved out in production.
+
+    Each alert fires at most once: triggered_at is set the moment it fires,
+    and the row is excluded from future runs until the user re-saves (edits)
+    their target, which resets triggered_at to NULL (see price_alerts.py's
+    create_alert — upsert-by-ticker always writes triggered_at=None)."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import enqueue_push
+    from app.services.price_alert_service import should_send_price_alert
+    import random
+
+    if _is_market_holiday_today():
+        logger.info("job_target_price_alerts skipped: market holiday")
+        return
+
+    db = get_supabase()
+    try:
+        alerts_res = await run_query(
+            db.table("price_alerts").select("*").is_("triggered_at", "null")
+        )
+        alerts = alerts_res.data or []
+        if not alerts:
+            return
+
+        all_tickers = {a["ticker"] for a in alerts}
+        prices = await asyncio.to_thread(_fetch_intraday_prices, list(all_tickers))
+        if not prices:
+            logger.warning("job_target_price_alerts: price fetch returned empty")
+            return
+
+        uids = list({a["user_id"] for a in alerts})
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,preferred_language")
+            .in_("user_id", uids)
+        )
+        lang_by_uid: dict[str, str] = {
+            r["user_id"]: (r.get("preferred_language") or "es") for r in (prof_res.data or [])
+        }
+
+        queue_index_by_uid: dict[str, int] = {}
+        sent = 0
+        for alert in alerts:
+            try:
+                ticker = alert["ticker"]
+                price = (prices.get(ticker) or {}).get("curr")
+                if price is None:
+                    continue
+
+                condition = alert["condition"]
+                if condition == "above":
+                    hit = price >= alert["target_price"]
+                elif condition == "below":
+                    hit = price <= alert["target_price"]
+                else:  # "range"
+                    hit = alert["target_price"] <= price <= alert["target_price_high"]
+                if not hit:
+                    continue
+
+                uid = alert["user_id"]
+                if not await should_send_price_alert(uid, ticker, db, category=f"price_target_{ticker}"):
+                    continue
+
+                is_en = lang_by_uid.get(uid, "es") == "en"
+                company = await asyncio.to_thread(_company_name, ticker)
+                if condition == "range":
+                    low, high = alert["target_price"], alert["target_price_high"]
+                    range_label = f"${low:,.2f}-${high:,.2f}"
+                    title = f"🎯 {ticker} en tu precio objetivo" if not is_en else f"🎯 {ticker} hit your target price"
+                    body = (
+                        f"{company} está en ${price:,.2f}, dentro de tu rango objetivo {range_label}."
+                        if not is_en else
+                        f"{company} is at ${price:,.2f}, within your target range {range_label}."
+                    )
+                else:
+                    title = f"🎯 {ticker} en tu precio objetivo" if not is_en else f"🎯 {ticker} hit your target price"
+                    body = (
+                        f"{company} está en ${price:,.2f}, tu objetivo era ${alert['target_price']:,.2f}."
+                        if not is_en else
+                        f"{company} is at ${price:,.2f}, your target was ${alert['target_price']:,.2f}."
+                    )
+
+                queue_index = queue_index_by_uid.get(uid, 0)
+                await enqueue_push(
+                    uid,
+                    f"price_target_{ticker}",
+                    title, body,
+                    {"ticker": ticker, "price": price, "condition": condition,
+                     "target_price": alert["target_price"], "target_price_high": alert.get("target_price_high"),
+                     "screen": "stock_detail"},
+                    delay_seconds=queue_index * 300,
+                    db=db,
+                )
+                queue_index_by_uid[uid] = queue_index + 1
+
+                await run_query(
+                    db.table("price_alerts")
+                    .update({"triggered_at": datetime.now(timezone.utc).isoformat()})
+                    .eq("id", alert["id"])
+                )
+                sent += 1
+                await asyncio.sleep(random.uniform(0.05, 0.2))
+            except Exception as e:
+                logger.error("job_target_price_alerts: failed for alert %s: %s", alert.get("id"), e)
+
+        logger.info("job_target_price_alerts: %d/%d alerts triggered", sent, len(alerts))
+    except Exception as e:
+        logger.error("job_target_price_alerts failed: %s", e)
 
 
 _WEEKLY_SCREENER_PENDING_KEY = "weekly_screener:pending_batch:v1"
@@ -7181,6 +7311,10 @@ async def main():
     # so a restart catch-up run only risks reproducing the same proven
     # duplicate-push bug for no real benefit.
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York", misfire_grace_time=1)
+    # "Mi Precio Objetivo" (price_alerts) — same cadence as job_portfolio_alerts,
+    # same job family ("check live prices during market hours").
+    scheduler.add_job(job_target_price_alerts,  "cron", day_of_week="mon-fri", hour=9,       minute="30,35,40,45,50,55", timezone="America/New_York", misfire_grace_time=1)
+    scheduler.add_job(job_target_price_alerts,  "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York", misfire_grace_time=1)
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=5,     timezone="America/New_York")
     # Second fire, only actually acted on when today is a NYSE early-close
     # day (see job_market_close's own early-close guard) — captures the
