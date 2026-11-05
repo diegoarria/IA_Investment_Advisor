@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Target, Bell, Check, Loader2, Trash2 } from "lucide-react";
+import { Target, Bell, Check, Loader2, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import { priceAlerts } from "@/lib/api";
 import { fmtPrice } from "@/lib/types/stock";
+import { GlowCard, IconSquare, RaisedTile } from "@/components/subvaluadas/radarUi";
+
+// Same brand green as --brand-green-l / --accent-l in globals.css — a
+// literal hex (not the CSS var) because GlowCard/RaisedTile concatenate an
+// alpha suffix onto `tint` (e.g. `${tint}1c`), which only works on a real
+// hex string, same reason radarUi.tsx hardcodes GOLD instead of using a var.
+const BRAND_GREEN = "#00e887";
+const BRAND_GREEN_D = "#00b96d";
 
 type Condition = "above" | "below" | "range";
 
@@ -66,6 +74,11 @@ export function TargetPricePanel({ ticker, companyName, price, currency = "USD" 
   const validRange = validSingle && Number.isFinite(high) && high > low;
   const canSave = mode === "single" ? validSingle : validRange;
 
+  const impliedCondition: "above" | "below" | null = useMemo(() => {
+    if (mode !== "single" || !validSingle) return null;
+    return price != null && low > price ? "above" : "below";
+  }, [mode, validSingle, low, price]);
+
   const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
@@ -76,7 +89,7 @@ export function TargetPricePanel({ ticker, companyName, price, currency = "USD" 
         await priceAlerts.create(ticker.toUpperCase(), low, "range", name, high);
         setExisting({ ticker: ticker.toUpperCase(), name, target_price: low, target_price_high: high, condition: "range" });
       } else {
-        const condition: Condition = price != null && low > price ? "above" : "below";
+        const condition: Condition = impliedCondition ?? "below";
         await priceAlerts.create(ticker.toUpperCase(), low, condition, name);
         setExisting({ ticker: ticker.toUpperCase(), name, target_price: low, target_price_high: null, condition });
       }
@@ -110,75 +123,135 @@ export function TargetPricePanel({ ticker, companyName, price, currency = "USD" 
   if (price == null) return null;
 
   return (
-    <div className="rounded-2xl p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-      <div className="flex items-center gap-3 mb-4">
-        <Target className="w-5 h-5 shrink-0" style={{ color: "var(--muted)" }} />
-        <div>
-          <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("stockDetailModal.targetPrice.title")}</p>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>{t("stockDetailModal.targetPrice.subtitle")}</p>
+    <GlowCard tint={BRAND_GREEN} strong>
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-5">
+        <IconSquare color={BRAND_GREEN} size={40}>
+          <Target className="w-[19px] h-[19px]" style={{ color: BRAND_GREEN }} />
+        </IconSquare>
+        <div className="flex-1 min-w-0">
+          <p className="text-base font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("stockDetailModal.targetPrice.title")}</p>
+          <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>{t("stockDetailModal.targetPrice.subtitle")}</p>
         </div>
-      </div>
-
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => setMode("single")}
-          className="flex-1 rounded-xl py-2 text-xs font-bold transition-colors"
-          style={{
-            background: mode === "single" ? "var(--text)" : "transparent",
-            color: mode === "single" ? "var(--bg)" : "var(--muted)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          {t("stockDetailModal.targetPrice.singleMode")}
-        </button>
-        <button
-          onClick={() => setMode("range")}
-          className="flex-1 rounded-xl py-2 text-xs font-bold transition-colors"
-          style={{
-            background: mode === "range" ? "var(--text)" : "transparent",
-            color: mode === "range" ? "var(--bg)" : "var(--muted)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          {t("stockDetailModal.targetPrice.rangeMode")}
-        </button>
-      </div>
-
-      <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>
-        {t("stockDetailModal.targetPrice.currentPrice")} <span className="font-bold" style={{ color: "var(--text)" }}>{fmtPrice(price, currency)}</span>
-      </p>
-
-      <div className="flex gap-2 mb-3">
-        <input
-          type="number"
-          min={0}
-          value={lowInput}
-          onChange={(e) => { setLowInput(e.target.value); setJustSaved(false); setError(null); }}
-          placeholder={t("stockDetailModal.targetPrice.lowPlaceholder")}
-          className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm bg-transparent outline-none"
-          style={{ color: "var(--text)", border: "1px solid var(--border)" }}
-        />
-        {mode === "range" && (
-          <input
-            type="number"
-            min={0}
-            value={highInput}
-            onChange={(e) => { setHighInput(e.target.value); setJustSaved(false); setError(null); }}
-            placeholder={t("stockDetailModal.targetPrice.highPlaceholder")}
-            className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm bg-transparent outline-none"
-            style={{ color: "var(--text)", border: "1px solid var(--border)" }}
-          />
+        {existing && !loadingExisting && (
+          <span
+            className="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide"
+            style={{ color: BRAND_GREEN, background: `${BRAND_GREEN}1f`, border: `1px solid ${BRAND_GREEN}55` }}
+          >
+            {t("stockDetailModal.targetPrice.active")}
+          </span>
         )}
       </div>
 
-      {error && <p className="text-xs mb-3" style={{ color: "#ef4444" }}>{error}</p>}
+      {/* Current price + saved target */}
+      <div className="grid grid-cols-2 gap-2.5 mb-5">
+        <RaisedTile tint={BRAND_GREEN}>
+          <p className="text-[10.5px] font-black uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>
+            {t("stockDetailModal.targetPrice.currentPrice")}
+          </p>
+          <p className="text-lg font-black tabular-nums" style={{ color: "var(--text)" }}>{fmtPrice(price, currency)}</p>
+        </RaisedTile>
+        <RaisedTile tint={existing ? BRAND_GREEN : undefined}>
+          <p className="text-[10.5px] font-black uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>
+            {t("stockDetailModal.targetPrice.yourTarget")}
+          </p>
+          <p className="text-lg font-black tabular-nums truncate" style={{ color: existing ? BRAND_GREEN : "var(--dim)" }}>
+            {existing
+              ? existing.condition === "range"
+                ? `${fmtPrice(existing.target_price, currency)}–${fmtPrice(existing.target_price_high!, currency)}`
+                : fmtPrice(existing.target_price, currency)
+              : "—"}
+          </p>
+        </RaisedTile>
+      </div>
 
-      <div className="flex gap-2">
+      {/* Mode toggle — same segmented switch language as the scenario toggle */}
+      <div className="flex gap-1.5 p-[5px] rounded-[18px] mb-4" style={{ background: "rgba(0,0,0,0.22)" }}>
+        {(["single", "range"] as const).map((m) => {
+          const active = mode === m;
+          return (
+            <button
+              key={m}
+              onClick={() => { setMode(m); setJustSaved(false); setError(null); }}
+              className="flex-1 rounded-[14px] py-[11px] text-[12px] font-black uppercase tracking-wide transition-all"
+              style={{
+                background: active ? `linear-gradient(135deg, ${BRAND_GREEN}, ${BRAND_GREEN_D})` : "transparent",
+                color: active ? "#061308" : "var(--sub)",
+              }}
+            >
+              {t(`stockDetailModal.targetPrice.${m}Mode`)}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Inputs */}
+      <div className="flex gap-2.5 mb-2">
+        <div className="flex-1 min-w-0">
+          {mode === "range" && (
+            <p className="text-[10.5px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>
+              {t("stockDetailModal.targetPrice.lowLabel")}
+            </p>
+          )}
+          <input
+            type="number"
+            min={0}
+            value={lowInput}
+            onChange={(e) => { setLowInput(e.target.value); setJustSaved(false); setError(null); }}
+            placeholder={t("stockDetailModal.targetPrice.lowPlaceholder")}
+            className="w-full rounded-2xl px-4 py-3 text-[15px] font-bold bg-transparent outline-none tabular-nums focus:ring-1"
+            style={{ color: "var(--text)", background: "var(--raised)", border: "1px solid var(--border)" }}
+          />
+        </div>
+        {mode === "range" && (
+          <div className="flex-1 min-w-0">
+            <p className="text-[10.5px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>
+              {t("stockDetailModal.targetPrice.highLabel")}
+            </p>
+            <input
+              type="number"
+              min={0}
+              value={highInput}
+              onChange={(e) => { setHighInput(e.target.value); setJustSaved(false); setError(null); }}
+              placeholder={t("stockDetailModal.targetPrice.highPlaceholder")}
+              className="w-full rounded-2xl px-4 py-3 text-[15px] font-bold bg-transparent outline-none tabular-nums"
+              style={{ color: "var(--text)", background: "var(--raised)", border: "1px solid var(--border)" }}
+            />
+          </div>
+        )}
+      </div>
+
+      {mode === "single" && impliedCondition ? (
+        <p className="flex items-center gap-1.5 text-[12px] font-bold mb-4" style={{ color: "var(--sub)" }}>
+          {impliedCondition === "above"
+            ? <ArrowUp className="w-3.5 h-3.5" style={{ color: BRAND_GREEN }} />
+            : <ArrowDown className="w-3.5 h-3.5" style={{ color: BRAND_GREEN }} />}
+          {t(`stockDetailModal.targetPrice.condition.${impliedCondition}`)}
+        </p>
+      ) : (
+        <div className="mb-4" />
+      )}
+
+      {error && (
+        <div
+          className="rounded-2xl px-4 py-3 mb-4 text-[12.5px] font-semibold"
+          style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2.5">
         <button
           onClick={handleSave}
           disabled={!canSave || saving || loadingExisting}
-          className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold disabled:opacity-50"
-          style={{ background: justSaved ? "#22c55e" : "var(--text)", color: "var(--bg)" }}
+          className="flex-1 flex items-center justify-center gap-2 rounded-2xl py-[13px] text-[13.5px] font-black disabled:opacity-40 transition-all"
+          style={{
+            background: `linear-gradient(135deg, ${BRAND_GREEN}, ${BRAND_GREEN_D})`,
+            color: "#061308",
+            boxShadow: canSave ? `0 0 24px ${BRAND_GREEN}3d` : "none",
+          }}
         >
           {saving ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -199,14 +272,16 @@ export function TargetPricePanel({ ticker, companyName, price, currency = "USD" 
           <button
             onClick={handleRemove}
             disabled={removing}
-            className="rounded-xl px-3.5 flex items-center justify-center disabled:opacity-60"
-            style={{ border: "1px solid var(--border)" }}
+            className="rounded-2xl px-4 flex items-center justify-center disabled:opacity-60 transition-colors"
+            style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
             title={t("stockDetailModal.targetPrice.removeButton")}
           >
-            {removing ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--muted)" }} /> : <Trash2 className="w-4 h-4" style={{ color: "#ef4444" }} />}
+            {removing
+              ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--muted)" }} />
+              : <Trash2 className="w-4 h-4" style={{ color: "#f87171" }} />}
           </button>
         )}
       </div>
-    </div>
+    </GlowCard>
   );
 }
