@@ -259,37 +259,6 @@ export const usePortfolioStore = create<PortfolioStore>()(
         return result;
       };
 
-      // removePosition mutates local state immediately (optimistic) and only
-      // *then* awaits the server push — a sell used to look "saved" the
-      // instant the confirm dialog closed even if the push later failed
-      // (409 conflict from another device, network drop), permanently
-      // diverging the client's portfolio from the server's with nothing
-      // telling the user. This snapshots the active portfolio's
-      // money-relevant fields before the optimistic mutation and restores
-      // them if the push rejects, so a failed sync always reverts back to
-      // "still holding the position" instead of silently keeping a phantom
-      // sale — and rethrows so the caller can show the user an actual error.
-      const withRollback = (activeId: string, run: () => Promise<void>): Promise<void> => {
-        const before = get().portfolios.find(p => p.id === activeId);
-        const snapshot = before
-          ? { positions: before.positions, closedPositions: before.closedPositions, inceptionDate: before.inceptionDate, currency: before.currency }
-          : null;
-        return run().catch((err) => {
-          if (snapshot) {
-            const reverted = get().portfolios.map(p => p.id === activeId ? { ...p, ...snapshot } : p);
-            const active = reverted.find(p => p.id === activeId) ?? reverted[0] ?? DEFAULT_PORTFOLIO;
-            set({
-              portfolios: reverted,
-              positions: active.positions,
-              closedPositions: active.closedPositions,
-              inceptionDate: active.inceptionDate,
-              portfolioCurrency: active.currency,
-            });
-          }
-          throw err;
-        });
-      };
-
       /** Get the active portfolio object */
       const getActive = () => {
         const { portfolios, activePortfolioId } = get();
@@ -352,6 +321,17 @@ export const usePortfolioStore = create<PortfolioStore>()(
           updateActive(newPositions, { inceptionDate });
         },
 
+        // Removes the position from local state unconditionally, synchronously,
+        // before the server push even starts — a sell must never stay visible
+        // just because the network, a stale sync baseline, or any other
+        // server-side hiccup fails the subsequent save (Diego, 2026-11-06: "sin
+        // poner ningún pero, debe borrarse instantáneamente"). The push below
+        // can still fail; when it does, push() leaves pendingSync=true (it's
+        // part of the persisted state), which the portfolio screen's existing
+        // background retry (every 5s while syncStatus is "error"/"idle") and
+        // loadFromServer()'s pendingSync fallback on next load both pick up
+        // and keep retrying until it lands — the sale is never silently lost,
+        // just not yet confirmed server-side, with no user-facing error.
         removePosition: (id, closePrice) => {
           const active = getActive();
           const pos = active.positions.find(p => p.id === id);
@@ -362,9 +342,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
             closePrice, closeDate: todayStr(),
           };
           const newPositions = active.positions.filter(p => p.id !== id);
-          return withRollback(active.id, () =>
-            updateActive(newPositions, { closedPositions: [...active.closedPositions, closedEntry] })
-          );
+          return updateActive(newPositions, { closedPositions: [...active.closedPositions, closedEntry] });
         },
 
         updatePosition: (id, updates, saleInfo) => {
