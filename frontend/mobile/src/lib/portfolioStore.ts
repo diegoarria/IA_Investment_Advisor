@@ -144,16 +144,19 @@ export const usePortfolioStore = create<PortfolioStore>()(
         return result;
       };
 
-      // removePosition/mergeTickerPosition mutate local state immediately
-      // (optimistic) and only *then* await the server push — a sell or an
+      // mergeTickerPosition ("ajustar promedio") mutates local state
+      // immediately (optimistic) and only *then* awaits the server push — an
       // average-price correction used to look "saved" the instant the modal
-      // closed even if the push later failed, permanently diverging the
-      // client's portfolio from the server's with nothing telling the user.
-      // This snapshots the active portfolio's money-relevant fields before
-      // the optimistic mutation and restores them if the push rejects, so a
-      // failed sync always reverts back to "still holding the position"
-      // instead of silently keeping a phantom sale — and rethrows so the
-      // caller's button handler can show the user an actual error.
+      // closed even if the push later failed. This snapshots the active
+      // portfolio's money-relevant fields before the optimistic mutation and
+      // restores them if the push rejects, so a failed sync always reverts
+      // back to the pre-correction state instead of silently keeping a
+      // phantom edit — and rethrows so the caller's button handler can show
+      // the user an actual error.
+      //
+      // removePosition/updatePosition (selling, below) deliberately do NOT
+      // use this — a sell must never revert or fail visibly, on or off wifi
+      // (Diego, 2026-11-06). See removePosition's own comment.
       const withRollback = (activeId: string, run: () => Promise<void>): Promise<void> => {
         const before = get().portfolios.find(p => p.id === activeId);
         const snapshot = before
@@ -253,6 +256,16 @@ export const usePortfolioStore = create<PortfolioStore>()(
           return withRollback(active.id, () => updateActive([...others, merged]));
         },
 
+        // Removes the position from local state unconditionally, synchronously,
+        // before the server push even starts — a sell must never stay visible
+        // just because the network, a stale sync baseline, or any other
+        // server-side hiccup fails the subsequent save. The push below can
+        // still fail; when it does, push() leaves pendingSync=true (part of
+        // the persisted state), which the portfolio screen's own background
+        // retry and loadFromServer()'s pendingSync fallback on next load both
+        // pick up and keep retrying until it lands — the sale is never
+        // silently lost, just not yet confirmed server-side, with no
+        // user-facing error.
         removePosition: (id, closePrice) => {
           const active = getActive();
           const pos = active.positions.find(p => p.id === id);
@@ -262,9 +275,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
             avgPrice: pos.avgPrice, purchaseDate: pos.purchaseDate,
             closePrice, closeDate: todayStr(),
           };
-          return withRollback(active.id, () =>
-            updateActive(active.positions.filter(p => p.id !== id), { closedPositions: [...active.closedPositions, closedEntry] })
-          );
+          return updateActive(active.positions.filter(p => p.id !== id), { closedPositions: [...active.closedPositions, closedEntry] });
         },
 
         updatePosition: (id, updates, saleInfo) => {

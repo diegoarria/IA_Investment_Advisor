@@ -4470,16 +4470,20 @@ export default function PortfolioScreen() {
                     const enteredPrice = parseFloat(sellPrice);
                     const closePriceUSD = portfolioCurrency === "USD" ? enteredPrice : enteredPrice / fxRate;
                     setSellSaving(true);
+                    // removePosition() removes the position from local state
+                    // unconditionally and immediately — it no longer rolls
+                    // back on a failed server push (Diego, 2026-11-06: a
+                    // sell must never fail/stay visible, on or off wifi). The
+                    // modal always closes; a failed push is retried silently
+                    // in the background (see portfolioStore.ts's
+                    // removePosition comment) instead of blocking the user
+                    // here with an error.
                     try {
                       await removePosition(sellConfirm.id, parseFloat(closePriceUSD.toFixed(6)));
-                      setSellConfirm(null);
                     } catch {
-                      // removePosition already rolled the local state back to
-                      // "still holding the position" on failure — the modal
-                      // stays open (sellConfirm untouched) so the user can
-                      // just retry instead of being told nothing at all.
-                      Alert.alert(t("common.error"), t("portfolio.sell.saveError", "No se pudo registrar la venta. Revisa tu conexión e intenta de nuevo."));
+                      // Swallowed on purpose — local removal already happened.
                     } finally {
+                      setSellConfirm(null);
                       setSellSaving(false);
                     }
                   }}>

@@ -33,6 +33,7 @@ import ExplainButton from "@/components/ExplainButton";
 import FirstStepsFlow from "@/components/FirstStepsFlow";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import BrokerConnectModal from "@/components/BrokerConnectModal";
+import PortfolioDistribution from "@/components/portfolio/PortfolioDistribution";
 import { useUpsellStore } from "@/lib/upsellStore";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2, BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Pencil, Eye, Cloud, CloudOff, Check, TrendingUp, Bell, Users, Share2, ChevronDown, ChevronUp, ChevronRight, Loader2, ArrowRight, FileBarChart, PlayCircle, Link2, Lock, CloudUpload,
@@ -917,7 +918,7 @@ export default function PortfolioPage() {
   const [renameValue, setRenameValue] = useState("");
   const [hoveredPortfolioId, setHoveredPortfolioId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen]   = useState(false);
-  const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas">("portfolio");
+  const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas" | "distribucion">("portfolio");
 
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
@@ -1064,7 +1065,6 @@ export default function PortfolioPage() {
   const [editingPos, setEditingPos] = useState<{ id: string; ticker: string; originalShares: number; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
   const [editConfirm, setEditConfirm] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
-  const [editSaveError, setEditSaveError] = useState(false);
   // When editing reduces shares, we don't know if it's a sale or a data-entry
   // correction — ask, since only a real sale should be archived into the
   // since-inception performance ledger.
@@ -2341,6 +2341,15 @@ export default function PortfolioPage() {
               </div>
             )}
             {/* View toggle removed — "Avanzado" is always on (Diego, 2026-08-12) */}
+            {/* "Mi distribución" tab (2026-11): a nudged vertical offset was
+                still a guess that could overlap again at another viewport
+                size. The ambient floating button is hidden on this tab
+                specifically — PortfolioDistribution renders its own
+                `inline` ExplainButton inside "Lo que debes entender"'s own
+                header instead, so there's no fixed-position element left
+                to overlap anything, on any screen size. Every other tab
+                keeps the exact same floating button as before. */}
+            {activeTab !== "distribucion" && (
             <ExplainButton
               screen="portfolio"
               context={{
@@ -2362,6 +2371,7 @@ export default function PortfolioPage() {
                   : null,
               }}
             />
+            )}
             <BalanceVisibilityToggle
               className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
               style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
@@ -2420,6 +2430,11 @@ export default function PortfolioPage() {
                 🔒 {t("portfolio.header.toolsTab")}
               </div>
             )}
+            <button onClick={() => setActiveTab("distribucion")}
+                    className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+                    style={{ background: activeTab === "distribucion" ? "var(--card)" : "transparent", color: activeTab === "distribucion" ? "var(--text)" : "var(--muted)" }}>
+              {t("portfolio.header.distributionTab")}
+            </button>
           </div>
 
           {activeTab === "portfolio" && <div className="space-y-5">
@@ -4234,6 +4249,11 @@ export default function PortfolioPage() {
             </div>
           )}
 
+          {/* ══ MI DISTRIBUCIÓN TAB — Nuvos Plus Fase 4B ══ */}
+          {activeTab === "distribucion" && (
+            <PortfolioDistribution portfolioId={activePortfolioId || "default"} />
+          )}
+
         </main>
       </div>
       </div>
@@ -4698,7 +4718,11 @@ export default function PortfolioPage() {
                             : portfolioCurrency === "USD" ? enteredPrice
                             : enteredPrice / fxRate;
                           setEditSaving(true);
-                          setEditSaveError(false);
+                          // Same "never fails, never reverts" rule as the sell
+                          // confirm modal below — a partial sell made via
+                          // "editar posición" must apply locally and close
+                          // regardless of whether the server push succeeds;
+                          // a failed push retries silently in the background.
                           try {
                             let saleInfo: { soldShares: number; closePrice: number } | undefined;
                             if (editSaleChoice === "sale") {
@@ -4711,14 +4735,13 @@ export default function PortfolioPage() {
                               avgPrice: parseFloat(avgPriceUSD.toFixed(6)),
                               purchaseDate: editingPos.purchaseDate,
                             }, saleInfo);
+                          } catch {
+                            // Swallowed on purpose — local update already happened.
+                          } finally {
                             setEditingPos(null);
                             setEditConfirm(false);
                             setEditSaleChoice(null);
                             setEditSalePrice("");
-                           
-                          } catch {
-                            setEditSaveError(true);
-                          } finally {
                             setEditSaving(false);
                           }
                         }}
@@ -4727,11 +4750,6 @@ export default function PortfolioPage() {
                         {editSaving ? "Guardando..." : "Guardar"}
                       </button>
                     </div>
-                    {editSaveError && (
-                      <p className="text-[10px] text-center mt-2" style={{ color: "#f87171" }}>
-                        Error al guardar. Verifica tu conexión y vuelve a intentar.
-                      </p>
-                    )}
                   </div>
                 )}
               </div>
@@ -4792,17 +4810,20 @@ export default function PortfolioPage() {
                       const enteredPrice = parseFloat(sellPrice);
                       const closePriceUSD = portfolioCurrency === "USD" ? enteredPrice : enteredPrice / fxRate;
                       setSellSaving(true);
+                      // removePosition() removes the position from local state
+                      // unconditionally and immediately — it no longer rolls
+                      // back on a failed server push (Diego, 2026-11-06: a
+                      // sell must never fail/stay visible, on or off wifi).
+                      // The modal always closes; a failed push is retried
+                      // silently in the background (see portfolioStore.ts's
+                      // removePosition comment) instead of blocking the user
+                      // here with an error.
                       try {
                         await removePosition(sellConfirm.id, parseFloat(closePriceUSD.toFixed(6)));
-                        setSellConfirm(null);
                       } catch {
-                        // removePosition already rolled the local state back
-                        // to "still holding the position" on failure — leave
-                        // the dialog open (sellConfirm untouched) so the user
-                        // can just retry instead of the sale silently
-                        // "succeeding" client-side with nothing saved.
-                        showToast("No se pudo registrar la venta. Revisa tu conexión e intenta de nuevo.");
+                        // Swallowed on purpose — local removal already happened.
                       } finally {
+                        setSellConfirm(null);
                         setSellSaving(false);
                       }
                     }}
