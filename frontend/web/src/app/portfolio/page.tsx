@@ -33,7 +33,6 @@ import ExplainButton from "@/components/ExplainButton";
 import FirstStepsFlow from "@/components/FirstStepsFlow";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import BrokerConnectModal from "@/components/BrokerConnectModal";
-import PortfolioDistribution from "@/components/portfolio/PortfolioDistribution";
 import { useUpsellStore } from "@/lib/upsellStore";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2, BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Pencil, Eye, Cloud, CloudOff, Check, TrendingUp, Bell, Users, Share2, ChevronDown, ChevronUp, ChevronRight, Loader2, ArrowRight, FileBarChart, PlayCircle, Link2, Lock, CloudUpload,
@@ -918,7 +917,7 @@ export default function PortfolioPage() {
   const [renameValue, setRenameValue] = useState("");
   const [hoveredPortfolioId, setHoveredPortfolioId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen]   = useState(false);
-  const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas" | "distribucion">("portfolio");
+  const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas">("portfolio");
 
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
@@ -2341,15 +2340,6 @@ export default function PortfolioPage() {
               </div>
             )}
             {/* View toggle removed — "Avanzado" is always on (Diego, 2026-08-12) */}
-            {/* "Mi distribución" tab (2026-11): a nudged vertical offset was
-                still a guess that could overlap again at another viewport
-                size. The ambient floating button is hidden on this tab
-                specifically — PortfolioDistribution renders its own
-                `inline` ExplainButton inside "Lo que debes entender"'s own
-                header instead, so there's no fixed-position element left
-                to overlap anything, on any screen size. Every other tab
-                keeps the exact same floating button as before. */}
-            {activeTab !== "distribucion" && (
             <ExplainButton
               screen="portfolio"
               context={{
@@ -2371,7 +2361,6 @@ export default function PortfolioPage() {
                   : null,
               }}
             />
-            )}
             <BalanceVisibilityToggle
               className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
               style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
@@ -2430,11 +2419,6 @@ export default function PortfolioPage() {
                 🔒 {t("portfolio.header.toolsTab")}
               </div>
             )}
-            <button onClick={() => setActiveTab("distribucion")}
-                    className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
-                    style={{ background: activeTab === "distribucion" ? "var(--card)" : "transparent", color: activeTab === "distribucion" ? "var(--text)" : "var(--muted)" }}>
-              {t("portfolio.header.distributionTab")}
-            </button>
           </div>
 
           {activeTab === "portfolio" && <div className="space-y-5">
@@ -4247,11 +4231,6 @@ export default function PortfolioPage() {
 
 
             </div>
-          )}
-
-          {/* ══ MI DISTRIBUCIÓN TAB — Nuvos Plus Fase 4B ══ */}
-          {activeTab === "distribucion" && (
-            <PortfolioDistribution portfolioId={activePortfolioId || "default"} />
           )}
 
         </main>
