@@ -3104,21 +3104,33 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
                     )
                     cached = None
     if cached:
-        current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
-        cached_period = cached.get("_earnings_period")
-        if not current_period or current_period == cached_period:
-            # 2026-10-28 P0: fh_quote has no top-level try/except of its own
-            # (unlike _latest_reported_earnings_period above) — awaiting
-            # this task directly re-raised whatever it threw straight past
-            # every fallback, killing an otherwise-healthy cache-hit
-            # request with a generic 500. _apply_live_quote already
-            # degrades cleanly to the cached price when given None.
-            try:
-                live_quote = await quote_task
-            except Exception:
-                logger.exception("company_diagnostic(%s): fh_quote (cache-hit quote refresh) raised", ticker)
-                live_quote = None
-            return _apply_live_quote_diagnostic(cached, live_quote, lang)
+        # 2026-11-10 P0 latency fix: this used to call
+        # _latest_reported_earnings_period (a Finnhub round trip, up to 8s
+        # on a cold 12h cache) on EVERY cache hit — confirmed live as a
+        # direct contributor to several fichas' 9-11s opens despite having
+        # a perfectly good, current cached diagnostic. A cache hit now
+        # trusts its cached data unconditionally and returns immediately;
+        # new-earnings-report detection moved to a scheduled sweep
+        # (job_refresh_company_diagnostic_earnings_freshness in worker.py),
+        # which invalidates just the affected ticker's cache keys ahead of
+        # the next real visit — same end result (a new report eventually
+        # triggers a rebuild), just off the interactive request's budget.
+        # The publish-time invalidation (_invalidate_public_diagnostic_cache,
+        # 2026-10-30) and the _valuation_computed_at reconciliation check
+        # above remain fully in effect — this only removes the Finnhub
+        # earnings-period poll, not either staleness mechanism.
+        #
+        # 2026-10-28 P0: fh_quote has no top-level try/except of its own —
+        # awaiting this task directly re-raised whatever it threw straight
+        # past every fallback, killing an otherwise-healthy cache-hit
+        # request with a generic 500. _apply_live_quote already degrades
+        # cleanly to the cached price when given None.
+        try:
+            live_quote = await quote_task
+        except Exception:
+            logger.exception("company_diagnostic(%s): fh_quote (cache-hit quote refresh) raised", ticker)
+            live_quote = None
+        return _apply_live_quote_diagnostic(cached, live_quote, lang)
     # Falling through to a rebuild below (cache miss, or stale earnings
     # period) — the fresh build already fetches a near-live price of its
     # own (get_fundamental_analysis), so this speculative quote fetch turns

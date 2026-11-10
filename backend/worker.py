@@ -3711,6 +3711,105 @@ async def job_backfill_company_valuations_batch():
         release_lock(_BACKFILL_LOCK_KEY, token)
 
 
+async def job_refresh_company_diagnostic_earnings_freshness():
+    """Nuvos Radar P0 latency fix, 2026-11-10. `screener.py`'s
+    `_company_diagnostic_result` used to call `_latest_reported_earnings_period`
+    (a Finnhub round trip, up to 8s on its own 12h-cold cache) on EVERY
+    cache hit, not just misses — confirmed live as a direct contributor to
+    the 9-11s latency some fichas showed even with a perfectly good cached
+    diagnostic (KO: same `_valuation_computed_at` across repeated calls,
+    still ~9s, because this check ran again each time). That inline check
+    is now gone from the interactive path entirely.
+
+    This job is where that capability moved to: a cache hit now trusts its
+    cached data unconditionally for freshness-of-earnings-period purposes.
+    New-earnings-report detection instead happens here, on a schedule, for
+    the bounded set of tickers that currently carry a persisted valuation
+    (company_valuations, is_current=true) — the same universe the backfill
+    job already walks. When a ticker's real latest reported period (per
+    Finnhub) differs from what's stamped on its live public-cache entries
+    (`_earnings_period`, written by the interactive path on its last real
+    build), this invalidates just that ticker's 4 cache keys via the same
+    targeted `_invalidate_public_diagnostic_cache` the publish-time fix
+    uses — never a bulk flush. The NEXT real visit then rebuilds live,
+    exactly as before; this job changes WHEN the staleness is detected
+    (on a schedule, cheap and bounded), not WHETHER it ever is.
+
+    Deliberately conservative about scope: only tickers with a current
+    persisted valuation are checked (this job doesn't invent new tickers
+    to process), and only the cache is touched — company_valuations rows
+    are never written or altered here.
+
+    Disabled by default (EARNINGS_FRESHNESS_SWEEP_ENABLED unset) — same
+    discipline as BACKFILL_ENABLED: this is new scheduled Finnhub traffic,
+    so Diego opts in explicitly rather than it starting silently the
+    moment this deploys.
+
+    Env vars (all optional, safe defaults):
+      EARNINGS_FRESHNESS_SWEEP_ENABLED   "true" to actually run (default: off)
+      EARNINGS_FRESHNESS_SWEEP_BATCH_SIZE  tickers checked per tick (default 20)
+      EARNINGS_FRESHNESS_SWEEP_TICKER_ALLOWLIST  comma-separated tickers;
+                                          when set, restricts this sweep to
+                                          exactly that list (same allowlist
+                                          discipline as the backfill job).
+    """
+    enabled = os.getenv("EARNINGS_FRESHNESS_SWEEP_ENABLED", "false").strip().lower() == "true"
+    if not enabled:
+        return
+
+    from app.api.routes.screener import (
+        UNIVERSE, _latest_reported_earnings_period, _company_diagnostic_cache_key,
+    )
+    from app.core.cache import cache_get
+    from app.services.company_valuation_service import (
+        get_persisted_valuation, normalize_ticker_symbol,
+        _invalidate_public_diagnostic_cache,
+    )
+
+    batch_size = int(os.getenv("EARNINGS_FRESHNESS_SWEEP_BATCH_SIZE", "20"))
+    allowlist_raw = os.getenv("EARNINGS_FRESHNESS_SWEEP_TICKER_ALLOWLIST", "").strip()
+    if allowlist_raw:
+        allow = {t.strip().upper() for t in allowlist_raw.split(",") if t.strip()}
+        candidates = [c["ticker"] for c in UNIVERSE if c["ticker"].upper() in allow]
+    else:
+        candidates = [c["ticker"] for c in UNIVERSE]
+
+    checked = 0
+    invalidated: list[str] = []
+    for raw_ticker in candidates:
+        if checked >= batch_size:
+            break
+        ticker = normalize_ticker_symbol(raw_ticker)
+        persisted = await get_persisted_valuation(ticker)
+        if not persisted:
+            continue  # nothing cached is worth checking for a ticker with no valuation at all
+        checked += 1
+        try:
+            current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+        except Exception as e:
+            logger.warning("job_refresh_company_diagnostic_earnings_freshness(%s): freshness check failed: %s", ticker, e)
+            continue
+        if not current_period:
+            continue
+        stale_found = False
+        for lang in ("es", "en"):
+            for tier in ("free", "premium"):
+                entry = cache_get(_company_diagnostic_cache_key(ticker, lang, tier=tier))
+                if entry and entry.get("_earnings_period") and entry["_earnings_period"] != current_period:
+                    stale_found = True
+        if stale_found:
+            _invalidate_public_diagnostic_cache(ticker)
+            invalidated.append(ticker)
+
+    if invalidated:
+        logger.info(
+            "job_refresh_company_diagnostic_earnings_freshness: checked %d, invalidated %d stale cache entries: %s",
+            checked, len(invalidated), invalidated,
+        )
+    else:
+        logger.info("job_refresh_company_diagnostic_earnings_freshness: checked %d, nothing stale", checked)
+
+
 async def job_prewarm_nif_dashboard_default():
     """DISABLED, Diego 2026-09-11 (cost audit) — no longer registered with
     the scheduler (see setup, below), kept here only so it can be turned
@@ -7504,6 +7603,10 @@ async def main():
     # traffic for the same FMP/Finnhub/Yahoo quota.
     scheduler.add_job(job_backfill_company_valuations_batch, "cron", day_of_week="mon-fri", hour="0-7,20-23", minute="*/10", timezone="America/New_York")
     scheduler.add_job(job_backfill_company_valuations_batch, "cron", day_of_week="sat,sun", minute="*/10", timezone="America/New_York")
+    # 2026-11-10 P0 latency fix — see job_refresh_company_diagnostic_earnings_freshness's
+    # own docstring. Gated off by EARNINGS_FRESHNESS_SWEEP_ENABLED (default
+    # false); registering the tick here is harmless until Diego opts in.
+    scheduler.add_job(job_refresh_company_diagnostic_earnings_freshness, "cron", minute="*/30")
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)
