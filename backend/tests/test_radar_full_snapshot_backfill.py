@@ -474,10 +474,68 @@ class TestSnapshotUpgradeNeverPromotesOutOfHumanReview:
         assert current[0]["intrinsic_value_usd"] == 117.04, "must never publish the unapproved $39.87"
         assert current[0]["error_detail"] == "intrinsic/price ratio 9.995x fuera del rango esperado"
         assert current[0]["assumptions"] == {"discount_rate_pct": 5.02}
-        # the snapshot itself IS allowed to be the freshly-built one —
-        # only the headline valuation fields are pinned back to existing.
-        assert current[0].get("diagnostic_snapshot") == {"companyName": "Ford Motor Co"}
+        # 2026-11-10 snapshot-coherence fix: the fresh snapshot's OWN
+        # nested `valuation.validationStatus`/`baseFairValue` (and score/
+        # pillarScores/badges, all derived from the same cleared-band
+        # scenario) would contradict the pinned under_review/$117.04
+        # headline — exactly the leak Diego's pre-deploy review flagged.
+        # No prior snapshot existed for F, so nothing safe to carry
+        # forward either — the row must stay snapshot-less this round
+        # (serving falls back to the already-safe valuation_only path)
+        # rather than publish an internally-incoherent "complete" ficha.
+        assert current[0].get("diagnostic_snapshot") is None
+        assert current[0].get("snapshot_schema_version") is None
         assert row["validation_status"] == "under_review"
+
+    def test_ford_style_clear_with_prior_snapshot_carries_old_snapshot_forward(self, monkeypatch):
+        """If a human-reviewed ticker already HAD a real, coherent snapshot
+        from before (consistent with the pinned under_review state), a
+        guard-triggered recompute must carry that OLD snapshot forward
+        unchanged — never wipe it, and never replace it with the fresh,
+        would-clear-review one (same coherence concern as the no-prior-
+        snapshot case above, just with an existing snapshot to fall back
+        on instead of persisting none)."""
+        db = _FakeDB()
+        monkeypatch.setattr(cvs, "get_supabase", lambda: db)
+        _clear_cache()
+        old_snapshot = {
+            "companyName": "Ford Motor Co",
+            "valuation": {"validationStatus": "under_review", "baseFairValue": 117.04},
+        }
+        db.rows.append({
+            "id": str(uuid.uuid4()), "ticker": "F", "validation_status": "under_review",
+            "model_version": cvs.MODEL_VERSION, "financial_report_period": "2026-Q3",
+            "computed_at": "2026-10-20T00:00:00+00:00", "attempt_count": 0,
+            "intrinsic_value_usd": 117.04, "currency": "USD", "methodology": "legacy_dcf_or_financial_sector",
+            "error_detail": "intrinsic/price ratio 9.995x fuera del rango esperado",
+            "assumptions": {"discount_rate_pct": 5.02},
+            "is_current": True, "diagnostic_snapshot": old_snapshot,
+            "snapshot_schema_version": cvs._DIAGNOSTIC_SCHEMA_VERSION_FOR_BACKFILL,
+        })
+        fake_full_clears_band = {
+            "validation_status": "valid", "intrinsic_value_usd": 39.87, "currency": "USD",
+            "methodology": "legacy_dcf_or_financial_sector", "model_version": cvs.MODEL_VERSION,
+            "financial_report_period": "2026-Q3", "error_detail": None,
+            "assumptions": {"discount_rate_pct": 8.50},
+            "diagnostic_snapshot": {
+                "companyName": "Ford Motor Co",
+                "valuation": {"validationStatus": "valid", "baseFairValue": 39.87},
+            },
+            "snapshot_schema_version": cvs._DIAGNOSTIC_SCHEMA_VERSION_FOR_BACKFILL,
+        }
+        # existing_has_complete_snapshot is already True here, so this
+        # exercises the freshness-shortcut branch, not needs_snapshot_
+        # upgrade — force=True to still reach the compute+guard path,
+        # same as a scheduled re-check of an already-snapshotted ticker.
+        with patch("app.api.routes.screener._latest_reported_earnings_period", return_value="2026-Q4"), \
+             patch.object(cvs, "compute_full_diagnostic_valuation", return_value=fake_full_clears_band):
+            _run(cvs.refresh_if_needed("F", full_snapshot=True, force=True))
+        current = _current_rows(db, "F")
+        assert current[0]["validation_status"] == "under_review"
+        assert current[0]["intrinsic_value_usd"] == 117.04
+        assert current[0]["diagnostic_snapshot"] == old_snapshot, (
+            "must carry the OLD coherent snapshot forward, never the fresh would-clear-review one"
+        )
 
     def test_under_review_row_staying_under_review_publishes_normally(self, monkeypatch):
         """Sanity check: the guard above only fires on an actual flip away
