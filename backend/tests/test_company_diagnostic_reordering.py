@@ -191,10 +191,16 @@ async def test_cold_redis_with_persisted_snapshot_serves_fast_without_dcf(monkey
     """PASO 5: 'snapshot persistido y Redis vacío' — a cold public cache
     (Redis miss, e.g. after a restart or a genuine expiry) must not force a
     live DCF rebuild when a complete diagnostic_snapshot already exists in
-    Supabase; the live build is attempted first (strictly better when it
-    works) but on failure must fall through to the snapshot, never to
-    'unavailable', and the DCF/build_company_diagnostic path must not be
-    what served the final result."""
+    Supabase.
+
+    2026-11-10 P0 structural latency fix (CHTR/KO ~9s-forever incident):
+    previously the live build was attempted FIRST regardless, and only
+    fell through to this snapshot AFTER it failed/timed out — confirmed
+    live that under Yahoo's rate-limiting episode, CHTR and KO each paid
+    the full ~8s `_LIVE_BUILD_TIMEOUT_S` on EVERY single request, forever,
+    because a timed-out attempt never populates the cache either. Now a
+    usable snapshot is served directly, with ZERO live-build attempt —
+    asserted explicitly below via the call counter."""
     persisted = {
         "intrinsic_value_usd": 70.0, "computed_at": "2026-10-29T00:00:00+00:00",
         "validation_status": "valid", "assumptions": {},
@@ -207,10 +213,84 @@ async def test_cold_redis_with_persisted_snapshot_serves_fast_without_dcf(monkey
     _patch_common(monkeypatch, cached=None, persisted=persisted, earnings_period="2026-Q3")
 
     import app.services.fundamental_analysis_service as fas
-    monkeypatch.setattr(fas, "get_fundamental_analysis", lambda ticker: None)
+    attempts = {"n": 0}
+    def _counting_fundamental(ticker):
+        attempts["n"] += 1
+        return None
+    monkeypatch.setattr(fas, "get_fundamental_analysis", _counting_fundamental)
+
+    async def _fail_sleep(seconds):
+        raise AssertionError("must not sleep/retry when a usable snapshot short-circuits the live build")
+    monkeypatch.setattr(asyncio, "sleep", _fail_sleep)
 
     result = await screener._company_diagnostic_result("AMZN", "es", "user1", use_ai=True)
 
     assert result["companyName"] == "Omnicom"
     assert result["score"] == 70
     assert result.get("dataAvailability") != "unavailable"
+    assert attempts["n"] == 0, "a usable full snapshot must skip the live rebuild entirely, not just fall back after it fails"
+
+
+@pytest.mark.asyncio
+async def test_old_schema_snapshot_still_attempts_live_build(monkeypatch):
+    """The short-circuit only applies to a CURRENT-schema snapshot — a row
+    whose snapshot predates _DIAGNOSTIC_SCHEMA_VERSION (or has none at all)
+    must still attempt a live build as before; there's nothing fast and
+    complete to serve instead."""
+    persisted = {
+        "intrinsic_value_usd": 70.0, "computed_at": "2026-01-01T00:00:00+00:00",
+        "validation_status": "valid", "assumptions": {},
+        "diagnostic_snapshot": {"companyName": "Old Co", "ticker": "AMZN", "score": 40},
+        "snapshot_schema_version": screener._DIAGNOSTIC_SCHEMA_VERSION - 1,  # stale shape
+    }
+    _patch_common(monkeypatch, cached=None, persisted=persisted, earnings_period="2026-Q3")
+
+    import app.services.fundamental_analysis_service as fas
+    attempts = {"n": 0}
+    def _counting_fundamental(ticker):
+        attempts["n"] += 1
+        return None
+    monkeypatch.setattr(fas, "get_fundamental_analysis", _counting_fundamental)
+
+    result = await screener._company_diagnostic_result("AMZN", "es", "user1", use_ai=True)
+
+    assert attempts["n"] == 1, "an old-schema snapshot is not usable and must not short-circuit the live build"
+    assert result["dataAvailability"] == "valuation_only"  # falls back to the numeric-only path, not the stale snapshot
+
+
+@pytest.mark.asyncio
+async def test_usable_snapshot_short_circuit_still_respects_fresh_republish(monkeypatch):
+    """The short-circuit must not undermine the existing publish-time
+    invalidation discipline: `get_persisted_valuation` is always read
+    fresh for the CURRENT row on every miss, so a ticker just republished
+    (new WACC fix, new recompute) gets its NEW snapshot/number immediately
+    — there is no separate, independently-stale copy of 'persisted' that
+    this short-circuit could be reading instead."""
+    persisted = {
+        "intrinsic_value_usd": 1156.84, "computed_at": "2026-11-10T12:00:00+00:00",
+        "validation_status": "under_review", "assumptions": {},
+        "diagnostic_snapshot": {
+            "companyName": "Charter Communications", "ticker": "CHTR", "score": 55,
+            "valuation": {"currentPrice": 300.0, "baseFairValue": 1156.84},
+        },
+        "snapshot_schema_version": screener._DIAGNOSTIC_SCHEMA_VERSION,
+    }
+    monkeypatch.setattr(screener, "_resolve_quick_ticker", lambda q: "CHTR")
+    monkeypatch.setattr(screener, "cache_get", lambda key: None)
+    monkeypatch.setattr(screener, "cache_set", lambda *a, **k: None)
+    monkeypatch.setattr(screener, "fh_quote", lambda ticker: {"price": 305.0})
+
+    import app.services.company_valuation_service as cvs
+    async def _get_persisted(ticker):
+        return persisted
+    monkeypatch.setattr(cvs, "get_persisted_valuation", _get_persisted)
+
+    import app.services.fundamental_analysis_service as fas
+    def _fail(ticker):
+        raise AssertionError("must not attempt a live build when the just-republished snapshot is usable")
+    monkeypatch.setattr(fas, "get_fundamental_analysis", _fail)
+
+    result = await screener._company_diagnostic_result("CHTR", "es", "user1", use_ai=True)
+
+    assert result["valuation"]["baseFairValue"] == 1156.84
+    assert result["validationStatus"] == "under_review"

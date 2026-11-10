@@ -3169,6 +3169,41 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
     # valuation just pays that risk twice for zero benefit.
     has_persisted_fallback = bool(persisted)
 
+    # 2026-11-10 P0 structural latency fix: when a full, current-schema
+    # diagnostic snapshot is already on hand, serve it immediately instead
+    # of attempting a live rebuild first. Previously `_attempt_build()` ran
+    # unconditionally even when a perfectly usable snapshot already existed
+    # — confirmed live (CHTR, KO) that under Yahoo's current rate-limiting
+    # episode on `earningsTrend`, the live attempt reliably burns the full
+    # `_LIVE_BUILD_TIMEOUT_S` (peer-dependent enrichment fans this exact
+    # Yahoo call out across ~10 peers, each independently rate-limited and
+    # each paying up to its own ANALYST_ESTIMATES_TIMEOUT_S budget) before
+    # falling back to this SAME snapshot anyway — paying ~9s on every
+    # single request, forever, because a timed-out attempt never reaches
+    # the cache_set below, so it can never converge to a fast cache hit
+    # either. Verified directly against Supabase/Redis: both CHTR and KO
+    # have a valid, current-schema diagnostic_snapshot and ZERO Redis
+    # cache entry — every open was paying the full penalty for nothing.
+    # Scoped narrowly to the "a good snapshot already exists" case only —
+    # a ticker with no snapshot yet (first-ever visit, not yet covered by
+    # the backfill) still attempts a live build below exactly as before,
+    # since there's nothing better to fall back to. Freshness beyond this
+    # snapshot is handled out-of-band (the scheduled backfill/recompute,
+    # the publish-time cache invalidation, and — once enabled — the
+    # earnings-freshness sweep), not by retrying a live build on every
+    # interactive open.
+    _usable_snapshot = (
+        persisted.get("diagnostic_snapshot")
+        if persisted and persisted.get("snapshot_schema_version") == _DIAGNOSTIC_SCHEMA_VERSION
+        else None
+    )
+    if _usable_snapshot:
+        logger.info(
+            "company_diagnostic(%s): usable full snapshot on hand (computed_at=%s) — serving it directly, skipping live rebuild",
+            ticker, persisted.get("computed_at"),
+        )
+        return await _degraded_diagnostic(ticker, lang, persisted)
+
     async def _attempt_build() -> tuple[dict | None, dict | None]:
         try:
             d = await asyncio.wait_for(asyncio.to_thread(get_fundamental_analysis, ticker), timeout=_LIVE_BUILD_TIMEOUT_S)
