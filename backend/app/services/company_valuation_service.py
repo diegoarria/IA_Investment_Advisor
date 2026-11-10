@@ -772,7 +772,19 @@ async def refresh_if_needed(ticker: str, force: bool = False, full_snapshot: boo
     existing row already carrying a complete current-schema snapshot, so
     a `valid` row written by numeric-only mode (or before migration 117
     existed) still gets picked up and upgraded exactly once, instead of
-    being skipped forever as "already done."."""
+    being skipped forever as "already done."
+
+    2026-11-10 (ficha coverage gap, AXON/F/PLTR audit): `needs_snapshot_
+    upgrade` used to require `validation_status == "valid"` — an
+    `under_review`/`insufficient_data` row with an already-current
+    MODEL_VERSION was therefore treated as "nothing to do" by the
+    freshness shortcut below and silently skipped by every full-snapshot
+    backfill wave forever, even though it's just as entitled to a fast,
+    persisted ficha as a valid one. Ficha coverage and valuation
+    confidence are two separate concerns — a company under human review
+    still deserves a snapshot; it just must never let that snapshot's
+    compute run promote it out of review on its own (see the guard right
+    before persist_valuation below)."""
     ticker = normalize_ticker_symbol(ticker)
     token = claim_ticker(ticker)
     if token is None:
@@ -793,7 +805,17 @@ async def refresh_if_needed(ticker: str, force: bool = False, full_snapshot: boo
             existing.get("diagnostic_snapshot") is not None
             and existing.get("snapshot_schema_version") == _DIAGNOSTIC_SCHEMA_VERSION_FOR_BACKFILL
         )
-        needs_snapshot_upgrade = full_snapshot and existing and existing.get("validation_status") == "valid" and not existing_has_complete_snapshot
+        # Independent of validation_status: a valid, under_review, or
+        # insufficient_data row is equally eligible for a snapshot upgrade
+        # — ficha coverage must not depend on a valuation's confidence
+        # level (2026-11-10 ficha-coverage gap fix). "failed"/"claimed_
+        # elsewhere" rows are deliberately excluded: there's no real
+        # financial data behind them to render a snapshot from anyway.
+        needs_snapshot_upgrade = (
+            full_snapshot and existing
+            and existing.get("validation_status") in ("valid", "under_review", "insufficient_data")
+            and not existing_has_complete_snapshot
+        )
         if not force and not needs_snapshot_upgrade and existing and existing.get("model_version") == MODEL_VERSION:
             from app.api.routes.screener import _latest_reported_earnings_period
             try:
@@ -838,8 +860,49 @@ async def refresh_if_needed(ticker: str, force: bool = False, full_snapshot: boo
         # when there's no prior valid row at all is "insufficient_data"
         # the honest, legitimate classification (we've simply never had
         # enough data for this ticker).
-        if computed["validation_status"] == "insufficient_data" and existing and existing.get("validation_status") == "valid":
-            computed = {"validation_status": "failed", "error_detail": f"demoted from insufficient_data (prior valid row exists): {computed.get('error_detail')}"}
+        # 2026-11-10 ficha-coverage gap fix: the same transient-outage
+        # protection above, extended to under_review rows — a provider
+        # hiccup that makes a human-reviewed ticker look like "no data"
+        # must never silently erase that review's live row either.
+        if computed["validation_status"] == "insufficient_data" and existing and existing.get("validation_status") in ("valid", "under_review"):
+            computed = {"validation_status": "failed", "error_detail": f"demoted from insufficient_data (prior {existing.get('validation_status')} row exists): {computed.get('error_detail')}"}
+        # 2026-11-10 ficha-coverage gap fix: a snapshot-upgrade-only pass
+        # (the whole point of which is to give an under_review ticker a
+        # fast ficha, NOT to re-litigate its classification) must never
+        # let a fresh guard evaluation silently publish that ticker out
+        # of review — confirmed this session for Ford (a fixed-WACC
+        # recompute cleared the review band to $39.87/valid, and Diego
+        # explicitly refused to let that publish; it was escalated into
+        # company_valuation_reviews as an informational note instead).
+        # Generalized here so ANY under_review ticker gets the same
+        # protection automatically, without needing a bespoke per-ticker
+        # halt-and-escalate each time: keep the row's EXISTING status,
+        # reason, value and assumptions, and only take the fresh
+        # diagnostic_snapshot/snapshot_schema_version this call built —
+        # a human must explicitly re-review and approve any status change,
+        # this code path never does it for them.
+        if (
+            needs_snapshot_upgrade
+            and existing
+            and existing.get("validation_status") == "under_review"
+            and computed.get("validation_status") not in ("under_review", "failed")
+        ):
+            logger.warning(
+                "refresh_if_needed(%s): snapshot-upgrade recompute produced validation_status=%s "
+                "for a human-reviewed (under_review) ticker — keeping existing status/value, "
+                "publishing only the new snapshot. Needs a human to re-review before this can change.",
+                ticker, computed.get("validation_status"),
+            )
+            computed = {
+                **computed,
+                "validation_status": "under_review",
+                "error_detail": existing.get("error_detail"),
+                "intrinsic_value_usd": existing.get("intrinsic_value_usd"),
+                "currency": existing.get("currency", computed.get("currency", "USD")),
+                "methodology": existing.get("methodology", computed.get("methodology")),
+                "assumptions": existing.get("assumptions"),
+                "financial_report_period": existing.get("financial_report_period", computed.get("financial_report_period")),
+            }
         prior_attempt_count = (existing or {}).get("attempt_count") or 0
         row = await persist_valuation(
             ticker, computed, prior_attempt_count=prior_attempt_count,
