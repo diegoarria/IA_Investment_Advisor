@@ -3283,18 +3283,47 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         if has_persisted_fallback:
             logger.warning("company_diagnostic(%s): persisted row available (status=%s) — skipping retry, serving degraded", ticker, persisted.get("validation_status"))
             return await _degraded_diagnostic(ticker, lang, persisted)
+        # 2026-11-11 P0 (CHTR/guest "unavailable" incident): the ONE
+        # persisted read at the top of this function is unguarded against a
+        # transient Supabase connection hiccup under concurrent load
+        # (documented in get_persisted_valuation's own docstring — confirmed
+        # live 2026-10-28 for NVDA/AAPL, a fast <1s generic failure). If THAT
+        # single read happened to land inside such a window, `persisted` is
+        # wrongly None for the rest of this request even though the row (and
+        # its full snapshot) is genuinely there the whole time. Reproduced
+        # live for CHTR during a 50-ticker backfill batch's heavy concurrent
+        # Supabase writes: the guest endpoint burned ~18.5s on two failed
+        # live-rebuild attempts (Yahoo rate-limited) and then showed
+        # "unavailable" for a ticker with a perfectly good persisted
+        # under_review snapshot the entire time. A cheap second lookup here
+        # — before paying for a second live attempt — recovers this case for
+        # free in the common case (the original contention has almost
+        # always cleared a few seconds later) and costs nothing extra when
+        # it hasn't (same fast-failing, already-guarded read).
+        persisted = await get_persisted_valuation(ticker)
+        has_persisted_fallback = bool(persisted)
+        if has_persisted_fallback:
+            logger.warning("company_diagnostic(%s): persisted row recovered on re-check (status=%s) — serving degraded instead of a second costly live attempt", ticker, persisted.get("validation_status"))
+            return await _degraded_diagnostic(ticker, lang, persisted)
         logger.warning("company_diagnostic(%s): no stale cache or persisted valuation — retrying once", ticker)
         await asyncio.sleep(2.5)
         data, diagnostic = await _attempt_build()
     if not data or not diagnostic:
-        # Reached only when: the first attempt failed, there was no stale
-        # cache and no persisted valuation to fall back to immediately,
-        # and the retry also failed — confirmed live: when EVERY
-        # financial-data provider (FMP + Fiscal.ai + yfinance) is
-        # simultaneously rate-limited/down, both attempts can fail even
-        # for a completely normal, liquid ticker. `persisted` was already
-        # looked up above (and was falsy/non-valid, or we wouldn't be
-        # here) — no second Supabase read needed.
+        # Reached only when: the first attempt failed, the persisted
+        # re-check above also came up empty, there was no stale cache, and
+        # the retry also failed — confirmed live: when EVERY financial-data
+        # provider (FMP + Fiscal.ai + yfinance) is simultaneously
+        # rate-limited/down, both attempts can fail even for a completely
+        # normal, liquid ticker. One more persisted re-check here is cheap
+        # insurance against the same transient-Supabase-hiccup window
+        # (see above) having outlasted the first re-check — by now a full
+        # live-build cycle's worth of time has passed, so the odds of it
+        # still being down are low, and the cost of asking again is a
+        # single already-guarded, already-cached-fast-path read.
+        persisted = await get_persisted_valuation(ticker)
+        if persisted:
+            logger.warning("company_diagnostic(%s): persisted row recovered on final re-check (status=%s) — serving degraded instead of 'unavailable'", ticker, persisted.get("validation_status"))
+            return await _degraded_diagnostic(ticker, lang, persisted)
         logger.warning(
             "company_diagnostic(%s): get_fundamental_analysis/build_company_diagnostic returned falsy on both "
             "attempts, and no stale cache or persisted valuation exists — showing 'unavailable'", ticker,
