@@ -29,6 +29,16 @@ def _clear_cache():
     cache_mod._mem.clear()
 
 
+async def _always_has_capacity(min_margin=5, max_wait_s=90.0, cancel_check=None):
+    """2026-11-10: backfill_universe() now checks real FMP background
+    headroom before each ticker (see test_backfill_fmp_capacity_wait.py)
+    — tests in this file are about OTHER concerns (circuit breaker,
+    resumability), so they stub this out to always report capacity
+    available, same as a real production run with Redis actually
+    reachable would normally see."""
+    return True
+
+
 class TestGetPendingTickers:
     def test_classifies_no_valuation_and_already_valid(self, monkeypatch):
         db = _FakeDB()
@@ -229,6 +239,11 @@ class TestCircuitBreaker:
         db = _FakeDB()
         monkeypatch.setattr(cvs, "get_supabase", lambda: db)
         _clear_cache()
+        # 2026-11-10: this test is about the circuit breaker, not FMP
+        # budget pacing — always report headroom available so it isn't
+        # coupled to whether THIS test environment has a reachable Redis
+        # (see test_backfill_fmp_capacity_wait.py for that behavior).
+        monkeypatch.setattr(cvs, "_wait_for_fmp_background_capacity", _always_has_capacity)
 
         attempted = []
 

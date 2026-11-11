@@ -581,12 +581,65 @@ def get_revenue_segments(symbol: str, by: str = "product", limit: int = 1) -> li
         return []
 
 
+def _fmp_profile_cache_key(symbol: str) -> str:
+    return f"fmp:profile:{symbol}"
+
+
+def _parse_and_cache_fmp_profile(symbol: str, data: list) -> dict:
+    """Shared by `get_beta` and `get_company_profile_fmp` — both hit FMP's
+    same `/profile` endpoint; this is the one place that parses that
+    response and writes it to the one shared 7-day cache entry so neither
+    function ever needs to fetch it twice. Returns {} (never caches) if
+    FMP returned nothing usable."""
+    if not (isinstance(data, list) and data):
+        return {}
+    d = data[0]
+    result = {
+        "name": d.get("companyName"),
+        "finnhubIndustry": d.get("sector"),
+        "exchange": d.get("exchangeFullName") or d.get("exchange"),
+        "shareOutstanding": (_num(d.get("sharesOutstanding")) or 0) / 1_000_000 or None,
+        "marketCapitalization": (_num(d.get("marketCap")) or 0) / 1_000_000 or None,
+        # 2026-11-10: added so get_beta can read it straight out of this
+        # same cache entry instead of re-hitting /profile for a field
+        # get_company_profile_fmp already had and used to discard.
+        "beta": _num(d.get("beta")),
+    }
+    if result["name"]:
+        cache_set(_fmp_profile_cache_key(symbol), result, ttl=7 * 24 * 3600)
+    return result
+
+
 def get_beta(symbol: str) -> Optional[float]:
     """Real equity beta for `symbol` (FMP company profile) — used for a real
     CAPM-based cost of equity instead of a flat sector guess. None if
-    unavailable."""
+    unavailable.
+
+    2026-11-10 (FMP budget-pressure fix): reuses `get_company_profile_fmp`'s
+    7-day-cached `/profile` response instead of hitting the SAME FMP
+    endpoint a second time purely for this one field — confirmed as one of
+    two root causes behind the background backfill blowing past its
+    140/min reserved share (the other being lost contextvars in thread
+    pools, fixed separately in app.core.fmp_budget).
+
+    Freshness policy, explicitly decided here rather than silently
+    inherited: beta is FMP's own long-window statistical estimate (a
+    rolling price-covariance figure), not a fact that changes day to day
+    the way price or EPS do — a week-old beta is still, for all practical
+    purposes, the number FMP would return again today. Reusing the
+    existing 7-day profile TTL for it is a deliberate extension of an
+    already-reviewed freshness policy, not a new, un-vetted one. A cache
+    entry written before this change (or one where FMP genuinely had no
+    beta for this ticker) has no `beta` key to reuse — that's treated as a
+    cache miss for beta specifically, falling through to a real request
+    exactly as before, never fabricating a value."""
     if not FMP_KEY:
         return None
+    cached = cache_get(_fmp_profile_cache_key(symbol))
+    if cached is not None:
+        b = cached.get("beta")
+        if isinstance(b, (int, float)):
+            return b
     from app.core.fmp_budget import fmp_call_allowed
     if not fmp_call_allowed():
         return None
@@ -598,8 +651,9 @@ def get_beta(symbol: str) -> Optional[float]:
             timeout=14,
         )
         data = r.json()
-        if isinstance(data, list) and data:
-            return _num(data[0].get("beta"))
+        profile = _parse_and_cache_fmp_profile(symbol, data)
+        if profile:
+            return profile.get("beta")
     except Exception as exc:
         logger.debug("FMP profile/beta request failed for %s: %s", symbol, exc)
     return None
@@ -1495,8 +1549,7 @@ def get_company_profile_fmp(symbol: str) -> dict:
     `/quote` price instead."""
     if not FMP_KEY:
         return {}
-    ck = f"fmp:profile:{symbol}"
-    cached = cache_get(ck)
+    cached = cache_get(_fmp_profile_cache_key(symbol))
     if cached is not None:
         return cached
     from app.core.fmp_budget import fmp_call_allowed
@@ -1510,18 +1563,7 @@ def get_company_profile_fmp(symbol: str) -> dict:
             timeout=14,
         )
         data = r.json()
-        if isinstance(data, list) and data:
-            d = data[0]
-            result = {
-                "name": d.get("companyName"),
-                "finnhubIndustry": d.get("sector"),
-                "exchange": d.get("exchangeFullName") or d.get("exchange"),
-                "shareOutstanding": (_num(d.get("sharesOutstanding")) or 0) / 1_000_000 or None,
-                "marketCapitalization": (_num(d.get("marketCap")) or 0) / 1_000_000 or None,
-            }
-            if result["name"]:
-                cache_set(ck, result, ttl=7 * 24 * 3600)
-            return result
+        return _parse_and_cache_fmp_profile(symbol, data) or {}
     except Exception as exc:
         logger.debug("FMP profile fallback request failed for %s: %s", symbol, exc)
     return {}

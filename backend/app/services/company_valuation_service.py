@@ -33,7 +33,7 @@ import logging
 import random
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 from app.core.cache import acquire_lock, release_lock, cache_get, cache_set, cache_incr, cache_delete
 from app.core.database import get_supabase, run_query
@@ -953,9 +953,68 @@ async def refresh_if_needed(ticker: str, force: bool = False, full_snapshot: boo
         release_claim(ticker, token)
 
 
+async def _wait_for_fmp_background_capacity(
+    min_margin: int = 5, max_wait_s: float = 90.0, cancel_check: Optional[Callable[[], bool]] = None,
+) -> bool:
+    """Diego, 2026-11-10 (third controlled batch halted — the shared
+    counter climbed to 197 against the 140/min background ceiling):
+    before starting EACH ticker in a batch, make sure there's real
+    headroom left in the CURRENT window rather than firing that ticker's
+    ~15-100+ FMP calls into an already-near-exhausted window and relying
+    on `fmp_call_allowed()`'s per-call rejection alone to absorb the
+    waste — by the time that rejection fires, real, counted HTTP calls
+    have usually already gone out for other parts of that same ticker's
+    build.
+
+    This is a SCHEDULING optimization, not a replacement for the atomic
+    per-call budget check: `fmp_call_allowed()` still gates every
+    individual FMP request regardless of thread/worker (see
+    `app.core.fmp_budget.submit_with_context`/`map_with_context` for the
+    separate fix making that true even inside the comparables thread
+    pools, where it silently wasn't before).
+
+    Returns True once at least `min_margin` background slots of real,
+    Redis-verified headroom exist. Returns False — meaning "stop the
+    batch, don't guess" — if: (a) the shared counter can't be verified
+    reliably at all (no Redis reachable right now — a local in-memory
+    count is a single-process guess, not the real cross-worker state,
+    so this refuses to proceed blind rather than risk repeating the
+    exact failure mode that triggered this fix); (b) `max_wait_s` elapses
+    before the window frees up (never waits forever); or (c)
+    `cancel_check()` (if given) returns True, so a batch can be stopped
+    safely mid-wait instead of blocking until the deadline. Sleeps in
+    short slices specifically so a cancellation signal is noticed
+    promptly, never issuing a repeated FMP request of its own while it
+    waits."""
+    from app.core.fmp_budget import remaining_background_capacity
+    deadline = time.monotonic() + max_wait_s
+    while True:
+        remaining, reliable = remaining_background_capacity()
+        if not reliable:
+            logger.warning(
+                "_wait_for_fmp_background_capacity: Redis unreachable — cannot verify "
+                "the real shared FMP budget, refusing to proceed blind"
+            )
+            return False
+        if remaining >= min_margin:
+            return True
+        if cancel_check and cancel_check():
+            logger.info("_wait_for_fmp_background_capacity: cancelled while waiting for budget headroom")
+            return False
+        if time.monotonic() >= deadline:
+            logger.warning(
+                "_wait_for_fmp_background_capacity: window never freed up within %.0fs "
+                "(remaining=%d, needed=%d) — stopping rather than consuming blind",
+                max_wait_s, remaining, min_margin,
+            )
+            return False
+        await asyncio.sleep(2.0)
+
+
 async def backfill_universe(
     tickers: list[str], max_tickers_per_minute: float = 2.0, limit: Optional[int] = None,
-    full_snapshot: bool = False,
+    full_snapshot: bool = False, fmp_capacity_margin: int = 5, fmp_capacity_max_wait_s: float = 90.0,
+    cancel_check: Optional[Callable[[], bool]] = None,
 ) -> dict:
     """Processes `tickers` in small, paced batches instead of one
     unbounded sweep (Diego, 2026-10-20: "con un límite global de llamadas
@@ -996,6 +1055,7 @@ async def backfill_universe(
     results: dict[str, int] = {
         "valid": 0, "insufficient_data": 0, "failed": 0,
         "skipped_claimed": 0, "unchanged": 0, "circuit_breaker_skipped": 0,
+        "fmp_budget_stopped": 0,
     }
     batch_interval = 60.0 / max_tickers_per_minute if max_tickers_per_minute > 0 else 0.0
     if full_snapshot and batch_interval and batch_interval < _FULL_SNAPSHOT_BUILD_TIMEOUT_S:
@@ -1019,6 +1079,16 @@ async def backfill_universe(
                 i, len(tickers), ticker,
             )
             results["circuit_breaker_skipped"] += len(tickers) - i
+            break
+
+        if not await _wait_for_fmp_background_capacity(
+            min_margin=fmp_capacity_margin, max_wait_s=fmp_capacity_max_wait_s, cancel_check=cancel_check,
+        ):
+            logger.warning(
+                "backfill_universe: stopping at ticker %d/%d (%s) — no verified FMP background headroom",
+                i, len(tickers), ticker,
+            )
+            results["fmp_budget_stopped"] += len(tickers) - i
             break
 
         t0 = time.monotonic()

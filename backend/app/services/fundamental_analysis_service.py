@@ -75,8 +75,15 @@ _PEER_ENRICHMENT_TIMEOUT_S = 12
 
 def _with_time_budget(fn, seconds: float):
     """Runs `fn()` with a hard deadline — returns `fn`'s result, or raises
-    concurrent.futures.TimeoutError (a normal Exception) if it overruns."""
-    future = _PEER_ENRICHMENT_POOL.submit(fn)
+    concurrent.futures.TimeoutError (a normal Exception) if it overruns.
+
+    2026-11-10: submits via `submit_with_context`, not a bare
+    `_PEER_ENRICHMENT_POOL.submit(fn)` — a plain submit loses the calling
+    thread's FMP-budget "background" tag (see app.core.fmp_budget), which
+    is exactly what let this peer-dependent block's FMP calls dodge the
+    927-ticker backfill's reserved share and eat into live-user budget."""
+    from app.core.fmp_budget import submit_with_context
+    future = submit_with_context(_PEER_ENRICHMENT_POOL, fn)
     return future.result(timeout=seconds)
 
 

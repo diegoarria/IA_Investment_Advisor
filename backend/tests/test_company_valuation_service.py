@@ -327,9 +327,19 @@ def test_unresolvable_earnings_period_falls_back_to_time_based_freshness(monkeyp
     assert result["intrinsic_value_usd"] == 263.70
 
 
+async def _always_has_capacity(min_margin=5, max_wait_s=90.0, cancel_check=None):
+    """2026-11-10: backfill_universe() now checks real FMP background
+    headroom before each ticker — this test is about resumability, not
+    FMP pacing, so it stubs this out to always report capacity
+    available (see test_backfill_fmp_capacity_wait.py for the real
+    behavior under exhaustion/no-Redis)."""
+    return True
+
+
 def test_backfill_processes_all_and_resumes_after_interruption(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(cvs, "get_supabase", lambda: db)
+    monkeypatch.setattr(cvs, "_wait_for_fmp_background_capacity", _always_has_capacity)
     import app.core.cache as cache_mod
     cache_mod._mem.clear()
 

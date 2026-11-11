@@ -87,6 +87,65 @@ def _window_key() -> str:
     return f"fmp_calls:{int(time.time() // 60)}"
 
 
+def submit_with_context(pool, fn, *args, **kwargs):
+    """Diego, 2026-11-10 (third backfill batch halted on FMP pressure):
+    `pool.submit(fn, ...)` does NOT propagate contextvars into the new OS
+    thread ThreadPoolExecutor spawns — confirmed empirically, a worker
+    thread reads `_is_background_ctx` as its bare default (False), never
+    whatever the submitting thread had set. Every peer/comparable fetch
+    during a full-snapshot build runs inside `_DIAG_ENRICHMENT_POOL`/
+    `_PEER_ENRICHMENT_POOL` workers, so those FMP calls were silently
+    mis-tagged as live-user traffic (280/min ceiling) instead of the
+    background share (140/min) while still incrementing the one shared
+    window counter — explaining both the "budget exhausted" warnings on
+    the backfill's own correctly-tagged top-level calls AND the counter
+    climbing well past 140.
+
+    Fix: capture `contextvars.copy_context()` in the CALLING thread (where
+    the real `_is_background_ctx` value lives) and hand the pool
+    `ctx.run(fn, ...)` instead of `fn` directly — same pattern Python's own
+    `asyncio.to_thread` uses internally, which is why the single call this
+    task's wrapping relies on (`asyncio.to_thread` in
+    `company_valuation_service.refresh_if_needed`) was never affected by
+    this bug in the first place. A fresh `Context` per call — a `Context`
+    object raises if entered concurrently by two threads, so callers doing
+    several submissions (e.g. a map-style fan-out) must get their own copy
+    per task, never one shared copy reused across a batch; see
+    `map_with_context` below for that case."""
+    ctx = contextvars.copy_context()
+    return pool.submit(ctx.run, fn, *args, **kwargs)
+
+
+def map_with_context(pool, fn, iterable):
+    """Context-preserving equivalent of `pool.map(fn, iterable)` — see
+    `submit_with_context` for why a plain `pool.map()` loses the
+    background tag. Submits one task per item (each with its own
+    `copy_context()`, captured in the calling thread before submission)
+    and yields results in input order, same contract as `pool.map()`."""
+    futures = [submit_with_context(pool, fn, item) for item in iterable]
+    for future in futures:
+        yield future.result()
+
+
+def remaining_background_capacity() -> tuple[int, bool]:
+    """Peek-only read (never increments) of the CURRENT window's shared
+    counter, returning `(remaining_background_slots, reliable)`.
+
+    `reliable` is False when Redis isn't actually reachable right now —
+    `cache_get`'s in-memory fallback is only a per-process approximation
+    of the count, not the real cross-worker shared state every other
+    process/replica is also writing to, so a caller deciding whether it's
+    SAFE to keep firing a multi-ticker batch at FMP must treat
+    `reliable=False` as "cannot verify, don't proceed blindly" rather
+    than trusting a number that might be meaningless across workers."""
+    from app.core.cache import _get_redis
+    reliable = _get_redis() is not None
+    current = cache_get(_window_key()) or 0
+    background_limit = FMP_LIMIT_PER_MINUTE * _BACKGROUND_SHARE
+    remaining = max(0, int(background_limit - current))
+    return remaining, reliable
+
+
 def fmp_call_allowed() -> bool:
     """Call this immediately before making a real FMP HTTP request.
     Returns False when the shared per-minute budget (or, for a
