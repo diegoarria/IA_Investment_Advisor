@@ -30,7 +30,7 @@ import StockAvatar from "@/components/StockAvatar";
 import { AssetIdentity } from "@/components/portfolio/AssetIdentity";
 import type { TFunction } from "i18next";
 import { portfolioExposureApi, market as marketApi } from "@/lib/api";
-import { buildSimulationInsights, describeHypotheticalWeight, type SimulationResult, type SimulationInsight } from "@/lib/simulationInsights";
+import { buildSimulationInsights, type SimulationResult, type SimulationInsight } from "@/lib/simulationInsights";
 import { HistoryComparisonChart } from "@/components/portfolio/HistoryComparisonChart";
 import { buildDisplaySeries, type HistoryPoint } from "@/lib/historyChartDownsample";
 
@@ -521,7 +521,6 @@ export default function BeforeAfterSimulator({ portfolioId, currency, na }: { po
   const afterTop = simResult?.after.concentration.top_positions[0] ?? null;
   const beforeTickerWeight = simResult && selected ? simResult.before.positions.find((p) => p.ticker === selected.ticker)?.weight_pct ?? 0 : null;
   const afterTickerWeight = simResult && selected ? simResult.after.positions.find((p) => p.ticker === selected.ticker)?.weight_pct ?? null : null;
-  const hypotheticalWeightSentence = selected ? describeHypotheticalWeight(selected.ticker, afterTickerWeight, lang) : null;
   // Fase 5D: the backend-verified name (from the real simulation result)
   // always wins over the plain search result's name — it's the same
   // ticker either way, but `after.positions` is the one that actually
@@ -679,9 +678,11 @@ export default function BeforeAfterSimulator({ portfolioId, currency, na }: { po
               </div>
             </RaisedTile>
           )}
-          {hypotheticalWeightSentence && (
-            <p className="leading-relaxed" style={{ color: "var(--sub)", fontSize: "var(--fs-body)" }}>{hypotheticalWeightSentence}</p>
-          )}
+          {/* Diego, 2026-11 (segunda pasada): se eliminó la frase
+              "X representa $Y de cada $100..." — repetía exactamente el
+              mismo dato que ya muestra la fila antes/después de arriba y
+              la consecuencia educativa de abajo. Antes → Después + una
+              sola consecuencia, nunca tres formas de decir lo mismo. */}
           {/* "Qué significa para ti" — la consecuencia educativa, nunca
               una predicción sobre si la inversión será buena o mala,
               basada únicamente en la dirección real del cambio de peso. */}

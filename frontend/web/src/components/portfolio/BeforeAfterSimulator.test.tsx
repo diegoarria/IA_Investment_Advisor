@@ -137,9 +137,11 @@ describe("BeforeAfterSimulator — running a simulation (Paso 3)", () => {
     // Fase 4E: the result's absolute priority line ("Si añades X a Y…")
     // is visible immediately, right after running the simulation.
     expect(screen.getByText("portfolio.distribution.simulate.resultIntro")).toBeInTheDocument();
-    // Fase 4E, point 4C: the per-$100 framing re-presents the real
-    // afterPct (39.6, rounded) — never a new calculation.
-    expect(screen.getByText("QQQ pasaría a representar aproximadamente $40 de cada $100 del valor analizado de tu portafolio.")).toBeInTheDocument();
+    // Diego, 2026-11 (segunda pasada): la frase "$X de cada $100" se
+    // eliminó por redundante con la fila antes/después + la consecuencia
+    // educativa — ahora solo se muestra esta última (delta positivo =
+    // mayor dependencia).
+    expect(screen.getByText("Tu portafolio tendría una mayor dependencia del comportamiento de QQQ. Si esta inversión subiera o bajara, su movimiento tendría un impacto proporcionalmente mayor sobre el valor total de tus inversiones.")).toBeInTheDocument();
     // Fase 5C: the full before/after portfolio value lives under the
     // "Distribución" perspective, which is the default-selected tab.
     expect(screen.getByText("USD $16,389")).toBeInTheDocument(); // before
@@ -555,7 +557,7 @@ describe("BeforeAfterSimulator — Fase 5D: identidad visual", () => {
     expect(screen.queryByText("Vanguard S&P 500 ETF")).not.toBeInTheDocument(); // VOO's name never shown for QQQ's card
   });
 
-  it("test 11: Distribución never repeats the hypothetical-weight sentence inside its own card", async () => {
+  it("test 11: the educational 'meaning' sentence appears exactly once, never duplicated across perspectives", async () => {
     const user = userEvent.setup();
     simulateMock.mockResolvedValue({ data: baseSimResponseWithIdentity() });
     render(<BeforeAfterSimulator portfolioId="default" currency="USD" na={NA} />);
@@ -564,8 +566,10 @@ describe("BeforeAfterSimulator — Fase 5D: identidad visual", () => {
     await user.click(screen.getByText("portfolio.distribution.simulate.simulateButton"));
     await waitFor(() => expect(screen.getByText("portfolio.distribution.simulate.hypotheticalBadge")).toBeInTheDocument());
 
-    // the conclusion sentence (describeHypotheticalWeight's output) appears exactly once on screen, in the header -- never again inside Distribución.
-    expect(screen.getAllByText("QQQ pasaría a representar aproximadamente $40 de cada $100 del valor analizado de tu portafolio.").length).toBe(1);
+    const sentence = "Tu portafolio tendría una mayor dependencia del comportamiento de QQQ. Si esta inversión subiera o bajara, su movimiento tendría un impacto proporcionalmente mayor sobre el valor total de tus inversiones.";
+    expect(screen.getAllByText(sentence).length).toBe(1);
+    await user.click(screen.getByText("portfolio.distribution.simulate.perspective.exposure"));
+    expect(screen.getAllByText(sentence).length).toBe(1);
   });
 
   it("fixed wording: the largest-position card no longer reads 'VOO → VOO' and shows a real before/after comparison", async () => {

@@ -45,7 +45,7 @@ import { portfolioExposureApi } from "@/lib/api";
 import { selectPrimaryInsight, buildObservationCopy } from "@/lib/primaryInsight";
 import { selectResumenObservation, buildPulseObservationCopy, type PulseCompareResult, type PulseCompareAvailable } from "@/lib/pulseObservation";
 import { buildPositionsSummary } from "@/lib/positionsSummary";
-import { describeSectorHeadline, describeSectorShare, describeSectorConsequence, describeContributorsExplanation, type SectorContributor } from "@/lib/sectorExposureSummary";
+import { describeSectorConsequence, describeContributorsExplanation, type SectorContributor } from "@/lib/sectorExposureSummary";
 
 type Position = {
   ticker: string; name: string | null; asset_class: "equity" | "etf" | "unknown";
@@ -431,10 +431,11 @@ function UnderstandView({
 }) {
   const { composition, sector_exposure, geographic_exposure, unverifiable_positions } = data;
   const positionsSorted = [...data.positions].sort((a, b) => (b.weight_pct ?? -1) - (a.weight_pct ?? -1));
-  const equityCountries = geographic_exposure.by_country.filter((r) => r.methodology === "equity_domicile");
-  const etfCountries = geographic_exposure.by_country.filter((r) => r.methodology === "etf_underlying");
-  const topEtfCountry = [...etfCountries].sort((a, b) => b.value - a.value)[0] ?? null;
-  const topEquityCountry = [...equityCountries].sort((a, b) => b.value - a.value)[0] ?? null;
+  // Diego, 2026-11 (segunda pasada): ordenadas de mayor a menor para que
+  // el país protagonista sea siempre la primera fila visible — ya no
+  // hace falta una frase de resumen aparte que repita el mismo dato.
+  const equityCountries = geographic_exposure.by_country.filter((r) => r.methodology === "equity_domicile").sort((a, b) => b.value - a.value);
+  const etfCountries = geographic_exposure.by_country.filter((r) => r.methodology === "etf_underlying").sort((a, b) => b.value - a.value);
   const topSector = sector_exposure.by_sector[0] ?? null;
   const otherSectors = sector_exposure.by_sector.slice(1);
 
@@ -445,13 +446,18 @@ function UnderstandView({
       <DimensionSelector dimension={dimension} onChange={onDimensionChange} t={t} />
 
       {dimension === "posiciones" && (() => {
-        // Fase 4E-2 (2026-11): editorial restructure of "Posiciones" —
-        // conclusión (concentración + posición más grande) antes de la
-        // lista completa, que pasa a ser una sección secundaria. Todo a
-        // partir de `weight_pct` ya calculado por el backend, nunca una
-        // cifra nueva.
+        // Diego, 2026-11 (segunda pasada de simplificación): la lista
+        // completa sube mucho más arriba (acceso inmediato, como pide el
+        // rediseño) y se consolida a UNA sola observación educativa sobre
+        // concentración — la de la posición más grande. El titular +
+        // detalle de "top-2 combinado" se eliminó del render porque
+        // repetía la misma idea de concentración dos veces seguidas; la
+        // función que lo calcula (`buildPositionsSummary`) se conserva tal
+        // cual para el caso de una sola posición, donde sigue siendo la
+        // única fuente de ese mensaje.
         const positionsSummary = buildPositionsSummary(data.positions, lang);
         const verifiablePositions = positionsSorted.filter((p) => p.verifiable);
+        const singlePositionCase = verifiablePositions.length <= 1;
         return (
           <GlowCard>
             <div className="flex items-center gap-2.5 mb-1">
@@ -460,14 +466,49 @@ function UnderstandView({
             </div>
             <p className="mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.positions.subtitle")}</p>
 
+            {/* Una sola observación educativa sobre concentración. Caso
+                de una sola posición: el hecho ya lo dice todo (100%), sin
+                repetir la misma idea dos veces. */}
+            {singlePositionCase && positionsSummary.concentrationHeadline && (
+              <p className="mb-3" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>{positionsSummary.concentrationHeadline}</p>
+            )}
+            {!singlePositionCase && positionsSummary.largestHeadline && (
+              <RaisedTile className="mb-3">
+                <div className="flex items-start gap-2.5">
+                  {positionsSummary.largestTicker && <StockAvatar ticker={positionsSummary.largestTicker} size="sm" />}
+                  <div className="min-w-0">
+                    <p className="font-semibold" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>{positionsSummary.largestHeadline}</p>
+                    <p className="mt-0.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
+                      {positionsSummary.largestDetail} {positionsSummary.largestConsequence}
+                    </p>
+                  </div>
+                </div>
+              </RaisedTile>
+            )}
+
+            {/* Lista completa — acceso inmediato, nunca oculta una
+                posición (tenga o no precio verificable se ve en el
+                desglose expandible al final de la pantalla). */}
+            {verifiablePositions.length > 0 && (
+              <div className="mb-4">
+                <p className="font-black uppercase tracking-wide mb-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
+                  {t("portfolio.distribution.positions.allPositionsTitle")}
+                </p>
+                {verifiablePositions.map((p) => (
+                  <button key={p.ticker} onClick={() => router.push(`/stock/${p.ticker}`)} className="w-full text-left">
+                    <SingleBar label={p.name || p.ticker} pct={p.weight_pct} value={p.market_value ?? 0} currency={currency} na={na} avatarTicker={p.ticker} />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Desglose acciones/ETFs — se conserva, ahora como contexto
+                secundario después de la lista principal. */}
             <SegmentedBar
               equityPct={composition.equity_pct} etfPct={composition.etf_pct}
               equityValue={composition.equity_value} etfValue={composition.etf_value}
               currency={currency} na={na} t={t}
             />
-            {/* Fase 4D, point 3B: plain-language reading of the same split
-                shown above — only when BOTH shares are real numbers, never
-                fabricated when one side couldn't be computed. */}
             {composition.equity_pct !== null && composition.etf_pct !== null && (
               <p className="mb-3" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>
                 {t("portfolio.distribution.positions.compositionNote", {
@@ -476,54 +517,11 @@ function UnderstandView({
               </p>
             )}
 
-            {/* Conclusión de concentración — primero el hecho verificable,
-                luego su consecuencia educativa (nunca un juicio de valor
-                como "bien distribuidas", Diego 2026-11). */}
-            {positionsSummary.concentrationHeadline && (
-              <p className="font-semibold mb-0.5" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>{positionsSummary.concentrationHeadline}</p>
-            )}
-            {positionsSummary.concentrationDetail && (
-              <p className="mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{positionsSummary.concentrationDetail}</p>
-            )}
-
-            {/* Posición más grande, destacada antes de la lista completa —
-                ahora con su consecuencia educativa explícita. */}
-            {positionsSummary.largestHeadline && (
-              <RaisedTile className="mb-3">
-                <div className="flex items-start gap-2.5">
-                  {positionsSummary.largestTicker && <StockAvatar ticker={positionsSummary.largestTicker} size="sm" />}
-                  <div className="min-w-0">
-                    <p className="font-semibold" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>{positionsSummary.largestHeadline}</p>
-                    <p className="mt-0.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{positionsSummary.largestDetail}</p>
-                    {positionsSummary.largestConsequence && (
-                      <p className="mt-1" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{positionsSummary.largestConsequence}</p>
-                    )}
-                  </div>
-                </div>
-              </RaisedTile>
-            )}
-
             {composition.unknown_asset_value_cost_basis > 0 && (
               <p className="mb-3 flex items-start gap-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
                 <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 {t("portfolio.distribution.positions.unknownAssetNote", { amount: fmtMoney(composition.unknown_asset_value_cost_basis, currency, na) })}
               </p>
-            )}
-
-            {/* Lista completa — sección secundaria, después de la
-                conclusión y del destaque. Nunca oculta posiciones; las 15
-                siguen todas aquí si existen 15. */}
-            {verifiablePositions.length > 0 && (
-              <>
-                <p className="font-black uppercase tracking-wide mb-1.5 mt-1" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
-                  {t("portfolio.distribution.positions.allPositionsTitle")}
-                </p>
-                {verifiablePositions.map((p) => (
-                  <button key={p.ticker} onClick={() => router.push(`/stock/${p.ticker}`)} className="w-full text-left">
-                    <SingleBar label={p.name || p.ticker} pct={p.weight_pct} value={p.market_value ?? 0} currency={currency} na={na} avatarTicker={p.ticker} />
-                  </button>
-                ))}
-              </>
             )}
 
             {/* Puente hacia la siguiente dimensión. */}
@@ -568,20 +566,21 @@ function UnderstandView({
               <>
                 {topSector.pct_of_verified_total !== null ? (
                   <>
+                    {/* Diego, 2026-11 (segunda pasada): una sola cifra
+                        protagonista ("35.2% Tecnología"), no tres
+                        repeticiones del mismo número (titular + barra +
+                        "de cada $100"). `describeSectorHeadline`/
+                        `describeSectorShare` ya no se usan aquí — la
+                        barra de abajo es la única evidencia visual del
+                        número, y la consecuencia es la única frase. */}
                     <p className="font-extrabold leading-snug mb-2" style={{ color: "var(--text)", fontSize: "var(--fs-metric)" }}>
-                      {topSector.pct_of_verified_total.toFixed(1)}%
-                    </p>
-                    <p className="font-semibold leading-snug mb-2" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>
-                      {describeSectorHeadline(topSector.sector, topSector.pct_of_verified_total, lang)}
-                    </p>
-                    {/* Consecuencia educativa — ambas direcciones, nunca
-                        una predicción (Diego, 2026-11, rediseño). */}
-                    <p className="leading-relaxed mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body)" }}>
-                      {describeSectorConsequence(topSector.sector, lang)}
+                      {topSector.pct_of_verified_total.toFixed(1)}% {topSector.sector}
                     </p>
                     <SingleBar label={topSector.sector} pct={topSector.pct_of_verified_total} value={topSector.value} currency={currency} na={na} />
-                    <p className="mt-2 mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
-                      {describeSectorShare(topSector.sector, topSector.pct_of_verified_total, lang)}
+                    {/* Consecuencia educativa — ambas direcciones, nunca
+                        una predicción, máximo 1-2 frases (Diego, 2026-11). */}
+                    <p className="leading-relaxed mt-2 mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body)" }}>
+                      {describeSectorConsequence(topSector.sector, lang)}
                     </p>
 
                     {/* "Mostrar de dónde proviene esa exposición" — el
@@ -611,23 +610,23 @@ function UnderstandView({
                   <p className="mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.sectors.noDominantSector")}</p>
                 )}
 
-                <p className="mb-1" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
-                  {t("portfolio.distribution.sectors.verifiedUniverseNote", { pct: fmtPct(sector_exposure.coverage_pct, na) })}
-                </p>
-
-                {otherSectors.length > 0 && (
-                  <div className="mt-2">
-                    <ExpandableSection title={t("portfolio.distribution.sectors.seeAllSectors")}>
-                      {/* Nunca truncar — un sector pequeño debe seguir
-                          visible aquí (Fase 4D/4E: "nunca ocultar el
-                          porcentaje de sectores pequeños si el usuario
-                          decide consultar el detalle completo"). */}
-                      {otherSectors.map((row) => (
-                        <SingleBar key={row.sector} label={row.sector} pct={row.pct_of_verified_total} value={row.value} currency={currency} na={na} />
-                      ))}
-                    </ExpandableSection>
-                  </div>
-                )}
+                <div className="mt-2">
+                  <ExpandableSection title={t("portfolio.distribution.sectors.seeAllSectors")}>
+                    {/* La cobertura/denominador ahora vive aquí, no
+                        siempre visible — sigue siendo accesible, nunca
+                        ocultada. */}
+                    <p style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
+                      {t("portfolio.distribution.sectors.verifiedUniverseNote", { pct: fmtPct(sector_exposure.coverage_pct, na) })}
+                    </p>
+                    {/* Nunca truncar — un sector pequeño debe seguir
+                        visible aquí (Fase 4D/4E: "nunca ocultar el
+                        porcentaje de sectores pequeños si el usuario
+                        decide consultar el detalle completo"). */}
+                    {otherSectors.map((row) => (
+                      <SingleBar key={row.sector} label={row.sector} pct={row.pct_of_verified_total} value={row.value} currency={currency} na={na} />
+                    ))}
+                  </ExpandableSection>
+                </div>
               </>
             ) : (
               <p style={{ color: "var(--sub)", fontSize: "var(--fs-body)" }}>{t("portfolio.distribution.sectors.empty")}</p>
@@ -642,14 +641,6 @@ function UnderstandView({
             <IconSquare color={GOLD} size={30}><Globe2 className="w-3.5 h-3.5" style={{ color: GOLD }} /></IconSquare>
             <span className="font-extrabold tracking-tight" style={{ color: "var(--text)", fontSize: "var(--fs-h2)" }}>{t("portfolio.distribution.geography.title")}</span>
           </div>
-          {(topEtfCountry || topEquityCountry) && (
-            <p className="mb-3" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>
-              {topEtfCountry && t("portfolio.distribution.geography.topEtfCountry", { country: topEtfCountry.country, pct: fmtPct(topEtfCountry.pct_of_asset_class_value, na) })}
-              {topEtfCountry && topEquityCountry ? " " : ""}
-              {topEquityCountry && t("portfolio.distribution.geography.topEquityCountry", { country: topEquityCountry.country, pct: fmtPct(topEquityCountry.pct_of_asset_class_value, na) })}
-            </p>
-          )}
-
           {/* Diego, 2026-11 (rediseño): la etiqueta de sección ahora es
               corta ("etfUnderlyingLabel"/"equityDomicileLabel") — la
               explicación metodológica completa vive en el toggle de

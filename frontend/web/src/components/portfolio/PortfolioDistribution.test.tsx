@@ -366,10 +366,11 @@ describe("PortfolioDistribution — Fase 4E-2: vista editorial de Posiciones", (
     await enterUnderstand(user);
 
     expect(screen.getByText("portfolio.distribution.positions.subtitle")).toBeInTheDocument();
-    // Diego, 2026-11 (rediseño): hecho verificable, no un juicio de valor.
-    expect(screen.getByText("VOO y ASML representan juntos el 52.5% de tu portafolio verificado.")).toBeInTheDocument();
+    // Diego, 2026-11 (segunda pasada): una sola observación de
+    // concentración (la de la posición más grande) — el titular de
+    // "top-2 combinado" se eliminó por redundante.
     expect(screen.getByText("Vanguard S&P 500 ETF es tu posición más grande.")).toBeInTheDocument();
-    expect(screen.getByText("Representa 30.5% del valor verificado de tu portafolio.")).toBeInTheDocument();
+    expect(screen.getByText(/Representa 30\.5% del valor verificado de tu portafolio\./)).toBeInTheDocument();
     expect(screen.getByText("portfolio.distribution.positions.allPositionsTitle")).toBeInTheDocument();
     expect(screen.getByText("Vanguard S&P 500 ETF")).toBeInTheDocument(); // the full list is still there
   });
@@ -441,7 +442,7 @@ describe("PortfolioDistribution — refinamiento de Sectores", () => {
     });
   }
 
-  it("leads with the header, the dominant-sector headline, and the per-$100 sentence (VOO/QQQ/GOOGL/ASML example)", async () => {
+  it("leads with the header and a single protagonist figure, never repeating the same percentage three times (VOO/QQQ/GOOGL/ASML example)", async () => {
     const user = userEvent.setup();
     getMock.mockResolvedValue({ data: sectorExposureFixture() });
     render(<PortfolioDistribution portfolioId="default" onNavigateToSimulate={navigateToSimulateMock} />);
@@ -451,8 +452,12 @@ describe("PortfolioDistribution — refinamiento de Sectores", () => {
 
     expect(screen.getByText("portfolio.distribution.sectors.title")).toBeInTheDocument();
     expect(screen.getByText("portfolio.distribution.sectors.subtitle")).toBeInTheDocument();
-    expect(screen.getByText("Tecnología representa el 47.4% del valor analizado de tu portafolio.")).toBeInTheDocument();
-    expect(screen.getByText("De cada $100 del valor analizado, aproximadamente $47 están expuestos a empresas del sector Tecnología.")).toBeInTheDocument();
+    // Diego, 2026-11 (segunda pasada): una sola cifra protagonista
+    // ("47.4% Tecnología") — ni el titular largo ni la frase "de cada
+    // $100" se repiten más.
+    expect(screen.getByText("47.4% Tecnología")).toBeInTheDocument();
+    expect(screen.queryByText(/Tecnología representa el 47\.4%/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/De cada \$100/)).not.toBeInTheDocument();
   });
 
   it("shows which positions contribute to the dominant sector, with their percentage-point bars and the points clarification", async () => {
@@ -539,6 +544,10 @@ describe("PortfolioDistribution — refinamiento de Sectores", () => {
     await enterUnderstand(user);
     await user.click(screen.getByText("portfolio.distribution.dimensionSelector.sectors"));
 
+    // Diego, 2026-11 (segunda pasada): la nota de cobertura se movió
+    // dentro del desglose expandible — sigue siempre disponible, solo
+    // colapsada por defecto.
+    await user.click(screen.getByText("portfolio.distribution.sectors.seeAllSectors"));
     expect(screen.getByText("portfolio.distribution.sectors.verifiedUniverseNote")).toBeInTheDocument();
   });
 
