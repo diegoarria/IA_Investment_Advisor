@@ -15,6 +15,55 @@ def _clear():
     cache_mod._mem.clear()
 
 
+class _FakeRedis:
+    """Minimal in-process stand-in for a reachable Redis, covering only
+    what app.core.cache actually calls (.get, .setex, .delete, .pipeline
+    with .incr/.expire/.execute) — used so tests asserting
+    `reliable=True` behavior don't depend on whether THIS machine happens
+    to have a real Redis reachable right now."""
+
+    def __init__(self):
+        self._store: dict[str, str] = {}
+
+    def get(self, key):
+        return self._store.get(key)
+
+    def setex(self, key, ttl, value):
+        self._store[key] = value
+
+    def delete(self, key):
+        self._store.pop(key, None)
+
+    def pipeline(self):
+        return _FakeRedisPipeline(self)
+
+
+class _FakeRedisPipeline:
+    def __init__(self, redis):
+        self._redis = redis
+        self._ops: list[tuple] = []
+
+    def incr(self, key, amount=1):
+        self._ops.append(("incr", key, amount))
+        return self
+
+    def expire(self, key, ttl, nx=False):
+        self._ops.append(("expire", key, ttl))
+        return self
+
+    def execute(self):
+        results = []
+        for op, key, arg in self._ops:
+            if op == "incr":
+                current = int(self._redis._store.get(key) or 0) + arg
+                self._redis._store[key] = str(current)
+                results.append(current)
+            elif op == "expire":
+                results.append(True)
+        self._ops.clear()
+        return results
+
+
 def test_calls_allowed_under_the_limit():
     _clear()
     for _ in range(10):
@@ -200,3 +249,123 @@ def test_multiple_in_memory_counters_do_not_share_state_without_redis():
             "a second process's in-memory counter starts cold — proves the "
             "shared limit is only real when Redis is actually reachable"
         )
+
+
+# ── 2026-11-10 fix validation: submit_with_context / map_with_context ──────
+# These are the ACTUAL call-site helpers now wired into
+# fundamental_analysis_service._with_time_budget, company_diagnostic_
+# service._with_diag_time_budget, and the three _DIAG_ENRICHMENT_POOL
+# submissions in build_company_diagnostic — this proves the helpers
+# themselves are correct in isolation, independent of those call sites.
+
+def test_submit_with_context_propagates_background_tag_into_the_pool():
+    import concurrent.futures
+
+    _clear()
+    with fb.fmp_background():
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            future = fb.submit_with_context(pool, lambda: fb._is_background_ctx.get())
+            assert future.result() is True
+
+
+def test_submit_with_context_does_not_leak_background_tag_to_interactive_calls():
+    """A plain (non-background) submission must still read False in the
+    worker — the fix must not accidentally make everything look like
+    background traffic."""
+    import concurrent.futures
+
+    _clear()
+    assert fb._is_background_ctx.get() is False
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        future = fb.submit_with_context(pool, lambda: fb._is_background_ctx.get())
+        assert future.result() is False
+
+
+def test_map_with_context_propagates_to_every_concurrent_task():
+    """Each task gets its OWN context snapshot (not one shared Context
+    object reused across concurrent tasks, which would raise if a
+    Context were entered by two threads at once) — all N concurrent
+    peer-style tasks must independently see the background tag."""
+    import concurrent.futures
+
+    _clear()
+    with fb.fmp_background():
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(fb.map_with_context(pool, lambda _: fb._is_background_ctx.get(), range(10)))
+
+    assert results == [True] * 10
+
+
+def test_stress_background_counter_never_exceeds_its_reserved_share_under_concurrent_comparables():
+    """The actual regression this whole fix exists to prevent: simulate a
+    full-snapshot build's real shape — one top-level background call plus
+    a 10-peer concurrent fan-out (company_diagnostic_service's real
+    _MIN_SECTOR_PEERS-style pattern) — and confirm the shared window
+    counter never climbs past the 140/min background ceiling no matter
+    how many concurrent "peer" tasks run, because every one of them now
+    correctly checks in as background instead of mistagged live-user
+    traffic. No real FMP/network calls — fmp_call_allowed() is the thing
+    under test, not any provider. Runs against a fake-but-real-shaped
+    Redis (_FakeRedis) so the reliability assertion doesn't depend on
+    whether THIS machine happens to have a real Redis reachable."""
+    import concurrent.futures
+    import app.core.cache as cache_mod
+
+    _clear()
+    background_limit = int(fb.FMP_LIMIT_PER_MINUTE * fb._BACKGROUND_SHARE)
+
+    def _peer_task(_):
+        # Each "peer" makes several FMP-budget checks, same as one real
+        # get_fundamental_analysis(peer, _compute_peer_dependent_data=False)
+        # call touching several endpoints.
+        return [fb.fmp_call_allowed() for _ in range(5)]
+
+    with patch.object(cache_mod, "_redis", _FakeRedis()):
+        with fb.fmp_background():
+            assert fb.fmp_call_allowed() is True  # the ticker's own top-level call
+            with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
+                peer_results = list(fb.map_with_context(pool, _peer_task, range(10)))
+
+        # Every peer call that returned True is counted against the
+        # background window-key's counter (not the 280 ceiling) — confirm
+        # the counter itself never exceeded the 140 background ceiling by
+        # reading it back.
+        remaining, reliable = fb.remaining_background_capacity()
+    assert reliable is True
+    total_allowed = 1 + sum(1 for r in peer_results for ok in r if ok)
+    assert total_allowed <= background_limit, (
+        f"background counter ({total_allowed}) exceeded its reserved share "
+        f"({background_limit}) — the context-propagation fix did not hold "
+        f"under concurrent comparable fan-out"
+    )
+    assert remaining == max(0, background_limit - total_allowed)
+
+
+# ── 2026-11-10: remaining_background_capacity() (PASO 3's capacity peek) ───
+
+def test_remaining_background_capacity_reflects_real_consumption():
+    import app.core.cache as cache_mod
+
+    _clear()
+    background_limit = int(fb.FMP_LIMIT_PER_MINUTE * fb._BACKGROUND_SHARE)
+    with patch.object(cache_mod, "_redis", _FakeRedis()):
+        with fb.fmp_background():
+            for _ in range(10):
+                fb.fmp_call_allowed()
+        remaining, reliable = fb.remaining_background_capacity()
+    assert reliable is True
+    assert remaining == background_limit - 10
+
+
+def test_remaining_background_capacity_is_unreliable_without_redis():
+    """PASO 3's explicit requirement: when Redis can't actually be
+    reached, the in-memory count is only a per-process guess — callers
+    deciding whether it's SAFE to keep batching must be told so
+    explicitly rather than trusting a number that might be meaningless
+    across workers."""
+    import app.core.cache as cache_mod
+
+    _clear()
+    with patch.object(cache_mod, "_redis", None):
+        _, reliable = fb.remaining_background_capacity()
+    assert reliable is False

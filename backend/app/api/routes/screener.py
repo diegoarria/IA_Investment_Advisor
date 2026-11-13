@@ -3116,21 +3116,33 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
                     )
                     cached = None
     if cached:
-        current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
-        cached_period = cached.get("_earnings_period")
-        if not current_period or current_period == cached_period:
-            # 2026-10-28 P0: fh_quote has no top-level try/except of its own
-            # (unlike _latest_reported_earnings_period above) — awaiting
-            # this task directly re-raised whatever it threw straight past
-            # every fallback, killing an otherwise-healthy cache-hit
-            # request with a generic 500. _apply_live_quote already
-            # degrades cleanly to the cached price when given None.
-            try:
-                live_quote = await quote_task
-            except Exception:
-                logger.exception("company_diagnostic(%s): fh_quote (cache-hit quote refresh) raised", ticker)
-                live_quote = None
-            return _apply_live_quote_diagnostic(cached, live_quote, lang)
+        # 2026-11-10 P0 latency fix: this used to call
+        # _latest_reported_earnings_period (a Finnhub round trip, up to 8s
+        # on a cold 12h cache) on EVERY cache hit — confirmed live as a
+        # direct contributor to several fichas' 9-11s opens despite having
+        # a perfectly good, current cached diagnostic. A cache hit now
+        # trusts its cached data unconditionally and returns immediately;
+        # new-earnings-report detection moved to a scheduled sweep
+        # (job_refresh_company_diagnostic_earnings_freshness in worker.py),
+        # which invalidates just the affected ticker's cache keys ahead of
+        # the next real visit — same end result (a new report eventually
+        # triggers a rebuild), just off the interactive request's budget.
+        # The publish-time invalidation (_invalidate_public_diagnostic_cache,
+        # 2026-10-30) and the _valuation_computed_at reconciliation check
+        # above remain fully in effect — this only removes the Finnhub
+        # earnings-period poll, not either staleness mechanism.
+        #
+        # 2026-10-28 P0: fh_quote has no top-level try/except of its own —
+        # awaiting this task directly re-raised whatever it threw straight
+        # past every fallback, killing an otherwise-healthy cache-hit
+        # request with a generic 500. _apply_live_quote already degrades
+        # cleanly to the cached price when given None.
+        try:
+            live_quote = await quote_task
+        except Exception:
+            logger.exception("company_diagnostic(%s): fh_quote (cache-hit quote refresh) raised", ticker)
+            live_quote = None
+        return _apply_live_quote_diagnostic(cached, live_quote, lang)
     # Falling through to a rebuild below (cache miss, or stale earnings
     # period) — the fresh build already fetches a near-live price of its
     # own (get_fundamental_analysis), so this speculative quote fetch turns
@@ -3168,6 +3180,41 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
     # frees up. Retrying a ticker we already know lacks a defensible
     # valuation just pays that risk twice for zero benefit.
     has_persisted_fallback = bool(persisted)
+
+    # 2026-11-10 P0 structural latency fix: when a full, current-schema
+    # diagnostic snapshot is already on hand, serve it immediately instead
+    # of attempting a live rebuild first. Previously `_attempt_build()` ran
+    # unconditionally even when a perfectly usable snapshot already existed
+    # — confirmed live (CHTR, KO) that under Yahoo's current rate-limiting
+    # episode on `earningsTrend`, the live attempt reliably burns the full
+    # `_LIVE_BUILD_TIMEOUT_S` (peer-dependent enrichment fans this exact
+    # Yahoo call out across ~10 peers, each independently rate-limited and
+    # each paying up to its own ANALYST_ESTIMATES_TIMEOUT_S budget) before
+    # falling back to this SAME snapshot anyway — paying ~9s on every
+    # single request, forever, because a timed-out attempt never reaches
+    # the cache_set below, so it can never converge to a fast cache hit
+    # either. Verified directly against Supabase/Redis: both CHTR and KO
+    # have a valid, current-schema diagnostic_snapshot and ZERO Redis
+    # cache entry — every open was paying the full penalty for nothing.
+    # Scoped narrowly to the "a good snapshot already exists" case only —
+    # a ticker with no snapshot yet (first-ever visit, not yet covered by
+    # the backfill) still attempts a live build below exactly as before,
+    # since there's nothing better to fall back to. Freshness beyond this
+    # snapshot is handled out-of-band (the scheduled backfill/recompute,
+    # the publish-time cache invalidation, and — once enabled — the
+    # earnings-freshness sweep), not by retrying a live build on every
+    # interactive open.
+    _usable_snapshot = (
+        persisted.get("diagnostic_snapshot")
+        if persisted and persisted.get("snapshot_schema_version") == _DIAGNOSTIC_SCHEMA_VERSION
+        else None
+    )
+    if _usable_snapshot:
+        logger.info(
+            "company_diagnostic(%s): usable full snapshot on hand (computed_at=%s) — serving it directly, skipping live rebuild",
+            ticker, persisted.get("computed_at"),
+        )
+        return await _degraded_diagnostic(ticker, lang, persisted)
 
     async def _attempt_build() -> tuple[dict | None, dict | None]:
         try:
@@ -3248,18 +3295,47 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         if has_persisted_fallback:
             logger.warning("company_diagnostic(%s): persisted row available (status=%s) — skipping retry, serving degraded", ticker, persisted.get("validation_status"))
             return await _degraded_diagnostic(ticker, lang, persisted)
+        # 2026-11-11 P0 (CHTR/guest "unavailable" incident): the ONE
+        # persisted read at the top of this function is unguarded against a
+        # transient Supabase connection hiccup under concurrent load
+        # (documented in get_persisted_valuation's own docstring — confirmed
+        # live 2026-10-28 for NVDA/AAPL, a fast <1s generic failure). If THAT
+        # single read happened to land inside such a window, `persisted` is
+        # wrongly None for the rest of this request even though the row (and
+        # its full snapshot) is genuinely there the whole time. Reproduced
+        # live for CHTR during a 50-ticker backfill batch's heavy concurrent
+        # Supabase writes: the guest endpoint burned ~18.5s on two failed
+        # live-rebuild attempts (Yahoo rate-limited) and then showed
+        # "unavailable" for a ticker with a perfectly good persisted
+        # under_review snapshot the entire time. A cheap second lookup here
+        # — before paying for a second live attempt — recovers this case for
+        # free in the common case (the original contention has almost
+        # always cleared a few seconds later) and costs nothing extra when
+        # it hasn't (same fast-failing, already-guarded read).
+        persisted = await get_persisted_valuation(ticker)
+        has_persisted_fallback = bool(persisted)
+        if has_persisted_fallback:
+            logger.warning("company_diagnostic(%s): persisted row recovered on re-check (status=%s) — serving degraded instead of a second costly live attempt", ticker, persisted.get("validation_status"))
+            return await _degraded_diagnostic(ticker, lang, persisted)
         logger.warning("company_diagnostic(%s): no stale cache or persisted valuation — retrying once", ticker)
         await asyncio.sleep(2.5)
         data, diagnostic = await _attempt_build()
     if not data or not diagnostic:
-        # Reached only when: the first attempt failed, there was no stale
-        # cache and no persisted valuation to fall back to immediately,
-        # and the retry also failed — confirmed live: when EVERY
-        # financial-data provider (FMP + Fiscal.ai + yfinance) is
-        # simultaneously rate-limited/down, both attempts can fail even
-        # for a completely normal, liquid ticker. `persisted` was already
-        # looked up above (and was falsy/non-valid, or we wouldn't be
-        # here) — no second Supabase read needed.
+        # Reached only when: the first attempt failed, the persisted
+        # re-check above also came up empty, there was no stale cache, and
+        # the retry also failed — confirmed live: when EVERY financial-data
+        # provider (FMP + Fiscal.ai + yfinance) is simultaneously
+        # rate-limited/down, both attempts can fail even for a completely
+        # normal, liquid ticker. One more persisted re-check here is cheap
+        # insurance against the same transient-Supabase-hiccup window
+        # (see above) having outlasted the first re-check — by now a full
+        # live-build cycle's worth of time has passed, so the odds of it
+        # still being down are low, and the cost of asking again is a
+        # single already-guarded, already-cached-fast-path read.
+        persisted = await get_persisted_valuation(ticker)
+        if persisted:
+            logger.warning("company_diagnostic(%s): persisted row recovered on final re-check (status=%s) — serving degraded instead of 'unavailable'", ticker, persisted.get("validation_status"))
+            return await _degraded_diagnostic(ticker, lang, persisted)
         logger.warning(
             "company_diagnostic(%s): get_fundamental_analysis/build_company_diagnostic returned falsy on both "
             "attempts, and no stale cache or persisted valuation exists — showing 'unavailable'", ticker,

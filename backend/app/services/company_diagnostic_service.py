@@ -73,8 +73,14 @@ _DIAG_TIME_BUDGET_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="d
 
 def _with_diag_time_budget(fn, seconds: float):
     """Runs `fn()` with a hard deadline — returns `fn`'s result, or raises
-    concurrent.futures.TimeoutError (a normal Exception) if it overruns."""
-    future = _DIAG_TIME_BUDGET_POOL.submit(fn)
+    concurrent.futures.TimeoutError (a normal Exception) if it overruns.
+
+    2026-11-10: submits via `submit_with_context`, not a bare
+    `_DIAG_TIME_BUDGET_POOL.submit(fn)` — see app.core.fmp_budget for why a
+    plain submit loses the FMP-budget "background" tag the 927-ticker
+    backfill relies on to stay within its reserved share."""
+    from app.core.fmp_budget import submit_with_context
+    future = submit_with_context(_DIAG_TIME_BUDGET_POOL, fn)
     return future.result(timeout=seconds)
 
 logger = logging.getLogger(__name__)
@@ -572,8 +578,9 @@ def _sector_comparison(ticker: str, data: dict, dcf: dict, sector: Optional[str]
     # wall-clock budget here too — timing out just means this card is
     # omitted, same outcome as not clearing _MIN_SECTOR_PEERS below.
     def _collect_peer_values() -> list[dict]:
+        from app.core.fmp_budget import map_with_context
         collected: list[dict] = []
-        for peer_data in _DIAG_ENRICHMENT_POOL.map(_fetch_one_peer, peers):
+        for peer_data in map_with_context(_DIAG_ENRICHMENT_POOL, _fetch_one_peer, peers):
             if not peer_data:
                 continue
             collected.append(_sector_metric_values(peer_data, peer_data.get("dcf") or {}))
@@ -816,9 +823,10 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
             logger.warning("company_diagnostic(%s): fair_value_chart not computable: %s", ticker, e)
         return _phc_out, _fvc_out
 
-    _price_history_future = _DIAG_ENRICHMENT_POOL.submit(_price_history_task)
-    _competitor_future = _DIAG_ENRICHMENT_POOL.submit(_competitor_comparison, ticker, data, dcf, scenarios, sector, industry, lang)
-    _sector_future = _DIAG_ENRICHMENT_POOL.submit(_sector_comparison, ticker, data, dcf, sector, industry, lang)
+    from app.core.fmp_budget import submit_with_context
+    _price_history_future = submit_with_context(_DIAG_ENRICHMENT_POOL, _price_history_task)
+    _competitor_future = submit_with_context(_DIAG_ENRICHMENT_POOL, _competitor_comparison, ticker, data, dcf, scenarios, sector, industry, lang)
+    _sector_future = submit_with_context(_DIAG_ENRICHMENT_POOL, _sector_comparison, ticker, data, dcf, sector, industry, lang)
 
     price_history_context, fair_value_chart = _price_history_future.result()
     # Same reliability guard the backfill write path applies before
