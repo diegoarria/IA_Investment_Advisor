@@ -738,9 +738,12 @@ export default function PortfolioDistribution({ portfolioId, onNavigateToSimulat
       .catch((err) => {
         if (cancelled) return;
         const status = err?.response?.status ?? 0;
+        // Fase 8C: this route no longer has a commercial/admin gate — any
+        // authenticated user reaches it — so a 403 here would mean a real,
+        // unexpected backend regression, not "needs Nuvos Plus." Falls
+        // into the generic bucket rather than claiming something false.
         const message =
-          status === 403 ? t("portfolio.distribution.error.notAdmin")
-          : status === 404 ? t("portfolio.distribution.error.notFound")
+          status === 404 ? t("portfolio.distribution.error.notFound")
           // 401 means the shared axios interceptor already tried refreshing
           // the session and still couldn't get a valid one — a real, distinct
           // state from "we couldn't compute the exposure," so it needs its

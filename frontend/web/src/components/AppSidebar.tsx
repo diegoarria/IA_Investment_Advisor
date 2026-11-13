@@ -129,21 +129,6 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // Nuvos ETF Fase 2B: no dedicated "am I admin" endpoint — reuses the
-  // real GET /api/etf/categories call itself as the probe (200 = admin,
-  // 403/anything else = not), so this can never drift from the actual
-  // backend gate. Cheap: that endpoint is cached server-side after the
-  // first real call anyway. Temporary nav entry while ETF stays admin-only.
-  const [etfAdminAccess, setEtfAdminAccess] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    import("@/lib/api").then(({ etfApi }) => {
-      etfApi.getCategories()
-        .then(() => { if (!cancelled) setEtfAdminAccess(true); })
-        .catch(() => { if (!cancelled) setEtfAdminAccess(false); });
-    });
-    return () => { cancelled = true; };
-  }, []);
   const [paywallOpen, setPaywallOpen] = useState(false);
   // Diego, 2026-09-15: card entry happens INSIDE a modal (Stripe Elements)
   // instead of redirecting to a Stripe-hosted page.
@@ -562,21 +547,15 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
               );
             })}
 
-            {/* Nuvos ETF Fase 2B — temporary, admin-only while ETF stays
-                behind the backend's admin gate (see app/api/routes/etf.py).
-                Remove this block once ETF opens up to real users. */}
-            {etfAdminAccess && (
-              <button
-                onClick={() => navigate("/etf")}
-                className={`nav-item ${pathname.startsWith("/etf") ? "active" : ""} transition-opacity`}
-              >
-                <Layers className="w-3.5 h-3.5 shrink-0" />
-                <span>Explorar ETFs</span>
-                <span className="ml-auto text-[8px] font-bold uppercase tracking-wide" style={{ color: "var(--dim)" }}>
-                  admin
-                </span>
-              </button>
-            )}
+            {/* Nuvos ETF — Fase 8C: free for every authenticated user,
+                no admin gate left on the backend (app/api/routes/etf.py). */}
+            <button
+              onClick={() => navigate("/etf")}
+              className={`nav-item ${pathname.startsWith("/etf") ? "active" : ""} transition-opacity`}
+            >
+              <Layers className="w-3.5 h-3.5 shrink-0" />
+              <span>Explorar ETFs</span>
+            </button>
           </nav>
 
           {/* Chat history */}

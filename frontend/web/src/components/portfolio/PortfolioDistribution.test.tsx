@@ -154,9 +154,12 @@ describe("PortfolioDistribution — Vista A (Resumen)", () => {
   });
 
   it("surfaces backend errors (403/404/401/generic) before any view switch is possible", async () => {
+    // Fase 8C: this route has no commercial/admin gate left, so a 403 is
+    // an unexpected backend regression, not "needs Nuvos Plus" — it now
+    // falls into the same generic bucket as any other unhandled status.
     getMock.mockRejectedValue({ response: { status: 403 } });
     render(<PortfolioDistribution portfolioId="default" onNavigateToSimulate={navigateToSimulateMock} />);
-    await waitFor(() => expect(screen.getByText("portfolio.distribution.error.notAdmin")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("portfolio.distribution.error.generic")).toBeInTheDocument());
     expect(screen.queryByText("portfolio.distribution.summary.actionUnderstand")).not.toBeInTheDocument();
   });
 });

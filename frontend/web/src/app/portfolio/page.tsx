@@ -2448,6 +2448,10 @@ export default function PortfolioPage() {
               visibles sin desordenar el encabezado ni el selector de
               portafolio, que viven antes de <main>. */}
           <div className="flex p-1 rounded-xl gap-1 mb-4" style={{ background: "var(--raised)" }}>
+            {/* Fase 8C (2026-11-12): Distribución y Antes de invertir son
+                gratis para cualquier usuario autenticado — sin candado,
+                sin paywall. La decisión de Nuvos Plus como suscripción se
+                revirtió; ver backend/app/api/routes/portfolio_exposure.py. */}
             {([
               { key: "posiciones" as const, label: t("portfolio.header.mainView.positions") },
               { key: "distribucion" as const, label: t("portfolio.header.mainView.distribution") },

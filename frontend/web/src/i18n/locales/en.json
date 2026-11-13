@@ -2305,7 +2305,6 @@
     "distribution": {
       "loading": "Analyzing your portfolio…",
       "error": {
-        "notAdmin": "You don't have access to this section.",
         "notFound": "We couldn't find this portfolio.",
         "sessionExpired": "Your session expired. Sign in again and try once more.",
         "generic": "We couldn't compute your portfolio's distribution right now. Try again."

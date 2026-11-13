@@ -446,9 +446,11 @@ export default function BeforeAfterSimulator({ portfolioId, currency, na }: { po
       .catch((err) => {
         const status = err?.response?.status ?? 0;
         const detail = err?.response?.data?.detail;
+        // Fase 8C: no commercial/admin gate left on this route — a 403
+        // here would be an unexpected backend regression, not "needs
+        // Nuvos Plus," so it falls into the generic bucket.
         const message =
           status === 422 ? (typeof detail === "string" ? detail : t("portfolio.distribution.simulate.error.invalid"))
-          : status === 403 ? t("portfolio.distribution.error.notAdmin")
           : status === 404 ? t("portfolio.distribution.error.notFound")
           : t("portfolio.distribution.simulate.error.generic");
         setSimError(message);
@@ -497,8 +499,7 @@ export default function BeforeAfterSimulator({ portfolioId, currency, na }: { po
         if (reqId !== historyReqIdRef.current) return;
         const status = err?.response?.status ?? 0;
         const message =
-          status === 403 ? t("portfolio.distribution.error.notAdmin")
-          : status === 404 ? t("portfolio.distribution.error.notFound")
+          status === 404 ? t("portfolio.distribution.error.notFound")
           : t("portfolio.distribution.simulate.history.errorGeneric");
         setHistoryError(message);
       })

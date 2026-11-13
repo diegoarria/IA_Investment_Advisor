@@ -2305,7 +2305,6 @@
     "distribution": {
       "loading": "Analizando tu portafolio…",
       "error": {
-        "notAdmin": "No tienes acceso a esta sección.",
         "notFound": "No encontramos este portafolio.",
         "sessionExpired": "Tu sesión expiró. Vuelve a iniciar sesión e intenta de nuevo.",
         "generic": "No pudimos calcular la distribución de tu portafolio en este momento. Intenta de nuevo."

@@ -2,11 +2,11 @@
 
 // Nuvos ETF Explorer — Fase 2B redesign.
 //
-// Admin-gated (backend 403 for non-admin). Reuses the full Nuvos visual
-// system: AppSidebar (real in-app navigation, not a standalone screen
-// anymore), GlowCard/radarUi, and the new EtfCard/useEnrichedCards for
-// progressive, capped-at-6-per-request enrichment — no mass FMP calls
-// across the 7,463-ETF universe.
+// Fase 8C: free for every authenticated user, no admin gate left on the
+// backend. Reuses the full Nuvos visual system: AppSidebar (real in-app
+// navigation, not a standalone screen anymore), GlowCard/radarUi, and the
+// EtfCard/useEnrichedCards for progressive, capped-at-6-per-request
+// enrichment — no mass FMP calls across the 7,463-ETF universe.
 
 import { useEffect, useRef, useState, type ComponentType, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
