@@ -19,7 +19,7 @@ def _pos(ticker, shares, avg_price, name=None):
     return {"id": ticker, "ticker": ticker, "shares": shares, "avg_price": avg_price, "name": name}
 
 
-def _etf_overview(price, nav_currency, sectors, sector_coverage, countries, country_coverage, name=None, etf_company=None):
+def _etf_overview(price, nav_currency, sectors, sector_coverage, countries, country_coverage, name=None, etf_company=None, holdings_count=None):
     return {
         "price": {"current": price},
         "costs": {"nav_currency": nav_currency},
@@ -28,6 +28,7 @@ def _etf_overview(price, nav_currency, sectors, sector_coverage, countries, coun
             "sector_weight_sum_in_expected_range": sector_coverage,
             "country_weightings": countries,
             "country_weight_sum_in_expected_range": country_coverage,
+            "holdings_count": holdings_count,
         },
         # Fase 5D: fund name/issuer -- optional kwargs so every pre-existing
         # call site (none of which cares about identity) keeps working
@@ -741,3 +742,310 @@ class TestAssetIdentityFase5D:
             valued = [combiner.value_position(p, "USD") for p in agg]
         by_ticker = {p["ticker"]: p["name"] for p in valued}
         assert by_ticker == {"AAPL": "Apple Inc.", "MSFT": "Microsoft Corporation"}
+
+
+class TestAssetTypeCoverageFase8Fix:
+    """Fase 8-fix (2026-11-12, real incident investigation): 'Nuvos debe
+    leer y mostrar TODAS las posiciones registradas, sin importar qué
+    instrumentos sean.' Confirmed by code read + live production testing
+    that aggregate_and_classify/value_position already never drop a
+    position for any reason (no price, no sector, UNKNOWN classification,
+    a real transient FMP failure) — these tests prove that invariant
+    explicitly against a comprehensive mixed-instrument fixture, and cover
+    the one real gap found: a non-equity-style ETF (gold/silver/bonds)
+    had its FMP sector/country categories silently merged into the
+    equity-style GICS breakdown as if they were comparable."""
+
+    def test_gold_etf_sector_is_not_applicable_not_a_fabricated_materials_sector(self):
+        """Confirmed live against FMP: GLD reports sector_weightings =
+        100% 'Cash & Others' and holdings_count=0 (physical bullion has no
+        underlying company or country). Must never show up as a GICS
+        sector row, and must be tagged 'non_equity_style' / 'non
+        applicable', never silently folded into unclassified_value either."""
+        overview = _etf_overview(
+            354.89, "USD",
+            sectors=[{"name": "Cash & Others", "weight_pct": 100.0}], sector_coverage=True,
+            countries=[], country_coverage=False,
+            name="SPDR Gold Shares", etf_company="SPDR", holdings_count=0,
+        )
+        positions = [_pos("GLD", 10, 350.0)]
+        with patch("app.services.portfolio_exposure.combiner.classify_asset", return_value=ETF), \
+             patch("app.services.etf.service.get_etf_overview", return_value=overview):
+            agg = combiner.aggregate_and_classify(positions)
+            valued = [combiner.value_position(p, "USD") for p in agg]
+
+        assert valued[0]["verifiable"] is True
+        assert valued[0]["market_value"] == 3548.9
+
+        sector_exposure = combiner.compute_sector_exposure(valued)
+        assert sector_exposure["by_sector"] == []  # never a fabricated "Materiales"/"Cash & Others" sector row
+        assert sector_exposure["non_equity_style_value"] == 3548.9
+        assert sector_exposure["unclassified_value"] == 0.0  # this IS confirmed data, not a gap
+        assert sector_exposure["coverage_pct"] == 0.0  # 0% got a real GICS sector — honest, not hidden
+
+        geo = combiner.compute_geographic_exposure(valued)
+        assert geo["by_country"] == []
+        assert geo["etf_non_applicable_value"] == 3548.9  # holdings_count=0 -> "no aplica", not "no disponible"
+
+    def test_silver_etf_same_treatment_as_gold_not_a_one_off_special_case(self):
+        """Same shape as gold, different ticker — confirms the fix is a
+        real general rule (GICS-name allow-list), not a GLD-specific hack."""
+        overview = _etf_overview(
+            28.0, "USD",
+            sectors=[{"name": "Cash & Others", "weight_pct": 100.0}], sector_coverage=True,
+            countries=[], country_coverage=False,
+            name="iShares Silver Trust", etf_company="iShares", holdings_count=0,
+        )
+        positions = [_pos("SLV", 50, 27.0)]
+        with patch("app.services.portfolio_exposure.combiner.classify_asset", return_value=ETF), \
+             patch("app.services.etf.service.get_etf_overview", return_value=overview):
+            agg = combiner.aggregate_and_classify(positions)
+            valued = [combiner.value_position(p, "USD") for p in agg]
+
+        sector_exposure = combiner.compute_sector_exposure(valued)
+        assert sector_exposure["non_equity_style_value"] == valued[0]["market_value"]
+        assert sector_exposure["by_sector"] == []
+
+    def test_bond_etf_credit_categories_are_not_equity_sectors_but_geography_still_applies(self):
+        """Confirmed live against FMP: AGG reports real bond-credit-type
+        categories (Treasury, MBS Pass-Through...) that are NOT GICS
+        sectors, but DOES have real, meaningful country weightings
+        (bonds have a real issuer country) — sector and geography must be
+        treated differently here, not both suppressed the same way."""
+        overview = _etf_overview(
+            98.0, "USD",
+            sectors=[
+                {"name": "Treasury", "weight_pct": 46.68},
+                {"name": "MBS Pass-Through", "weight_pct": 23.11},
+                {"name": "Industrial", "weight_pct": 14.4},
+                {"name": "Financial Institutions", "weight_pct": 8.02},
+                {"name": "Sovereign", "weight_pct": 7.79},
+            ], sector_coverage=True,
+            countries=[{"name": "Estados Unidos", "weight_pct": 92.4}, {"name": "Canadá", "weight_pct": 7.6}],
+            country_coverage=True,
+            name="iShares Core U.S. Aggregate Bond ETF", etf_company="iShares", holdings_count=12000,
+        )
+        positions = [_pos("AGG", 20, 97.0)]
+        with patch("app.services.portfolio_exposure.combiner.classify_asset", return_value=ETF), \
+             patch("app.services.etf.service.get_etf_overview", return_value=overview):
+            agg = combiner.aggregate_and_classify(positions)
+            valued = [combiner.value_position(p, "USD") for p in agg]
+
+        sector_exposure = combiner.compute_sector_exposure(valued)
+        assert sector_exposure["by_sector"] == []  # none of these names are GICS equity sectors
+        assert sector_exposure["non_equity_style_value"] == valued[0]["market_value"]
+
+        geo = combiner.compute_geographic_exposure(valued)
+        assert geo["etf_non_applicable_value"] == 0.0  # holdings_count > 0 — real coverage, not "no aplica"
+        assert len(geo["by_country"]) == 2
+        assert {c["country"] for c in geo["by_country"]} == {"Estados Unidos", "Canadá"}
+
+    def test_adr_classifies_and_values_as_a_normal_equity(self):
+        """An ADR (a foreign company's US-listed shares) trades like any
+        other ticker on FMP's /profile endpoint — must work through the
+        exact same equity path, foreign domicile included honestly."""
+        positions = [_pos("BABA", 5, 90.0)]
+        with patch("app.services.portfolio_exposure.combiner.classify_asset", return_value=EQUITY), \
+             patch("app.services.portfolio_exposure.combiner.get_fmp_quote_price", return_value=95.0), \
+             patch("app.services.portfolio_exposure.equity_profile.get_equity_profile", return_value={"sector": "Technology", "country": "KY", "currency": "USD", "company_name": "Alibaba Group Holding Limited"}), \
+             patch("app.services.portfolio_exposure.combiner.get_sector_group_es", return_value="Tecnología"):
+            agg = combiner.aggregate_and_classify(positions)
+            valued = [combiner.value_position(p, "USD") for p in agg]
+
+        assert valued[0]["verifiable"] is True
+        assert valued[0]["asset_class"] == EQUITY
+        assert valued[0]["market_value"] == 475.0
+
+    def test_reit_classifies_as_equity_with_real_estate_canonical_sector(self):
+        """A REIT is a real equity ticker on FMP — must map to the same
+        canonical 'Bienes raíces' sector an ETF's Real Estate weighting
+        would use, never a fabricated or missing sector."""
+        positions = [_pos("O", 30, 55.0)]
+        with patch("app.services.portfolio_exposure.combiner.classify_asset", return_value=EQUITY), \
+             patch("app.services.portfolio_exposure.combiner.get_fmp_quote_price", return_value=56.0), \
+             patch("app.services.portfolio_exposure.equity_profile.get_equity_profile", return_value={"sector": "Real Estate", "country": "US", "currency": "USD", "company_name": "Realty Income Corporation"}), \
+             patch("app.services.portfolio_exposure.combiner.get_sector_group_es", return_value="REITs"):
+            agg = combiner.aggregate_and_classify(positions)
+            valued = [combiner.value_position(p, "USD") for p in agg]
+
+        assert valued[0]["sector"] == "Bienes raíces"
+        sector_exposure = combiner.compute_sector_exposure(valued)
+        assert sector_exposure["by_sector"][0]["sector"] == "Bienes raíces"
+
+    def test_asset_with_no_sector_stays_in_inventory_marked_honestly(self):
+        """Scenario: a verifiable equity for which FMP simply doesn't
+        return a sector — never dropped, never guessed, folded into
+        'unclassified_value' only (a real data gap, not a 'no aplica')."""
+        positions = [_pos("WEIRD", 10, 10.0)]
+        with patch("app.services.portfolio_exposure.combiner.classify_asset", return_value=EQUITY), \
+             patch("app.services.portfolio_exposure.combiner.get_fmp_quote_price", return_value=10.0), \
+             patch("app.services.portfolio_exposure.equity_profile.get_equity_profile", return_value={"sector": None, "country": "US", "currency": "USD", "company_name": None}), \
+             patch("app.services.portfolio_exposure.combiner.get_sector_group_es", return_value=None):
+            agg = combiner.aggregate_and_classify(positions)
+            valued = [combiner.value_position(p, "USD") for p in agg]
+
+        assert valued[0]["verifiable"] is True  # a missing SECTOR never blocks verification itself
+        sector_exposure = combiner.compute_sector_exposure(valued)
+        assert sector_exposure["unclassified_value"] == 100.0
+        assert sector_exposure["non_equity_style_value"] == 0.0
+
+    def test_asset_with_no_price_stays_in_inventory_never_dropped(self):
+        positions = [_pos("NOPRICE", 10, 10.0)]
+        with patch("app.services.portfolio_exposure.combiner.classify_asset", return_value=EQUITY), \
+             patch("app.services.portfolio_exposure.combiner.get_fmp_quote_price", return_value=None):
+            agg = combiner.aggregate_and_classify(positions)
+            valued = [combiner.value_position(p, "USD") for p in agg]
+
+        assert len(valued) == 1  # never dropped
+        assert valued[0]["ticker"] == "NOPRICE"
+        assert valued[0]["verifiable"] is False
+        assert valued[0]["unverifiable_reason"] == "no_price"
+        assert valued[0]["market_value"] is None  # never a fabricated 0
+
+    def test_transient_classification_failure_degrades_to_unknown_but_stays_in_inventory(self):
+        """Represents what a real FMP 429 degrades to at the classification
+        layer (see test_asset_classification.py for the exhaustive 429/
+        timeout/5xx coverage at that layer) — the combiner's own job is
+        just to never drop the position because of it."""
+        positions = [_pos("RATELIMITED", 10, 10.0)]
+        with patch("app.services.portfolio_exposure.combiner.classify_asset", return_value=UNKNOWN):
+            agg = combiner.aggregate_and_classify(positions)
+            valued = [combiner.value_position(p, "USD") for p in agg]
+
+        assert len(valued) == 1
+        assert valued[0]["asset_class"] == UNKNOWN
+        assert valued[0]["unverifiable_reason"] == "unclassified_asset"
+
+    def test_unknown_currency_stays_in_inventory_never_assumed_usd(self):
+        positions = [_pos("FOREIGN", 10, 10.0)]
+        with patch("app.services.portfolio_exposure.combiner.classify_asset", return_value=EQUITY), \
+             patch("app.services.portfolio_exposure.combiner.get_fmp_quote_price", return_value=10.0), \
+             patch("app.services.portfolio_exposure.equity_profile.get_equity_profile", return_value={"sector": "Industrials", "country": None, "currency": None, "company_name": None}):
+            agg = combiner.aggregate_and_classify(positions)
+            valued = [combiner.value_position(p, "USD") for p in agg]
+
+        assert len(valued) == 1
+        assert valued[0]["verifiable"] is False
+        assert valued[0]["unverifiable_reason"] == "currency_unknown"
+        assert valued[0]["market_value"] is None
+
+    def test_15_position_mixed_portfolio_every_ticker_survives_regardless_of_valuation_outcome(self):
+        """The criterion of success, verbatim: 'si existen 15 posiciones
+        registradas, Nuvos debe leer y mostrar las 15, independientemente
+        de que pueda valorarlas o calcular su exposición.' One portfolio,
+        every failure mode from this fixture list at once, mixed
+        currencies included — asserts the inventory count, never the
+        valuation outcome, which is allowed (and expected) to vary."""
+        tickers = [
+            "AAPL", "MSFT", "GOOGL", "O", "BABA",          # 5 ordinary/REIT/ADR equities, all verifiable
+            "VOO", "GLD", "SLV", "AGG",                     # 4 ETFs: plain, gold, silver, bonds
+            "NOSECTOR", "NOPRICE", "UNKNOWNCUR", "RATELIMIT",  # 4 partial-data equities
+            "TRULYUNKNOWN",                                  # 1 genuinely unclassifiable ticker
+            "EURSTOCK",                                      # 1 non-USD-currency equity (mixed-currency case)
+        ]
+        assert len(tickers) == 15
+        positions = [_pos(t, 10, 100.0) for t in tickers]
+
+        classify_map = {
+            "AAPL": EQUITY, "MSFT": EQUITY, "GOOGL": EQUITY, "O": EQUITY, "BABA": EQUITY,
+            "VOO": ETF, "GLD": ETF, "SLV": ETF, "AGG": ETF,
+            "NOSECTOR": EQUITY, "NOPRICE": EQUITY, "UNKNOWNCUR": EQUITY, "RATELIMIT": UNKNOWN,
+            "TRULYUNKNOWN": UNKNOWN, "EURSTOCK": EQUITY,
+        }
+        price_map = {
+            "AAPL": 150.0, "MSFT": 300.0, "GOOGL": 200.0, "O": 56.0, "BABA": 95.0,
+            "NOSECTOR": 10.0, "NOPRICE": None, "UNKNOWNCUR": 10.0, "EURSTOCK": 50.0,
+        }
+        profile_map = {
+            "AAPL": {"sector": "Technology", "country": "US", "currency": "USD", "company_name": "Apple Inc."},
+            "MSFT": {"sector": "Technology", "country": "US", "currency": "USD", "company_name": "Microsoft Corporation"},
+            "GOOGL": {"sector": "Communication Services", "country": "US", "currency": "USD", "company_name": "Alphabet Inc."},
+            "O": {"sector": "Real Estate", "country": "US", "currency": "USD", "company_name": "Realty Income Corporation"},
+            "BABA": {"sector": "Technology", "country": "KY", "currency": "USD", "company_name": "Alibaba Group Holding Limited"},
+            "NOSECTOR": {"sector": None, "country": "US", "currency": "USD", "company_name": None},
+            "UNKNOWNCUR": {"sector": "Industrials", "country": None, "currency": None, "company_name": None},
+            "EURSTOCK": {"sector": "Industrials", "country": "DE", "currency": "EUR", "company_name": "Some German Co."},
+        }
+        sector_group_map = {
+            "AAPL": "Tecnología", "MSFT": "Tecnología", "GOOGL": "Comunicación de Servicios",
+            "O": "REITs", "BABA": "Tecnología", "NOSECTOR": None, "UNKNOWNCUR": "Industriales",
+            "EURSTOCK": "Industriales",
+        }
+        etf_overviews = {
+            "VOO": _etf_overview(450.0, "USD", [{"name": "Technology", "weight_pct": 30.0}], True, [{"name": "United States", "weight_pct": 99.0}], True, holdings_count=503),
+            "GLD": _etf_overview(354.89, "USD", [{"name": "Cash & Others", "weight_pct": 100.0}], True, [], False, holdings_count=0),
+            "SLV": _etf_overview(28.0, "USD", [{"name": "Cash & Others", "weight_pct": 100.0}], True, [], False, holdings_count=0),
+            "AGG": _etf_overview(98.0, "USD", [{"name": "Treasury", "weight_pct": 100.0}], True, [{"name": "United States", "weight_pct": 92.4}], True, holdings_count=12000),
+        }
+
+        with patch("app.services.portfolio_exposure.combiner.classify_asset", side_effect=lambda t: classify_map[t]), \
+             patch("app.services.portfolio_exposure.combiner.get_fmp_quote_price", side_effect=lambda t: price_map.get(t)), \
+             patch("app.services.portfolio_exposure.equity_profile.get_equity_profile", side_effect=lambda t: profile_map.get(t, {})), \
+             patch("app.services.portfolio_exposure.combiner.get_sector_group_es", side_effect=lambda t: sector_group_map.get(t)), \
+             patch("app.services.portfolio_exposure.combiner._usd_rate", side_effect=lambda c: {"USD": 1.0, "EUR": 1.08}.get(c)), \
+             patch("app.services.etf.service.get_etf_overview", side_effect=lambda t, use_cache=True, lang="es": etf_overviews[t]):
+            agg = combiner.aggregate_and_classify(positions)
+            valued = [combiner.value_position(p, "USD") for p in agg]
+
+        # THE criterion of success: all 15 tickers present, regardless of
+        # whether each one could be valued.
+        assert len(valued) == 15
+        assert {p["ticker"] for p in valued} == set(tickers)
+
+        valuation = combiner.compute_valuation_summary(valued)
+        assert valuation["position_count"] == 15
+        # Exactly the positions designed to fail valuation: NOPRICE (no
+        # price), UNKNOWNCUR (no currency), TRULYUNKNOWN + RATELIMIT
+        # (unclassified) — everything else must verify.
+        unverifiable_tickers = {p["ticker"] for p in valued if not p["verifiable"]}
+        assert unverifiable_tickers == {"NOPRICE", "UNKNOWNCUR", "TRULYUNKNOWN", "RATELIMIT"}
+        assert valuation["verified_position_count"] == 11
+        assert valuation["unverifiable_position_count"] == 4
+
+        # Never a fabricated value for any of the 4 unverifiable ones.
+        for p in valued:
+            if p["ticker"] in unverifiable_tickers:
+                assert p["market_value"] is None
+
+        sector_exposure = combiner.compute_sector_exposure(valued)
+        # GLD + SLV's full value must be in non_equity_style, never in by_sector.
+        sector_names = {row["sector"] for row in sector_exposure["by_sector"]}
+        assert "Cash & Others" not in sector_names
+        assert sector_exposure["non_equity_style_value"] > 0
+
+        geo = combiner.compute_geographic_exposure(valued)
+        assert geo["etf_non_applicable_value"] > 0  # GLD + SLV, holdings_count=0
+
+    def test_coverage_denominator_never_silently_changes_three_way_split_always_reconciles(self):
+        """Fase 8-fix §1: the denominator of coverage_pct stays
+        verified_total, exactly as before — never changed silently. The
+        three buckets (real GICS sector value + non_equity_style_value +
+        unclassified_value) must always sum back to verified_total
+        exactly, so a caller can trust eligible_for_sector_value instead
+        of re-deriving it (and risking the wrong denominator)."""
+        positions = [_pos("AAPL", 10, 100.0), _pos("GLD", 10, 350.0)]
+        aapl_overview_free = {"sector": "Technology", "country": "US", "currency": "USD"}
+        gld_overview = _etf_overview(
+            354.89, "USD",
+            sectors=[{"name": "Cash & Others", "weight_pct": 100.0}], sector_coverage=True,
+            countries=[], country_coverage=False, holdings_count=0,
+        )
+        with patch("app.services.portfolio_exposure.combiner.classify_asset", side_effect=_classify_map({"AAPL": EQUITY, "GLD": ETF})), \
+             patch("app.services.portfolio_exposure.combiner.get_fmp_quote_price", return_value=105.0), \
+             patch("app.services.portfolio_exposure.equity_profile.get_equity_profile", return_value=aapl_overview_free), \
+             patch("app.services.portfolio_exposure.combiner.get_sector_group_es", return_value="Tecnología"), \
+             patch("app.services.etf.service.get_etf_overview", return_value=gld_overview):
+            agg = combiner.aggregate_and_classify(positions)
+            valued = [combiner.value_position(p, "USD") for p in agg]
+
+        valuation = combiner.compute_valuation_summary(valued)
+        sector_exposure = combiner.compute_sector_exposure(valued)
+        real_sector_value = sum(row["value"] for row in sector_exposure["by_sector"])
+
+        assert valuation["total_value_verified"] == valued[0]["market_value"] + valued[1]["market_value"]
+        reconciled = round(real_sector_value + sector_exposure["non_equity_style_value"] + sector_exposure["unclassified_value"], 2)
+        assert reconciled == round(valuation["total_value_verified"], 2)
+        assert sector_exposure["eligible_for_sector_value"] == round(valuation["total_value_verified"] - sector_exposure["non_equity_style_value"], 2)
+        # 100% coverage must never be claimed while part of the portfolio
+        # is gold — the whole point of this fix.
+        assert sector_exposure["coverage_pct"] < 100.0

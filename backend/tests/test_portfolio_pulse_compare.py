@@ -151,6 +151,23 @@ def test_6_different_methodology_versions_rejected():
     assert result == {"available": False, "reason": "methodology_mismatch"}
 
 
+def test_6b_the_real_fase8_fix_version_bump_is_guarded_not_just_the_test_string():
+    """Fase 8-fix (2026-11-12): compute_sector_exposure/compute_geographic_
+    exposure's real numeric coverage_pct changes for any portfolio holding
+    a gold/silver/bond ETF, even with zero change to the user's actual
+    holdings — comparing a snapshot captured before this fix against one
+    captured after it would show a fabricated Pulse delta if this weren't
+    guarded. Anchored to the real `pulse.METHODOLOGY_VERSION` constant
+    (not a hardcoded string) so this test breaks loudly if a future
+    change ever reuses "combiner-v2" without actually re-bumping it."""
+    from app.services.portfolio_exposure.pulse import METHODOLOGY_VERSION
+    assert METHODOLOGY_VERSION == "combiner-v2"
+    before = _snapshot(id="a", period_key="2026-10", methodology_version="combiner-v1")
+    after = _snapshot(id="b", period_key="2026-11", methodology_version=METHODOLOGY_VERSION)
+    result = pulse_compare.compare_snapshots(before, after)
+    assert result == {"available": False, "reason": "methodology_mismatch"}
+
+
 # ─── 7/8: cobertura ─────────────────────────────────────────────────────
 
 def test_7_insufficient_valuation_coverage_rejected():

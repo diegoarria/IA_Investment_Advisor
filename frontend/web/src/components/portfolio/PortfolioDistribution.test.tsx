@@ -219,6 +219,24 @@ describe("PortfolioDistribution — navegación Resumen ↔ Entender", () => {
     await user.click(screen.getByText("portfolio.distribution.detailsToggle"));
     expect(screen.getByText("XYZ — no_price")).toBeInTheDocument();
   });
+
+  it("Fase 8-fix: shows a 'not applicable' note for a physically-backed fund's geography, never counted as missing data", async () => {
+    const user = userEvent.setup();
+    getMock.mockResolvedValue({
+      data: realExposureResponse({
+        geographic_exposure: {
+          by_country: [{ country: "Netherlands", value: 3600, pct_of_asset_class_value: 100.0, asset_class_total_value: 3600, methodology: "equity_domicile" }],
+          equity_domicile_coverage_pct: 100, etf_underlying_coverage_pct: 0, etf_non_applicable_value: 3548.9, note_es: "",
+        },
+      }),
+    });
+    render(<PortfolioDistribution portfolioId="default" onNavigateToSimulate={navigateToSimulateMock} />);
+    await waitFor(() => expect(screen.getByText("portfolio.distribution.summary.actionUnderstand")).toBeInTheDocument());
+    await enterUnderstand(user);
+    await user.click(screen.getByText("portfolio.distribution.dimensionSelector.geography"));
+
+    expect(screen.getByText("portfolio.distribution.geography.nonApplicableNote")).toBeInTheDocument();
+  });
 });
 
 describe("PortfolioDistribution — Fase 7: 'Antes de invertir' lifted to the parent page", () => {
@@ -537,6 +555,26 @@ describe("PortfolioDistribution — refinamiento de Sectores", () => {
     // it must not appear a second time inside the expanded "other sectors" list.
     expect(screen.getAllByText("Tecnología")).toHaveLength(1);
     expect(screen.getByText("Comunicación")).toBeInTheDocument();
+  });
+
+  it("Fase 8-fix: shows a 'not applicable' note for gold/bond-style ETF value, distinct from the unclassified note", async () => {
+    const user = userEvent.setup();
+    getMock.mockResolvedValue({
+      data: sectorExposureFixture({
+        sector_exposure: {
+          by_sector: [{ sector: "Tecnología", value: 7899.71, pct_of_verified_total: 47.4 }],
+          coverage_pct: 60, unclassified_value: 0, non_equity_style_value: 3548.9,
+        },
+      }),
+    });
+    render(<PortfolioDistribution portfolioId="default" onNavigateToSimulate={navigateToSimulateMock} />);
+    await waitFor(() => expect(screen.getByText("portfolio.distribution.summary.actionUnderstand")).toBeInTheDocument());
+    await enterUnderstand(user);
+    await user.click(screen.getByText("portfolio.distribution.dimensionSelector.sectors"));
+    await user.click(screen.getByText("portfolio.distribution.detailsToggle"));
+
+    expect(screen.getByText("portfolio.distribution.sectors.nonEquityStyleNote")).toBeInTheDocument();
+    expect(screen.queryByText("portfolio.distribution.sectors.unclassifiedNote")).not.toBeInTheDocument();
   });
 });
 

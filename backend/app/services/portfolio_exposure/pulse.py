@@ -28,7 +28,16 @@ from app.services.portfolio_exposure.service import _EMPTY_EXPOSURE, _build_valu
 
 logger = logging.getLogger(__name__)
 
-METHODOLOGY_VERSION = "combiner-v1"  # bump whenever compute_full_exposure's formulas change meaningfully
+METHODOLOGY_VERSION = "combiner-v2"  # bump whenever compute_full_exposure's formulas change meaningfully
+# v2 (2026-11-12, Fase 8-fix): compute_sector_exposure/compute_geographic_exposure
+# now separate non-GICS ETF categories (gold/silver "Cash & Others", bond
+# credit-type buckets) and physically-backed funds with zero underlying
+# holdings into their own "non applicable" totals instead of folding them
+# into coverage_pct/by_sector/by_country — coverage_pct's real numeric
+# value changes for any portfolio holding one of these funds, even with
+# zero change to the user's actual holdings. The comparability gate below
+# (methodology_version mismatch -> not_comparable) is what stops that from
+# ever surfacing as a fabricated Pulse delta.
 
 
 class SnapshotCorrectionError(Exception):

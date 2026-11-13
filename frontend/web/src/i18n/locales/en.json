@@ -2374,6 +2374,7 @@
         "empty": "There isn't enough sector data to analyze your portfolio yet.",
         "coverageNote": "We have enough sector data to analyze {{pct}} of your portfolio's verified value.",
         "unclassifiedNote": "{{amount}} of your portfolio doesn't have a reliable sector classification.",
+        "nonEquityStyleNote": "{{amount}} of your portfolio is in funds (gold, silver, bonds, etc.) whose composition isn't measured in company sectors — not applicable, not missing data.",
         "seeAllSectors": "See all sectors in detail",
         "dominantNote": "{{sector}} is your largest sector: it represents {{pct}} of your portfolio's verified value.",
         "subtitle": "Discover which economic activities carry the most weight in your investments.",
@@ -2390,7 +2391,8 @@
         "equityDomicile": "Domicile of your individual stocks (% of your total stock value, not your whole portfolio)",
         "empty": "Not enough data yet.",
         "topEtfCountry": "Within your ETFs, {{country}} has the largest weight ({{pct}}).",
-        "topEquityCountry": "Within your individual stocks, {{country}} has the largest weight ({{pct}})."
+        "topEquityCountry": "Within your individual stocks, {{country}} has the largest weight ({{pct}}).",
+        "nonApplicableNote": "{{amount}} is in funds backed by physical assets (gold, silver, etc.) with no underlying country concept — not applicable, not missing data."
       },
       "simulate": {
         "title": "Before investing",

@@ -35,7 +35,7 @@ import time
 
 from app.services.asset_classification import EQUITY, ETF, UNKNOWN, classify_asset
 from app.services.decision_engine import aggregate_positions_by_ticker
-from app.services.etf.translations import translate_country
+from app.services.etf.translations import SECTOR_ES, translate_country
 from app.services.financial_data_service import _usd_rate, get_fmp_quote_price
 from app.services.portfolio_exposure import country_codes, equity_profile, sector_taxonomy
 from app.services.sector_lookup import get_sector_group_es
@@ -250,16 +250,40 @@ def compute_composition(valued: list[dict], total_value_verified: float | None) 
     }
 
 
+# Fase 8-fix (2026-11-12, real incident): confirmed live against FMP that
+# `sector_weightings` means something fundamentally different depending on
+# an ETF's underlying asset class — GLD (gold) reports 100% "Cash & Others"
+# and AGG (bonds) reports credit-type buckets ("Treasury", "MBS Pass-
+# Through", "Sovereign", "Agency"...), neither of which is a GICS equity
+# sector. Folding those names into `by_sector` next to real equity sectors
+# ("Tecnología", "Salud"...) would present two incompatible classification
+# systems as if they were one comparable breakdown — not a fabrication
+# (FMP really does report these names), but a false equivalence. Reusing
+# etf/translations.SECTOR_ES (the closed, known GICS vocabulary the ETF
+# engine already translates into) as the allow-list: any sector_weightings
+# entry whose name isn't a recognized GICS sector in either language is
+# "not applicable" to an equity-style sector breakdown, not "unavailable" —
+# counted separately in `non_equity_style_value`, never merged in and
+# never dropped from the fund's own total coverage math.
+_KNOWN_EQUITY_STYLE_SECTOR_NAMES = frozenset(SECTOR_ES.keys()) | frozenset(SECTOR_ES.values())
+
+
 def compute_sector_exposure(valued: list[dict]) -> dict:
     """Σ(equity market value in its own sector) + Σ(ETF market value ×
     that ETF's own real sector weight / 100, only when that ETF's own
     weightings coverage is confirmed complete). Never treats a missing
     ETF-sector coverage flag as "close enough" — an unconfirmed ETF's
     entire value goes to `unclassified_value`, not spread evenly or
-    guessed."""
+    guessed.
+
+    `non_equity_style_value` is the separate, confirmed-but-not-applicable
+    bucket above — distinct from `unclassified_value` ("no disponible": we
+    couldn't confirm the breakdown at all) vs this one ("no aplica": FMP
+    gave a real, complete answer, it just isn't a GICS-style sector)."""
     verified = [p for p in valued if p["verifiable"]]
     totals: dict[str, float] = {}
     unclassified = 0.0
+    non_equity_style = 0.0
 
     for p in verified:
         if p["asset_class"] == EQUITY:
@@ -274,7 +298,11 @@ def compute_sector_exposure(valued: list[dict]) -> dict:
                 unclassified += p["market_value"]
                 continue
             for item in overview["exposure"]["sector_weightings"]:
-                totals[item["name"]] = totals.get(item["name"], 0.0) + p["market_value"] * item["weight_pct"] / 100
+                item_value = p["market_value"] * item["weight_pct"] / 100
+                if item["name"] in _KNOWN_EQUITY_STYLE_SECTOR_NAMES:
+                    totals[item["name"]] = totals.get(item["name"], 0.0) + item_value
+                else:
+                    non_equity_style += item_value
 
     verified_total = sum(p["market_value"] for p in verified) or 0.0
     by_sector = [
@@ -282,8 +310,23 @@ def compute_sector_exposure(valued: list[dict]) -> dict:
         for name, value in sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
         if value >= _MIN_ROW_VALUE_USD
     ]
-    coverage_pct = round((verified_total - unclassified) / verified_total * 100, 1) if verified_total else None
-    return {"by_sector": by_sector, "coverage_pct": coverage_pct, "unclassified_value": round(unclassified, 2)}
+    # Fase 8-fix §1: `coverage_pct`'s denominator stays exactly what it
+    # always was — `verified_total`, the same "valor total verificado"
+    # every other coverage figure in this module already uses, never
+    # changed silently. `eligible_for_sector_value` makes the real
+    # three-way split inspectable instead of forcing a caller to subtract
+    # it themselves (and risk getting the denominator wrong): verified
+    # total = (value WITH a real GICS sector) + (non_equity_style_value,
+    # "no aplica") + (unclassified_value, "no disponible").
+    eligible_for_sector_value = round(verified_total - non_equity_style, 2)
+    coverage_pct = round((verified_total - unclassified - non_equity_style) / verified_total * 100, 1) if verified_total else None
+    return {
+        "by_sector": by_sector,
+        "coverage_pct": coverage_pct,
+        "unclassified_value": round(unclassified, 2),
+        "non_equity_style_value": round(non_equity_style, 2),
+        "eligible_for_sector_value": eligible_for_sector_value,
+    }
 
 
 def compute_geographic_exposure(valued: list[dict]) -> dict:
@@ -314,6 +357,7 @@ def compute_geographic_exposure(valued: list[dict]) -> dict:
 
     etf_totals: dict[str, float] = {}
     etf_unclassified = 0.0
+    etf_non_applicable = 0.0
     etf_total_value = 0.0
 
     for p in verified:
@@ -331,7 +375,17 @@ def compute_geographic_exposure(valued: list[dict]) -> dict:
             etf_total_value += p["market_value"]
             coverage_ok = bool(overview and overview["exposure"]["country_weight_sum_in_expected_range"])
             if not coverage_ok:
-                etf_unclassified += p["market_value"]
+                # Fase 8-fix: confirmed live against FMP — a physically-
+                # backed commodity fund (GLD) reports `holdings_count: 0`
+                # with no country weightings at all, because there is
+                # nothing with a country to attribute (bullion has no
+                # domicile). That's "no aplica," not "no disponible" — a
+                # real data gap (holdings_count > 0 but weightings still
+                # incomplete) stays in etf_unclassified, unchanged.
+                if overview and overview["exposure"].get("holdings_count") == 0:
+                    etf_non_applicable += p["market_value"]
+                else:
+                    etf_unclassified += p["market_value"]
                 continue
             for item in overview["exposure"]["country_weightings"]:
                 etf_totals[item["name"]] = etf_totals.get(item["name"], 0.0) + p["market_value"] * item["weight_pct"] / 100
@@ -357,7 +411,8 @@ def compute_geographic_exposure(valued: list[dict]) -> dict:
     return {
         "by_country": by_country,
         "equity_domicile_coverage_pct": round((equity_total_value - equity_unclassified) / equity_total_value * 100, 1) if equity_total_value else None,
-        "etf_underlying_coverage_pct": round((etf_total_value - etf_unclassified) / etf_total_value * 100, 1) if etf_total_value else None,
+        "etf_underlying_coverage_pct": round((etf_total_value - etf_unclassified - etf_non_applicable) / etf_total_value * 100, 1) if etf_total_value else None,
+        "etf_non_applicable_value": round(etf_non_applicable, 2),
         "note_es": (
             "Las filas marcadas \"equity_domicile\" muestran el país donde cada empresa individual tiene su domicilio fiscal. "
             "Las filas marcadas \"etf_underlying\" muestran la distribución geográfica real de los activos dentro de cada ETF. "

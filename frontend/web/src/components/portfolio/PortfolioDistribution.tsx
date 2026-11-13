@@ -66,8 +66,8 @@ type ExposureResponse = {
   };
   positions: Position[];
   composition: { equity_value: number; equity_pct: number | null; etf_value: number; etf_pct: number | null; unknown_asset_value_cost_basis: number };
-  sector_exposure: { by_sector: SectorRow[]; coverage_pct: number | null; unclassified_value: number };
-  geographic_exposure: { by_country: CountryRow[]; equity_domicile_coverage_pct: number | null; etf_underlying_coverage_pct: number | null; note_es: string };
+  sector_exposure: { by_sector: SectorRow[]; coverage_pct: number | null; unclassified_value: number; non_equity_style_value: number; eligible_for_sector_value: number };
+  geographic_exposure: { by_country: CountryRow[]; equity_domicile_coverage_pct: number | null; etf_underlying_coverage_pct: number | null; etf_non_applicable_value: number; note_es: string };
   concentration: { top_positions: { ticker: string; name: string | null; weight_pct: number }[]; largest_single_position_pct: number | null };
   insights: Insight[];
   unverifiable_positions: { ticker: string; reason: string | null }[];
@@ -660,6 +660,12 @@ function UnderstandView({
           ) : equityCountries.map((row) => (
             <SingleBar key={`eq-${row.country}`} label={row.country} pct={row.pct_of_asset_class_value} value={row.value} currency={currency} na={na} />
           ))}
+          {geographic_exposure.etf_non_applicable_value > 0 && (
+            <p className="text-[12px] mt-3 flex items-start gap-1.5" style={{ color: "var(--sub)" }}>
+              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              {t("portfolio.distribution.geography.nonApplicableNote", { amount: fmtMoney(geographic_exposure.etf_non_applicable_value, currency, na) })}
+            </p>
+          )}
         </GlowCard>
       )}
 
@@ -682,6 +688,12 @@ function UnderstandView({
             <p className="text-[12px] flex items-start gap-1.5" style={{ color: "var(--sub)" }}>
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               {t("portfolio.distribution.sectors.unclassifiedNote", { amount: fmtMoney(sector_exposure.unclassified_value, currency, na) })}
+            </p>
+          )}
+          {sector_exposure.non_equity_style_value > 0 && (
+            <p className="text-[12px] flex items-start gap-1.5" style={{ color: "var(--sub)" }}>
+              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              {t("portfolio.distribution.sectors.nonEquityStyleNote", { amount: fmtMoney(sector_exposure.non_equity_style_value, currency, na) })}
             </p>
           )}
           {unverifiable_positions.length > 0 && (

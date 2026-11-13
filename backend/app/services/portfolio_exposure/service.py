@@ -42,8 +42,8 @@ _EMPTY_EXPOSURE = {
     "valuation": {"total_value_verified": None, "total_cost_basis_all_positions": 0.0, "position_count": 0, "verified_position_count": 0, "unverifiable_position_count": 0, "valuation_coverage_pct": None},
     "positions": [],
     "composition": {"equity_value": 0.0, "equity_pct": None, "etf_value": 0.0, "etf_pct": None, "unknown_asset_value_cost_basis": 0.0},
-    "sector_exposure": {"by_sector": [], "coverage_pct": None, "unclassified_value": 0.0},
-    "geographic_exposure": {"by_country": [], "equity_domicile_coverage_pct": None, "etf_underlying_coverage_pct": None, "note_es": ""},
+    "sector_exposure": {"by_sector": [], "coverage_pct": None, "unclassified_value": 0.0, "non_equity_style_value": 0.0, "eligible_for_sector_value": 0.0},
+    "geographic_exposure": {"by_country": [], "equity_domicile_coverage_pct": None, "etf_underlying_coverage_pct": None, "etf_non_applicable_value": 0.0, "note_es": ""},
     "concentration": {"top_positions": [], "largest_single_position_pct": None},
 }
 

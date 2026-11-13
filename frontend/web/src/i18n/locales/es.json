@@ -2374,6 +2374,7 @@
         "empty": "No hay datos sectoriales suficientes para analizar tu portafolio todavía.",
         "coverageNote": "Tenemos información sectorial suficiente para analizar el {{pct}} del valor verificado de tu portafolio.",
         "unclassifiedNote": "{{amount}} de tu portafolio no tiene una clasificación sectorial confiable.",
+        "nonEquityStyleNote": "{{amount}} de tu portafolio está en fondos (oro, plata, bonos, etc.) cuya composición no se mide en sectores empresariales — no aplica, no es un dato faltante.",
         "seeAllSectors": "Ver todos los sectores en detalle",
         "dominantNote": "{{sector}} es tu sector con mayor peso: representa el {{pct}} del valor verificado de tu portafolio.",
         "subtitle": "Descubre qué actividades económicas tienen mayor peso en tus inversiones.",
@@ -2390,7 +2391,8 @@
         "equityDomicile": "Domicilio de tus acciones individuales (% del valor total en acciones, no de todo tu portafolio)",
         "empty": "No hay datos suficientes todavía.",
         "topEtfCountry": "Dentro de tus ETFs, {{country}} tiene el mayor peso ({{pct}}).",
-        "topEquityCountry": "Dentro de tus acciones individuales, {{country}} tiene el mayor peso ({{pct}})."
+        "topEquityCountry": "Dentro de tus acciones individuales, {{country}} tiene el mayor peso ({{pct}}).",
+        "nonApplicableNote": "{{amount}} está en fondos respaldados por activos físicos (oro, plata, etc.) sin un concepto de país subyacente — no aplica, no es un dato faltante."
       },
       "simulate": {
         "title": "Antes de invertir",
