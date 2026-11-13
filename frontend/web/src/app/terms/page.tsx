@@ -671,7 +671,7 @@ export default function TermsPage() {
 
         {/* Footer */}
         <div className="mt-16 pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-white/30 text-xs">
-          <span>© 2026 Nuvos AI · Borrador sujeto a revisión por asesoría legal · nuvosai.com</span>
+          <span>© 2026 Nuvos AI · nuvosai.com</span>
           <div className="flex items-center gap-4">
             <a href="/privacy" className="hover:text-white/60 transition-colors">Aviso de Privacidad →</a>
             <a href="/ai-policy" className="hover:text-white/60 transition-colors">Política de IA →</a>

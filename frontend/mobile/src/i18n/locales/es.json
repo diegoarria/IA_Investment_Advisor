@@ -3043,6 +3043,8 @@
   "pricingModal": {
     "errorTitle": "Error",
     "paymentError": "No se pudo abrir el pago. Intenta de nuevo.",
+    "purchaseProcessingTitle": "Tu compra se está procesando",
+    "purchaseProcessingBody": "Apple confirmó tu pago. Puede tardar un momento en activarse — vuelve a abrir la app en un par de minutos y tu plan ya debería estar activo.",
     "manageOnWeb": "Suscríbete o cambia de plan desde nuvosai.com",
     "subscribeNow": "Suscribirme",
     "opening": "Abriendo...",

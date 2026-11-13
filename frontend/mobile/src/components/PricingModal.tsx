@@ -1,12 +1,15 @@
 import React from "react";
 import {
-  View, Text, TouchableOpacity, Modal, ScrollView,
+  View, Text, TouchableOpacity, Modal, ScrollView, ActivityIndicator, Alert, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { useSubscriptionStore, hasPremiumAccess } from "../lib/subscriptionStore";
+import { useSubscribeCheckout } from "../lib/useSubscribeCheckout";
+import { isRevenueCatSupported, restorePurchases } from "../lib/revenuecat";
+import { usePaywallModalGuard } from "../lib/paywallModalGuard";
 
 function getFreeFeatures(t: TFunction): string[] {
   return t("pricingModal.freeFeatures", { returnObjects: true }) as string[];
@@ -29,17 +32,41 @@ export default function PricingModal({ visible, onClose }: Props) {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const [plan, setPlan] = React.useState<"monthly" | "yearly">("monthly");
-  // Diego, 2026-09-15: "evitarme lo de Apple IAP... tal como lo hace
-  // Spotify" — Apple's App Store rules (3.1.1) ban unlocking a digital
-  // subscription through any payment mechanism other than Apple's own IAP
-  // inside the app, Stripe included, regardless of whether it's an embedded
-  // form or a browser opened via Linking.openURL. Same pattern Spotify's
-  // iOS app uses (see the "No se puede cambiar tu plan desde la
-  // aplicación" screens): this screen is now informational only — no
-  // purchase call, no outbound link. Subscribing/changing plans happens on
-  // nuvosai.com, outside the app.
+  // Diego, 2026-10-28: real purchase restored — Apple 3.1.1 (IAP-only
+  // digital subscriptions) still applies once this build goes through App
+  // Review, but for now this opens the same Stripe Checkout the web app
+  // uses in an in-app browser. Swap for react-native-iap once that's wired
+  // up. Duo stays informational (manageOnWeb) — out of scope for now.
+  const { subscribe, subscribing, subscribeDuo, subscribingDuo } = useSubscribeCheckout();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
+  const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
+  const [restoring, setRestoring] = React.useState(false);
+
+  // See paywallModalGuard.ts — claim while presented so the global
+  // TrialExpiredModal defers itself instead of stacking a second native
+  // Modal on top of this one.
+  React.useEffect(() => {
+    if (!visible) return;
+    usePaywallModalGuard.getState().claim();
+    return () => usePaywallModalGuard.getState().release();
+  }, [visible]);
+
+  const handleRestore = async () => {
+    if (restoring) return;
+    setRestoring(true);
+    try {
+      const result = await restorePurchases();
+      if (result.status === "error") {
+        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
+      } else if (result.status === "ok") {
+        await fetchStatus();
+        Alert.alert(t("pricingModal.restoreDoneTitle"), t("pricingModal.restoreDoneBody"));
+      }
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const FREE_FEATURES = getFreeFeatures(t);
   const PREMIUM_FEATURES = getPremiumFeatures(t);
@@ -65,11 +92,14 @@ export default function PricingModal({ visible, onClose }: Props) {
             <Ionicons name="close" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
-          {/* Same fix as PaywallModal.tsx (2026-09-15): `sheet` caps height
-              with maxHeight + overflow:"hidden", but without
-              style={{ flex: 1 }} here the ScrollView renders at full
-              content height and never becomes scrollable. */}
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          {/* Diego, 2026-10-28: `flex: 1` here (parent only has maxHeight,
+              no definite height) made Yoga resolve the ScrollView's
+              flexBasis to 0 — the whole sheet collapsed to nothing,
+              leaving just the dark backdrop. PaywallModal.tsx already had
+              the correct fix: flexShrink: 1 sizes to content and only
+              shrinks against the maxHeight cap, without the flex:1
+              ambiguity. */}
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
 
             <Text style={{ fontSize: 20, fontWeight: "900", textAlign: "center", marginBottom: 4, color: colors.text }}>
               {t("pricingModal.title")}
@@ -148,11 +178,17 @@ export default function PricingModal({ visible, onClose }: Props) {
                     <Text style={{ fontSize: 14, fontWeight: "900", color: "#00d47e" }}>{t("pricingModal.currentPlan")}</Text>
                   </View>
                 ) : (
-                  <View style={{ borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, alignItems: "center", marginBottom: 14, backgroundColor: "rgba(255,255,255,0.06)" }}>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: "rgba(255,255,255,0.75)", textAlign: "center" }}>
-                      {t("pricingModal.manageOnWeb")}
+                  <TouchableOpacity
+                    onPress={() => subscribe(plan)}
+                    disabled={!!subscribing}
+                    activeOpacity={0.85}
+                    style={{ borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, alignItems: "center", marginBottom: 14, backgroundColor: "#00d47e", flexDirection: "row", justifyContent: "center", gap: 8, opacity: subscribing ? 0.7 : 1 }}
+                  >
+                    {subscribing === plan && <ActivityIndicator size="small" color="#06120D" />}
+                    <Text style={{ fontSize: 14, fontWeight: "900", color: "#06120D" }}>
+                      {subscribing === plan ? t("pricingModal.opening") : t("pricingModal.subscribeNow")}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 )}
 
                 {PREMIUM_FEATURES.map((f, i) => (
@@ -190,11 +226,17 @@ export default function PricingModal({ visible, onClose }: Props) {
                   </Text>
                 )}
 
-                <View style={{ borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, alignItems: "center", marginBottom: 14, backgroundColor: "rgba(255,255,255,0.06)" }}>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: "rgba(255,255,255,0.75)", textAlign: "center" }}>
-                    {t("pricingModal.manageOnWeb")}
+                <TouchableOpacity
+                  onPress={() => subscribeDuo(plan)}
+                  disabled={!!subscribingDuo}
+                  activeOpacity={0.85}
+                  style={{ borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, alignItems: "center", marginBottom: 14, backgroundColor: "#818cf8", flexDirection: "row", justifyContent: "center", gap: 8, opacity: subscribingDuo ? 0.7 : 1 }}
+                >
+                  {subscribingDuo === plan && <ActivityIndicator size="small" color="#0B0E22" />}
+                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#0B0E22" }}>
+                    {subscribingDuo === plan ? t("pricingModal.opening") : t("pricingModal.subscribeNow")}
                   </Text>
-                </View>
+                </TouchableOpacity>
 
                 {DUO_FEATURES.map((f, i) => (
                   <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
@@ -205,9 +247,33 @@ export default function PricingModal({ visible, onClose }: Props) {
               </View>
             </View>
 
+            {isRevenueCatSupported() && (
+              <TouchableOpacity onPress={handleRestore} disabled={restoring} style={{ marginTop: 14, alignItems: "center", paddingVertical: 8 }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub, textDecorationLine: "underline" }}>
+                  {restoring ? t("pricingModal.restoring") : t("pricingModal.restorePurchases")}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             <Text style={{ fontSize: 10, textAlign: "center", marginTop: 16, color: colors.textDim, lineHeight: 16 }}>
               {t("pricingModal.footerNote")}
             </Text>
+
+            {/* Apple 3.1.2(c): functional links to Privacy Policy + Terms of
+                Use (EULA) must be reachable from the subscription purchase
+                screen itself, not just elsewhere in the app. */}
+            <View style={{ flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 10 }}>
+              <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.com/privacy")}>
+                <Text style={{ fontSize: 10, color: colors.textDim, textDecorationLine: "underline" }}>
+                  {t("profile.bottom.privacyPolicy")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.com/terms")}>
+                <Text style={{ fontSize: 10, color: colors.textDim, textDecorationLine: "underline" }}>
+                  {t("profile.bottom.termsOfUse")}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         </View>
       </View>

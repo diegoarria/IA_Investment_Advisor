@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, Modal, StyleSheet,
-  Linking, ScrollView,
+  Linking, ScrollView, ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,8 @@ import type { TFunction } from "i18next";
 import { posthog } from "../config/posthog";
 import { useTheme } from "../lib/ThemeContext";
 import { useBillingPricing, fmtMxn } from "../lib/billingPricing";
+import { useSubscribeCheckout } from "../lib/useSubscribeCheckout";
+import { usePaywallModalGuard } from "../lib/paywallModalGuard";
 
 const getHeroFeatures = (t: TFunction): string[] => [
   t("paywallModal.heroFeature1"),
@@ -37,12 +39,25 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
+  // Diego, 2026-10-28: real purchase restored, same Stripe Checkout as
+  // PricingModal — see that file's comment on Apple 3.1.1. Duo stays
+  // informational (manageOnWeb), out of scope for now.
+  const { subscribe, subscribing, subscribeDuo, subscribingDuo } = useSubscribeCheckout();
 
   const HERO_FEATURES = getHeroFeatures(t);
   const DUO_FEATURES = getDuoFeatures(t);
 
   useEffect(() => {
     if (visible) posthog.capture("paywall_viewed", { reason: reason ?? null });
+  }, [visible]);
+
+  // See paywallModalGuard.ts — claim while presented so the global
+  // TrialExpiredModal defers itself instead of stacking a second native
+  // Modal on top of this one.
+  useEffect(() => {
+    if (!visible) return;
+    usePaywallModalGuard.getState().claim();
+    return () => usePaywallModalGuard.getState().release();
   }, [visible]);
 
   // Real billing currency (MXN for Mexico when configured) — same logic as web's PricingModal.
@@ -121,9 +136,17 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
                 </>
               ) : <View style={{ marginBottom: 14 }} />}
 
-              <View style={s.ctaInfo}>
-                <Text style={s.ctaInfoText}>{t("pricingModal.manageOnWeb")}</Text>
-              </View>
+              <TouchableOpacity
+                onPress={() => subscribe(plan)}
+                disabled={!!subscribing}
+                activeOpacity={0.85}
+                style={[s.ctaInfo, { backgroundColor: "#00d47e", flexDirection: "row", justifyContent: "center", gap: 8, opacity: subscribing ? 0.7 : 1 }]}
+              >
+                {subscribing === plan && <ActivityIndicator size="small" color="#06120D" />}
+                <Text style={[s.ctaInfoText, { color: "#06120D" }]}>
+                  {subscribing === plan ? t("pricingModal.opening") : t("pricingModal.subscribeNow")}
+                </Text>
+              </TouchableOpacity>
 
               {HERO_FEATURES.map((f) => (
                 <View key={f} style={s.featRow}>
@@ -156,9 +179,17 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
                 <Text style={[s.savingsLine, { color: "rgba(255,255,255,0.4)" }]}>{t("pricingModal.billedMonthly")}</Text>
               )}
 
-              <View style={s.ctaInfo}>
-                <Text style={s.ctaInfoText}>{t("pricingModal.manageOnWeb")}</Text>
-              </View>
+              <TouchableOpacity
+                onPress={() => subscribeDuo(plan)}
+                disabled={!!subscribingDuo}
+                activeOpacity={0.85}
+                style={[s.ctaInfo, { backgroundColor: "#818cf8", flexDirection: "row", justifyContent: "center", gap: 8, opacity: subscribingDuo ? 0.7 : 1 }]}
+              >
+                {subscribingDuo === plan && <ActivityIndicator size="small" color="#0B0E22" />}
+                <Text style={[s.ctaInfoText, { color: "#0B0E22" }]}>
+                  {subscribingDuo === plan ? t("pricingModal.opening") : t("pricingModal.subscribeNow")}
+                </Text>
+              </TouchableOpacity>
 
               {DUO_FEATURES.map((f, i) => (
                 <View key={i} style={s.featRow}>
@@ -188,6 +219,22 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
               <Text style={[s.coachingText, { color: colors.textMuted }]}>{t("paywallModal.coachingCta")}</Text>
               <Ionicons name="chevron-forward" size={13} color={colors.textDim} />
             </TouchableOpacity>
+
+            {/* Apple 3.1.2(c): functional links to Privacy Policy + Terms of
+                Use (EULA) must be reachable from the subscription purchase
+                screen itself, not just elsewhere in the app. */}
+            <View style={{ flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 14 }}>
+              <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.com/privacy")}>
+                <Text style={{ fontSize: 10, color: colors.textDim, textDecorationLine: "underline" }}>
+                  {t("profile.bottom.privacyPolicy")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.com/terms")}>
+                <Text style={{ fontSize: 10, color: colors.textDim, textDecorationLine: "underline" }}>
+                  {t("profile.bottom.termsOfUse")}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         </View>
       </View>
