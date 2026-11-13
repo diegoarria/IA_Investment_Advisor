@@ -1,9 +1,15 @@
+import os
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 _DEV_SECRET_KEY = "dev-secret-key-32chars-for-local-only"
 _DEV_SUPABASE_URL = "http://localhost"
 _DEV_SUPABASE_SERVICE_KEY = "dummy"
+# Known production Supabase project ref — used only to fail fast if a
+# local/dev process ever resolves to it (see _fail_fast_on_dev_defaults_in_production
+# and backend/tests/conftest.py's production-DB guard).
+PRODUCTION_SUPABASE_PROJECT_REF = "nyxcqjzeiyptyipigsaz"
 
 
 class Settings(BaseSettings):
@@ -165,7 +171,11 @@ class Settings(BaseSettings):
     admin_emails: str = "diego.arria19@gmail.com"
 
     class Config:
-        env_file = ".env"
+        # Defaults to ".env" exactly as before — production never sets
+        # ENV_FILE, so this is a no-op there. Local dev can point at an
+        # isolated project (e.g. ENV_FILE=.env.development) without a
+        # second code path.
+        env_file = os.getenv("ENV_FILE", ".env")
 
     @model_validator(mode="after")
     def _fail_fast_on_dev_defaults_in_production(self) -> "Settings":
@@ -204,3 +214,19 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def assert_not_production_supabase() -> None:
+    """Reusable guard for any standalone script (outside pytest, which has
+    its own copy of this check in tests/conftest.py's pytest_configure) that
+    is about to run write/DDL operations against whatever Supabase project
+    `settings.supabase_url` currently resolves to. Call this at the top of
+    the script's main(), before any db call. Raises instead of returning
+    False so a careless `if assert_not_production_supabase(): ...` can't
+    accidentally invert the check."""
+    if PRODUCTION_SUPABASE_PROJECT_REF in settings.supabase_url:
+        raise RuntimeError(
+            "Refusing to proceed: SUPABASE_URL points at the production "
+            f"project ({PRODUCTION_SUPABASE_PROJECT_REF}). Point ENV_FILE at "
+            "an isolated dev/local project before running this script."
+        )

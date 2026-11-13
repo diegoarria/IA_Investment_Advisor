@@ -1134,6 +1134,25 @@ from app.core.subscription import TRIAL_DAYS as _PROMO_DAYS
 
 @router.get("/status")
 async def get_status(user_id: str = Depends(get_current_user_id)):
+    try:
+        return await _get_status(user_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # This is the single endpoint every client trusts for subscription
+        # state, and the mobile/web client already retries 3x on anything
+        # that isn't 401/403 (useSubscriptionStore.fetchStatus) — but only
+        # the "no user_profiles row" case below used to hand back that
+        # retryable 503. Any OTHER unexpected exception (a transient
+        # Supabase/network blip that outlasted run_query's own retries,
+        # etc.) escaped uncaught as a bare 500, which the client treats
+        # identically to a hard failure instead of something worth retrying.
+        # Degrade the same way here too.
+        logger.error("billing.get_status: unexpected error for user %s: %s", user_id, exc, exc_info=True)
+        raise HTTPException(status_code=503, detail="No se pudo verificar tu estado de suscripción. Intenta de nuevo en unos segundos.")
+
+
+async def _get_status(user_id: str):
     # 2026-09-17: was get_supabase() (the process-wide singleton) — Diego
     # reported msg_count under-counting right after hitting the free
     # 15/24h chat limit (refresh, or opening a new chat, showed "1 message

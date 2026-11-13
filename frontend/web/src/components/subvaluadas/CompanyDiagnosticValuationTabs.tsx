@@ -819,7 +819,10 @@ function FairValueLineChart({
   );
 }
 
-function HistoryTab({ data, t, lang }: { data: FullCompanyDiagnosticData; t: (k: string, o?: Record<string, unknown>) => string; lang: string }) {
+// Exported so ValuacionPreview.tsx (the new Valuación tab) can reuse this
+// exact, already-shipped, already-approved real percentile indicator +
+// interactive fair-value-vs-price chart, instead of rebuilding either.
+export function HistoryTab({ data, t, lang }: { data: FullCompanyDiagnosticData; t: (k: string, o?: Record<string, unknown>) => string; lang: string }) {
   const ctx = data.valuation.priceHistoryContext;
   if (!ctx) return null;
   const { percentileCheaperThan, daysUsed, todayBucket, buckets } = ctx;

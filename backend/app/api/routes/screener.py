@@ -2036,6 +2036,8 @@ async def _build_quick_analysis(ticker: str, lang: str, use_ai: bool = True) -> 
         # search box is meant to never fail visibly to the user.
         logger.error("quick_analysis(%s): get_fundamental_analysis failed: %s", ticker, exc, exc_info=True)
         raise HTTPException(status_code=503, detail=f"No pudimos obtener los datos financieros de {ticker} en este momento. Intenta de nuevo en unos segundos.")
+    if data and data.get("is_etf"):
+        raise HTTPException(status_code=422, detail={"is_etf": True, "ticker": ticker, "message": data["message"]})
     if not data or not data.get("dcf"):
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para calcular el valor intrínseco de {ticker}")
 
@@ -3061,6 +3063,16 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
     from app.services.company_valuation_service import normalize_ticker_symbol
     ticker = normalize_ticker_symbol(ticker)
+
+    # Nuvos ETF Phase 0 (2026-11): checked here, before any cache/persisted
+    # lookup or rebuild attempt, so an ETF ticker gets one clean, explicit
+    # response instead of silently flowing into build_company_diagnostic
+    # (which expects an equity-shaped fundamental-analysis dict) and
+    # degrading into the generic "valoración no disponible" fallback —
+    # same safe outcome either way, but this is the honest one.
+    from app.services.asset_classification import classify_asset, ETF, ETF_NOTICE_ES
+    if classify_asset(ticker) == ETF:
+        raise HTTPException(status_code=422, detail={"is_etf": True, "ticker": ticker, "message": ETF_NOTICE_ES.format(ticker=ticker)})
 
     tier = "premium" if use_ai else "free"
     cache_key = _company_diagnostic_cache_key(ticker, lang, tier=tier)

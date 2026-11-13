@@ -277,6 +277,52 @@ async function postChatWithRetry(url: string, payload: unknown, config?: Record<
   throw lastErr;
 }
 
+// Nuvos Plus Fase 4C, 2026-11: the local dev proxy (Next's rewrites()) has
+// a confirmed, pre-existing instability under concurrent load — "Failed to
+// proxy ... ECONNRESET" hits /api/market/* endpoints constantly in this
+// environment, dropping the connection even when the backend itself
+// finished and logged a real 200. Same class of failure postChatWithRetry
+// already handles for chat (status undefined/408/5xx = transient, retry;
+// anything else = a real answer, pass through). Generic GET version so any
+// read-only call can opt in without duplicating the retry loop.
+async function getWithRetry<T = any>(url: string, config?: Record<string, unknown>) {
+  const delays = [1000, 2000, 4000];
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      return await api.get<T>(url, config);
+    } catch (err: unknown) {
+      lastErr = err;
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const retryable = status === undefined || status === 408 || status >= 500;
+      if (!retryable || attempt === delays.length) throw err;
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
+  }
+  throw lastErr;
+}
+
+// Same retry contract as getWithRetry, for a POST that's actually
+// side-effect-free on the backend (the simulate endpoint is read-only
+// despite the verb — see combiner.py's own "never writes" discipline) —
+// safe to retry exactly like a GET.
+async function postWithRetry<T = any>(url: string, payload: unknown, config?: Record<string, unknown>) {
+  const delays = [1000, 2000, 4000];
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      return await api.post<T>(url, payload, config);
+    } catch (err: unknown) {
+      lastErr = err;
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const retryable = status === undefined || status === 408 || status >= 500;
+      if (!retryable || attempt === delays.length) throw err;
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
+  }
+  throw lastErr;
+}
+
 // Importación automática por correo — see backend app/services/inbound_import.py.
 export const importsApi = {
   getEmailAlias: () => api.get<{ address: string }>("/api/imports/email-alias"),
@@ -724,6 +770,17 @@ export const screenerApi = {
   getValuationBacktest: () => api.get("/api/market/screener/valuation-backtest"),
 };
 
+// Public, unauthenticated read of a ticker's editorial (qualitative) content —
+// backend/app/api/routes/qualitative_content.py's GET /{ticker}. Returns ONLY
+// published+is_current rows, or null (never an error) when none exists yet —
+// the real production path for Nuvos Radar's "Resumen" screen. Draft/reviewed
+// content is never reachable this way by design (see that route's own
+// docstring) — a dev-only local-preview mechanism is used instead for
+// reviewing not-yet-published drafts.
+export const qualitativeContentApi = {
+  get: (ticker: string) => api.get(`/api/qualitative-content/${encodeURIComponent(ticker)}`),
+};
+
 export const simulateApi = {
   whatIf: (
     scenarioType: string,
@@ -839,7 +896,25 @@ export const etfApi = {
 // accounts), not linked from main navigation yet beyond "Mi portafolio"'s
 // own "Mi distribución" tab.
 export const portfolioExposureApi = {
-  get: (portfolioId: string = "default") => api.get(`/api/portfolio-exposure/${portfolioId}`, { timeout: 25000 }),
+  get: (portfolioId: string = "default") => getWithRetry(`/api/portfolio-exposure/${portfolioId}`, { timeout: 25000 }),
+  simulate: (portfolioId: string, ticker: string, amount: number) =>
+    postWithRetry(`/api/portfolio-exposure/${portfolioId}/simulate`, { ticker, amount }, { timeout: 25000 }),
+  // Fase 5B/5C — the retrospective historical comparison. POST (not GET):
+  // the amount is a financial detail of the user's own simulation, kept
+  // out of the URL (access logs, browser history) exactly like /simulate
+  // already does. Only the one selected period is requested — never all
+  // three at once (BeforeAfterSimulator.tsx fetches on-demand per tab/
+  // period change, with its own local cache).
+  simulateHistory: (portfolioId: string, ticker: string, amount: number, period: "1y" | "3y" | "5y") =>
+    postWithRetry(`/api/portfolio-exposure/${portfolioId}/simulate-history`, { ticker, amount, period }, { timeout: 30000 }),
+  // Fase 6D — Nuvos Pulse: "qué cambió entre dos fotografías verificables
+  // de este portafolio". Solo lee snapshots ya persistidos — nunca
+  // genera uno nuevo ni consulta FMP. GET simple (sin datos sensibles en
+  // el cuerpo, a diferencia de /simulate) con caché corta del lado del
+  // servidor; el componente que lo usa aplica su propia invalidación al
+  // cambiar de portafolio.
+  getPulse: (portfolioId: string = "default", snapshotType: "month_end" | "on_demand" = "month_end") =>
+    getWithRetry(`/api/portfolio-exposure/${portfolioId}/pulse`, { params: { snapshot_type: snapshotType }, timeout: 20000 }),
 };
 
 export const voiceCallsApi = {

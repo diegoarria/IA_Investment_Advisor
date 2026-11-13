@@ -51,6 +51,8 @@ async def _get_fundamental_data_or_404(ticker: str) -> dict:
     import asyncio
 
     data = await asyncio.to_thread(get_fundamental_analysis, ticker)
+    if data and data.get("is_etf"):
+        raise HTTPException(status_code=422, detail={"is_etf": True, "ticker": ticker, "message": data["message"]})
     if not data or not data.get("dcf"):
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para investigar {ticker}")
     return data
@@ -107,6 +109,8 @@ async def get_research_dossier(request: Request, ticker: str, lang: str = "es", 
         return result
 
     data = await asyncio.to_thread(get_fundamental_analysis, ticker)
+    if data and data.get("is_etf"):
+        raise HTTPException(status_code=422, detail={"is_etf": True, "ticker": ticker, "message": data["message"]})
     if not data or not data.get("dcf"):
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para investigar {ticker}")
 
@@ -221,6 +225,8 @@ async def get_management_intelligence(request: Request, ticker: str, lang: str =
     # Only the company name is needed here — a lighter fetch than the
     # other section routes, but still real (never guessed).
     data = await asyncio.to_thread(get_fundamental_analysis, ticker)
+    if data and data.get("is_etf"):
+        raise HTTPException(status_code=422, detail={"is_etf": True, "ticker": ticker, "message": data["message"]})
     company_name = (data or {}).get("company_name") or ticker
     result = await compute_and_save_management_intelligence(ticker, company_name, lang)
     return result.to_snapshot_content()
@@ -398,6 +404,8 @@ async def review_thesis_route(ticker: str, lang: str = "es", user_id: str = Depe
     import asyncio
 
     data = await asyncio.to_thread(get_fundamental_analysis, ticker)
+    if data and data.get("is_etf"):
+        raise HTTPException(status_code=422, detail={"is_etf": True, "ticker": ticker, "message": data["message"]})
     company_name = (data or {}).get("company_name") or ticker
     sector = (data or {}).get("sector")
     industry = next((u["industry"] for u in UNIVERSE if u["ticker"] == ticker.upper()), None)

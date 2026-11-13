@@ -15,17 +15,32 @@ import remarkGfm from "remark-gfm";
 import { market as marketApi } from "@/lib/api";
 import { useCashDividends, type CashHolding } from "@/lib/cashDividendsStore";
 import { useAuthStore, useSubscriptionStore, useProfileStore, useBalanceVisibilityStore, hasPremiumAccess } from "@/lib/store";
-import { getUserLevel, isAtLeast } from "@/lib/userLevel";
+import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
+// Fase 7.2 (Diego, captura real): el selector principal de Portafolio
+// usa el verde de marca de esta misma página (igual que el resto de la
+// plataforma), nunca el dorado de Radar — ver el mismo comentario en
+// PortfolioDistribution.tsx.
+const GOLD = "#00e887";
+import { computeTabVisibility } from "@/lib/portfolioMainView";
 import dynamic from "next/dynamic";
 // Fase 4, Incremento 13 (Cierre, Parte M) — code-split: StockDetailModal is
 // ~1900 lines and only ever mounted when a ticker is selected, so its chunk
 // should never be part of the initial bundle for this page.
 const StockDetailModal = dynamic(() => import("@/components/StockDetailModal"), { ssr: false });
-import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
+// Fase 7.1 §4: PortfolioDistribution + BeforeAfterSimulator together
+// explain this page's bundle growing from ~42.5kB to ~59.2kB in Fase 7 —
+// both are real, substantial features, now code-split instead of part
+// of the initial /portfolio bundle. PortfolioDistribution safely
+// unmounts/remounts on tab switches (it already re-fetches on every
+// mount, same as before). BeforeAfterSimulator does NOT get the same
+// treatment below — see `simulatorOpened` state — because it must never
+// unmount once a hypothetical scenario exists (Fase 4D guarantee).
+const PortfolioDistribution = dynamic(() => import("@/components/portfolio/PortfolioDistribution"), { ssr: false });
+const BeforeAfterSimulator = dynamic(() => import("@/components/portfolio/BeforeAfterSimulator"), { ssr: false });
 import PaywallModal from "@/components/PaywallModal";
 import PremiumBadge from "@/components/PremiumBadge";
 import BalanceVisibilityToggle from "@/components/BalanceVisibilityToggle";
@@ -35,7 +50,7 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import BrokerConnectModal from "@/components/BrokerConnectModal";
 import { useUpsellStore } from "@/lib/upsellStore";
 import {
-  PieChart, Menu, X, Upload, Plus, Trash2, BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Pencil, Eye, Cloud, CloudOff, Check, TrendingUp, Bell, Users, Share2, ChevronDown, ChevronUp, ChevronRight, Loader2, ArrowRight, FileBarChart, PlayCircle, Link2, Lock, CloudUpload,
+  PieChart, Menu, X, Upload, Plus, Trash2, BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Pencil, Eye, Cloud, CloudOff, Check, TrendingUp, Bell, Users, Share2, ChevronDown, ChevronUp, ChevronRight, Loader2, ArrowRight, PlayCircle, Link2, Lock, CloudUpload,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -917,7 +932,24 @@ export default function PortfolioPage() {
   const [renameValue, setRenameValue] = useState("");
   const [hoveredPortfolioId, setHoveredPortfolioId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen]   = useState(false);
-  const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas">("portfolio");
+  // Fase 7: "Mi distribución" y "Antes de invertir" (antes inalcanzables
+  // en la app real — nunca montados en ninguna página) viven ahora como
+  // hermanos de "Posiciones" dentro de esta misma página, nunca una
+  // pantalla nueva. "Posiciones" conserva exactamente el contenido y
+  // comportamiento que esta página ya tenía (el switcher Mi Portafolio/
+  // Herramientas incluido, sin tocar sus internos).
+  const [mainView, setMainView] = useState<"posiciones" | "distribucion" | "antes_de_invertir">("posiciones");
+  const tabVisibility = computeTabVisibility(mainView);
+  // Fase 7.1 §4: el simulador solo se monta (y descarga su chunk) la
+  // PRIMERA vez que el usuario realmente abre "Antes de invertir" — no
+  // en cada carga de /portfolio. A partir de ahí permanece montado para
+  // siempre durante la sesión (nunca se vuelve a poner en `false`),
+  // preservando exactamente la garantía de Fase 4D: un escenario
+  // hipotético en curso nunca se pierde.
+  const [simulatorOpened, setSimulatorOpened] = useState(false);
+  useEffect(() => {
+    if (mainView === "antes_de_invertir") setSimulatorOpened(true);
+  }, [mainView]);
 
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
@@ -2340,7 +2372,17 @@ export default function PortfolioPage() {
               </div>
             )}
             {/* View toggle removed — "Avanzado" is always on (Diego, 2026-08-12) */}
-            <ExplainButton
+            {/* Fase 7.1 §2: una sola entrada "Explícame esto" visible a la
+                vez. Este botón flotante es el "original de Portafolio" —
+                se oculta únicamente en Distribución, donde
+                PortfolioDistribution ya muestra su propio botón
+                contextual (screen="portfolio_distribution"). En "Antes
+                de invertir" no existe todavía un contexto propio del
+                simulador con soporte real en el backend
+                (_SCREEN_INSTRUCTIONS no tiene una entrada para eso) — en
+                vez de inventar uno sin respaldo, este es el único botón
+                válido también ahí. */}
+            {tabVisibility.showFloatingExplainButton && <ExplainButton
               screen="portfolio"
               context={{
                 total_value: totals.current,
@@ -2360,7 +2402,7 @@ export default function PortfolioPage() {
                   ? Object.entries(diagnosis.sectorPcts).map(([sector, pct]) => ({ sector: sectorLabels[sector] ?? sector, pct }))
                   : null,
               }}
-            />
+            />}
             <BalanceVisibilityToggle
               className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
               style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
@@ -2399,29 +2441,28 @@ export default function PortfolioPage() {
         {/* Main */}
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4 w-full">
 
-          {/* Tab switcher — Herramientas only for basico+ */}
-          <div className="flex p-1 rounded-xl gap-1 mb-5" style={{ background: "var(--raised)" }}>
-            <button onClick={() => setActiveTab("portfolio")}
-                    className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
-                    style={{ background: activeTab === "portfolio" ? "var(--card)" : "transparent", color: activeTab === "portfolio" ? "var(--text)" : "var(--muted)" }}>
-              {t("portfolio.header.myPortfolioTab")}
-            </button>
-            {isAtLeast(userLevel, "basico") ? (
-              <button onClick={() => setActiveTab("herramientas")}
-                      className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
-                      style={{ background: activeTab === "herramientas" ? "var(--card)" : "transparent", color: activeTab === "herramientas" ? "var(--accent-l)" : "var(--muted)" }}>
-                {t("portfolio.header.toolsTab")}
+          {/* Fase 7: selector principal — Posiciones | Distribución |
+              Antes de invertir. Deliberadamente un nivel ARRIBA del
+              switcher Mi Portafolio/Herramientas (que es interno de
+              "Posiciones"), para que las tres vistas sean inmediatamente
+              visibles sin desordenar el encabezado ni el selector de
+              portafolio, que viven antes de <main>. */}
+          <div className="flex p-1 rounded-xl gap-1 mb-4" style={{ background: "var(--raised)" }}>
+            {([
+              { key: "posiciones" as const, label: t("portfolio.header.mainView.positions") },
+              { key: "distribucion" as const, label: t("portfolio.header.mainView.distribution") },
+              { key: "antes_de_invertir" as const, label: t("portfolio.header.mainView.beforeInvesting") },
+            ]).map((o) => (
+              <button key={o.key} onClick={() => setMainView(o.key)}
+                      className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+                      style={{ background: mainView === o.key ? GOLD : "transparent", color: mainView === o.key ? "#1A1A1A" : "var(--muted)" }}>
+                {o.label}
               </button>
-            ) : (
-              <div className="flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 opacity-35"
-                   style={{ color: "var(--dim)" }}
-                   title={t("portfolio.header.toolsLocked") ?? undefined}>
-                🔒 {t("portfolio.header.toolsTab")}
-              </div>
-            )}
+            ))}
           </div>
 
-          {activeTab === "portfolio" && <div className="space-y-5">
+          {tabVisibility.showPosiciones && (<>
+          <div className="space-y-5">
 
           {/* ── Acciones del portafolio ── */}
           {/* ── Retention banner ── */}
@@ -4198,38 +4239,33 @@ export default function PortfolioPage() {
             </div>
           )}
           <div className="h-8" />
-          </div>} {/* end activeTab === "portfolio" */}
+          </div>
+          {/* "Herramientas" (Screener Semanal + Earnings) eliminado — ambos
+              ya tienen su propia pantalla independiente en el sidebar
+              (/screener, /earnings), este atajo quedaba duplicado. */}
+          </>)}
 
-          {/* ══ HERRAMIENTAS TAB ══ */}
-          {activeTab === "herramientas" && (
-            <div className="space-y-4 pb-8">
-              <p className="text-xs" style={{ color: "var(--muted)" }}>
-                {t("portfolio.toolsTab.subtitle")}
-              </p>
+          {/* Fase 7: "Distribución" — Resumen/Entender (Posiciones,
+              Sectores, Geografía) + Nuvos Pulse, todo ya existente en
+              PortfolioDistribution.tsx. Montado solo mientras esta vista
+              está activa: su propio useEffect([portfolioId]) ya vuelve a
+              pedir los datos cada vez, igual que siempre. */}
+          {tabVisibility.showDistribucion && (
+            <PortfolioDistribution
+              portfolioId={activePortfolioId}
+              onNavigateToSimulate={() => setMainView("antes_de_invertir")}
+            />
+          )}
 
-              <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />
-
-              {/* Análisis de Earnings — desglose por segmento + rating real,
-                  grounded en Finnhub/FMP + búsqueda web en vivo. The /earnings
-                  page itself shows the paywall for non-premium users, same as
-                  the mobile card's behavior. */}
-              <button onClick={() => router.push("/earnings")}
-                      className="w-full text-left rounded-3xl overflow-hidden transition-transform hover:scale-[1.01] active:scale-[0.99]"
-                      style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-                <div className="flex items-center gap-4 p-5">
-                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
-                       style={{ background: "linear-gradient(135deg,#3b82f6,#2563eb)" }}>
-                    <FileBarChart className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("earnings.title")}</p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("earnings.premiumGate.desc")}</p>
-                  </div>
-                  <ArrowRight className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
-                </div>
-              </button>
-
-
+          {/* "Antes de invertir" — no se monta hasta que el usuario lo
+              abre por primera vez (ver `simulatorOpened`, Fase 7.1 §4);
+              a partir de ahí permanece SIEMPRE montado (oculto con CSS,
+              nunca desmontado) para conservar exactamente la garantía ya
+              probada en Fase 4D: un escenario hipotético en curso no se
+              pierde al cambiar de vista y volver. */}
+          {simulatorOpened && (
+            <div style={{ display: tabVisibility.simulatorDisplay }}>
+              <BeforeAfterSimulator portfolioId={activePortfolioId} currency={portfolioCurrency} na={t("etf.detail.notAvailable")} />
             </div>
           )}
 

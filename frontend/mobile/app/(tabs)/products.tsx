@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import OneTimeProductModal, { type OneTimeProduct } from "../../src/components/OneTimeProductModal";
+import PricingModal from "../../src/components/PricingModal";
 
 function getFreeFeatures(t: TFunction): string[] {
   return t("products.free.features", { returnObjects: true }) as string[];
@@ -110,6 +111,10 @@ export default function ProductsScreen() {
   const { t } = useTranslation();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
+  // Diego, 2026-10-28: tapping Premium/Duo here opens PricingModal — same
+  // as web's Products page (both its CTA buttons just do setShowPricing(true)
+  // — the monthly/yearly toggle and the real checkout live there, not here).
+  const [showPricing, setShowPricing] = useState(false);
   // Keyed (not the item itself) so the open sheet always reflects the current
   // price — MXN amounts arrive async after the sheet may already be open.
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -189,12 +194,15 @@ export default function ProductsScreen() {
               </Text>
 
               {!isPremium ? (
-                // Diego, 2026-09-15: no purchase wording on mobile (Apple IAP
-                // rules, "tal como lo hace Spotify") — non-actionable info box.
-                <View style={[ss.infoBox, { backgroundColor: "rgba(255,255,255,0.07)", borderColor: "rgba(255,255,255,0.14)" }]}>
-                  <Ionicons name="globe-outline" size={15} color="rgba(255,255,255,0.85)" />
-                  <Text style={[ss.infoText, { color: "rgba(255,255,255,0.85)" }]}>{t("pricingModal.manageOnWeb")}</Text>
-                </View>
+                <TouchableOpacity
+                  onPress={() => setShowPricing(true)}
+                  activeOpacity={0.85}
+                  style={[ss.infoBox, { backgroundColor: "#00D47E", borderColor: "#00D47E" }]}
+                >
+                  <Text style={[ss.infoText, { color: "#06120D", fontWeight: "900" }]}>
+                    {t("pricingModal.subscribeNow")}
+                  </Text>
+                </TouchableOpacity>
               ) : (
                 <View style={[ss.infoBox, { backgroundColor: "rgba(0,212,126,0.12)", borderColor: "rgba(0,212,126,0.35)" }]}>
                   <Ionicons name="shield-checkmark" size={15} color="#00D47E" />
@@ -259,11 +267,15 @@ export default function ProductsScreen() {
             <Text style={[ss.priceNote, { color: "rgba(255,255,255,0.55)" }]}>
               {mxnDuo ? t("products.duo.annualMxn", { yearly: fmtMxn(pricing.duo_yearly!) }) : t("products.duo.annual")}
             </Text>
-            {/* Diego, 2026-09-15: same non-actionable info box as Premium. */}
-            <View style={[ss.infoBox, { backgroundColor: "rgba(129,140,248,0.14)", borderColor: "rgba(129,140,248,0.4)" }]}>
-              <Ionicons name="globe-outline" size={15} color="#A5B4FC" />
-              <Text style={[ss.infoText, { color: "#A5B4FC" }]}>{t("pricingModal.manageOnWeb")}</Text>
-            </View>
+            <TouchableOpacity
+              onPress={() => setShowPricing(true)}
+              activeOpacity={0.85}
+              style={[ss.infoBox, { backgroundColor: "#818CF8", borderColor: "#818CF8" }]}
+            >
+              <Text style={[ss.infoText, { color: "#0B0E22", fontWeight: "900" }]}>
+                {t("pricingModal.subscribeNow")}
+              </Text>
+            </TouchableOpacity>
             <View style={[ss.divider, { backgroundColor: "rgba(255,255,255,0.1)" }]} />
             {DUO_PLAN_FEATURES.map((f, i) => (
               <Feature key={i} text={f} tint="#A5B4FC" textColor="rgba(255,255,255,0.88)" />
@@ -353,6 +365,8 @@ export default function ProductsScreen() {
         onClose={() => setSelectedKey(null)}
         product={selectedProduct}
       />
+
+      <PricingModal visible={showPricing} onClose={() => setShowPricing(false)} />
     </View>
   );
 }

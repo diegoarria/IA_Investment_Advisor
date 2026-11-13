@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, Modal,
   StyleSheet, Pressable,
@@ -10,6 +10,7 @@ import { useTheme } from "../lib/ThemeContext";
 import api from "../lib/api";
 import type { UpsellOffer } from "../lib/upsellStore";
 import { hasPremiumAccess, useSubscriptionStore } from "../lib/subscriptionStore";
+import { usePaywallModalGuard } from "../lib/paywallModalGuard";
 
 interface UpsellModalProps {
   visible: boolean;
@@ -50,6 +51,15 @@ export default function UpsellModal({
   const { t } = useTranslation();
   const [variant, setVariant] = useState<"default" | "bundle">("default");
   const [duoVariant, setDuoVariant] = useState<"monthly" | "yearly">("monthly");
+
+  // See paywallModalGuard.ts — claim while presented so the global
+  // TrialExpiredModal defers itself instead of stacking a second native
+  // Modal on top of this one.
+  useEffect(() => {
+    if (!visible) return;
+    usePaywallModalGuard.getState().claim();
+    return () => usePaywallModalGuard.getState().release();
+  }, [visible]);
 
   const OFFER_META = getOfferMeta(t);
   const meta = OFFER_META[offer];
@@ -102,10 +112,11 @@ export default function UpsellModal({
           {/* Top accent bar — gradient simulated with solid */}
           <View style={[s.accentBar, { backgroundColor: c }]} />
 
-          {/* Same fix as PaywallModal.tsx (2026-09-15): `sheet` caps height
-              with maxHeight + overflow:"hidden", but without
-              style={{ flex: 1 }} here the ScrollView renders at full
-              content height and never becomes scrollable. */}
+          {/* Diego, 2026-10-28: same bug as PricingModal.tsx — `sheet` only
+              has maxHeight (no definite height), so `flex: 1` here made
+              Yoga resolve this ScrollView's flexBasis to 0 and the whole
+              sheet collapsed to nothing. flexShrink: 1 sizes to content and
+              only shrinks against the maxHeight cap. */}
           <ScrollView
             style={s.scrollFlex}
             contentContainerStyle={s.scrollContent}
@@ -250,7 +261,7 @@ const s = StyleSheet.create({
   sheet:          { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, maxHeight: "92%", overflow: "hidden", width: "100%" },
   accentBar:      { height: 4 },
 
-  scrollFlex:     { flex: 1 },
+  scrollFlex:     { flexShrink: 1 },
   scrollContent:  { padding: 20, paddingBottom: 8, gap: 16 },
 
   // Header

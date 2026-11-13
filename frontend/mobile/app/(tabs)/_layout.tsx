@@ -4,6 +4,16 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Platform, Pressable, Image, AppState,
 } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+
+// expo-router@58's standard tab navigator renders `tabBar` with its own prop
+// shape — { state, descriptors, emitter, navigateToTab, insets } — not the
+// classic BottomTabBarProps' `navigation` object (see createBottomTabNavigator.js
+// in expo-router/build/react-navigation/bottom-tabs). Calling navigation.navigate()
+// here crashed on every tab press (Apple review rejection, Guideline 2.1(a)).
+type CustomTabBarProps = Pick<BottomTabBarProps, "state"> & {
+  emitter: { emit: (event: { type: string; target: string; canPreventDefault?: boolean }) => void };
+  navigateToTab: (routeKey: string) => void;
+};
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -59,7 +69,7 @@ function getGoalMap(t: TFunction): Record<string, { label: string; emoji: string
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
-function CustomTabBar({ state, navigation }: BottomTabBarProps) {
+function CustomTabBar({ state, emitter, navigateToTab }: CustomTabBarProps) {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const TAB_CONFIG = getTabConfig(t);
@@ -90,9 +100,9 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             style={tabStyles.tab}
             onPress={() => {
               if (focused) {
-                navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+                emitter.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
               } else {
-                navigation.navigate(route.name);
+                navigateToTab(route.key);
               }
             }}
             android_ripple={{ color: colors.accentGlow, borderless: true, radius: 28 }}

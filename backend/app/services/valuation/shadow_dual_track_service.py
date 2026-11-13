@@ -5,16 +5,31 @@ capex-supercycle-aware FCF/DCF track, and a confidence-weighted blend of
 the two. See the plan this was built from:
 /Users/diegoarria/.claude/plans/dapper-scribbling-honey.md.
 
-SHADOW-MODE: this module DOES real data fetching (unlike `nuvos_engine/
-engine.py`, which deliberately fetches nothing) — same pattern as
+DUAL-TRACK BLEND (live since the 2026-09-03 full-replacement decision —
+see long-term memory `project_dual_track_full_replacement`): this module
+DOES real data fetching (unlike `nuvos_engine/engine.py`, which
+deliberately fetches nothing) — same pattern as
 `fundamental_analysis_service.py` itself. It is called AFTER the live
 `compute_nuvos_fair_value(...)` result already exists, reusing its
 outputs (fair_pe adjustments, classification confidence, WACC) rather
-than recomputing them, and returns a self-contained dict meant to be
-attached as `gqv_fair_value["shadow_dual_track"]` — a real, complete
-computation that is NEVER read by `company_diagnostic_service.py`'s
-`baseFairValue`/`marginOfSafetyPercent`/`fairPeBreakdown` today. Nothing
-a real user sees changes because this function ran.
+than recomputing them, and returns a self-contained dict attached as
+`gqv_fair_value["shadow_dual_track"]`.
+
+Despite the historical "shadow" naming, this result IS read by the live
+path: `fundamental_analysis_service.py` (the `compute_shadow_dual_track`
+call sites) takes this dict's `blended_fair_value` and OVERWRITES
+`scenarios["base"]["fair_value_per_share"]` with it whenever the blend
+produced a positive value and a positive prior base existed — the same
+ratio (blended / original earnings-track base) is then applied to
+`bear`/`bull` too. That overwritten `base` value is exactly what
+`company_diagnostic_service.py` persists as `baseFairValue`/
+`intrinsic_value_usd` and what real users see. This module's OWN return
+dict (`earnings_track_value`, `fcf_track_value`, `blend` with its real
+`earnings_track_weight_pct`/`fcf_track_weight_pct`) is itself never
+persisted to Supabase or exposed via the public API today — only the
+already-blended headline number survives downstream — audited and
+confirmed 2026-11-12, see `project_dual_track_full_replacement` and the
+same day's follow-up transparency review.
 
 Known real limitation, not yet resolved (see `earnings_normalization_
 engine.py`'s module docstring): a company whose real pretax income is

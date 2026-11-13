@@ -1,0 +1,57 @@
+{
+  "ticker": "JPM",
+  "review_status": "draft",
+  "is_current": false,
+  "updated_by": "ai_draft:claude-sonnet-5",
+  "business_model_summary": "JPMorgan Chase gana dinero principalmente de tres formas: cobrando intereses sobre préstamos (a personas y empresas) que son mayores a lo que paga por los depósitos que recibe; cobrando comisiones por servicios bancarios, de inversión y de gestión de activos; y por actividad de banca de inversión (asesorar fusiones, emitir acciones/bonos para otras empresas). Es, en esencia, un intermediario financiero a gran escala.",
+  "moat": [
+    {
+      "type": "regulatory",
+      "explanation": "JPMorgan es uno de los bancos considerados 'sistémicamente importantes a nivel global' (G-SIB), lo que significa que opera bajo requisitos de capital más estrictos que un banco pequeño o regional. Paradójicamente, esa misma escala le da acceso a financiamiento más barato y la capacidad de absorber los altos costos de cumplimiento regulatorio mejor que un banco más pequeño — la regulación termina protegiendo a los jugadores grandes ya establecidos frente a nuevos competidores, porque es muy costoso para un banco nuevo alcanzar esa escala.",
+      "evidence": "La designación G-SIB de JPMorgan es pública (la publica el Financial Stability Board). Sus calificaciones crediticias, consistentemente superiores a las de bancos regionales más pequeños, también son públicas (agencias como Moody's y S&P).",
+      "weakening_factors": "Un cambio regulatorio que reduzca específicamente esta ventaja de escala (poco probable en el corto plazo dado el consenso regulatorio post-2008). Una crisis de reputación o legal que eleve el costo de capital relativo de JPMorgan frente a sus pares.",
+      "source_name": "Lista pública de G-SIB del Financial Stability Board; calificaciones crediticias públicas de agencias como Moody's/S&P",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    }
+  ],
+  "risks": [
+    {
+      "category": "rentabilidad",
+      "fact_type": "hecho",
+      "explanation": "JPMorgan está expuesto al riesgo de crédito en su cartera de préstamos: si la economía se deteriora, más prestatarios dejan de pagar, lo que afecta directamente su rentabilidad.",
+      "evidence": "El tamaño y composición de la cartera de crédito de JPMorgan se divulga públicamente en sus reportes trimestrales.",
+      "watch_indicator": "Tasas de morosidad (delinquency rates) reportadas trimestralmente por el propio banco.",
+      "uncertainty": "El momento y la severidad de un eventual deterioro macroeconómico no son predecibles con precisión.",
+      "source_name": "Reportes trimestrales públicos de JPMorgan Chase (10-Q/10-K)",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    },
+    {
+      "category": "rentabilidad",
+      "fact_type": "interpretacion",
+      "explanation": "Un entorno prolongado de tasas de interés bajas comprimiría el margen de intermediación de JPMorgan (la diferencia entre lo que cobra por préstamos y lo que paga por depósitos), reduciendo su rentabilidad en ese segmento del negocio.",
+      "evidence": "Esta es una consecuencia bien entendida de la mecánica conocida del negocio bancario tradicional, no un hecho ya materializado en este momento específico.",
+      "watch_indicator": "Decisiones de política monetaria de la Reserva Federal y el margen de interés neto (net interest margin) reportado por JPMorgan.",
+      "uncertainty": "Depende de decisiones de política monetaria futuras que no están bajo el control de la empresa ni son predecibles con certeza.",
+      "source_name": "Interpretación propia basada en la mecánica conocida de la intermediación bancaria",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "media"
+    },
+    {
+      "category": "riesgo_sectorial",
+      "fact_type": "escenario_hipotetico",
+      "explanation": "Una crisis de confianza sistémica en el sector bancario (similar al estrés que sufrieron varios bancos regionales en 2023) podría afectar la percepción del mercado sobre JPMorgan, incluso si sus fundamentales específicos son distintos a los de los bancos que originaron esa crisis.",
+      "evidence": "Existe un precedente histórico real (2023) de que una crisis de confianza puede propagarse entre bancos con perfiles de riesgo muy distintos — pero esto no significa que vaya a repetirse, es un escenario especulativo basado en ese precedente.",
+      "watch_indicator": "Señales de estrés en otros bancos del sistema financiero que pudieran generar contagio de percepción, no necesariamente de fundamentales.",
+      "uncertainty": "Es un escenario hipotético, no una predicción — no hay evidencia de que esté ocurriendo actualmente.",
+      "source_name": "Interpretación propia basada en el precedente de 2023 (estrés de bancos regionales en EE.UU.)",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "baja"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "ticker": "NVDA",
+  "review_status": "draft",
+  "is_current": false,
+  "updated_by": "ai_draft:claude-sonnet-5",
+  "business_model_summary": "NVIDIA diseña y vende chips (GPUs) especializados para procesamiento gráfico e inteligencia artificial, junto con el software que permite usarlos. La mayor parte de su crecimiento reciente viene de vender estos chips a empresas de computación en la nube y centros de datos que los usan para entrenar y correr modelos de inteligencia artificial.",
+  "moat": [
+    {
+      "type": "switching_costs",
+      "explanation": "CUDA es la plataforma de software propietaria de NVIDIA para programar sus chips en aplicaciones de inteligencia artificial y computación científica. Miles de aplicaciones, librerías y equipos de investigación construyeron su código específicamente sobre CUDA durante más de una década. Esto hace que migrar a un competidor sea costoso en tiempo de ingeniería y reescritura de código, incluso si el hardware de ese competidor fuera técnicamente competitivo en precio o rendimiento.",
+      "evidence": "CUDA lleva en desarrollo público desde 2007 (hecho histórico verificable). Su estatus como estándar de facto en la industria de inteligencia artificial/aprendizaje automático es un consenso ampliamente documentado en publicaciones académicas y reportes de analistas de semiconductores.",
+      "weakening_factors": "Adopción masiva de alternativas abiertas (como ROCm de AMD, u otros marcos de software que no dependen de un solo fabricante) si logran un rendimiento suficientemente competitivo. Presión regulatoria antimonopolio sobre el bloqueo de ecosistema de software.",
+      "source_name": "Lanzamiento de CUDA (2007, hecho histórico verificable); consenso de adopción documentado en papers académicos y reportes de analistas de semiconductores",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    }
+  ],
+  "risks": [
+    {
+      "category": "concentracion_clientes",
+      "fact_type": "hecho",
+      "explanation": "Una porción muy concentrada de los ingresos de NVIDIA proviene de un número reducido de clientes grandes (las principales empresas de computación en la nube, conocidas como 'hyperscalers').",
+      "evidence": "NVIDIA divulga la concentración de ingresos por cliente en su reporte anual (10-K), como es obligatorio para empresas públicas cuando esa concentración es material.",
+      "watch_indicator": "Cambios en los anuncios de gasto de capital (capex) que estos clientes grandes hacen públicamente, ya que afecta directamente la demanda de chips de NVIDIA.",
+      "uncertainty": "La concentración por sí sola no implica que vaya a reducirse pronto, pero sí significa que la pérdida o reducción de compras de un solo cliente grande tendría un impacto material.",
+      "source_name": "10-K de NVIDIA (divulgación de concentración de clientes)",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    },
+    {
+      "category": "competencia",
+      "fact_type": "interpretacion",
+      "explanation": "Varios de los principales clientes de NVIDIA han anunciado públicamente que están desarrollando sus propios chips de inteligencia artificial internamente. Si estos esfuerzos maduran, la dependencia de esos clientes hacia los chips de NVIDIA podría reducirse con el tiempo.",
+      "evidence": "Estos anuncios de desarrollo de chips propios por parte de grandes clientes son públicos y verificables.",
+      "watch_indicator": "Actualizaciones de estos clientes sobre el progreso y despliegue real (no solo el anuncio) de sus propios chips de IA en producción.",
+      "uncertainty": "Un anuncio de desarrollo no garantiza que el chip resultante sea competitivo en rendimiento, ni que reemplace completamente la compra de chips de NVIDIA — es una lectura razonable de una tendencia, no un hecho consumado hoy.",
+      "source_name": "Anuncios públicos de clientes de NVIDIA sobre desarrollo interno de chips de IA",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "media"
+    },
+    {
+      "category": "regulacion",
+      "fact_type": "escenario_hipotetico",
+      "explanation": "Controles de exportación más estrictos hacia ciertos mercados (como ya ha ocurrido parcialmente en el pasado) podrían cerrar una porción material de los ingresos de NVIDIA si se amplían.",
+      "evidence": "Existe un precedente real de restricciones de exportación de chips avanzados de IA hacia ciertos países, ya aplicadas en el pasado — pero una ampliación futura de esas restricciones es un escenario especulativo, no un hecho ya ocurrido en su forma más amplia.",
+      "watch_indicator": "Anuncios de política comercial/exportación del gobierno de EE.UU. relacionados con semiconductores avanzados de IA.",
+      "uncertainty": "No hay certeza sobre si estas restricciones se ampliarán, se mantendrán igual, o se relajarán en el futuro.",
+      "source_name": "Interpretación propia basada en el precedente regulatorio real de controles de exportación de semiconductores de IA",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "media"
+    }
+  ]
+}

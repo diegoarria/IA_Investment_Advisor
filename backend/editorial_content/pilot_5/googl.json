@@ -1,0 +1,57 @@
+{
+  "ticker": "GOOGL",
+  "review_status": "draft",
+  "is_current": false,
+  "updated_by": "ai_draft:claude-sonnet-5",
+  "business_model_summary": "Alphabet (la empresa matriz de Google) gana dinero principalmente vendiendo espacio publicitario digital: anuncios que aparecen en el buscador de Google, en YouTube y en la red de sitios asociados de Google (Google Network). Esta publicidad representa la gran mayoría de sus ingresos. Un segmento más pequeño pero creciente es Google Cloud, donde empresas pagan por usar la infraestructura de cómputo de Google en vez de construir la suya propia. También vende suscripciones y dispositivos (YouTube Premium, Pixel, etc.).",
+  "moat": [
+    {
+      "type": "scale",
+      "explanation": "Google es el buscador predeterminado en la gran mayoría de navegadores y teléfonos del mundo, lo que le da acceso constante a volumen de búsquedas sin tener que 'ganar' cada usuario de nuevo cada día. Del lado publicitario, cuantos más anunciantes usan su plataforma, más datos tiene para optimizar a quién le muestra cada anuncio, lo que atrae a más anunciantes — un círculo que se refuerza a sí mismo.",
+      "evidence": "Los acuerdos de distribución de Google con Apple (buscador predeterminado en Safari) y con fabricantes de dispositivos Android son hechos ampliamente conocidos y divulgados por la propia Alphabet en la sección de riesgos regulatorios de sus reportes anuales (10-K), precisamente porque esos acuerdos están bajo escrutinio legal.",
+      "weakening_factors": "Litigios antimonopolio activos en EE.UU. y la Unión Europea que podrían prohibir o limitar estos acuerdos de distribución exclusiva. Adopción masiva de asistentes de IA conversacional que cambien el hábito de búsqueda tradicional.",
+      "source_name": "10-K de Alphabet (sección de factores de riesgo regulatorio), reporte anual más reciente disponible",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    }
+  ],
+  "risks": [
+    {
+      "category": "regulacion",
+      "fact_type": "hecho",
+      "explanation": "Alphabet enfrenta litigios antimonopolio activos en Estados Unidos y la Unión Europea relacionados con su negocio de búsqueda y publicidad, incluyendo cuestionamientos a los acuerdos de distribución exclusiva mencionados arriba.",
+      "evidence": "Casos judiciales públicos documentados en cortes federales de EE.UU. y procedimientos de la Comisión Europea, ambos de dominio público.",
+      "watch_indicator": "Fallos judiciales, apelaciones y cualquier orden de remedio (remedies) que pueda imponerse como resultado de estos casos.",
+      "uncertainty": "El resultado final de estos litigios y el alcance real de cualquier remedio impuesto todavía no se conocen.",
+      "source_name": "Registros judiciales públicos (cortes federales de EE.UU. y Comisión Europea)",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    },
+    {
+      "category": "tecnologia_disrupcion",
+      "fact_type": "interpretacion",
+      "explanation": "La adopción creciente de asistentes de inteligencia artificial conversacional como forma alternativa de buscar información podría, con el tiempo, desplazar parte del volumen de búsquedas tradicionales de Google, afectando los ingresos publicitarios que dependen de ese volumen.",
+      "evidence": "Crecimiento documentado y públicamente observable en el uso de asistentes de IA conversacional como punto de entrada para resolver dudas que antes se resolvían con una búsqueda tradicional.",
+      "watch_indicator": "Cambios en las métricas de volumen de búsqueda y en el gasto publicitario en el segmento 'Google Search & other', reportado trimestralmente por la propia Alphabet.",
+      "uncertainty": "No está claro todavía si la IA conversacional termina canibalizando el volumen de búsqueda de Google o si, por el contrario, lo complementa (por ejemplo, si Google logra integrar su propia IA directamente en el buscador sin perder el volumen).",
+      "source_name": "Interpretación propia basada en tendencias de adopción públicamente observables, no en una cifra específica divulgada por Alphabet",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "media"
+    },
+    {
+      "category": "regulacion",
+      "fact_type": "escenario_hipotetico",
+      "explanation": "Si alguno de los litigios antimonopolio terminara forzando una separación (breakup) de parte del negocio de Alphabet, el valor combinado de la empresa hoy podría no reflejar fielmente lo que valdrían esas partes por separado.",
+      "evidence": "No existe hoy ninguna orden firme de separación — este es un escenario especulativo, no un hecho en curso, aunque sí ha sido solicitado como remedio por parte de los demandantes en al menos uno de los casos públicos.",
+      "watch_indicator": "Cualquier fallo que imponga remedios estructurales (no solo de conducta) en los litigios antimonopolio activos.",
+      "uncertainty": "Es un escenario hipotético: no hay certeza de que vaya a ocurrir, ni de cuál sería el resultado neto para los accionistas si ocurriera.",
+      "source_name": "Interpretación propia sobre un escenario discutido públicamente en el marco de los litigios en curso",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "baja"
+    }
+  ]
+}

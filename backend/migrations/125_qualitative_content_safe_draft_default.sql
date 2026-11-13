@@ -1,0 +1,42 @@
+-- Migration 125 (PROPOSED ONLY — NOT applied anywhere, not authorized for
+-- production in this pass; Diego's authorization for the 2026-11-12
+-- hardening round was explicitly scoped to migration 124 only).
+--
+-- Design-trap fix, not a security fix: company_qualitative_content.is_current
+-- has DEFAULT TRUE. Inserting a new draft row (review_status='draft') for a
+-- ticker that already has a published current version, without explicitly
+-- setting is_current=false, immediately fails with a unique-constraint
+-- violation (23505) against the partial unique index
+-- idx_company_qualitative_content_current (ticker) WHERE is_current — a
+-- loud, safe failure (never silent corruption), but an easy trap for future
+-- application code that forgets to set is_current=FALSE explicitly on a
+-- draft insert.
+--
+-- Isolated-environment testing (2026-11-12, disposable Docker Postgres 15,
+-- replicating Supabase's real default-privilege provisioning for
+-- anon/authenticated/service_role, destroyed after testing, never touched
+-- production) confirmed this change is safe:
+--   - A draft insert with NO explicit is_current, for a ticker that already
+--     has a published current version, now succeeds cleanly at is_current=
+--     FALSE instead of raising 23505.
+--   - publish_company_qualitative_content() is unaffected: it ALWAYS sets
+--     is_current=TRUE explicitly in its own INSERT, regardless of the
+--     column's default — confirmed its behavior is byte-for-byte identical
+--     before and after this change (old current row flips to false, new
+--     version becomes current, full history preserved).
+--   - A forced publish failure (NULL updated_by) still leaves the prior
+--     current version completely untouched, before and after this change.
+--   - Concurrent publish attempts to the same ticker still resolve to
+--     exactly one is_current=TRUE row, before and after this change (the
+--     only failure mode observed is a (ticker, version) duplicate-key error
+--     on simultaneous publishes to the SAME ticker — a "fail loud, never
+--     corrupt" race, same accepted pattern as this session's FMP budget
+--     counter; this migration does not change that behavior either way).
+--   - RLS read visibility (draft/reviewed private, published+current
+--     public) is unaffected, as expected for a column-default-only change.
+--
+-- Rollback: ALTER TABLE company_qualitative_content
+--   ALTER COLUMN is_current SET DEFAULT TRUE;
+
+ALTER TABLE company_qualitative_content
+  ALTER COLUMN is_current SET DEFAULT FALSE;

@@ -98,6 +98,23 @@ export interface ValuationScenarios {
     equity_weight_pct: number | null;
     debt_weight_pct: number | null;
   } | null;
+  // Diego, 2026-11-12 — dual-track blend transparency ("Ver cómo llegamos a
+  // este valor"). Mirrors the persisted `assumptions.dual_track` shape
+  // exactly (company_valuation_service._dual_track_assumptions) — same
+  // real computation, same additive-only null-when-absent discipline. Null
+  // whenever the shadow dual-track blend didn't run or didn't produce a
+  // usable result (REIT sector, legacy/financial-engine ticker, no FCF
+  // track) — never fabricated. Also null today for any response served
+  // from an existing diagnostic_snapshot taken before this field existed
+  // (e.g. GOOGL) — it only appears on a fresh computation going forward.
+  dualTrack: {
+    earnings_track_value: number | null;
+    earnings_track_weight_pct: number | null;
+    fcf_track_value: number | null;
+    fcf_track_weight_pct: number | null;
+    blended_fair_value: number | null;
+    version: string;
+  } | null;
   // Diego, 2026-08-31 — real sell-side analyst consensus (fh_price_target)
   // — a different question than our own fair value (where analysts expect
   // the price to go vs. what the cash flows are worth today), shown as a
@@ -454,6 +471,7 @@ export const mockCopartData: CompanyDiagnosticData = {
       equity_weight_pct: 92.0,
       debt_weight_pct: 8.0,
     },
+    dualTrack: null,
     analystTarget: { target_high: 48.0, target_low: 36.0, target_mean: 41.5, target_median: 42.0 },
     priceHistoryContext: {
       percentileCheaperThan: 22,

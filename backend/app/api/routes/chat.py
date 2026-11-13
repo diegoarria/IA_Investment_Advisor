@@ -659,7 +659,13 @@ def _fundamentals_context_block(tickers: list[str]) -> str:
     for t in tickers[:_MAX_FUNDAMENTALS_TICKERS]:
         try:
             data = get_fundamental_analysis(t)
-            if data:
+            if data and data.get("is_etf"):
+                # Nuvos ETF Phase 0: tell Arthur plainly it's an ETF instead
+                # of silently dropping the block or letting it guess — the
+                # LLM sees this and should relay it, not fabricate a
+                # stock-style analysis for a fund.
+                blocks.append(f"[{t}] {data['message']}")
+            elif data:
                 blocks.append(format_fundamental_analysis_for_prompt(data))
         except Exception as e:
             logger.warning("_fundamentals_context_block(%s) failed: %s", t, e)

@@ -1,0 +1,12 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1000, "h": 2100, "title": "Escritorio — dirección recomendada" },
+    { "file": "MainMobile.dc.html", "x": 1120, "y": 0, "w": 430, "h": 1720, "title": "Mobile — dirección recomendada" },
+    { "file": "AltTimeline.dc.html", "x": 0, "y": 2220, "w": 580, "h": 900, "title": "Alternativa: Línea de tiempo" },
+    { "file": "AltMosaic.dc.html", "x": 660, "y": 2220, "w": 580, "h": 780, "title": "Alternativa: Mosaico por severidad" }
+  ],
+  "annotations": [
+    { "id": "note-main", "x": 0, "y": -90, "w": 1000, "text": "PRINCIPAL — Ledger histórico: reemplaza la grilla de chips por una tabla de eventos estilo research desk (barra de severidad, cifra de impacto, sin emojis). CTA de IA como panel con glow. Calculadora como formulario tipo estado de cuenta." },
+    { "id": "note-alts", "x": 0, "y": 2130, "w": 1240, "text": "Alternativas para el Stress Test — mismo problema, dos tratamientos distintos. Elige una dirección (o pide una mezcla) y construyo las 3 secciones completas sobre ella." }
+  ]
+}

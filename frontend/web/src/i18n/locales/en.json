@@ -1431,7 +1431,12 @@
     "staleNoticeUnknownPeriod": "latest available",
     "underReview": {
       "title": "Valuation under review",
-      "body": "The numbers on this card are real and traceable, but our system flagged something unusual in the calculation (e.g. an unstable financial history) and it shouldn't be treated as a validated conclusion yet. We're reviewing it."
+      "body": "The numbers on this card are real and traceable, but our system flagged something unusual in the calculation (e.g. an unstable financial history) and it shouldn't be treated as a validated conclusion yet. We're reviewing it.",
+      "reasonLabel": "Why is this under review?",
+      "reasonFallback": "We flagged something unusual in the calculation, but we don't yet have a verified, simplified explanation for this specific case. The original technical reason is available below.",
+      "reasonMixedRegime": "The model needs the company's historical operating margin to calculate its value, but recent years show a mixed pattern (often due to stock-based compensation) that doesn't allow a reliable historical anchor. The value shown is real, but shouldn't be treated as a validated conclusion yet.",
+      "reasonPriceGapBelow": "The value our model calculates is far below the real market price ({{ratio}}x), outside the range we consider reliable. This could mean the market is pricing in information or expectations the model doesn't capture, or that one of the assumptions used doesn't reflect the business well. We haven't confirmed which it is yet.",
+      "reasonPriceGapAbove": "The value our model calculates is far above the real market price ({{ratio}}x), outside the range we consider reliable. This could mean the market is pricing in information or expectations the model doesn't capture, or that one of the assumptions used doesn't reflect the business well. We haven't confirmed which it is yet."
     },
     "valuationOnly": {
       "subtitle": "Showing the last calculated valuation — the full analysis isn't available right now.",
@@ -1649,6 +1654,13 @@
         "The Conservative, Base, and Optimistic scenarios don't push every variable to an extreme at once — they represent internally coherent combinations of what could reasonably happen if the thesis weakens, plays out as expected, or plays out better than expected.",
         "These values are the output of a model with explicit assumptions, not a guarantee or a promise of return — always review the reasoning behind each number before making a decision."
       ]
+    },
+    "horizon": {
+      "title": "What time horizon applies to this analysis?",
+      "subtitle": "Three distinct questions that are easy to conflate",
+      "modelHorizon": "The valuation model projects the company's future cash flows over several years to estimate what it's worth today. That period is a technical assumption of the calculation — it is not, and should not be read as, a recommendation of how long to hold the investment.",
+      "personalHorizon": "Your own investment horizon — how long you plan to hold this position — depends on your own goals and circumstances. Nuvos does not track or suggest a personal horizon for you today.",
+      "thesisHorizon": "Confirming whether the investment thesis is playing out takes time: usually several real quarterly reports, to see whether the model's assumptions still reflect the business."
     },
     "thesis": {
       "title": "Final Thesis",
@@ -2153,7 +2165,12 @@
       "sharePortfolio": "Share portfolio",
       "shareText": "My portfolio on Nuvos AI: {{value}} ({{sign}}{{pct}}%) 📈\n\nI analyze my investments with AI. Try it at nuvosai.com",
       "shareTitle": "My portfolio – Nuvos AI",
-      "copiedToClipboard": "Text copied to clipboard!"
+      "copiedToClipboard": "Text copied to clipboard!",
+      "mainView": {
+        "positions": "Positions",
+        "distribution": "Distribution",
+        "beforeInvesting": "Before investing"
+      }
     },
     "actions": {
       "cloudTitle": "Portfolio in the cloud",
@@ -2290,6 +2307,7 @@
       "error": {
         "notAdmin": "You don't have access to this section.",
         "notFound": "We couldn't find this portfolio.",
+        "sessionExpired": "Your session expired. Sign in again and try once more.",
         "generic": "We couldn't compute your portfolio's distribution right now. Try again."
       },
       "summary": {
@@ -2298,7 +2316,26 @@
         "positions": "Positions",
         "equityPct": "In stocks",
         "etfPct": "In ETFs",
-        "coverage": "Valuation coverage"
+        "coverage": "Valuation coverage",
+        "positionsCount": "Number of positions: {{count}}",
+        "emptyPortfolio": "You don't have any positions registered in this portfolio yet.",
+        "unverifiableNote": "{{count}} position(s) could not be verified — this may limit what we show in sectors and geography.",
+        "noPrimaryInsight": "We don't yet have a well-supported standout observation about your portfolio.",
+        "actionUnderstand": "Understand my portfolio",
+        "actionSimulate": "Before investing",
+        "seeBreakdown": "See the breakdown and how we calculated it",
+        "actionUnderstandHint": "Review positions, sectors, and geography in as much detail as you want.",
+        "actionSimulateHint": "Simulate a hypothetical investment before deciding.",
+        "pulse": {
+          "title": "What changed since your last comparison",
+          "before": "Before",
+          "after": "Now",
+          "seeDates": "See dates and coverage",
+          "comparedDates": "Comparison between {{before}} and {{after}}.",
+          "partialCoverage": "This comparison has partial coverage in some dimension — some of the difference could be due to that, not a real economic change.",
+          "exploreSectors": "Explore sectors",
+          "explorePositions": "Explore positions"
+        }
       },
       "unverifiable": {
         "title": "We couldn't verify these positions — they're not included in the percentages above",
@@ -2319,24 +2356,137 @@
           "dominant_sector": "Dominant sector",
           "single_position_concentration": "Single-position concentration",
           "coverage_gap": "Incomplete data"
-        }
+        },
+        "exploreTitle": "Explore your portfolio"
       },
       "positions": {
-        "title": "Distribution by position"
+        "title": "Distribution by position",
+        "equityLabel": "Stocks",
+        "etfLabel": "ETFs",
+        "unknownAssetNote": "{{amount}} of your portfolio (at cost) couldn't be classified as a stock or ETF.",
+        "compositionNote": "Of every $100 of your portfolio's verified value, approximately ${{etf}} is in ETFs and ${{equity}} in individual stocks.",
+        "subtitle": "This is how your money is split across your current investments.",
+        "allPositionsTitle": "All your positions",
+        "bridgeToSectors": "Now see how these positions translate into sectors.",
+        "bridgeToSectorsCta": "See sectors"
       },
       "sectors": {
-        "title": "Sector exposure",
+        "title": "Which sectors is your money exposed to?",
         "empty": "There isn't enough sector data to analyze your portfolio yet.",
         "coverageNote": "We have enough sector data to analyze {{pct}} of your portfolio's verified value.",
-        "unclassifiedNote": "{{amount}} of your portfolio doesn't have a reliable sector classification."
+        "unclassifiedNote": "{{amount}} of your portfolio doesn't have a reliable sector classification.",
+        "seeAllSectors": "See all sectors in detail",
+        "dominantNote": "{{sector}} is your largest sector: it represents {{pct}} of your portfolio's verified value.",
+        "subtitle": "Discover which economic activities carry the most weight in your investments.",
+        "contributorsTitle": "Where does your exposure to {{sector}} come from?",
+        "contributorsClarification": "These figures are percentage points of your portfolio's total verified value, not independent percentages of each investment.",
+        "contributorsUnavailable": "We don't have a breakdown of which positions generate this exposure right now.",
+        "verifiedUniverseNote": "This analysis covers the {{pct}} of your portfolio's value we could verify — not necessarily your complete holdings.",
+        "noDominantSector": "We didn't find a sector with enough weight to highlight — your exposure is spread across several sectors."
       },
       "geography": {
         "title": "Geographic exposure",
         "methodologyNote": "A company's domicile and the real distribution of assets inside an ETF are two different ways of measuring geography — shown separately, never combined into one figure.",
-        "etfUnderlying": "Underlying assets of your ETFs",
-        "equityDomicile": "Domicile of your individual stocks",
-        "empty": "Not enough data yet."
-      }
+        "etfUnderlying": "Underlying assets of your ETFs (% of your total ETF value, not your whole portfolio)",
+        "equityDomicile": "Domicile of your individual stocks (% of your total stock value, not your whole portfolio)",
+        "empty": "Not enough data yet.",
+        "topEtfCountry": "Within your ETFs, {{country}} has the largest weight ({{pct}}).",
+        "topEquityCountry": "Within your individual stocks, {{country}} has the largest weight ({{pct}})."
+      },
+      "simulate": {
+        "title": "Before investing",
+        "subtitle": "Pick a hypothetical investment and an amount to see how your distribution would change — this is not a purchase order.",
+        "step1": "Step 1 — Choose an investment",
+        "step2": "Step 2 — Enter an amount",
+        "searchPlaceholder": "Search by name or ticker",
+        "searchEmpty": "No results found.",
+        "removeTicker": "Remove selection",
+        "amountInvalid": "Enter a valid amount greater than zero.",
+        "amountNote": "The amount is expressed in your portfolio's currency. This simulation doesn't calculate fractional shares or execution fees.",
+        "simulateButton": "Simulate",
+        "simulating": "Simulating…",
+        "hypotheticalBadge": "Hypothetical simulation. Doesn't modify your investments.",
+        "discard": "Discard",
+        "noBeforeVerified": "We couldn't verify any real position before this simulation — the \"before\" state starts from zero.",
+        "summaryInvestment": "Hypothetical investment",
+        "mostRelevantChange": "Most relevant exposure change",
+        "viewDetails": "View full details",
+        "otherChanges": "Other changes",
+        "valueBefore": "Value before",
+        "valueAfter": "Value after",
+        "positionWeightTitle": "Your investment's weight",
+        "sectorTitle": "Sector distribution",
+        "concentrationTitle": "Position with the largest weight: {{ticker}}",
+        "geographyTitle": "Geographic exposure",
+        "coverageTitle": "Data coverage",
+        "coverageNote": "Sector coverage: {{before}} before → {{after}} after.",
+        "error": {
+          "invalid": "We couldn't simulate with this data — check the ticker and amount.",
+          "generic": "We couldn't generate the simulation right now. Try again."
+        },
+        "understand": {
+          "title": "What you should understand about this simulation",
+          "empty": "There isn't enough data to generate observations about this simulation.",
+          "categoryTitles": {
+            "position_weight": "Your investment's weight",
+            "sector_shift": "Sector shift",
+            "concentration_change": "Concentration change",
+            "coverage_gap": "Data not included"
+          }
+        },
+        "disclaimer": "These observations are generated with fixed rules over the real before/after data — never by artificial intelligence, risk scores, or buy/sell recommendations.",
+        "resultIntro": "If you added {{amount}} to:",
+        "perspective": {
+          "distribution": "Distribution",
+          "exposure": "Exposure",
+          "history": "History"
+        },
+        "history": {
+          "title": "How would these two compositions have behaved?",
+          "subtitle": "Compare their historical performance using the same starting capital.",
+          "period": {
+            "1y": "1 year",
+            "3y": "3 years",
+            "5y": "5 years"
+          },
+          "loading": "Calculating the historical comparison…",
+          "legendBefore": "Current composition",
+          "legendAfter": "Hypothetical composition",
+          "startingValue": "Both compositions start at 100.",
+          "dateRange": "Period analyzed: {{start}} – {{end}} ({{observations}} trading days).",
+          "windowPartial": "Partial period: the shortest available history only allows comparing from {{start}}, not the full {{requested}}.",
+          "volatilityTitle": "Annualized volatility",
+          "drawdownTitle": "Maximum historical drawdown",
+          "drawdownDetail": "From {{peakDate}} to {{troughDate}}.",
+          "methodologyToggle": "View methodology and sources",
+          "sourcesTitle": "Sources",
+          "disclaimer": "Retrospective simulation using today's weights. It does not represent real trades and does not predict future results.",
+          "errorGeneric": "We couldn't calculate the historical comparison right now. Try again in a few seconds.",
+          "unavailableTitle": "We couldn't build a reliable historical comparison.",
+          "unavailable": {
+            "non_usd_instrument": "One of the instruments doesn't trade in US dollars (USD) — this comparison doesn't support other currencies yet.",
+            "non_usd_portfolio_currency": "Your portfolio's base currency isn't USD — this comparison doesn't support other currencies yet.",
+            "no_price_history": "We couldn't find enough price history for one of the instruments involved.",
+            "insufficient_coverage": "The price history has gaps too large to build a reliable comparison.",
+            "window_too_short": "The available period is too short for a reliable comparison.",
+            "no_verifiable_positions": "There aren't enough verified positions in your portfolio for this comparison.",
+            "weights_do_not_sum_to_one": "We couldn't confirm your portfolio's weights for this comparison.",
+            "generic": "We couldn't build a reliable historical comparison with the available information."
+          }
+        },
+        "concentrationChangeLabel": "Weight before and after",
+        "valueIncreaseNote": "The value increases because of the {{amount}} added in this simulation, not because of a projected return."
+      },
+      "nav": {
+        "backToSummary": "Back to summary"
+      },
+      "dimensionSelector": {
+        "ariaLabel": "Choose analysis dimension",
+        "positions": "Positions",
+        "sectors": "Sectors",
+        "geography": "Geography"
+      },
+      "detailsToggle": "View coverage, sources, and excluded data"
     },
     "cash": {
       "title": "Cash available to invest",

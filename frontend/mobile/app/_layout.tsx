@@ -28,6 +28,13 @@ import PaywallModal from "../src/components/PaywallModal";
 import WelcomeCard from "../src/components/WelcomeCard";
 import PhoneNumberPromptCard from "../src/components/PhoneNumberPromptCard";
 import * as Notifications from "expo-notifications";
+import { configureRevenueCat } from "../src/lib/revenuecat";
+import { usePaywallModalGuard } from "../src/lib/paywallModalGuard";
+
+// Module-level, not inside a component — must run exactly once, before any
+// screen can call rcLogIn()/purchasePlan(), and must survive RootLayout
+// remounts (Fast Refresh, StrictMode double-invoke) without reconfiguring.
+configureRevenueCat();
 
 const HIDE_SIDEBAR_ROUTES = ["/", "/onboarding"];
 
@@ -37,6 +44,13 @@ function TrialExpiredModal() {
   const subStore = useSubscriptionStore();
   const [visible, setVisible] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  // iOS can't safely present two native Modals at once (see
+  // paywallModalGuard.ts) — PaywallModal/PricingModal/UpsellModal are used
+  // across ~19 screens, any of which can already be open when this global
+  // modal's own condition flips true. Defer showing (and close immediately
+  // if already shown) whenever another one is up; resume nagging once it's
+  // the only one left.
+  const anyOtherModalOpen = usePaywallModalGuard((s) => s.openCount > 0);
 
   useEffect(() => {
     // hasFetchedStatus guards against judging on stale/default state: when a
@@ -51,11 +65,16 @@ function TrialExpiredModal() {
     // still premium (e.g. the first read raced an in-flight trial-start
     // reconciliation) — this must never get stuck showing "expired" once
     // the real status comes back active.
-    setVisible(expired);
-  }, [subStore.trialStartDate, subStore.tier, subStore.hasFetchedStatus]);
+    setVisible(expired && !anyOtherModalOpen);
+  }, [subStore.trialStartDate, subStore.tier, subStore.hasFetchedStatus, anyOtherModalOpen]);
 
-  if (!visible) return null;
-
+  // Never conditionally unmount <Modal> itself (e.g. `if (!visible) return
+  // null` around this whole tree) — RN's native Modal presentation doesn't
+  // get a chance to dismiss cleanly when its React component is yanked out
+  // mid-transition (exactly what happened tapping "Activar Premium": visible
+  // flips false and paywallOpen flips true in the same batch), leaving an
+  // invisible native modal still intercepting every touch. Keep this always
+  // mounted once rendered and let <Modal visible={...}> own its own exit.
   return (
     <>
       <Modal visible={visible && !paywallOpen} transparent animationType="fade" onRequestClose={() => setVisible(false)}>

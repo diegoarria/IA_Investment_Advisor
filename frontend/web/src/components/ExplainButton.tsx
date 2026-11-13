@@ -45,10 +45,20 @@ export default function ExplainButton({
   screen,
   context,
   className = "",
+  inline = false,
 }: {
   screen: string;
   context: Record<string, unknown>;
   className?: string;
+  // Nuvos Plus Fase 4B (2026-11): the ambient floating variant (`fixed
+  // bottom-6 right-6`) landed on top of "Mi distribución"'s own stacked
+  // panels — nudging its position was still just a guess that could break
+  // again at another viewport size. `inline` renders the exact same
+  // button/behavior as a normal flowed element instead, so a caller can
+  // place it inside its own header (no fixed positioning, nothing to
+  // ever overlap) — opt-in only, every other screen's floating button is
+  // unchanged.
+  inline?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const { profile } = useProfileStore();
@@ -186,11 +196,13 @@ export default function ExplainButton({
 
   // dismissed === null: still reading the persisted value — render nothing
   // rather than flash the full button and then collapse it a beat later.
-  if (dismissed === null) return null;
+  // (Inline mode has no collapse/dismiss state at all — it's not an
+  // ambient overlay nagging the user, so there's nothing to dismiss.)
+  if (!inline && dismissed === null) return null;
 
   // dismissed === true: collapsed to a small icon, never fully gone — one
   // tap both restores the full button and generates the explanation.
-  if (dismissed) {
+  if (!inline && dismissed) {
     return (
       <div className={`fixed bottom-6 right-6 z-30 ${className}`}>
         <button
@@ -211,7 +223,7 @@ export default function ExplainButton({
 
   return (
     <>
-      <div className={`fixed bottom-6 right-6 z-30 ${className}`}>
+      <div className={inline ? `relative inline-block ${className}` : `fixed bottom-6 right-6 z-30 ${className}`}>
         <div className="relative">
           {/* Soft ambient glow behind the pill — same footprint as before,
               just a more premium base layer instead of a flat fill. */}
@@ -247,14 +259,19 @@ export default function ExplainButton({
             )}
           </button>
 
-          <button
-            onClick={handleDismiss}
-            aria-label={t("explainButton.dismiss") ?? undefined}
-            className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 rounded-full flex items-center justify-center shadow-md transition-transform hover:scale-110"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}
-          >
-            <X className="w-3 h-3" />
-          </button>
+          {/* Dismiss (collapse-to-icon) only makes sense for the ambient
+              floating variant — an inline button the caller placed
+              deliberately in its own layout isn't something to "go away". */}
+          {!inline && (
+            <button
+              onClick={handleDismiss}
+              aria-label={t("explainButton.dismiss") ?? undefined}
+              className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 rounded-full flex items-center justify-center shadow-md transition-transform hover:scale-110"
+              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
 
           {/* Was gated on `state !== "idle"` — playAudio() reverts state to
               "idle" the instant playback ends OR fails (onerror/.catch), so
@@ -272,7 +289,15 @@ export default function ExplainButton({
               length or window size. */}
           {(errorMsg || text) && (
             <div
-              className="absolute z-20 bottom-full right-0 mb-3 w-72 max-w-[calc(100vw-3rem)] rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col"
+              className={
+                inline
+                  // Inline mode: the button sits inside the caller's own
+                  // card header, so the panel opens DOWNWARD from it —
+                  // never upward past the card's top edge, and never
+                  // fixed/overlapping anything outside that card.
+                  ? "absolute z-20 top-full right-0 mt-2 w-72 max-w-[calc(100vw-3rem)] rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col"
+                  : "absolute z-20 bottom-full right-0 mb-3 w-72 max-w-[calc(100vw-3rem)] rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col"
+              }
               style={{
                 background: "var(--card)",
                 border: `1px solid ${errorMsg ? "#ef4444" : "var(--border)"}`,

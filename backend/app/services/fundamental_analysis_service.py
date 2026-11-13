@@ -823,8 +823,19 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     that peer's own analysis skips Consensus AND industry/relative/
     historical, since none of those would ever be used for a peer lookup
     anyway. Every real top-level caller (the API routes, Arthur, the
-    thesis engine) keeps the default and gets all of it."""
+    thesis engine) keeps the default and gets all of it.
+
+    Nuvos ETF Phase 0 (2026-11): single choke point for the ETF guard —
+    every known caller (Arthur, Research Engine, screener, peer lookups)
+    funnels through this one function, so checking classification here
+    once protects all of them instead of needing a copy of this check at
+    every call site, present or future. Does not touch any valuation
+    formula below — purely an early return before `get_financials` is
+    even called."""
     ticker = ticker.upper().strip()
+    from app.services.asset_classification import classify_asset, etf_placeholder_response, ETF
+    if classify_asset(ticker) == ETF:
+        return etf_placeholder_response(ticker)
     try:
         fin = get_financials(ticker, limit=10)
     except Exception as e:

@@ -12,15 +12,16 @@
 // that with its own bespoke sticky bar. Pure presentation: accepts
 // `CompanyDiagnosticData` as a prop.
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { BookOpen, Lock, Target } from "lucide-react";
+import { BookOpen, Clock, Lock, Target } from "lucide-react";
 import { GlowCard, IconSquare } from "@/components/subvaluadas/radarUi";
 import { CompanyDiagnosticHero } from "@/components/subvaluadas/CompanyDiagnosticHero";
 import { CompanyDiagnosticValuationTabs } from "@/components/subvaluadas/CompanyDiagnosticValuationTabs";
 import { CompanyDiagnosticSelfCheckQuiz } from "@/components/subvaluadas/CompanyDiagnosticSelfCheckQuiz";
 import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
 import { isFullDiagnostic, type CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
+import { getPlainReviewReason } from "@/lib/reviewReasonMap";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 
 // Bolds every dollar-amount ("$2.8 mil millones", "$3,400M") and percentage
@@ -64,6 +65,7 @@ export function CompanyDiagnosticCard({
   onUnlock?: () => void;
 }) {
   const { t } = useTranslation();
+  const [showTechnicalReason, setShowTechnicalReason] = useState(false);
 
   // 2026-10-20: every real provider was down AND there's no cache to fall
   // back on — company_valuations (Supabase, migrations/114) is the last
@@ -116,6 +118,52 @@ export function CompanyDiagnosticCard({
                 {t("companyDiagnostic.valuationOnly.asOf", { date: data.valuationAsOf })}
               </p>
             )}
+            {/* Nuvos Radar Etapa 0 (2026-11-11): tickers like F/PLTR have no
+                diagnostic_snapshot yet (guard never risked clearing their
+                under_review status for a full rebuild), so they hit this
+                degraded valuation-only branch rather than the one below —
+                but the warning + real reviewReason must still show here,
+                not just on the full-diagnostic path. */}
+            {valuation.validationStatus === "under_review" && (
+              <div className="rounded-[14px] px-3.5 py-3 mt-2" style={{ background: "rgba(239,68,68,0.08)", borderLeft: "3px solid #ef4444" }}>
+                <p className="text-[10px] font-extrabold uppercase mb-1" style={{ color: "#ef4444" }}>
+                  {t("companyDiagnostic.underReview.title")}
+                </p>
+                <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>
+                  {t("companyDiagnostic.underReview.body")}
+                </p>
+                {(() => {
+                  const reason = valuation.reviewReason || null;
+                  const plain = getPlainReviewReason(reason, t);
+                  return (
+                    <div className="mt-2.5 pt-2.5" style={{ borderTop: "1px solid rgba(239,68,68,0.15)" }}>
+                      <p className="text-[10px] font-extrabold uppercase mb-1" style={{ color: "#ef4444" }}>
+                        {t("companyDiagnostic.underReview.reasonLabel")}
+                      </p>
+                      <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>
+                        {plain.matched ? plain.plain : t("companyDiagnostic.underReview.reasonFallback")}
+                      </p>
+                      {reason && (
+                        <>
+                          <button
+                            onClick={() => setShowTechnicalReason((v) => !v)}
+                            className="mt-1.5 text-[10px] font-bold underline underline-offset-2"
+                            style={{ color: "var(--muted)" }}
+                          >
+                            {showTechnicalReason ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
+                          </button>
+                          {showTechnicalReason && (
+                            <p className="mt-1 text-[11px] leading-relaxed font-mono" style={{ color: "var(--dim)" }}>
+                              {reason}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-[13px] leading-5" style={{ color: "var(--sub)" }}>
@@ -160,6 +208,36 @@ export function CompanyDiagnosticCard({
               <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>
                 {t("companyDiagnostic.underReview.body")}
               </p>
+              {(() => {
+                const reason = data.valuation.reviewReason || null;
+                const plain = getPlainReviewReason(reason, t);
+                return (
+                  <div className="mt-2.5 pt-2.5" style={{ borderTop: "1px solid rgba(239,68,68,0.15)" }}>
+                    <p className="text-[10px] font-extrabold uppercase mb-1" style={{ color: "#ef4444" }}>
+                      {t("companyDiagnostic.underReview.reasonLabel")}
+                    </p>
+                    <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>
+                      {plain.matched ? plain.plain : t("companyDiagnostic.underReview.reasonFallback")}
+                    </p>
+                    {reason && (
+                      <>
+                        <button
+                          onClick={() => setShowTechnicalReason((v) => !v)}
+                          className="mt-1.5 text-[10px] font-bold underline underline-offset-2"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          {showTechnicalReason ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
+                        </button>
+                        {showTechnicalReason && (
+                          <p className="mt-1 text-[11px] leading-relaxed font-mono" style={{ color: "var(--dim)" }}>
+                            {reason}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
           {/* Diego, 2026-09-23: "esta pantalla NUNCA debe fallar" — shown
@@ -210,6 +288,40 @@ export function CompanyDiagnosticCard({
           </p>
         </GlowCard>
       )}
+
+      {/* Horizonte — Etapa 0 (2026-11-11): distingue las 3 nociones de
+          "horizonte" que el posicionamiento nuevo pide no confundir. Nunca
+          interpreta la ventana de proyección del DCF como una recomendación
+          de cuánto tiempo mantener la posición (eso sería prescribir, lo que
+          Nuvos/Arthur nunca hace), y declara explícitamente que el horizonte
+          personal del usuario no se registra hoy en vez de omitir el tema. */}
+      <GlowCard className="mt-4">
+        <DiagHeader
+          title={t("companyDiagnostic.horizon.title")}
+          subtitle={t("companyDiagnostic.horizon.subtitle")}
+          icon={<Clock className="w-[18px] h-[18px]" style={{ color: "var(--sub)" }} />}
+        />
+        <div className="space-y-3">
+          <div className="flex gap-2.5">
+            <div className="w-1 rounded-sm shrink-0" style={{ background: "var(--raised)" }} />
+            <p className="flex-1 text-[13.5px] leading-5" style={{ color: "var(--sub)" }}>
+              {t("companyDiagnostic.horizon.modelHorizon")}
+            </p>
+          </div>
+          <div className="flex gap-2.5">
+            <div className="w-1 rounded-sm shrink-0" style={{ background: "var(--raised)" }} />
+            <p className="flex-1 text-[13.5px] leading-5" style={{ color: "var(--sub)" }}>
+              {t("companyDiagnostic.horizon.personalHorizon")}
+            </p>
+          </div>
+          <div className="flex gap-2.5">
+            <div className="w-1 rounded-sm shrink-0" style={{ background: "var(--raised)" }} />
+            <p className="flex-1 text-[13.5px] leading-5" style={{ color: "var(--sub)" }}>
+              {t("companyDiagnostic.horizon.thesisHorizon")}
+            </p>
+          </div>
+        </div>
+      </GlowCard>
 
       {/* Guía de metodología — hasta abajo del todo, antes del disclaimer legal */}
       <GlowCard className="mt-4">

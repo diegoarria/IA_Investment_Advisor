@@ -11,14 +11,25 @@
 // Set-Cookie was sent and technically valid, but the browser discarded it
 // before ever storing it, so every next request had no cookie at all.
 //
-// Anywhere NOT on our own domain (local dev, an unlisted preview URL) falls
-// back to hitting the API directly via NEXT_PUBLIC_API_URL, unchanged.
+// Anywhere NOT on our own domain (an unlisted preview URL) falls back to
+// hitting the API directly via NEXT_PUBLIC_API_URL, unchanged.
 const OWN_DOMAINS = new Set(["nuvosai.com", "www.nuvosai.com"]);
+
+// Local dev (localhost/127.0.0.1) hits this exact same third-party-cookie
+// problem — Nuvos ETF Fase 2B validation (2026-11) found login appearing to
+// succeed and then immediately dropping the session: the page is served
+// from localhost:3000 but requests went straight to NEXT_PUBLIC_API_URL
+// (e.g. http://127.0.0.1:8000) — a different hostname, so SameSite=Lax
+// treats it as cross-site and the browser discards the Set-Cookie. Routing
+// through Next's own rewrite (next.config.ts — relative "/api/..." stays
+// on localhost:3000) makes the cookie first-party here too, same fix as
+// production, as long as BACKEND_ORIGIN is set in the dev env file.
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
 export function apiBase(): string {
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
-    if (OWN_DOMAINS.has(host) || host.endsWith(".vercel.app")) {
+    if (OWN_DOMAINS.has(host) || host.endsWith(".vercel.app") || LOCAL_HOSTS.has(host)) {
       return "";
     }
   }

@@ -1,0 +1,57 @@
+{
+  "ticker": "COST",
+  "review_status": "draft",
+  "is_current": false,
+  "updated_by": "ai_draft:claude-sonnet-5",
+  "business_model_summary": "Costco vende mercancía al por mayor (alimentos, electrónica, ropa, llantas, etc.) casi sin ganar margen en esos productos — los vende prácticamente al costo. Su ganancia real proviene de las cuotas anuales que cobra a sus miembros para poder comprar en sus tiendas. Es decir: Costco no gana dinero principalmente vendiendo cosas más caras que el costo, sino cobrando por el acceso a precios bajos.",
+  "moat": [
+    {
+      "type": "scale",
+      "explanation": "Como la ganancia de Costco viene de las cuotas de membresía y no de vender caro, puede permitirse vender con márgenes extremadamente bajos — algo que un competidor sin ese modelo de ingresos no puede igualar de forma sostenible sin perder dinero en cada venta. Esto crea un círculo: precios bajos atraen más miembros, más miembros compran más volumen, y ese volumen le da a Costco más poder de negociación con sus proveedores para mantener los precios bajos.",
+      "evidence": "Costco reporta públicamente, trimestre a trimestre, que el ingreso por cuotas de membresía representa una porción desproporcionadamente alta de su utilidad operativa en comparación con el margen bruto de la mercancía que vende — este es un hecho estructural del modelo de negocio, reportado en sus propios resultados trimestrales, y ampliamente conocido en la industria del retail.",
+      "weakening_factors": "Un estancamiento o caída sostenida en la tasa de renovación de membresías debilitaría directamente este modelo. Competencia de otros clubes de descuento o del comercio electrónico que erosione el tráfico físico en tienda.",
+      "source_name": "Reportes trimestrales públicos de Costco (10-Q/10-K), patrón consistente en los más recientes disponibles",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    }
+  ],
+  "risks": [
+    {
+      "category": "rentabilidad",
+      "fact_type": "hecho",
+      "explanation": "El modelo de negocio de Costco depende de que la tasa de renovación de membresías se mantenga consistentemente alta. Si esa tasa cae, el ingreso que sostiene toda la rentabilidad de la empresa se ve directamente afectado.",
+      "evidence": "Costco reporta su tasa de renovación de membresía como una métrica pública trimestral.",
+      "watch_indicator": "Cualquier caída sostenida (no un solo trimestre aislado) en la tasa de renovación de membresía reportada.",
+      "uncertainty": "Una caída puntual de un trimestre no necesariamente indica una tendencia — hay que distinguir ruido de una señal real.",
+      "source_name": "Reportes trimestrales públicos de Costco",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    },
+    {
+      "category": "rentabilidad",
+      "fact_type": "interpretacion",
+      "explanation": "La compresión de márgenes que afecta a la industria minorista en general podría, con el tiempo, presionar a Costco a elegir entre subir el precio de la membresía (con el riesgo de generar fricción o pérdida de miembros) o absorber más costo operativo sin trasladarlo al consumidor.",
+      "evidence": "Esta es una lectura razonable de la dinámica general del sector retail, no un hecho ya materializado específicamente para Costco hoy.",
+      "watch_indicator": "Cualquier anuncio de incremento en el precio de membresía y la reacción posterior en la tasa de renovación.",
+      "uncertainty": "No hay evidencia de que esto esté ocurriendo activamente en Costco en este momento — es una presión estructural del sector, no un hecho específico y actual de la empresa.",
+      "source_name": "Interpretación propia basada en dinámicas conocidas del sector retail",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "media"
+    },
+    {
+      "category": "riesgo_sectorial",
+      "fact_type": "hecho",
+      "explanation": "Costco depende de una cadena de suministro global extensa, lo que la expone a disrupciones por eventos geopolíticos, aranceles, o problemas logísticos internacionales.",
+      "evidence": "La propia Costco menciona explícitamente la exposición a la cadena de suministro global como un factor de riesgo en sus propios reportes.",
+      "watch_indicator": "Anuncios de aranceles nuevos, disrupciones logísticas mayores, o cambios en los costos de importación reportados por la empresa.",
+      "uncertainty": "El momento y la magnitud de una disrupción específica no son predecibles de antemano.",
+      "source_name": "Factores de riesgo divulgados en los reportes anuales de Costco",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    }
+  ]
+}

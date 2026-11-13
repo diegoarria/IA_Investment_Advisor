@@ -76,7 +76,27 @@ class TestUsdRateFailurePropagation:
     figure."""
 
     def test_usd_rate_returns_none_when_yfinance_lookup_fails(self):
-        with patch("yfinance.Ticker", side_effect=Exception("rate limited")):
+        """Nuvos Plus Fase 4C stability audit (2026-11): real bug in this
+        TEST, not in `_usd_rate` — only `yfinance.Ticker` was mocked to
+        fail, so after that, `_usd_rate`'s FMP fallback made a genuine,
+        unmocked live call to the real FMP API (with the real dev
+        `FMP_API_KEY`), which legitimately succeeded and returned a real
+        CNY rate (confirmed live: 0.14993) instead of the None this test
+        asserts. It failed both standalone and in the full suite —
+        never an order-dependent flake, just an uncontrolled live network
+        call masquerading as "both providers failed." Mocking
+        `requests.get` to fail too (matching the `fmp_call_allowed()`
+        gate's own failure contract) makes this deterministic and
+        removes the real outbound call + FMP-quota consumption during
+        tests, also clearing the module-level `_fx`/`_fx_failed` caches
+        first so an unrelated earlier test's successful CNY lookup can
+        never leak a cached value into this assertion."""
+        import app.services.financial_data_service as fds
+        fds._fx.clear()
+        fds._fx_ts = 0.0
+        fds._fx_failed.clear()
+        with patch("yfinance.Ticker", side_effect=Exception("rate limited")), \
+             patch("requests.get", side_effect=Exception("network down")):
             assert _usd_rate("CNY") is None
 
     def test_usd_rate_returns_1_for_usd_without_any_network_call(self):
@@ -86,6 +106,58 @@ class TestUsdRateFailurePropagation:
     def test_conv_propagates_none_instead_of_returning_unconverted_value(self):
         with patch("app.services.financial_data_service._usd_rate", return_value=None):
             assert _conv(853_062_000_000.0, "CNY") is None
+
+
+class TestUsdRateConsecutiveCurrenciesDoNotCrash:
+    """Nuvos Plus Fase 4B, 2026-11 — real bug found auditing a multi-
+    currency portfolio: `_fx_ts = time.time()` inside `_usd_rate` was
+    reassigned without `global _fx_ts`, so Python scoped it as a LOCAL
+    for the whole function. The very next call for a DIFFERENT currency
+    then hit the read `time.time() - _fx_ts` before that call's own
+    assignment, raising UnboundLocalError instead of returning a rate —
+    `_fx` itself was never affected (subscript assignment mutates the
+    existing dict, it doesn't need `global`). Fixed by adding
+    `global _fx_ts`. This test forces the exact trigger condition: a
+    successful fetch for one currency, immediately followed by a second,
+    different currency, in the same process."""
+
+    def test_second_distinct_currency_after_a_cached_one_does_not_raise(self):
+        import app.services.financial_data_service as fds
+        fds._fx.clear()
+        fds._fx_ts = 0.0
+        fds._fx_failed.clear()
+
+        class _FakeFastInfo:
+            def __init__(self, price):
+                self.last_price = price
+
+        class _FakeTicker:
+            def __init__(self, pair):
+                rate = {"EURUSD=X": 1.1, "MXNUSD=X": 0.05}[pair]
+                self.fast_info = _FakeFastInfo(rate)
+
+        with patch("yfinance.Ticker", side_effect=_FakeTicker):
+            first = _usd_rate("EUR")
+            second = _usd_rate("MXN")  # used to raise UnboundLocalError here
+
+        assert first == 1.1
+        assert second == 0.05
+
+    def test_repeat_call_for_an_already_cached_currency_returns_cached_value(self):
+        import app.services.financial_data_service as fds
+        fds._fx.clear()
+        fds._fx_ts = 0.0
+        fds._fx_failed.clear()
+
+        class _FakeFastInfo:
+            last_price = 1.1
+
+        with patch("yfinance.Ticker", return_value=_FakeFastInfo()) as mock_ticker:
+            mock_ticker.return_value.fast_info = _FakeFastInfo()
+            first = _usd_rate("EUR")
+            second = _usd_rate("EUR")  # cache hit path — also reads _fx_ts
+
+        assert first == second == 1.1
 
     def test_fmp_income_row_is_entirely_none_for_a_foreign_reporter_during_an_fx_outage(self):
         raw_row = {

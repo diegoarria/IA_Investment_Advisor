@@ -170,7 +170,17 @@ def _usd_rate(currency: str) -> Optional[float]:
     class of bug as the EPS one below, just triggered by an outage
     instead of a missing conversion call. None here forces every caller
     (`_conv`) to propagate the missing value rather than fabricate a
-    wrong-scale number."""
+    wrong-scale number.
+
+    Diego, 2026-11 (found auditing Nuvos Plus Fase 4B, a portfolio with
+    two distinct foreign currencies): `_fx_ts` is reassigned below without
+    `global`, so Python scopes it as a LOCAL for the whole function body —
+    the very next call for a different currency then hits `_fx_ts` on its
+    read (line below) before this call's own assignment, raising
+    UnboundLocalError instead of returning a rate. `_fx` itself never
+    needed this (subscript assignment mutates the existing dict, it
+    doesn't rebind the name) — only the plain `_fx_ts = ...` rebind did."""
+    global _fx_ts
     c = (currency or "USD").upper()
     if c in ("USD", "USX", ""):
         return 1.0

@@ -145,6 +145,17 @@ def _primary_scenarios(dcf: dict) -> Optional[dict]:
             "wacc_details": gqv.get("wacc_details"),
             "pe_on_normalized_eps": gqv.get("pe_on_normalized_eps"),
             "pe_gaap": gqv.get("pe_gaap"),
+            # Dual-track transparency (2026-11-12 audit): `shadow_dual_track`
+            # is the same dict fundamental_analysis_service.py already used
+            # to overwrite this row's base/bear/bull fair_value_per_share
+            # above — carried through here so the persistence layer
+            # (company_valuation_service.py) can save its components
+            # (earnings/FCF track values + weights) instead of discarding
+            # them once the blend is applied. Absent (None) whenever the
+            # dual-track computation itself didn't run or returned no
+            # usable blend (e.g. REIT sector, no real WACC) — never
+            # fabricated.
+            "shadow_dual_track": gqv.get("shadow_dual_track"),
         }
     legacy = dcf.get("scenarios")
     if legacy and (legacy.get("base") or {}).get("intrinsic_value_per_share") is not None:
@@ -816,7 +827,7 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
     # card was presenting an unreliable operating_margin_anchor-derived
     # value as `valid` even though the persisted/backfill path already
     # knew to flag it `under_review`. One shared rule, never two.
-    from app.services.company_valuation_service import _anomaly_review_reason
+    from app.services.company_valuation_service import _anomaly_review_reason, _dual_track_assumptions
     _review_reason = _anomaly_review_reason(scenarios, dcf)
     valuation = {
         "conservative": scenarios["bear"],
@@ -832,6 +843,14 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
         "evFcf": data.get("ev_fcf"),
         "fcfAssumptions": scenarios.get("fcf_assumptions"),
         "waccDetails": scenarios.get("wacc_details"),
+        # Dual-track transparency (2026-11-12 audit, same additive-only
+        # wiring already used by scenarios_from_fetched_data's persisted
+        # `assumptions.dual_track` — reused here, not reimplemented, so both
+        # paths describe the exact same real computation the same way).
+        # None whenever the dual-track blend itself didn't produce a usable
+        # result (REIT sector, legacy/financial-engine ticker like a bank,
+        # no real WACC) — never fabricated, never a stale/mismatched value.
+        "dualTrack": _dual_track_assumptions(scenarios.get("shadow_dual_track")),
         # Methodology audit round 2 (see /Users/diegoarria/.claude/plans/
         # cosmic-munching-crown.md) — real forward P/E (Yahoo, when the live
         # fetch succeeded) and P/E on earnings-state-normalized EPS, shown

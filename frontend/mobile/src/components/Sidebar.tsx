@@ -15,6 +15,7 @@ import { useChatStore } from "../lib/chatStore";
 import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
 import { getUserLevel, useUserLevel, isAtLeast, getLevelLabel, LEVEL_COLOR } from "../lib/userLevel";
+import { rcLogOut } from "../lib/revenuecat";
 
 const ARTHUR_PHOTO = require("../../assets/images/mentors/arthur.jpg");
 
@@ -417,6 +418,7 @@ function useLogout() {
     SecureStore.deleteItemAsync("access_token").catch(() => {});
     SecureStore.deleteItemAsync("refresh_token").catch(() => {});
     SecureStore.deleteItemAsync("user_id").catch(() => {});
+    rcLogOut().catch(() => {});
   };
 }
 

@@ -582,6 +582,16 @@ async def delete_portfolio(portfolio_id: str, user_id: str = Depends(get_current
         .eq("user_id", user_id)
         .eq("portfolio_id", portfolio_id)
     )
+    # Nuvos Pulse (Fase 6B): a deleted portfolio's historical snapshots
+    # have no `portfolio_id` foreign key to cascade from (unlike account
+    # deletion, which already cascades via auth.users) — this is the one
+    # explicit cleanup hook required for that case.
+    await run_query(
+        db.table("portfolio_pulse_snapshots")
+        .delete()
+        .eq("user_id", user_id)
+        .eq("portfolio_id", portfolio_id)
+    )
     cache_delete(f"sync:portfolios:{user_id}")
     cache_delete(f"sync:all:{user_id}")
     return {"ok": True}

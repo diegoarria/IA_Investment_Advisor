@@ -40,6 +40,15 @@ export default {
     },
     plugins: [
       "expo-router",
+      // Expo SDK 58 requires iOS 16.4+ to link its own native modules
+      // (expo-modules-core and friends) — without this the Podfile falls
+      // back to the old 15.1 default and every Expo pod fails to link.
+      [
+        "expo-build-properties",
+        {
+          ios: { deploymentTarget: "16.4" },
+        },
+      ],
       [
         "expo-notifications",
         {
@@ -76,17 +85,30 @@ export default {
       "expo-video",
       // Compartir captura/PDF desde la app del broker directo a Nuvos
       // (Diego, 2026-09-29). Native — only active in EAS builds, not Expo Go.
-      [
-        "expo-share-intent",
-        {
-          iosActivationRules: {
-            NSExtensionActivationSupportsImageWithMaxCount: 5,
-            NSExtensionActivationSupportsFileWithMaxCount: 1,
-          },
-          androidIntentFilters: ["image/*", "application/pdf"],
-          androidMultiIntentFilters: ["image/*"],
-        },
-      ],
+      //
+      // TEMPORALMENTE DESACTIVADO (Diego, 2026-10-04): este plugin genera un
+      // segundo target nativo de iOS (ShareExtension, su propio bundle ID)
+      // que Apple exige autorizar con credenciales propias — ese paso quedó
+      // a medias en el Apple Developer Portal y estaba bloqueando CADA build
+      // a TestFlight. Comentado para no bloquear el build de hoy;
+      // ShareIntentHandler.tsx ya maneja ShareIntentModule == null sin
+      // crashear (mismo comportamiento que en Expo Go), así que la app
+      // funciona normal, solo sin "compartir a Nuvos" en este build.
+      // REACTIVAR en cuanto se termine de configurar la Distribution
+      // Certificate + Provisioning Profile (App Store) del target
+      // ShareExtension en `eas credentials -p ios` (target: ShareExtension
+      // dentro del proyecto @diegoarria/nuvo).
+      // [
+      //   "expo-share-intent",
+      //   {
+      //     iosActivationRules: {
+      //       NSExtensionActivationSupportsImageWithMaxCount: 5,
+      //       NSExtensionActivationSupportsFileWithMaxCount: 1,
+      //     },
+      //     androidIntentFilters: ["image/*", "application/pdf"],
+      //     androidMultiIntentFilters: ["image/*"],
+      //   },
+      // ],
     ],
     experiments: {
       typedRoutes: true,

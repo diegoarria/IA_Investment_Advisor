@@ -23,6 +23,7 @@ import { useSubscriptionStore } from "../src/lib/subscriptionStore";
 import { useChatStore } from "../src/lib/chatStore";
 import { useWatchlistStore, resetWatchlistSyncState } from "../src/lib/watchlistStore";
 import { useLearnStore } from "../src/lib/learnStore";
+import { rcLogIn } from "../src/lib/revenuecat";
 import { useLanguage } from "../src/lib/LanguageContext";
 import { useTranslation } from "react-i18next";
 
@@ -123,6 +124,12 @@ export default function AuthScreen() {
           setChecking(false);
           return;
         }
+        // Already-authenticated cold start — afterAuth() only runs on a
+        // fresh login/signup, so re-identify RevenueCat here too, or a
+        // user who force-quit the app (never explicitly logged out) would
+        // stay on RevenueCat's anonymous id forever and never see their
+        // own purchases/entitlements.
+        SecureStore.getItemAsync("user_id").then((uid) => { if (uid) rcLogIn(uid).catch(() => {}); });
         const [profileRes, syncRes] = await Promise.allSettled([
           profileApi.get(),
           syncApi.getAll(),
@@ -236,6 +243,10 @@ export default function AuthScreen() {
     await SecureStore.setItemAsync("access_token", accessToken);
     await SecureStore.setItemAsync("user_id", userId);
     if (refreshToken) await SecureStore.setItemAsync("refresh_token", refreshToken);
+    // Identify RevenueCat as this stable Supabase user id — fire-and-forget,
+    // must never block or fail login (see src/lib/revenuecat.ts; no-ops on
+    // Android/Expo Go/missing API key).
+    rcLogIn(userId).catch(() => {});
     // Re-hydrate every persisted store from THIS account's scoped storage keys —
     // without this, switching accounts on the same device kept the previous
     // account's in-memory state until the server sync happened to overwrite it

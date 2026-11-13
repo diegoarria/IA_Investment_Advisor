@@ -247,6 +247,42 @@ def _methodology_label(scenarios: dict, dcf: dict) -> str:
     return "unknown"
 
 
+# Dual-track persistence shape, 2026-11-12. `shadow_result` is the raw dict
+# `compute_shadow_dual_track()` returns (see shadow_dual_track_service.py),
+# carried here via `_primary_scenarios`'s `shadow_dual_track` key — None
+# whenever the dual-track computation didn't run or produced no usable
+# result (REIT sector, no real WACC, missing EPS, etc.). Reads only, never
+# recomputes/reweights anything; every field is None (not 0) when the
+# underlying computation didn't produce it, so a reader can tell "this
+# component is genuinely unavailable" apart from "this component is zero".
+_DUAL_TRACK_VERSION = "dual_track_v1"
+
+
+def _dual_track_assumptions(shadow_result: Optional[dict]) -> Optional[dict]:
+    if not shadow_result:
+        return None
+    blend = shadow_result.get("blend")  # None whenever blend_tracks() itself didn't fire
+    return {
+        "version": _DUAL_TRACK_VERSION,
+        # Prefer the blend's own (rounded) copies when a real blend ran —
+        # falls back to the top-level pre-blend values so the earnings-
+        # track figure is still available even on tickers where the FCF
+        # track (and therefore the blend) never fired.
+        "earnings_track_value": (blend or {}).get("earnings_track_value", shadow_result.get("earnings_track_value")),
+        "fcf_track_value": (blend or {}).get("fcf_track_value", shadow_result.get("fcf_track_value")),
+        # Weights only ever exist once a real blend ran — genuinely absent
+        # (None), never defaulted to e.g. 50/50 or 0, when it didn't.
+        "earnings_track_weight_pct": (blend or {}).get("earnings_track_weight_pct"),
+        "fcf_track_weight_pct": (blend or {}).get("fcf_track_weight_pct"),
+        # Same number already used to overwrite scenarios["base"] upstream
+        # (or the plain earnings-track value when no blend fired) — kept
+        # here too so this sub-object is self-contained for an auditor
+        # reading Supabase directly, without needing to cross-reference
+        # intrinsic_value_usd and trust they still mean the same thing.
+        "blended_fair_value": shadow_result.get("blended_fair_value"),
+    }
+
+
 def compute_numeric_valuation(ticker: str) -> dict:
     """Real core valuation only — no competitor/sector comparison, no AI.
     Returns a dict matching set_current_company_valuation's RPC params
@@ -491,6 +527,19 @@ def scenarios_from_fetched_data(ticker: str, data: dict) -> dict:
             "bear": scenarios.get("bear"),
             "bull": scenarios.get("bull"),
             "peer_count": scenarios.get("_peer_count"),
+            # Dual-track transparency (2026-11-12 audit, GOOGL review):
+            # fundamental_analysis_service.py already computes these every
+            # time the GQV path runs (see shadow_dual_track_service.py),
+            # and its blended value silently overwrites base/bear/bull
+            # above — but until now nothing persisted the two tracks' own
+            # values/weights, making that overwrite unauditable from
+            # Supabase alone. Purely additive: reads data already computed
+            # upstream, invents nothing, changes no formula/weight. A
+            # missing/None sub-field here means the dual-track computation
+            # genuinely didn't produce that component (e.g. REIT sector, no
+            # real WACC, or the blend itself didn't fire because one track
+            # was unavailable) — never coerced to 0.
+            "dual_track": _dual_track_assumptions(scenarios.get("shadow_dual_track")),
         },
     }
 

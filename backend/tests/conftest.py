@@ -21,6 +21,24 @@ from unittest.mock import patch
 
 import pytest
 
+from app.core.config import PRODUCTION_SUPABASE_PROJECT_REF, settings
+
+
+def pytest_configure(config):
+    """Refuse to even collect tests if SUPABASE_URL resolves to the known
+    production project. Nuvos ETF Phase 0 (2026-11) found that local dev and
+    production previously shared one Supabase project with no isolation —
+    this guard makes that mistake impossible to repeat even if a future
+    .env file accidentally points back at production. Checks the resolved
+    `settings.supabase_url` (not a raw os.getenv) so it still catches the
+    case where SUPABASE_URL only lives in a dotenv file, not the shell."""
+    if PRODUCTION_SUPABASE_PROJECT_REF in settings.supabase_url:
+        raise RuntimeError(
+            "Refusing to run tests: SUPABASE_URL points at the production "
+            f"project ({PRODUCTION_SUPABASE_PROJECT_REF}). Point ENV_FILE at "
+            "an isolated dev project's .env before running tests."
+        )
+
 
 @pytest.fixture(autouse=True)
 def _no_real_analyst_estimates_network_calls():

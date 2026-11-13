@@ -24,6 +24,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
 import { useLanguage, Language } from "../../src/lib/LanguageContext";
 import { useTranslation } from "react-i18next";
+import { rcLogOut } from "../../src/lib/revenuecat";
 
 const LANGUAGE_OPTIONS: { key: Language; label: string; icon: string; color: string }[] = [
   { key: "es", label: "Español 🇪🇸", icon: "chatbubbles-outline", color: "#00d47e" },
@@ -385,6 +386,7 @@ if (!profile) {
           SecureStore.deleteItemAsync("access_token").catch(() => {});
           SecureStore.deleteItemAsync("refresh_token").catch(() => {});
           SecureStore.deleteItemAsync("user_id").catch(() => {});
+          rcLogOut().catch(() => {});
         },
       },
     ]);
@@ -461,6 +463,7 @@ if (!profile) {
                     SecureStore.deleteItemAsync("access_token").catch(() => {});
                     SecureStore.deleteItemAsync("refresh_token").catch(() => {});
                     SecureStore.deleteItemAsync("user_id").catch(() => {});
+                    rcLogOut().catch(() => {});
                     router.replace("/");
                   },
                 },

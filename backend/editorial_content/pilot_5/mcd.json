@@ -1,0 +1,57 @@
+{
+  "ticker": "MCD",
+  "review_status": "draft",
+  "is_current": false,
+  "updated_by": "ai_draft:claude-sonnet-5",
+  "business_model_summary": "McDonald's gana dinero principalmente de dos formas: cobrando renta sobre los terrenos/edificios de sus restaurantes (que en su mayoría son operados por franquiciatarios independientes, no por la propia empresa) y cobrando una regalía sobre las ventas de esos restaurantes franquiciados. Una porción menor de sus ingresos viene de los restaurantes que la propia McDonald's opera directamente.",
+  "moat": [
+    {
+      "type": "scale",
+      "explanation": "McDonald's es dueño o arrendatario a largo plazo de la mayoría de los terrenos donde operan sus restaurantes franquiciados, y cobra renta más regalía sobre las ventas del franquiciatario. Esto significa que gran parte de su ingreso no depende de qué tan bien se opere un restaurante día a día (ese riesgo operativo lo asume el franquiciatario), sino de la ubicación inmobiliaria y del volumen de ventas de todo el sistema de restaurantes en conjunto.",
+      "evidence": "McDonald's divulga públicamente en sus reportes anuales el desglose de ingresos entre restaurantes operados por franquiciatarios (renta + regalía) y restaurantes operados directamente por la compañía — este desglose por segmento es un hecho reportado, no una inferencia.",
+      "weakening_factors": "Un cambio de hábitos de consumo hacia alimentación percibida como más saludable que reduzca el tráfico de largo plazo. Tensiones con la red de franquiciatarios sobre los términos de renta/regalía que pudieran afectar la relación comercial.",
+      "source_name": "10-K de McDonald's (desglose de ingresos por segmento franquiciado vs. operado por la compañía), reporte anual más reciente disponible",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    }
+  ],
+  "risks": [
+    {
+      "category": "ejecucion_operativa",
+      "fact_type": "hecho",
+      "explanation": "McDonald's depende de una extensa red de franquiciatarios independientes para operar la mayoría de sus restaurantes, lo que crea un riesgo de ejecución (calidad de servicio, cumplimiento de estándares) que está fuera del control operativo directo de la empresa matriz.",
+      "evidence": "Este es un hecho estructural del modelo de negocio, divulgado públicamente por la propia McDonald's.",
+      "watch_indicator": "Disputas legales o tensiones reportadas con asociaciones de franquiciatarios.",
+      "uncertainty": "El riesgo es estructural y permanente al modelo, no un evento puntual predecible.",
+      "source_name": "Modelo de negocio divulgado públicamente por McDonald's Corporation",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    },
+    {
+      "category": "competencia",
+      "fact_type": "interpretacion",
+      "explanation": "Un cambio generacional hacia preferencias de alimentación percibidas como más saludables podría, con el tiempo, presionar el tráfico de largo plazo en los restaurantes de McDonald's.",
+      "evidence": "Esta es una lectura razonable de una tendencia de consumo observada en la industria de restaurantes en general, no un hecho con una fecha específica atribuible solo a McDonald's.",
+      "watch_indicator": "Tendencias de tráfico de clientes (comparable sales) reportadas trimestralmente y cambios en el menú de la empresa como respuesta a esta presión.",
+      "uncertainty": "El ritmo y la magnitud real de este cambio de hábito en el tráfico de McDonald's específicamente no están cuantificados con certeza.",
+      "source_name": "Interpretación propia basada en tendencias de consumo observadas en la industria de restaurantes",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "media"
+    },
+    {
+      "category": "deuda_liquidez",
+      "fact_type": "hecho",
+      "explanation": "McDonald's está expuesta al riesgo de costos de insumos (como carne de res y papa), lo cual afecta los márgenes de los franquiciatarios y, por extensión, su capacidad de pagar la renta y regalía a la empresa matriz.",
+      "evidence": "Este riesgo de costo de materias primas se menciona explícitamente como factor de riesgo en los propios reportes de la compañía.",
+      "watch_indicator": "Movimientos significativos en los precios de commodities clave (carne de res, papa) y su impacto reportado en los márgenes de los franquiciatarios.",
+      "uncertainty": "La volatilidad de precios de commodities agrícolas es inherentemente difícil de predecir con anticipación.",
+      "source_name": "Factores de riesgo divulgados en los reportes anuales de McDonald's",
+      "source_document_date": null,
+      "source_accessed_at": null,
+      "confidence": "alta"
+    }
+  ]
+}
