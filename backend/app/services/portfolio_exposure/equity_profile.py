@@ -56,12 +56,29 @@ def get_equity_profile(ticker: str) -> dict:
     if cached is not None:
         return cached
 
-    # Fase 8C (2026-11-12): Distribución loses its premium gate this phase
-    # and becomes reachable by every authenticated user — this was the one
-    # FMP call site in the exposure combiner with no cross-request budget
-    # check (1-2 calls per equity position, every uncached ticker, on
-    # every portfolio view). Same shared guard historical.py and
-    # financial_data_service.get_fmp_quote_price already use.
+    result = _fetch_equity_profile_raw(ticker)
+    if not result:
+        # Fase 8-hotfix (BRK.B, confirmed live against FMP): a dual-class
+        # suffix written with a dot ("BRK.B") returns an empty /profile —
+        # FMP's real symbol is the hyphen form ("BRK-B"). Retried ONLY
+        # after the original attempt fails (a ticker that already works
+        # never pays for a second request) and ONLY when
+        # canonicalize_ticker_suffix actually changes something (most
+        # tickers have no dot suffix at all).
+        from app.services.company_valuation_service import canonicalize_ticker_suffix
+        canonical = canonicalize_ticker_suffix(ticker)
+        if canonical != ticker:
+            result = _fetch_equity_profile_raw(canonical)
+
+    if result:
+        cache_set(ck, result, ttl=_TTL_S)
+    return result or {}
+
+
+def _fetch_equity_profile_raw(ticker: str) -> dict:
+    """One real, budget-checked /profile attempt for the EXACT `ticker`
+    string given — no caching, no fallback retry (that's the caller's
+    job). Never raises, returns {} on any failure."""
     from app.core.fmp_budget import fmp_call_allowed
     if not fmp_call_allowed():
         return {}
@@ -79,14 +96,12 @@ def get_equity_profile(ticker: str) -> dict:
         if not isinstance(data, list) or not data:
             return {}
         d = data[0]
-        result = {
+        return {
             "sector": d.get("sector") or None,
             "country": d.get("country") or None,
             "currency": d.get("currency") or None,
             "company_name": d.get("companyName") or None,
         }
-        cache_set(ck, result, ttl=_TTL_S)
-        return result
     except Exception as exc:
         logger.debug("portfolio_exposure.equity_profile(%s) failed: %s", ticker, exc)
         return {}

@@ -693,6 +693,31 @@ def get_fmp_quote_price(symbol: str) -> Optional[float]:
     cached = cache_get(ck)
     if cached is not None:
         return cached
+
+    price = _fetch_fmp_quote_price_raw(symbol)
+    if price is None:
+        # Fase 8-hotfix (BRK.B, confirmed live against FMP): a dual-class
+        # suffix written with a dot ("BRK.B") makes /quote respond 402
+        # "special endpoint... not available under your current
+        # subscription" — FMP's real symbol is the hyphen form
+        # ("BRK-B"). Retried ONLY after the original attempt fails (never
+        # pre-emptively — a symbol that already works never pays for a
+        # second request) and ONLY when canonicalize_ticker_suffix
+        # actually changes something (most symbols have no dot suffix).
+        from app.services.company_valuation_service import canonicalize_ticker_suffix
+        canonical = canonicalize_ticker_suffix(symbol)
+        if canonical != symbol:
+            price = _fetch_fmp_quote_price_raw(canonical)
+
+    if price is not None:
+        cache_set(ck, price, ttl=60)
+    return price
+
+
+def _fetch_fmp_quote_price_raw(symbol: str) -> Optional[float]:
+    """One real, budget-checked /quote attempt for the EXACT `symbol`
+    string given — no caching, no fallback retry (that's the caller's
+    job). Never raises, never fabricates a price."""
     from app.core.fmp_budget import fmp_call_allowed
     if not fmp_call_allowed():
         return None
@@ -705,10 +730,7 @@ def get_fmp_quote_price(symbol: str) -> Optional[float]:
         )
         data = r.json()
         if isinstance(data, list) and data:
-            price = _num(data[0].get("price"))
-            if price is not None:
-                cache_set(ck, price, ttl=60)
-                return price
+            return _num(data[0].get("price"))
     except Exception as exc:
         logger.debug("FMP quote request failed for %s: %s", symbol, exc)
     return None

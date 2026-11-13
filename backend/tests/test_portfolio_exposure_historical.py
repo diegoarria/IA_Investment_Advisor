@@ -387,3 +387,163 @@ def test_does_not_touch_combiner_simulate_addition_contract():
     sig_before = str(inspect.signature(combiner.simulate_addition))
     # Importing historical.py must not change combiner's own public contract.
     assert sig_before == "(valued_real: list[dict], hypothetical: dict) -> dict"
+
+
+class TestDualClassTickerSuffixFallback:
+    """Fase 8-hotfix (2026-11-12): confirmed live against FMP — a dual-
+    class suffix written with a dot ("BRK.B") returns 402 "special
+    endpoint... not available under your current subscription" on
+    /historical-price-eod/dividend-adjusted too. Real symbol is the
+    hyphen form ("BRK-B"). Also fixes a real pre-existing bug this
+    investigation found: ANY non-200 response (402, 429, 5xx) used to be
+    silently cached as "no historical data" for 24h — now only a genuine
+    200 response is cached, and only a confirmed-rejected symbol (never
+    a 429/5xx) triggers the canonical-form retry."""
+
+    def _resp(self, status, body):
+        class _R:
+            status_code = status
+            def json(self_inner):
+                return body
+        return _R()
+
+    def test_brk_b_retries_with_hyphen_and_gets_real_history(self):
+        calls = []
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            calls.append(params["symbol"])
+            if params["symbol"] == "BRK.B":
+                return self._resp(402, {"Error Message": "Special Endpoint"})
+            if params["symbol"] == "BRK-B":
+                return self._resp(200, [{"symbol": "BRK-B", "date": "2024-01-10", "adjClose": 367.92}])
+            raise AssertionError(f"unexpected symbol: {params['symbol']}")
+
+        with patch("app.services.portfolio_exposure.historical.requests.get", side_effect=fake_get):
+            rows = h._fetch_raw_chunk("BRK.B", "2024-01-01", "2024-01-10")
+        assert rows == [{"symbol": "BRK-B", "date": "2024-01-10", "adjClose": 367.92}]
+        assert calls == ["BRK.B", "BRK-B"]
+
+    def test_brk_a_same_pattern(self):
+        def fake_get(url, params=None, headers=None, timeout=None):
+            if params["symbol"] == "BRK.A":
+                return self._resp(402, {})
+            return self._resp(200, [{"symbol": "BRK-A", "date": "2024-01-10", "adjClose": 550000.0}])
+
+        with patch("app.services.portfolio_exposure.historical.requests.get", side_effect=fake_get):
+            rows = h._fetch_raw_chunk("BRK.A", "2024-01-01", "2024-01-10")
+        assert rows and rows[0]["adjClose"] == 550000.0
+
+    def test_plain_tickers_never_retried_aapl_voo_asml(self):
+        """AAPL, VOO, ASML — none have a dot suffix, must never trigger
+        a second request."""
+        for ticker in ("AAPL", "VOO", "ASML"):
+            calls = []
+
+            def fake_get(url, params=None, headers=None, timeout=None):
+                calls.append(params["symbol"])
+                return self._resp(200, [{"symbol": ticker, "date": "2024-01-10", "adjClose": 100.0}])
+
+            with patch("app.services.portfolio_exposure.historical.requests.get", side_effect=fake_get):
+                rows = h._fetch_raw_chunk(ticker, "2024-01-01", "2024-01-10")
+            assert rows and rows[0]["symbol"] == ticker
+            assert calls == [ticker], f"{ticker} triggered an unexpected retry: {calls}"
+
+    def test_429_never_triggers_the_canonical_retry(self):
+        """Explicit requirement: a transient rate-limit on the ORIGINAL
+        symbol must never spend a second call retrying a different
+        symbol string — it wouldn't fix a rate limit anyway."""
+        calls = []
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            calls.append(params["symbol"])
+            return self._resp(429, {"Error Message": "Limit Reach"})
+
+        with patch("app.services.portfolio_exposure.historical.requests.get", side_effect=fake_get):
+            rows = h._fetch_raw_chunk("BRK.B", "2024-01-01", "2024-01-10")
+        assert rows == []
+        assert calls == ["BRK.B"]  # never retried with BRK-B
+
+    def test_5xx_never_triggers_the_canonical_retry(self):
+        calls = []
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            calls.append(params["symbol"])
+            return self._resp(503, {"error": "upstream unavailable"})
+
+        with patch("app.services.portfolio_exposure.historical.requests.get", side_effect=fake_get):
+            rows = h._fetch_raw_chunk("BRK.B", "2024-01-01", "2024-01-10")
+        assert rows == []
+        assert calls == ["BRK.B"]
+
+    def test_transient_failure_is_never_cached_as_no_data(self):
+        """Pre-existing bug found during this investigation: a non-200
+        response used to be silently cached as '[]' for 24h. Confirms a
+        later successful attempt is no longer blocked by that."""
+        from app.core import cache as cache_module
+        state = {"fail": True}
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            if state["fail"]:
+                return self._resp(429, {"Error Message": "Limit Reach"})
+            return self._resp(200, [{"symbol": "AAPL", "date": "2024-01-10", "adjClose": 190.0}])
+
+        with patch("app.services.portfolio_exposure.historical.requests.get", side_effect=fake_get):
+            rows = h._fetch_raw_chunk("AAPL", "2024-01-01", "2024-01-10")
+            assert rows == []
+            # Confirm nothing got persisted for this key.
+            assert cache_module.cache_get("fmp:adj_hist:AAPL:2024-01-01:2024-01-10") is None
+            state["fail"] = False
+            rows = h._fetch_raw_chunk("AAPL", "2024-01-01", "2024-01-10")
+            assert rows and rows[0]["adjClose"] == 190.0
+
+    def test_genuine_empty_200_response_is_cached_as_legitimate_no_data(self):
+        """A real 200 with an empty list (e.g. a date range before the
+        stock existed) IS a legitimate answer and must be cached — not
+        confused with a transient/rejected-symbol failure."""
+        call_count = {"n": 0}
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            call_count["n"] += 1
+            return self._resp(200, [])
+
+        with patch("app.services.portfolio_exposure.historical.requests.get", side_effect=fake_get):
+            assert h._fetch_raw_chunk("AAPL", "1950-01-01", "1950-01-10") == []
+            assert h._fetch_raw_chunk("AAPL", "1950-01-01", "1950-01-10") == []
+        assert call_count["n"] == 1  # second call served from cache
+
+    def test_result_cached_under_original_ticker_not_canonical(self):
+        call_count = {"n": 0}
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            call_count["n"] += 1
+            if params["symbol"] == "BRK.B":
+                return self._resp(402, {})
+            return self._resp(200, [{"symbol": "BRK-B", "date": "2024-01-10", "adjClose": 367.92}])
+
+        with patch("app.services.portfolio_exposure.historical.requests.get", side_effect=fake_get):
+            h._fetch_raw_chunk("BRK.B", "2024-01-01", "2024-01-10")
+            h._fetch_raw_chunk("BRK.B", "2024-01-01", "2024-01-10")  # same ticker+range again
+        assert call_count["n"] == 2  # only the FIRST call made real requests (1 fail + 1 retry)
+
+    def test_no_history_formula_or_methodology_changed_full_pipeline_still_correct(self):
+        """End-to-end through fetch_adjusted_price_series (the real
+        public entry point): confirms the dual-class retry composes
+        correctly with the existing chunking/validation/dedup logic
+        without altering any of it."""
+        def fake_get(url, params=None, headers=None, timeout=None):
+            if params["symbol"] == "BRK.B":
+                return self._resp(402, {})
+            return self._resp(200, [
+                {"symbol": "BRK-B", "date": "2024-01-08", "adjClose": 360.0},
+                {"symbol": "BRK-B", "date": "2024-01-09", "adjClose": 365.0},
+                {"symbol": "BRK-B", "date": "2024-01-10", "adjClose": 367.92},
+            ])
+
+        with patch("app.services.portfolio_exposure.historical.requests.get", side_effect=fake_get):
+            result = h.fetch_adjusted_price_series("BRK.B", "2024-01-08", "2024-01-10")
+        assert result["series"] == [
+            {"date": "2024-01-08", "adj_close": 360.0},
+            {"date": "2024-01-09", "adj_close": 365.0},
+            {"date": "2024-01-10", "adj_close": 367.92},
+        ]
+        assert result["warnings"] == []

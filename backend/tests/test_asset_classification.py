@@ -339,3 +339,128 @@ class TestGuardIntegration:
             fas.get_fundamental_analysis("AAPL")
 
         mock_gf.assert_called_once()  # proceeded past the guard, as intended for UNKNOWN
+
+
+class TestDualClassTickerSuffixFallback:
+    """Fase 8-hotfix (2026-11-12): confirmed live against FMP — a dual-
+    class suffix written with a dot ("BRK.B") is genuinely unrecognized
+    by /etf/info, /profile AND /quote (402 "special endpoint" there);
+    the real symbol is the hyphen form ("BRK-B"). These tests cover
+    section 3's exact list: BRK.B, BRK.A, plain tickers, ADRs, ETFs,
+    exchange-suffixed tickers, correct classification, no duplicate
+    queries for tickers that already work."""
+
+    def test_brk_b_retries_with_hyphen_and_classifies_as_equity(self):
+        calls = []
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            calls.append((url, params["symbol"]))
+            if params["symbol"] == "BRK.B":
+                return _fmp_response(200, [])  # genuinely empty, both endpoints
+            if params["symbol"] == "BRK-B":
+                if "/etf/info" in url:
+                    return _fmp_response(200, [])
+                return _fmp_response(200, [{"symbol": "BRK-B", "companyName": "Berkshire Hathaway Inc."}])
+            raise AssertionError(f"unexpected symbol queried: {params['symbol']}")
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("BRK.B") == EQUITY
+
+        # Exactly 4 calls: 2 for the original (both empty), 2 for the
+        # canonical retry (etf/info empty, profile real) — never more.
+        assert len(calls) == 4
+        assert ("BRK.B" in [s for _, s in calls])
+        assert ("BRK-B" in [s for _, s in calls])
+
+    def test_brk_a_same_pattern_as_brk_b(self):
+        """Confirms the fix is general (any single-letter dual-class
+        suffix), not hardcoded to 'B' specifically."""
+        def fake_get(url, params=None, headers=None, timeout=None):
+            if params["symbol"] == "BRK.A":
+                return _fmp_response(200, [])
+            if params["symbol"] == "BRK-A":
+                if "/etf/info" in url:
+                    return _fmp_response(200, [])
+                return _fmp_response(200, [{"symbol": "BRK-A", "companyName": "Berkshire Hathaway Inc."}])
+            raise AssertionError(f"unexpected symbol: {params['symbol']}")
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("BRK.A") == EQUITY
+
+    def test_plain_ticker_without_dot_never_triggers_a_retry(self):
+        """A ticker with no suffix at all (the overwhelming majority)
+        must never generate a second request — canonicalize_ticker_suffix
+        is a no-op for it."""
+        calls = []
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            calls.append(params["symbol"])
+            if "/etf/info" in url:
+                return _fmp_response(200, [])
+            return _fmp_response(200, [{"symbol": "AAPL", "companyName": "Apple Inc."}])
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("AAPL") == EQUITY
+        assert calls == ["AAPL", "AAPL"]  # etf/info + profile, never a 3rd/4th call
+
+    def test_ticker_that_already_works_as_entered_is_never_retried(self):
+        """A dot-suffixed symbol that classifies successfully on the
+        FIRST attempt (e.g. a real ETF) must never trigger the fallback
+        — never 'fixes' something that wasn't broken."""
+        calls = []
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            calls.append(params["symbol"])
+            if "/etf/info" in url:
+                return _fmp_response(200, [{"symbol": "SOMEDOT.X", "name": "Some Real Fund"}])
+            raise AssertionError("must never call /profile once /etf/info confirms ETF")
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("SOMEDOT.X") == ETF
+        assert calls == ["SOMEDOT.X"]  # single call, no retry attempted
+
+    def test_adr_classifies_normally_no_dot_suffix_involved(self):
+        def fake_get(url, params=None, headers=None, timeout=None):
+            if "/etf/info" in url:
+                return _fmp_response(200, [])
+            return _fmp_response(200, [{"symbol": "BABA", "companyName": "Alibaba Group Holding Limited"}])
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("BABA") == EQUITY
+
+    def test_etf_classifies_normally_no_dot_suffix_involved(self):
+        def fake_get(url, params=None, headers=None, timeout=None):
+            if "/etf/info" in url:
+                return _fmp_response(200, [{"symbol": "VOO", "name": "Vanguard S&P 500 ETF"}])
+            raise AssertionError("should never call /profile once /etf/info has data")
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("VOO") == ETF
+
+    def test_exchange_suffixed_ticker_that_genuinely_has_no_match_stays_unknown_not_fabricated(self):
+        """A ticker shaped like a dual-class suffix (single letter after
+        a dot) but that ISN'T really one — both the original AND the
+        canonicalized retry genuinely fail — must land on an honest
+        UNKNOWN, never a fabricated classification."""
+        def fake_get(url, params=None, headers=None, timeout=None):
+            return _fmp_response(200, [])  # every symbol, every endpoint — genuinely nothing
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("VOD.L") == UNKNOWN
+
+    def test_retry_does_not_happen_when_original_failure_was_transient(self):
+        """A transient failure (429/timeout/5xx) on the ORIGINAL symbol
+        must go through the existing cooldown/last-known path, never the
+        dot-suffix retry — the retry only exists for a CONFIRMED empty
+        result, not an inconclusive one."""
+        calls = []
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            calls.append(params["symbol"])
+            return _fmp_response(429, {"Error Message": "Limit Reach"})
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("BRK.B") == UNKNOWN
+        # Only the original symbol was ever queried — the dot-suffix
+        # retry path is for confirmed-empty, not transient, failures.
+        assert set(calls) == {"BRK.B"}

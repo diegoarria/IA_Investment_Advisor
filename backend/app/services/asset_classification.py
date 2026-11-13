@@ -188,6 +188,32 @@ def _fall_back_after_transient_failure(ticker: str, cooldown_key: str) -> str:
     return last_known if last_known is not None else UNKNOWN
 
 
+def _classify_fmp_lookup(query_symbol: str) -> tuple[str, bool, bool]:
+    """One real classification attempt against FMP for the EXACT
+    `query_symbol` string given. Returns (result, transient,
+    etf_check_inconclusive):
+      - result: ETF | EQUITY | UNKNOWN.
+      - transient: True only when the WHOLE attempt is inconclusive
+        (every half failed transiently) — never a confirmed negative.
+      - etf_check_inconclusive: True when /etf/info itself failed
+        transiently but /profile still produced a confirmed EQUITY — the
+        ETF possibility was never fully ruled out, so the caller should
+        cache that EQUITY result for less long than a fully-confirmed
+        one (same caution the original single-attempt design applied)."""
+    etf_info = _fmp_get("/etf/info", query_symbol)
+    if etf_info.ok and etf_info.data:
+        return ETF, False, False
+
+    profile = _fmp_get("/profile", query_symbol)
+    if profile.ok and profile.data:
+        return EQUITY, False, (not etf_info.ok)
+
+    if not etf_info.ok or not profile.ok:
+        return UNKNOWN, True, False
+
+    return UNKNOWN, False, False
+
+
 def classify_asset(ticker: str) -> str:
     """Returns one of EQUITY, ETF, or UNKNOWN for the given ticker symbol.
 
@@ -215,31 +241,45 @@ def classify_asset(ticker: str) -> str:
         last_known = cache_get(f"asset_class_last_known:{ticker}")
         return last_known if last_known is not None else UNKNOWN
 
-    etf_info = _fmp_get("/etf/info", ticker)
-    if etf_info.ok and etf_info.data:
-        cache_set(cache_key, ETF, ttl=_TTL_KNOWN_S)
-        _remember_confirmed(ticker, ETF)
-        return ETF
-
-    profile = _fmp_get("/profile", ticker)
-    if profile.ok and profile.data:
-        # A transient failure on the OTHER half of the check means this
-        # positive profile match hasn't fully ruled out also being an ETF
-        # (the /etf/info side was inconclusive) — cache it for less long,
-        # same caution the original design already applied here.
-        ttl = _TTL_CONFIRMED_UNKNOWN_S if not etf_info.ok else _TTL_KNOWN_S
-        cache_set(cache_key, EQUITY, ttl=ttl)
-        _remember_confirmed(ticker, EQUITY)
-        return EQUITY
-
-    if not etf_info.ok or not profile.ok:
+    result, transient, etf_inconclusive = _classify_fmp_lookup(ticker)
+    if transient:
         # At least one half of the check was a real transient failure,
         # not FMP positively confirming "no match" — never let this turn
         # into a 10-minute-wrong persistent classification.
         return _fall_back_after_transient_failure(ticker, cooldown_key)
 
-    # Both calls genuinely succeeded and both came back empty — FMP
-    # positively has no record of this ticker as either instrument type.
-    # Nothing confirmed to remember as a last-known fallback.
+    if result == UNKNOWN:
+        # Fase 8-hotfix (2026-11-12, BRK.B): confirmed live against FMP —
+        # a dual-class suffix written with a dot ("BRK.B") is genuinely
+        # unrecognized by /etf/info, /profile AND /quote (402 "special
+        # endpoint" there) — the real symbol is the hyphen form
+        # ("BRK-B"). Retried ONLY after the original confirmed empty
+        # (never pre-emptively, so a ticker that already works is never
+        # touched a second time) and ONLY when canonicalize_ticker_suffix
+        # actually changes something (most tickers have no dot suffix).
+        # The cache key and `_remember_confirmed` below still key on the
+        # ORIGINAL `ticker` — the user's own ticker is never rewritten,
+        # only the outgoing FMP query is.
+        from app.services.company_valuation_service import canonicalize_ticker_suffix
+        canonical = canonicalize_ticker_suffix(ticker)
+        if canonical != ticker:
+            result, transient, etf_inconclusive = _classify_fmp_lookup(canonical)
+            if transient:
+                return _fall_back_after_transient_failure(ticker, cooldown_key)
+
+    if result == ETF:
+        cache_set(cache_key, ETF, ttl=_TTL_KNOWN_S)
+        _remember_confirmed(ticker, ETF)
+        return ETF
+
+    if result == EQUITY:
+        ttl = _TTL_CONFIRMED_UNKNOWN_S if etf_inconclusive else _TTL_KNOWN_S
+        cache_set(cache_key, EQUITY, ttl=ttl)
+        _remember_confirmed(ticker, EQUITY)
+        return EQUITY
+
+    # Both the original symbol and (when different) its canonical form
+    # genuinely came back with no match from FMP. Nothing confirmed to
+    # remember as a last-known fallback.
     cache_set(cache_key, UNKNOWN, ttl=_TTL_CONFIRMED_UNKNOWN_S)
     return UNKNOWN

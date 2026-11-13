@@ -85,6 +85,52 @@ class HistoricalDataUnavailableError(Exception):
 
 # ─── Obtención y validación de series ──────────────────────────────────────
 
+def _fetch_raw_chunk_once(symbol: str, start: str, end: str) -> tuple[list[dict], bool, bool]:
+    """One real, budget-checked historical-price attempt for the EXACT
+    `symbol` string given. Returns (rows, cacheable, retry_with_canonical_
+    worthwhile):
+      - cacheable: True only for a genuine 200 response (even an empty
+        `rows` is a legitimate "no trading data in this date range"
+        answer, worth caching) — never True for a transient/rejected
+        request, so that never gets persisted as "no historical data"
+        for 24h.
+      - retry_with_canonical_worthwhile: True only when the failure looks
+        like FMP rejecting THIS symbol string specifically (any non-200
+        other than 429/5xx) — never for a rate limit or server error,
+        where a different symbol string wouldn't change the outcome and
+        would just waste another call for nothing."""
+    if not fmp_call_allowed():
+        return [], False, False
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/historical-price-eod/dividend-adjusted",
+            params={"apikey": FMP_KEY, "symbol": symbol, "from": start, "to": end},
+            headers=_REQ_HEADERS,
+            timeout=20,
+        )
+    except Exception as exc:
+        logger.debug("historical.py: dividend-adjusted request failed for %s [%s,%s]: %s", symbol, start, end, exc)
+        return [], False, False
+
+    if r.status_code == 200:
+        try:
+            rows = r.json()
+        except Exception:
+            return [], False, False
+        if not isinstance(rows, list):
+            return [], False, False
+        return rows, True, False
+
+    if r.status_code == 429 or r.status_code >= 500:
+        return [], False, False  # transient — a different symbol string wouldn't fix this
+
+    # Any other non-200 (401/402/403/404...) looks like a real rejection
+    # of THIS symbol specifically — confirmed live for BRK.B: a dot-
+    # suffixed dual-class ticker returns 402 "special endpoint" on this
+    # endpoint, where the hyphen form ("BRK-B") works.
+    return [], False, True
+
+
 def _fetch_raw_chunk(ticker: str, start: str, end: str) -> list[dict]:
     if not FMP_KEY:
         return []
@@ -92,22 +138,23 @@ def _fetch_raw_chunk(ticker: str, start: str, end: str) -> list[dict]:
     cached = cache_get(ck)
     if cached is not None:
         return cached
-    if not fmp_call_allowed():
-        return []
-    try:
-        r = requests.get(
-            f"{FMP_BASE}/historical-price-eod/dividend-adjusted",
-            params={"apikey": FMP_KEY, "symbol": ticker, "from": start, "to": end},
-            headers=_REQ_HEADERS,
-            timeout=20,
-        )
-        rows = r.json()
-        if not isinstance(rows, list):
-            rows = []
-    except Exception as exc:
-        logger.debug("historical.py: dividend-adjusted fetch failed for %s [%s,%s]: %s", ticker, start, end, exc)
-        return []
-    cache_set(ck, rows, ttl=_TTL_PRICE_SERIES_S)
+
+    rows, cacheable, retry_worthwhile = _fetch_raw_chunk_once(ticker, start, end)
+    if retry_worthwhile:
+        # Fase 8-hotfix (BRK.B): retried ONLY after a confirmed rejection
+        # of the ORIGINAL symbol (never pre-emptively, so a ticker that
+        # already works is never touched a second time), and ONLY when
+        # canonicalize_ticker_suffix actually changes something (most
+        # tickers have no dot suffix at all). The cache key above still
+        # keys on the original `ticker` — the user's own ticker is never
+        # rewritten, only the outgoing FMP query is.
+        from app.services.company_valuation_service import canonicalize_ticker_suffix
+        canonical = canonicalize_ticker_suffix(ticker)
+        if canonical != ticker:
+            rows, cacheable, _ = _fetch_raw_chunk_once(canonical, start, end)
+
+    if cacheable:
+        cache_set(ck, rows, ttl=_TTL_PRICE_SERIES_S)
     return rows
 
 
