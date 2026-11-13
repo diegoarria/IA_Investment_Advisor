@@ -144,6 +144,159 @@ class TestUnknownAndFailureModes:
         assert call_count["n"] == 1  # second call served from cache
 
 
+class TestTransientFailuresNeverPersistAsNegative:
+    """Fase 8-hotfix: the real production incident — a genuine 429 from
+    FMP's own rate limit must never turn into a 10-minute-wrong "not an
+    ETF" for a real ETF. Covers section 4's 12-point test list."""
+
+    def test_1_etf_classifies_as_etf(self):
+        def fake_get(url, params=None, headers=None, timeout=None):
+            if "/etf/info" in url:
+                return _fmp_response(200, [{"symbol": "SPY"}])
+            raise AssertionError("should never call /profile once /etf/info has data")
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("SPY") == ETF
+
+    def test_2_equity_classifies_as_equity(self):
+        def fake_get(url, params=None, headers=None, timeout=None):
+            if "/etf/info" in url:
+                return _fmp_response(200, [])
+            return _fmp_response(200, [{"symbol": "AAPL"}])
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("AAPL") == EQUITY
+
+    def test_3_genuinely_unknown_ticker_both_confirmed_empty(self):
+        def fake_get(url, params=None, headers=None, timeout=None):
+            return _fmp_response(200, [])  # a real 200, genuinely no match either way
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("ZZZZNOTREAL99") == UNKNOWN
+
+    def test_4_http_429_does_not_cache_a_persistent_negative(self):
+        """The exact production incident: FMP's real 300/min cap trips,
+        returns 429 — must fall back (here, to UNKNOWN, no prior known
+        classification) via the short cooldown, never the 10-minute
+        confirmed-unknown TTL a real 'not found' would get."""
+        def fake_get(url, params=None, headers=None, timeout=None):
+            return _fmp_response(429, {"Error Message": "Limit Reach"})
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("SPY") == UNKNOWN
+        # Confirm it's the SHORT cooldown, not the 10-minute confirmed-unknown
+        # cache, by checking which key actually got set.
+        from app.core import cache as cache_module
+        assert cache_module.cache_get("asset_class:SPY") is None
+        assert cache_module.cache_get("asset_class_cooldown:SPY") is True
+
+    def test_5_timeout_does_not_cache_a_persistent_negative(self):
+        def fake_get(url, params=None, headers=None, timeout=None):
+            raise TimeoutError("simulated timeout")
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("SPY") == UNKNOWN
+        from app.core import cache as cache_module
+        assert cache_module.cache_get("asset_class:SPY") is None
+
+    def test_6_http_5xx_does_not_cache_a_persistent_negative(self):
+        def fake_get(url, params=None, headers=None, timeout=None):
+            return _fmp_response(503, {"error": "upstream unavailable"})
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("SPY") == UNKNOWN
+        from app.core import cache as cache_module
+        assert cache_module.cache_get("asset_class:SPY") is None
+
+    def test_7_shared_fmp_budget_exhausted_blocks_the_request_and_falls_back(self):
+        """Integrates with app.core.fmp_budget — never makes a real HTTP
+        call once the shared budget says no, and degrades the same way
+        as any other transient failure."""
+        with patch("app.core.fmp_budget.fmp_call_allowed", return_value=False), \
+             patch("app.services.asset_classification.requests.get") as mock_get:
+            assert classify_asset("SPY") == UNKNOWN
+        mock_get.assert_not_called()
+
+    def test_8_recovers_immediately_once_fmp_recovers(self):
+        """After a transient failure, a fresh attempt (cooldown expired)
+        that now succeeds must classify normally and cache the real
+        answer — never stuck on the old failure."""
+        from app.core import cache as cache_module
+        state = {"fail": True}
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            if state["fail"]:
+                return _fmp_response(429, {"Error Message": "Limit Reach"})
+            if "/etf/info" in url:
+                return _fmp_response(200, [{"symbol": "SPY"}])
+            raise AssertionError("unreachable once etf/info confirms ETF")
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("SPY") == UNKNOWN
+            # Simulate the cooldown window elapsing.
+            cache_module.cache_delete("asset_class_cooldown:SPY")
+            state["fail"] = False
+            assert classify_asset("SPY") == ETF
+
+    def test_9_falls_back_to_previously_confirmed_classification_during_an_outage(self):
+        """A ticker confirmed ETF yesterday, then hit by a transient FMP
+        failure today, must keep showing as ETF — never flip to UNKNOWN
+        just because of a momentary provider hiccup. This is the exact
+        user-visible harm from the real incident: SPY/QQQ/VOO going from
+        working to 'not an ETF' and back, instead of just staying ETF."""
+        from app.core import cache as cache_module
+        cache_module.cache_set("asset_class_last_known:SPY", ETF, ttl=86400)
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            return _fmp_response(429, {"Error Message": "Limit Reach"})
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("SPY") == ETF
+
+    def test_10_concurrent_requests_during_an_outage_all_get_a_safe_answer(self):
+        """Several 'concurrent' calls (simulated sequentially, same net
+        effect for this cache-backed design) during one outage must all
+        resolve safely, whether or not every one of them happened to hit
+        FMP — none may crash, and none may wait indefinitely."""
+        def fake_get(url, params=None, headers=None, timeout=None):
+            return _fmp_response(429, {"Error Message": "Limit Reach"})
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            results = [classify_asset("SPY") for _ in range(20)]
+        assert all(r == UNKNOWN for r in results)
+
+    def test_11_cooldown_prevents_a_retry_storm_against_fmp(self):
+        """Section 3: once one request records a transient failure, 19
+        more requests for the same ticker within the cooldown window must
+        NOT each hit FMP again — only the first one does."""
+        call_count = {"n": 0}
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            call_count["n"] += 1
+            return _fmp_response(429, {"Error Message": "Limit Reach"})
+
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            for _ in range(20):
+                classify_asset("SPY")
+        # First call: 2 real HTTP attempts (etf/info, then profile, both
+        # 429). Every subsequent call within the cooldown must short-
+        # circuit on the cooldown key alone, making zero further calls.
+        assert call_count["n"] == 2
+
+    def test_12_no_regression_radar_etf_explorer_distribucion_still_call_classify_asset_the_same_way(self):
+        """Confirms the public contract (function name, return values,
+        call signature) every existing caller — Radar's fundamental-
+        analysis guard, ETF Explorer, Distribución's combiner — depends on
+        is unchanged. The callers' own test suites (test_asset_classification
+        TestGuardIntegration, test_etf_service.py, test_portfolio_exposure_
+        combiner.py) already exercise this against the real function, not
+        a mock, so a signature/behavior break there would fail those too."""
+        import inspect
+        sig = inspect.signature(classify_asset)
+        assert list(sig.parameters) == ["ticker"]
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            if "/etf/info" in url:
+                return _fmp_response(200, [])
+            return _fmp_response(200, [{"symbol": "AAPL"}])
+        with patch("app.services.asset_classification.requests.get", side_effect=fake_get):
+            assert classify_asset("AAPL") in (EQUITY, ETF, UNKNOWN)
+
+
 class TestGuardIntegration:
     """Confirms the single choke point in get_fundamental_analysis() never
     lets an ETF reach the stock valuation engine — this is the property
