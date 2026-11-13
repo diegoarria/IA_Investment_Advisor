@@ -13,16 +13,14 @@ export type PositionsSummary = {
   concentrationDetail: string | null;
   largestHeadline: string | null;
   largestDetail: string | null;
+  largestConsequence: string | null;
   largestTicker: string | null;
 };
-
-const CONCENTRATED_THRESHOLD_PCT = 60;
-const MODERATE_THRESHOLD_PCT = 40;
 
 export function buildPositionsSummary(positions: PositionLike[], lang: "es" | "en" = "es"): PositionsSummary {
   const verified = positions.filter((p): p is PositionLike & { weight_pct: number } => p.verifiable && p.weight_pct !== null);
   if (verified.length === 0) {
-    return { concentrationHeadline: null, concentrationDetail: null, largestHeadline: null, largestDetail: null, largestTicker: null };
+    return { concentrationHeadline: null, concentrationDetail: null, largestHeadline: null, largestDetail: null, largestConsequence: null, largestTicker: null };
   }
 
   const sorted = [...verified].sort((a, b) => b.weight_pct - a.weight_pct);
@@ -34,6 +32,12 @@ export function buildPositionsSummary(positions: PositionLike[], lang: "es" | "e
   const largestDetail = lang === "es"
     ? `Representa ${largestPct.toFixed(1)}% del valor verificado de tu portafolio.`
     : `It represents ${largestPct.toFixed(1)}% of your portfolio's verified value.`;
+  // Diego, 2026-11 (rediseño): la consecuencia educativa pedida
+  // explícitamente — nunca una predicción, solo lo que significa el
+  // PESO relativo ya calculado por el backend.
+  const largestConsequence = lang === "es"
+    ? "Una variación en esta posición pesa proporcionalmente más sobre tu portafolio que una variación equivalente en una posición más pequeña."
+    : "A change in this position carries proportionally more weight on your portfolio than an equivalent change in a smaller position.";
 
   let concentrationHeadline: string;
   let concentrationDetail: string | null = null;
@@ -43,21 +47,22 @@ export function buildPositionsSummary(positions: PositionLike[], lang: "es" | "e
       ? "Toda tu inversión verificada está en una sola posición."
       : "All of your verified investment is in a single position.";
   } else {
+    // Diego, 2026-11 (rediseño): eliminado el juicio de valor "bien
+    // distribuidas"/"concentradas" basado en umbrales arbitrarios (60%/
+    // 40%) — per instrucción explícita "preferir hechos verificables".
+    // El titular ahora es el hecho mismo (el % combinado real), sin
+    // calificarlo de bueno o malo.
     const top2 = sorted.slice(0, 2);
     const combined = Math.round(top2.reduce((s, p) => s + p.weight_pct, 0) * 10) / 10;
-    concentrationHeadline = lang === "es"
-      ? combined >= CONCENTRATED_THRESHOLD_PCT ? "Tus posiciones están concentradas."
-        : combined >= MODERATE_THRESHOLD_PCT ? "Tus posiciones están relativamente concentradas."
-        : "Tus posiciones están bien distribuidas."
-      : combined >= CONCENTRATED_THRESHOLD_PCT ? "Your positions are concentrated."
-        : combined >= MODERATE_THRESHOLD_PCT ? "Your positions are relatively concentrated."
-        : "Your positions are well distributed.";
     const names = top2.map((p) => p.ticker);
     const joined = lang === "es" ? `${names[0]} y ${names[1]}` : `${names[0]} and ${names[1]}`;
+    concentrationHeadline = lang === "es"
+      ? `${joined} representan juntos el ${combined.toFixed(1)}% de tu portafolio verificado.`
+      : `${joined} together represent ${combined.toFixed(1)}% of your verified portfolio.`;
     concentrationDetail = lang === "es"
-      ? `${joined} representan juntos el ${combined.toFixed(1)}% del valor verificado.`
-      : `${joined} together represent ${combined.toFixed(1)}% of the verified value.`;
+      ? "Esto significa que el resultado de tu portafolio depende, en una parte importante, del comportamiento de estas dos inversiones."
+      : "This means your portfolio's outcome depends, to an important degree, on how these two investments behave.";
   }
 
-  return { concentrationHeadline, concentrationDetail, largestHeadline, largestDetail, largestTicker: largest.ticker };
+  return { concentrationHeadline, concentrationDetail, largestHeadline, largestDetail, largestConsequence, largestTicker: largest.ticker };
 }

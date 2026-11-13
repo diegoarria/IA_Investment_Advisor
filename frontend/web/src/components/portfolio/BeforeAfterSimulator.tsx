@@ -20,6 +20,7 @@ import {
   Sparkles, RotateCcw, Info, LineChart as LineChartIcon, PieChart,
 } from "lucide-react";
 import { GlowCard, IconSquare, RaisedTile } from "@/components/subvaluadas/radarUi";
+import { ExpandableSection } from "@/components/ui/ExpandableSection";
 // Fase 7.2 (Diego, captura real): verde de marca, no el dorado de Radar
 // — ver el mismo comentario en PortfolioDistribution.tsx. Hex literal
 // (no `var(--accent-l)`) porque este archivo también concatena un
@@ -81,57 +82,64 @@ function fmtSignedPct(n: number | null | undefined, na: string, digits = 1): str
   return `${n >= 0 ? "+" : ""}${n.toFixed(digits)}%`;
 }
 
-// A before/after pair for one metric — neutral styling on purpose (no
-// green/red "good or bad" coding): Diego, 2026-11, "no interpretar
-// automáticamente un incremento de concentración como algo bueno o malo."
+// A before/after pair for one metric — neutral styling, now actually
+// enforced (Diego, 2026-11, rediseño: el bug real era que GOLD se
+// aplicaba sin condición alguna de signo, pintando todo aumento de
+// concentración en el mismo verde de "ganancia" — ver auditoría previa).
+// Un aumento o disminución de peso/concentración NUNCA es inherentemente
+// positivo o negativo, así que ambas barras y el delta usan colores
+// neutrales (--muted/--text), nunca --up/--down/GOLD. Esos colores
+// financieros se reservan exclusivamente para rendimientos reales
+// (Historia), nunca para esto.
 function BeforeAfterRow({ label, beforePct, afterPct, na }: { label: string; beforePct: number | null; afterPct: number | null; na: string }) {
   const delta = beforePct !== null && afterPct !== null ? Math.round((afterPct - beforePct) * 10) / 10 : null;
   const sign = delta !== null && delta >= 0 ? "+" : "";
   return (
     <div className="py-2.5 border-b last:border-0" style={{ borderColor: "var(--border)" }}>
-      <p className="text-[13px] font-semibold mb-1.5" style={{ color: "var(--text)" }}>{label}</p>
+      <p className="font-semibold mb-1.5" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>{label}</p>
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <div className="w-full h-[6px] rounded-full overflow-hidden mb-1" style={{ background: "var(--raised)" }}>
             <div className="h-full rounded-full" style={{ width: `${beforePct !== null ? Math.max(2, beforePct) : 0}%`, background: "var(--muted)" }} />
           </div>
-          <span className="text-[11px]" style={{ color: "var(--sub)" }}>{fmtPct(beforePct, na)}</span>
+          <span style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{fmtPct(beforePct, na)}</span>
         </div>
         <ChevronDown className="w-3.5 h-3.5 shrink-0 -rotate-90" style={{ color: "var(--muted)" }} />
         <div className="flex-1">
           <div className="w-full h-[6px] rounded-full overflow-hidden mb-1" style={{ background: "var(--raised)" }}>
-            <div className="h-full rounded-full" style={{ width: `${afterPct !== null ? Math.max(2, afterPct) : 0}%`, background: GOLD }} />
+            <div className="h-full rounded-full" style={{ width: `${afterPct !== null ? Math.max(2, afterPct) : 0}%`, background: "var(--text)" }} />
           </div>
-          <span className="text-[11px] font-semibold" style={{ color: "var(--text)" }}>{fmtPct(afterPct, na)}</span>
+          <span className="font-semibold" style={{ color: "var(--text)", fontSize: "var(--fs-label)" }}>{fmtPct(afterPct, na)}</span>
         </div>
         {delta !== null && (
-          <span className="text-[12px] font-bold shrink-0 w-14 text-right" style={{ color: GOLD }}>{sign}{delta.toFixed(1)}pp</span>
+          <span className="font-bold shrink-0 w-14 text-right" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>{sign}{delta.toFixed(1)}pp</span>
         )}
       </div>
     </div>
   );
 }
 
+// Diego, 2026-11 (rediseño): sin caja propia, mismo tratamiento que
+// InsightCard — baja un nivel de anidamiento donde esta tarjeta ya
+// vivía dentro de otra con fondo propio.
 function SimInsightCard({ insight, t }: { insight: SimulationInsight; t: TFunction }) {
-  const [showData, setShowData] = useState(false);
+  const detailEntries = Object.entries(insight.supporting_data).filter(([k]) => k !== "meaning");
   return (
-    <div className="rounded-2xl p-3.5" style={{ background: "var(--raised)", border: `1px solid ${GOLD}2b` }}>
+    <div>
       <div className="flex items-center gap-2 mb-1.5">
         <IconSquare color={GOLD} size={24}><Sparkles className="w-3 h-3" style={{ color: GOLD }} /></IconSquare>
-        <p className="text-[12.5px] font-black uppercase tracking-wide" style={{ color: GOLD }}>
+        <p className="font-black uppercase tracking-wide" style={{ color: GOLD, fontSize: "var(--fs-label)" }}>
           {t(`portfolio.distribution.simulate.understand.categoryTitles.${insight.category}`, insight.category)}
         </p>
       </div>
-      <p className="text-[13.5px] leading-relaxed" style={{ color: "var(--text)" }}>{insight.text}</p>
-      <button onClick={() => setShowData((v) => !v)} className="flex items-center gap-1 mt-2 text-[11px] font-semibold" style={{ color: "var(--sub)" }}>
-        <ChevronDown className={`w-3 h-3 transition-transform ${showData ? "rotate-180" : ""}`} />
-        {t("etf.detail.understand.seeData")}
-      </button>
-      {showData && (
-        <div className="mt-1.5 text-[11.5px] font-mono rounded-lg p-2" style={{ background: "var(--card)", color: "var(--sub)" }}>
-          {Object.entries(insight.supporting_data).map(([k, v]) => (
-            <div key={k}>{k}: {typeof v === "object" ? JSON.stringify(v) : String(v)}</div>
-          ))}
+      <p className="leading-relaxed" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>{insight.text}</p>
+      {detailEntries.length > 0 && (
+        <div className="mt-2">
+          <ExpandableSection title={t("etf.detail.understand.seeData")}>
+            {detailEntries.map(([k, v]) => (
+              <p key={k} className="font-mono" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{k}: {typeof v === "object" ? JSON.stringify(v) : String(v)}</p>
+            ))}
+          </ExpandableSection>
         </div>
       )}
     </div>
@@ -194,13 +202,11 @@ function HistoryPerspective({
   hypotheticalTicker: string;
   t: TFunction;
 }) {
-  const [methodologyOpen, setMethodologyOpen] = useState(false);
-
   return (
     <div className="space-y-3.5">
       <div>
-        <p className="text-[14.5px] font-black leading-snug" style={{ color: "var(--text)" }}>{t("portfolio.distribution.simulate.history.title")}</p>
-        <p className="text-[12.5px] mt-0.5" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.simulate.history.subtitle")}</p>
+        <p className="font-black leading-snug" style={{ color: "var(--text)", fontSize: "var(--fs-h2)" }}>{t("portfolio.distribution.simulate.history.title")}</p>
+        <p className="mt-0.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.simulate.history.subtitle")}</p>
       </div>
 
       <div className="flex gap-1.5">
@@ -275,65 +281,56 @@ function HistoryPerspective({
 
           <div className="grid grid-cols-2 gap-3">
             <RaisedTile>
-              <p className="text-[10.5px] font-semibold mb-1.5" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.simulate.history.volatilityTitle")}</p>
-              <div className="flex items-center gap-2 text-[12.5px]" style={{ color: "var(--text)" }}>
+              <p className="font-semibold mb-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{t("portfolio.distribution.simulate.history.volatilityTitle")}</p>
+              <div className="flex items-center gap-2" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: "var(--muted)" }} />{fmtPct(result.volatility_before?.value ?? null, "—")}
               </div>
-              <div className="flex items-center gap-2 text-[12.5px] mt-1" style={{ color: "var(--text)" }}>
+              <div className="flex items-center gap-2 mt-1" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: GOLD }} />{fmtPct(result.volatility_after?.value ?? null, "—")}
               </div>
+              <p className="mt-1.5 leading-relaxed" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{t("portfolio.distribution.simulate.history.volatilityExplain")}</p>
             </RaisedTile>
             <RaisedTile>
-              <p className="text-[10.5px] font-semibold mb-1.5" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.simulate.history.drawdownTitle")}</p>
-              <div className="flex items-center gap-2 text-[12.5px]" style={{ color: "var(--text)" }}>
+              <p className="font-semibold mb-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{t("portfolio.distribution.simulate.history.drawdownTitle")}</p>
+              <div className="flex items-center gap-2" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: "var(--muted)" }} />{fmtSignedPct(result.max_drawdown_before?.value ?? null, "—")}
               </div>
               {result.max_drawdown_before?.peak_date && result.max_drawdown_before?.trough_date && (
-                <p className="text-[10px] pl-4" style={{ color: "var(--sub)" }}>
+                <p className="pl-4" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
                   {t("portfolio.distribution.simulate.history.drawdownDetail", {
                     peakDate: result.max_drawdown_before.peak_date, troughDate: result.max_drawdown_before.trough_date,
                   })}
                 </p>
               )}
-              <div className="flex items-center gap-2 text-[12.5px] mt-1.5" style={{ color: "var(--text)" }}>
+              <div className="flex items-center gap-2 mt-1.5" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: GOLD }} />{fmtSignedPct(result.max_drawdown_after?.value ?? null, "—")}
               </div>
               {result.max_drawdown_after?.peak_date && result.max_drawdown_after?.trough_date && (
-                <p className="text-[10px] pl-4" style={{ color: "var(--sub)" }}>
+                <p className="pl-4" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
                   {t("portfolio.distribution.simulate.history.drawdownDetail", {
                     peakDate: result.max_drawdown_after.peak_date, troughDate: result.max_drawdown_after.trough_date,
                   })}
                 </p>
               )}
+              <p className="mt-1.5 leading-relaxed" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{t("portfolio.distribution.simulate.history.drawdownExplain")}</p>
             </RaisedTile>
           </div>
 
-          <p className="text-[11px] leading-relaxed rounded-xl p-2.5" style={{ color: "var(--sub)", background: "var(--raised)" }}>
+          <p className="leading-relaxed rounded-xl p-2.5" style={{ color: "var(--sub)", background: "var(--raised)", fontSize: "var(--fs-body-sm)" }}>
             {t("portfolio.distribution.simulate.history.disclaimer")}
           </p>
 
-          <button
-            onClick={() => setMethodologyOpen((v) => !v)}
-            className="flex items-center gap-1 text-[11.5px] font-semibold"
-            style={{ color: "var(--sub)" }}
-            aria-expanded={methodologyOpen}
-          >
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${methodologyOpen ? "rotate-180" : ""}`} />
-            {t("portfolio.distribution.simulate.history.methodologyToggle")}
-          </button>
-          {methodologyOpen && (
-            <div className="text-[11.5px] leading-relaxed rounded-xl p-3" style={{ background: "var(--raised)", color: "var(--sub)" }}>
-              <p>{result.methodology_es}</p>
-              {result.sources?.length > 0 && (
-                <>
-                  <p className="font-semibold mt-2" style={{ color: "var(--text)" }}>{t("portfolio.distribution.simulate.history.sourcesTitle")}</p>
-                  <ul className="list-disc pl-4">
-                    {result.sources.map((s) => <li key={s}>{s}</li>)}
-                  </ul>
-                </>
-              )}
-            </div>
-          )}
+          <ExpandableSection title={t("portfolio.distribution.simulate.history.methodologyToggle")}>
+            <p style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{result.methodology_es}</p>
+            {result.sources?.length > 0 && (
+              <>
+                <p className="font-semibold mt-2" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.simulate.history.sourcesTitle")}</p>
+                <ul className="list-disc pl-4" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
+                  {result.sources.map((s) => <li key={s}>{s}</li>)}
+                </ul>
+              </>
+            )}
+          </ExpandableSection>
         </>
       )}
     </div>
@@ -512,6 +509,12 @@ export default function BeforeAfterSimulator({ portfolioId, currency, na }: { po
   const insights = simResult && selected ? buildSimulationInsights(simResult, selected.ticker, lang) : [];
   const primaryInsight = insights[0] ?? null;
   const secondaryInsights = insights.slice(1);
+  // Diego, 2026-11 (rediseño): "position_weight" ahora se muestra SIEMPRE
+  // arriba (junto con su nueva frase de significado), sin importar la
+  // pestaña — mostrarlo otra vez en "Exposición" sería la misma
+  // duplicación que el slice(1) de abajo ya evita para sectores.
+  const exposurePrimaryInsight = primaryInsight?.category === "position_weight" ? (insights[1] ?? null) : primaryInsight;
+  const exposureSecondaryInsights = primaryInsight?.category === "position_weight" ? insights.slice(2) : secondaryInsights;
   const topSectorDeltas = simResult ? simResult.sector_deltas.slice(0, 4) : [];
   const mostRelevantSectorDelta = topSectorDeltas[0] ?? null;
   const beforeTop = simResult?.before.concentration.top_positions[0] ?? null;
@@ -649,8 +652,14 @@ export default function BeforeAfterSimulator({ portfolioId, currency, na }: { po
               is selected below. Fase 5D: now leads into the asset's real
               identity (logo + ticker + name) instead of naming the
               ticker inline in the sentence itself. */}
+          {/* Diego, 2026-11 (rediseño): jerarquía "decisión → cambio
+              principal → significado → detalle" — el cambio principal
+              (peso antes/después del ticker simulado) y su significado
+              ya no viven detrás de la pestaña "Distribución", se ven
+              SIEMPRE, sin importar qué perspectiva esté seleccionada
+              abajo, exactamente como pide el rediseño aprobado. */}
           <div>
-            <p className="text-[14.5px] font-black leading-snug mb-2" style={{ color: "var(--text)" }}>
+            <p className="font-black leading-snug mb-2" style={{ color: "var(--text)", fontSize: "var(--fs-h2)" }}>
               {t("portfolio.distribution.simulate.resultIntro", { amount: fmtMoney(simResult.amount, currency, na) })}
             </p>
             <AssetIdentity
@@ -662,41 +671,51 @@ export default function BeforeAfterSimulator({ portfolioId, currency, na }: { po
               nameClassName="text-[12.5px]"
             />
           </div>
-          {hypotheticalWeightSentence && (
-            <p className="text-[13.5px] leading-relaxed" style={{ color: "var(--sub)" }}>{hypotheticalWeightSentence}</p>
+
+          {afterTickerWeight !== null && (
+            <RaisedTile>
+              <div className="mt-0.5">
+                <BeforeAfterRow label={t("portfolio.distribution.simulate.positionWeightTitle")} beforePct={beforeTickerWeight} afterPct={afterTickerWeight} na={na} />
+              </div>
+            </RaisedTile>
           )}
+          {hypotheticalWeightSentence && (
+            <p className="leading-relaxed" style={{ color: "var(--sub)", fontSize: "var(--fs-body)" }}>{hypotheticalWeightSentence}</p>
+          )}
+          {/* "Qué significa para ti" — la consecuencia educativa, nunca
+              una predicción sobre si la inversión será buena o mala,
+              basada únicamente en la dirección real del cambio de peso. */}
+          {primaryInsight?.category === "position_weight" && typeof primaryInsight.supporting_data.meaning === "string" && (
+            <p className="leading-relaxed" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>
+              {primaryInsight.supporting_data.meaning as string}
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <RaisedTile>
+              <p className="mb-1" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{t("portfolio.distribution.simulate.valueBefore")}</p>
+              <p className="font-black" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>{fmtMoney(simResult.before.valuation.total_value_verified, currency, na)}</p>
+            </RaisedTile>
+            <RaisedTile>
+              <p className="mb-1" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{t("portfolio.distribution.simulate.valueAfter")}</p>
+              {/* Diego, 2026-11 (rediseño): neutral, no GOLD — este
+                  aumento es por el capital agregado en la simulación,
+                  nunca un rendimiento (ver nota justo debajo). */}
+              <p className="font-black" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>{fmtMoney(simResult.after.valuation.total_value_verified, currency, na)}</p>
+            </RaisedTile>
+          </div>
+          {/* Fase 5D, §5C: discreet clarification, not a new big card —
+              the value increase is the hypothetical contribution
+              itself, never a projected return. */}
+          <p className="flex items-start gap-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
+            <Info className="w-3 h-3 shrink-0 mt-0.5" />
+            {t("portfolio.distribution.simulate.valueIncreaseNote", { amount: fmtMoney(simResult.amount, currency, na) })}
+          </p>
 
           <PerspectiveTabs value={perspective} onChange={setPerspective} t={t} />
 
           {perspective === "distribution" && (
             <div className="space-y-4">
-              {afterTickerWeight !== null && (
-                <RaisedTile>
-                  <AssetIdentity ticker={selected.ticker} name={simulatedName} etfCompany={simulatedEtfCompany} />
-                  <div className="mt-2.5">
-                    <BeforeAfterRow label={t("portfolio.distribution.simulate.positionWeightTitle")} beforePct={beforeTickerWeight} afterPct={afterTickerWeight} na={na} />
-                  </div>
-                </RaisedTile>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <RaisedTile>
-                  <p className="text-[10.5px] font-semibold mb-1" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.simulate.valueBefore")}</p>
-                  <p className="text-base font-black" style={{ color: "var(--text)" }}>{fmtMoney(simResult.before.valuation.total_value_verified, currency, na)}</p>
-                </RaisedTile>
-                <RaisedTile>
-                  <p className="text-[10.5px] font-semibold mb-1" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.simulate.valueAfter")}</p>
-                  <p className="text-base font-black" style={{ color: GOLD }}>{fmtMoney(simResult.after.valuation.total_value_verified, currency, na)}</p>
-                </RaisedTile>
-              </div>
-              {/* Fase 5D, §5C: discreet clarification, not a new big card —
-                  the value increase is the hypothetical contribution
-                  itself, never a projected return. */}
-              <p className="text-[11px] flex items-start gap-1.5" style={{ color: "var(--sub)" }}>
-                <Info className="w-3 h-3 shrink-0 mt-0.5" />
-                {t("portfolio.distribution.simulate.valueIncreaseNote", { amount: fmtMoney(simResult.amount, currency, na) })}
-              </p>
-
               {afterTop && (
                 <div>
                   <p className="text-[11px] font-black uppercase tracking-wide mb-1" style={{ color: "var(--sub)" }}>
@@ -722,16 +741,16 @@ export default function BeforeAfterSimulator({ portfolioId, currency, na }: { po
                 </RaisedTile>
               )}
 
-              {primaryInsight && (
+              {exposurePrimaryInsight && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <IconSquare color={GOLD} size={24}><ListTree className="w-3 h-3" style={{ color: GOLD }} /></IconSquare>
                     <span className="text-[13px] font-extrabold" style={{ color: "var(--text)" }}>{t("portfolio.distribution.simulate.understand.title")}</span>
                   </div>
-                  <SimInsightCard insight={primaryInsight} t={t} />
+                  <SimInsightCard insight={exposurePrimaryInsight} t={t} />
                 </div>
               )}
-              {!primaryInsight && (
+              {!exposurePrimaryInsight && (
                 <p className="text-[12.5px]" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.simulate.understand.empty")}</p>
               )}
 
@@ -754,7 +773,7 @@ export default function BeforeAfterSimulator({ portfolioId, currency, na }: { po
                 <div>
                   <p className="text-[11px] font-black uppercase tracking-wide mb-1" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.simulate.geographyTitle")}</p>
                   {simResult.country_deltas.slice(0, 3).map((d) => (
-                    <BeforeAfterRow key={`${d.country}-${d.methodology}`} label={`${d.country} (${d.methodology === "etf_underlying" ? t("portfolio.distribution.geography.etfUnderlying") : t("portfolio.distribution.geography.equityDomicile")})`} beforePct={d.pct_before} afterPct={d.pct_after} na={na} />
+                    <BeforeAfterRow key={`${d.country}-${d.methodology}`} label={`${d.country} (${d.methodology === "etf_underlying" ? t("portfolio.distribution.geography.etfUnderlyingLabel") : t("portfolio.distribution.geography.equityDomicileLabel")})`} beforePct={d.pct_before} afterPct={d.pct_after} na={na} />
                   ))}
                 </div>
               )}
@@ -769,11 +788,11 @@ export default function BeforeAfterSimulator({ portfolioId, currency, na }: { po
                 </p>
               </div>
 
-              {secondaryInsights.length > 0 && (
+              {exposureSecondaryInsights.length > 0 && (
                 <div>
                   <p className="text-[11px] font-black uppercase tracking-wide mb-1.5" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.simulate.otherChanges")}</p>
                   <div className="space-y-2">
-                    {secondaryInsights.map((insight, i) => <SimInsightCard key={i} insight={insight} t={t} />)}
+                    {exposureSecondaryInsights.map((insight, i) => <SimInsightCard key={i} insight={insight} t={t} />)}
                   </div>
                 </div>
               )}

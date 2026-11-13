@@ -366,8 +366,8 @@ describe("PortfolioDistribution — Fase 4E-2: vista editorial de Posiciones", (
     await enterUnderstand(user);
 
     expect(screen.getByText("portfolio.distribution.positions.subtitle")).toBeInTheDocument();
-    expect(screen.getByText("Tus posiciones están relativamente concentradas.")).toBeInTheDocument();
-    expect(screen.getByText("VOO y ASML representan juntos el 52.5% del valor verificado.")).toBeInTheDocument();
+    // Diego, 2026-11 (rediseño): hecho verificable, no un juicio de valor.
+    expect(screen.getByText("VOO y ASML representan juntos el 52.5% de tu portafolio verificado.")).toBeInTheDocument();
     expect(screen.getByText("Vanguard S&P 500 ETF es tu posición más grande.")).toBeInTheDocument();
     expect(screen.getByText("Representa 30.5% del valor verificado de tu portafolio.")).toBeInTheDocument();
     expect(screen.getByText("portfolio.distribution.positions.allPositionsTitle")).toBeInTheDocument();

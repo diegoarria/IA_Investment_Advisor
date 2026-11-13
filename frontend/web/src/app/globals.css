@@ -53,6 +53,19 @@
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.7), 0 4px 16px rgba(0,0,0,0.5);
   --shadow-accent: 0 0 20px rgba(0,185,109,0.25), 0 0 60px rgba(0,185,109,0.1);
   --shadow-accent-sm: 0 0 12px rgba(0,185,109,0.3);
+
+  /* Type scale — Nuvos rediseño de Distribución/Antes de invertir
+     (2026-11). No theme-specific values (same across dark/light), so
+     defined once here rather than duplicated in [data-theme="light"].
+     Replaces the ad hoc per-line `text-[Npx]` values that had grown to
+     9+ distinct sizes with no system. Any new editorial screen should
+     reuse these instead of picking a new arbitrary pixel value. */
+  --fs-display: clamp(26px, 2.4vw, 32px);  /* valor total del portafolio */
+  --fs-metric:  clamp(22px, 2vw, 28px);    /* porcentaje/cifra protagonista de una sección */
+  --fs-h2:      clamp(18px, 1.6vw, 22px);  /* título de sección (Resumen, Sectores, Geografía...) */
+  --fs-body:    16px;                       /* texto principal — explicaciones, consecuencias */
+  --fs-body-sm: 14px;                       /* texto secundario — nunca menor a esto por defecto */
+  --fs-label:   12px;                       /* etiquetas uppercase, metadatos, timestamps */
 }
 
 [data-theme="light"] {

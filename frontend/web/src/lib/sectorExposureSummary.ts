@@ -31,6 +31,17 @@ export function describeSectorShare(sector: string, pct: number, lang: "es" | "e
     : `Of every $100 of the analyzed value, approximately $${n} is exposed to ${sector} companies.`;
 }
 
+// Diego, 2026-11 (rediseño): la consecuencia educativa explícita que
+// faltaba — qué SIGNIFICA la concentración, en ambas direcciones
+// (nunca solo el riesgo), nunca una predicción ("podrían", no "van a").
+// Pura función de copy — no introduce ningún umbral ni calificación de
+// "bueno"/"malo" sobre el sector en sí.
+export function describeSectorConsequence(sector: string, lang: "es" | "en" = "es"): string {
+  return lang === "es"
+    ? `Esto significa que varias de tus inversiones podrían verse afectadas simultáneamente si las empresas del sector ${sector} enfrentan dificultades similares. Si evolucionan favorablemente, también podrían contribuir de forma importante a tus resultados.`
+    : `This means several of your investments could be affected at the same time if companies in the ${sector} sector face similar difficulties. If they perform well, they could also contribute significantly to your results.`;
+}
+
 function joinNames(names: string[], lang: string): string {
   if (names.length === 0) return "";
   if (names.length === 1) return names[0];

@@ -158,13 +158,16 @@ describe("BeforeAfterSimulator — running a simulation (Paso 3)", () => {
     expect(screen.getByText("portfolio.distribution.simulate.perspective.distribution")).toBeInTheDocument();
     expect(screen.getByText("portfolio.distribution.simulate.perspective.exposure")).toBeInTheDocument();
     expect(screen.getByText("portfolio.distribution.simulate.perspective.history")).toBeInTheDocument();
-    // Distribución (default): value tiles visible, sector/coverage content is not.
+    // Diego, 2026-11 (rediseño): "el cambio principal" (peso del ticker
+    // simulado + los valores antes/después) ahora se muestra SIEMPRE,
+    // sin importar qué perspectiva está seleccionada — nunca escondido
+    // detrás de una pestaña. Sector/cobertura solo aparecen en Exposición.
     expect(screen.getByText("USD $16,389")).toBeInTheDocument();
     expect(screen.queryByText("portfolio.distribution.simulate.coverageTitle")).not.toBeInTheDocument();
 
     await user.click(screen.getByText("portfolio.distribution.simulate.perspective.exposure"));
     expect(screen.getByText("portfolio.distribution.simulate.coverageTitle")).toBeInTheDocument();
-    expect(screen.queryByText("USD $16,389")).not.toBeInTheDocument();
+    expect(screen.getByText("USD $16,389")).toBeInTheDocument();
   });
 
   it("shows the server's error message when the backend refuses the input (422)", async () => {
@@ -590,7 +593,10 @@ describe("BeforeAfterSimulator — Fase 5D: identidad visual", () => {
     expect(screen.getByText("portfolio.distribution.simulate.valueIncreaseNote")).toBeInTheDocument();
   });
 
-  it("test 12: Exposición no longer shows a separate instrument-weight card (the information already lives in Distribución/the header)", async () => {
+  it("test 12: the instrument-weight card is now part of the always-visible 'cambio principal' block, shown on every perspective", async () => {
+    // Diego, 2026-11 (rediseño): se promovió fuera de las pestañas por
+    // perspectiva — "mostrar primero el cambio principal y su
+    // significado", sin importar qué perspectiva esté seleccionada.
     const user = userEvent.setup();
     simulateMock.mockResolvedValue({ data: baseSimResponseWithIdentity() });
     render(<BeforeAfterSimulator portfolioId="default" currency="USD" na={NA} />);
@@ -599,14 +605,17 @@ describe("BeforeAfterSimulator — Fase 5D: identidad visual", () => {
     await user.click(screen.getByText("portfolio.distribution.simulate.simulateButton"));
     await waitFor(() => expect(screen.getByText("portfolio.distribution.simulate.hypotheticalBadge")).toBeInTheDocument());
 
+    expect(screen.getByText("portfolio.distribution.simulate.positionWeightTitle")).toBeInTheDocument();
     await user.click(screen.getByText("portfolio.distribution.simulate.perspective.exposure"));
-    expect(screen.queryByText("portfolio.distribution.simulate.positionWeightTitle")).not.toBeInTheDocument();
+    expect(screen.getByText("portfolio.distribution.simulate.positionWeightTitle")).toBeInTheDocument();
   });
 
   it("test 10: avatar images are never requested redundantly for the same ticker across re-renders of the same card", async () => {
     // StockAvatar itself only issues one <img> per mount; this asserts
     // the header doesn't mount two competing identity blocks for the
-    // same simulated ticker.
+    // same simulated ticker. Diego, 2026-11 (rediseño): the Distribución
+    // tab's own duplicate <AssetIdentity> (redundant with the result
+    // header right above it) was removed as part of the nesting cleanup.
     const user = userEvent.setup();
     simulateMock.mockResolvedValue({ data: baseSimResponseWithIdentity() });
     render(<BeforeAfterSimulator portfolioId="default" currency="USD" na={NA} />);
@@ -615,9 +624,8 @@ describe("BeforeAfterSimulator — Fase 5D: identidad visual", () => {
     await user.click(screen.getByText("portfolio.distribution.simulate.simulateButton"));
     await waitFor(() => expect(screen.getByText("portfolio.distribution.simulate.hypotheticalBadge")).toBeInTheDocument());
 
-    // the selected-ticker chip + the result header + the Distribución
-    // card = exactly 3 logos for QQQ on the default (Distribución) tab --
-    // never more (no accidental extra re-fetch/re-mount per render).
-    expect(screen.getAllByAltText("QQQ").length).toBe(3);
+    // the selected-ticker chip + the result header = exactly 2 logos for
+    // QQQ -- never more (no accidental extra re-fetch/re-mount per render).
+    expect(screen.getAllByAltText("QQQ").length).toBe(2);
   });
 });

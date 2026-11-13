@@ -10,16 +10,22 @@ describe("buildPositionsSummary", () => {
     const summary = buildPositionsSummary([pos("VOO", 43.4), pos("QQQ", 20.9), pos("ASML", 10.0)], "es");
     expect(summary.largestHeadline).toBe("VOO es tu posición más grande.");
     expect(summary.largestDetail).toBe("Representa 43.4% del valor verificado de tu portafolio.");
-    expect(summary.concentrationHeadline).toBe("Tus posiciones están concentradas."); // top-2 combined = 64.3% >= 60%
-    expect(summary.concentrationDetail).toBe("VOO y QQQ representan juntos el 64.3% del valor verificado.");
+    expect(summary.largestConsequence).toBe("Una variación en esta posición pesa proporcionalmente más sobre tu portafolio que una variación equivalente en una posición más pequeña.");
+    // Diego, 2026-11 (rediseño): el titular es ahora el hecho verificable
+    // mismo (el % combinado real), nunca un juicio de valor basado en
+    // umbrales arbitrarios como "concentradas"/"bien distribuidas".
+    expect(summary.concentrationHeadline).toBe("VOO y QQQ representan juntos el 64.3% de tu portafolio verificado.");
+    expect(summary.concentrationDetail).toBe("Esto significa que el resultado de tu portafolio depende, en una parte importante, del comportamiento de estas dos inversiones.");
     expect(summary.largestTicker).toBe("VOO");
   });
 
-  it("labels combined weight >=60% as concentrated and <40% as well distributed", () => {
-    const concentrated = buildPositionsSummary([pos("A", 45), pos("B", 20)], "es");
-    expect(concentrated.concentrationHeadline).toBe("Tus posiciones están concentradas.");
-    const distributed = buildPositionsSummary([pos("A", 15), pos("B", 10), pos("C", 10)], "es");
-    expect(distributed.concentrationHeadline).toBe("Tus posiciones están bien distribuidas.");
+  it("never labels a portfolio as 'concentrated' or 'well distributed' — only states the real combined percentage", () => {
+    const highlyConcentrated = buildPositionsSummary([pos("A", 45), pos("B", 20)], "es");
+    expect(highlyConcentrated.concentrationHeadline).toBe("A y B representan juntos el 65.0% de tu portafolio verificado.");
+    expect(highlyConcentrated.concentrationHeadline).not.toMatch(/concentrad|distribuid/i);
+    const lessConcentrated = buildPositionsSummary([pos("A", 15), pos("B", 10), pos("C", 10)], "es");
+    expect(lessConcentrated.concentrationHeadline).toBe("A y B representan juntos el 25.0% de tu portafolio verificado.");
+    expect(lessConcentrated.concentrationHeadline).not.toMatch(/concentrad|distribuid/i);
   });
 
   it("handles a single verifiable position without a combined-pct sentence", () => {
@@ -36,12 +42,13 @@ describe("buildPositionsSummary", () => {
 
   it("returns all-null fields when there are no verifiable positions, never fabricating a summary", () => {
     const summary = buildPositionsSummary([pos("GHOST", null), pos("ALSO_GHOST", 30, false)], "es");
-    expect(summary).toEqual({ concentrationHeadline: null, concentrationDetail: null, largestHeadline: null, largestDetail: null, largestTicker: null });
+    expect(summary).toEqual({ concentrationHeadline: null, concentrationDetail: null, largestHeadline: null, largestDetail: null, largestConsequence: null, largestTicker: null });
   });
 
   it("supports English wording via the lang argument", () => {
     const summary = buildPositionsSummary([pos("VOO", 43.4), pos("QQQ", 20.9)], "en");
     expect(summary.largestHeadline).toBe("VOO is your largest position.");
-    expect(summary.concentrationDetail).toBe("VOO and QQQ together represent 64.3% of the verified value.");
+    expect(summary.largestConsequence).toBe("A change in this position carries proportionally more weight on your portfolio than an equivalent change in a smaller position.");
+    expect(summary.concentrationHeadline).toBe("VOO and QQQ together represent 64.3% of your verified portfolio.");
   });
 });

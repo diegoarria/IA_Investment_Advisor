@@ -25,10 +25,11 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
-  Loader2, AlertTriangle, PieChart, Globe2, ListTree, ChevronDown, Info,
+  Loader2, AlertTriangle, PieChart, Globe2, ListTree, Info,
   Layers, ShieldAlert, ArrowLeft, ArrowRight, TrendingUp, Compass,
 } from "lucide-react";
 import { GlowCard, IconSquare, RaisedTile } from "@/components/subvaluadas/radarUi";
+import { ExpandableSection } from "@/components/ui/ExpandableSection";
 // Fase 7.2 (Diego, captura real): el acento dorado de Radar no debe
 // usarse aquí — el usuario pidió explícitamente el verde consistente
 // con el resto de la plataforma (Mi portafolio, "En la nube", etc.). Se
@@ -44,7 +45,7 @@ import { portfolioExposureApi } from "@/lib/api";
 import { selectPrimaryInsight, buildObservationCopy } from "@/lib/primaryInsight";
 import { selectResumenObservation, buildPulseObservationCopy, type PulseCompareResult, type PulseCompareAvailable } from "@/lib/pulseObservation";
 import { buildPositionsSummary } from "@/lib/positionsSummary";
-import { describeSectorHeadline, describeSectorShare, describeContributorsExplanation, type SectorContributor } from "@/lib/sectorExposureSummary";
+import { describeSectorHeadline, describeSectorShare, describeSectorConsequence, describeContributorsExplanation, type SectorContributor } from "@/lib/sectorExposureSummary";
 
 type Position = {
   ticker: string; name: string | null; asset_class: "equity" | "etf" | "unknown";
@@ -108,18 +109,18 @@ function fmtPct(n: number | null | undefined, na: string, digits = 1): string {
 function SingleBar({ label, pct, value, currency, na, avatarTicker }: { label: string; pct: number | null; value: number; currency: string; na: string; avatarTicker?: string }) {
   const widthPct = pct !== null ? Math.max(2, pct) : 0;
   return (
-    <div className="py-2 border-b last:border-0" style={{ borderColor: "var(--border)" }}>
+    <div className="py-2.5 border-b last:border-0" style={{ borderColor: "var(--border)" }}>
       <div className="flex items-baseline justify-between gap-2 mb-1">
         <span className="flex items-center gap-1.5 min-w-0">
           {avatarTicker && <StockAvatar ticker={avatarTicker} size="sm" />}
-          <span className="text-[13px] font-semibold min-w-0 truncate" style={{ color: "var(--text)" }}>{label}</span>
+          <span className="font-semibold min-w-0 truncate" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>{label}</span>
         </span>
-        <span className="text-[13px] font-bold shrink-0" style={{ color: "var(--text)" }}>{fmtPct(pct, na)}</span>
+        <span className="font-bold shrink-0" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>{fmtPct(pct, na)}</span>
       </div>
       <div className="w-full h-[7px] rounded-full overflow-hidden mb-1" style={{ background: "var(--raised)" }}>
         <div className="h-full rounded-full" style={{ width: `${widthPct}%`, background: GOLD }} />
       </div>
-      <span className="text-[11px]" style={{ color: "var(--sub)" }}>{fmtMoney(value, currency, na)}</span>
+      <span style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{fmtMoney(value, currency, na)}</span>
     </div>
   );
 }
@@ -133,13 +134,13 @@ function SingleBar({ label, pct, value, currency, na, avatarTicker }: { label: s
 function ContributionBar({ ticker, name, pctPoints }: { ticker: string; name?: string | null; pctPoints: number }) {
   const widthPct = Math.max(2, pctPoints);
   return (
-    <div className="py-2 border-b last:border-0" style={{ borderColor: "var(--border)" }}>
+    <div className="py-2.5 border-b last:border-0" style={{ borderColor: "var(--border)" }}>
       <div className="flex items-baseline justify-between gap-2 mb-1">
         <span className="flex items-center gap-1.5 min-w-0">
           <StockAvatar ticker={ticker} size="sm" />
-          <span className="text-[13px] font-semibold min-w-0 truncate" style={{ color: "var(--text)" }}>{name || ticker}</span>
+          <span className="font-semibold min-w-0 truncate" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>{name || ticker}</span>
         </span>
-        <span className="text-[13px] font-bold shrink-0" style={{ color: "var(--text)" }}>{pctPoints.toFixed(1)}pp</span>
+        <span className="font-bold shrink-0" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>{pctPoints.toFixed(1)}pp</span>
       </div>
       <div className="w-full h-[7px] rounded-full overflow-hidden" style={{ background: "var(--raised)" }}>
         <div className="h-full rounded-full" style={{ width: `${widthPct}%`, background: GOLD }} />
@@ -163,7 +164,7 @@ function SegmentedBar({ equityPct, etfPct, equityValue, etfValue, currency, na, 
         {ep > 0 && <div style={{ width: `${ep}%`, background: GOLD }} />}
         {tp > 0 && <div style={{ width: `${tp}%`, background: "var(--muted)" }} />}
       </div>
-      <div className="flex flex-wrap justify-between gap-2 mt-1.5 text-[11px]" style={{ color: "var(--sub)" }}>
+      <div className="flex flex-wrap justify-between gap-2 mt-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
         <span>{t("portfolio.distribution.positions.equityLabel")}: {fmtPct(equityPct, na)} · {fmtMoney(equityValue, currency, na)}</span>
         <span>{t("portfolio.distribution.positions.etfLabel")}: {fmtPct(etfPct, na)} · {fmtMoney(etfValue, currency, na)}</span>
       </div>
@@ -185,10 +186,11 @@ function DimensionSelector({ dimension, onChange, t }: { dimension: Dimension; o
           role="tab"
           aria-selected={dimension === o.key}
           onClick={() => onChange(o.key)}
-          className="px-3.5 py-1.5 rounded-full text-[12.5px] font-bold whitespace-nowrap"
+          className="px-3.5 py-1.5 rounded-full font-bold whitespace-nowrap"
           style={{
             background: dimension === o.key ? GOLD : "var(--raised)",
             color: dimension === o.key ? "#1A1A1A" : "var(--sub)",
+            fontSize: "var(--fs-body-sm)",
           }}
         >
           {o.label}
@@ -200,7 +202,7 @@ function DimensionSelector({ dimension, onChange, t }: { dimension: Dimension; o
 
 function BackToSummaryButton({ onBack, t }: { onBack: () => void; t: TFunction }) {
   return (
-    <button onClick={onBack} className="flex items-center gap-1.5 mb-4 text-[12.5px] font-semibold" style={{ color: "var(--sub)" }}>
+    <button onClick={onBack} className="flex items-center gap-1.5 mb-4 font-semibold" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
       <ArrowLeft className="w-3.5 h-3.5" />{t("portfolio.distribution.nav.backToSummary")}
     </button>
   );
@@ -211,29 +213,31 @@ function BackToSummaryButton({ onBack, t }: { onBack: () => void; t: TFunction }
 // one), the explanation names the real cause in one line, and the exact
 // backend sentence + raw supporting_data stay available on demand — not
 // lost, just no longer the first thing shown.
+// Diego, 2026-11 (rediseño): sin caja propia (fondo+borde) — vive
+// directamente dentro de la tarjeta "Entender" de Resumen, bajando de 3
+// a 2 niveles de anidamiento de tarjetas. El detalle expandible reutiliza
+// <ExpandableSection> (src/components/ui/) en vez de un toggle ad hoc.
 function InsightCard({ insight, t, lang }: { insight: Insight; t: TFunction; lang: "es" | "en" }) {
-  const [showData, setShowData] = useState(false);
   const Icon = INSIGHT_ICON[insight.category] || Info;
   const copy = buildObservationCopy(insight, lang);
+  const hasDetail = !!copy.detailText || Object.keys(insight.supporting_data).length > 0;
   return (
-    <div className="rounded-2xl p-3.5" style={{ background: "var(--raised)", border: `1px solid ${GOLD}2b` }}>
-      <div className="flex items-start gap-2 mb-1">
-        <IconSquare color={GOLD} size={24}><Icon className="w-3 h-3" style={{ color: GOLD }} /></IconSquare>
-        <p className="text-[14px] font-extrabold leading-snug" style={{ color: "var(--text)" }}>{copy.headline}</p>
+    <div>
+      <div className="flex items-start gap-2.5 mb-1.5">
+        <IconSquare color={GOLD} size={28}><Icon className="w-3.5 h-3.5" style={{ color: GOLD }} /></IconSquare>
+        <p className="font-extrabold leading-snug" style={{ color: "var(--text)", fontSize: "var(--fs-h2)" }}>{copy.headline}</p>
       </div>
       {copy.explanation && (
-        <p className="text-[13px] leading-relaxed ml-8" style={{ color: "var(--sub)" }}>{copy.explanation}</p>
+        <p className="leading-relaxed ml-10" style={{ color: "var(--sub)", fontSize: "var(--fs-body)" }}>{copy.explanation}</p>
       )}
-      <button onClick={() => setShowData((v) => !v)} className="flex items-center gap-1 mt-2 ml-8 text-[11px] font-semibold" style={{ color: "var(--sub)" }}>
-        <ChevronDown className={`w-3 h-3 transition-transform ${showData ? "rotate-180" : ""}`} />
-        {t("portfolio.distribution.summary.seeBreakdown")}
-      </button>
-      {showData && (
-        <div className="mt-1.5 ml-8 text-[11.5px] font-mono rounded-lg p-2" style={{ background: "var(--card)", color: "var(--sub)" }}>
-          {copy.detailText && <div className="mb-1" style={{ color: "var(--text)" }}>{copy.detailText}</div>}
-          {Object.entries(insight.supporting_data).map(([k, v]) => (
-            <div key={k}>{k}: {typeof v === "object" ? JSON.stringify(v) : String(v)}</div>
-          ))}
+      {hasDetail && (
+        <div className="ml-10 mt-2">
+          <ExpandableSection title={t("portfolio.distribution.summary.seeBreakdown")}>
+            {copy.detailText && <p style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>{copy.detailText}</p>}
+            {Object.entries(insight.supporting_data).map(([k, v]) => (
+              <p key={k} className="font-mono" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{k}: {typeof v === "object" ? JSON.stringify(v) : String(v)}</p>
+            ))}
+          </ExpandableSection>
         </div>
       )}
     </div>
@@ -257,42 +261,47 @@ function pulseExploreTarget(category: "sector" | "composition" | "concentration"
     : { dimension: "posiciones", labelKey: "portfolio.distribution.summary.pulse.explorePositions" };
 }
 
+// Diego, 2026-11 (rediseño): mismo tratamiento sin caja propia que
+// InsightCard — nunca ambos a la vez en Resumen (lo decide
+// selectResumenObservation), así que comparten exactamente el mismo
+// espacio visual y ahora también la misma jerarquía tipográfica.
 function PulseObservationCard({ pulse, t, lang, onExplore }: { pulse: PulseCompareAvailable; t: TFunction; lang: "es" | "en"; onExplore: (dimension: Dimension) => void }) {
-  const [showDetails, setShowDetails] = useState(false);
   const copy = buildPulseObservationCopy(pulse, lang);
   if (!copy || !pulse.primary_change) return null;
   const { dimension: exploreDimension, labelKey: exploreLabelKey } = pulseExploreTarget(pulse.primary_change.category);
   const fmtDate = (iso: string) => iso.slice(0, 10);
   return (
-    <div className="rounded-2xl p-3.5" style={{ background: "var(--raised)", border: `1px solid ${GOLD}2b` }}>
-      <div className="flex items-start gap-2 mb-1">
-        <IconSquare color={GOLD} size={24}><TrendingUp className="w-3 h-3" style={{ color: GOLD }} /></IconSquare>
+    <div>
+      <div className="flex items-start gap-2.5 mb-1.5">
+        <IconSquare color={GOLD} size={28}><TrendingUp className="w-3.5 h-3.5" style={{ color: GOLD }} /></IconSquare>
         <div>
-          <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.summary.pulse.title")}</p>
-          <p className="text-[14px] font-extrabold leading-snug" style={{ color: "var(--text)" }}>{copy.headline}</p>
+          <p className="font-black uppercase tracking-wide" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{t("portfolio.distribution.summary.pulse.title")}</p>
+          <p className="font-extrabold leading-snug" style={{ color: "var(--text)", fontSize: "var(--fs-h2)" }}>{copy.headline}</p>
         </div>
       </div>
-      <p className="text-[13px] leading-relaxed ml-8" style={{ color: "var(--sub)" }}>{copy.explanation}</p>
-      <div className="ml-8 mt-1.5 flex items-center gap-3 text-[12px]" style={{ color: "var(--text)" }}>
+      <p className="leading-relaxed ml-10" style={{ color: "var(--sub)", fontSize: "var(--fs-body)" }}>{copy.explanation}</p>
+      <div className="ml-10 mt-2 flex items-center gap-3" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>
         <span>{t("portfolio.distribution.summary.pulse.before")}: <b>{copy.before_pct.toFixed(1)}%</b></span>
-        <ArrowRight className="w-3 h-3" style={{ color: "var(--sub)" }} />
+        <ArrowRight className="w-3.5 h-3.5" style={{ color: "var(--sub)" }} />
         <span>{t("portfolio.distribution.summary.pulse.after")}: <b>{copy.after_pct.toFixed(1)}%</b></span>
-        <span className="font-bold" style={{ color: GOLD }}>{copy.delta_pp >= 0 ? "+" : ""}{copy.delta_pp.toFixed(1)}pp</span>
+        {/* Diego, 2026-11 (rediseño): neutral — un aumento/disminución de
+            peso NO es inherentemente positivo o negativo, nunca verde. */}
+        <span className="font-bold" style={{ color: "var(--text)" }}>{copy.delta_pp >= 0 ? "+" : ""}{copy.delta_pp.toFixed(1)}pp</span>
       </div>
-      <p className="text-[12px] leading-relaxed ml-8 mt-1.5" style={{ color: "var(--sub)" }}>{copy.causalityNote}</p>
+      <p className="leading-relaxed ml-10 mt-2" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{copy.causalityNote}</p>
 
-      <button onClick={() => setShowDetails((v) => !v)} className="flex items-center gap-1 mt-2 ml-8 text-[11px] font-semibold" style={{ color: "var(--sub)" }}>
-        <ChevronDown className={`w-3 h-3 transition-transform ${showDetails ? "rotate-180" : ""}`} />
-        {t("portfolio.distribution.summary.pulse.seeDates")}
-      </button>
-      {showDetails && (
-        <div className="mt-1.5 ml-8 text-[11.5px] rounded-lg p-2" style={{ background: "var(--card)", color: "var(--sub)" }}>
-          <div>{t("portfolio.distribution.summary.pulse.comparedDates", { before: fmtDate(pulse.snapshot_before.observed_at), after: fmtDate(pulse.snapshot_after.observed_at) })}</div>
-          {pulse.comparability.status === "partial" && <div className="mt-1">{t("portfolio.distribution.summary.pulse.partialCoverage")}</div>}
-        </div>
-      )}
+      <div className="ml-10 mt-2">
+        <ExpandableSection title={t("portfolio.distribution.summary.pulse.seeDates")}>
+          <p style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
+            {t("portfolio.distribution.summary.pulse.comparedDates", { before: fmtDate(pulse.snapshot_before.observed_at), after: fmtDate(pulse.snapshot_after.observed_at) })}
+          </p>
+          {pulse.comparability.status === "partial" && (
+            <p style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.summary.pulse.partialCoverage")}</p>
+          )}
+        </ExpandableSection>
+      </div>
 
-      <button onClick={() => onExplore(exploreDimension)} className="flex items-center gap-1.5 mt-2.5 ml-8 text-[12px] font-bold" style={{ color: GOLD }}>
+      <button onClick={() => onExplore(exploreDimension)} className="flex items-center gap-1.5 mt-3 ml-10 font-bold" style={{ color: GOLD, fontSize: "var(--fs-body-sm)" }}>
         {t(exploreLabelKey)}<ArrowRight className="w-3.5 h-3.5" />
       </button>
     </div>
@@ -322,26 +331,26 @@ function SummaryView({
     <div className="space-y-3">
       <GlowCard tint={GOLD} strong>
         <div className="flex items-baseline justify-between gap-3 flex-wrap">
-          <p className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>
+          <p className="font-black tracking-tight" style={{ color: "var(--text)", fontSize: "var(--fs-display)" }}>
             {valuation.total_value_verified !== null ? fmtMoney(valuation.total_value_verified, currency, na) : na}
           </p>
-          <p className="text-[12.5px]" style={{ color: "var(--sub)" }}>
+          <p style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
             {t("portfolio.distribution.summary.positionsCount", { count: valuation.position_count })}
           </p>
         </div>
 
         {isEmpty && (
-          <p className="text-[12.5px] mt-1.5 flex items-start gap-1.5" style={{ color: "var(--sub)" }}>
+          <p className="mt-2 flex items-start gap-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />{t("portfolio.distribution.summary.emptyPortfolio")}
           </p>
         )}
         {!isEmpty && valuation.total_value_verified === null && (
-          <p className="text-[12.5px] mt-1.5 flex items-start gap-1.5" style={{ color: "#E0A030" }}>
+          <p className="mt-2 flex items-start gap-1.5" style={{ color: "#E0A030", fontSize: "var(--fs-body-sm)" }}>
             <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{t("portfolio.distribution.summary.noVerifiedValue")}
           </p>
         )}
         {!isEmpty && unverifiable_positions.length > 0 && (
-          <p className="text-[12.5px] mt-1.5 flex items-start gap-1.5" style={{ color: "#E0A030" }}>
+          <p className="mt-2 flex items-start gap-1.5" style={{ color: "#E0A030", fontSize: "var(--fs-body-sm)" }}>
             <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             {t("portfolio.distribution.summary.unverifiableNote", { count: unverifiable_positions.length })}
           </p>
@@ -353,7 +362,7 @@ function SummaryView({
           <div className="flex items-center justify-between gap-2.5 mb-2.5 flex-wrap">
             <div className="flex items-center gap-2">
               <IconSquare color={GOLD} size={30}><ListTree className="w-3.5 h-3.5" style={{ color: GOLD }} /></IconSquare>
-              <span className="text-[14px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("portfolio.distribution.understand.title")}</span>
+              <span className="font-extrabold tracking-tight" style={{ color: "var(--text)", fontSize: "var(--fs-h2)" }}>{t("portfolio.distribution.understand.title")}</span>
             </div>
             <ExplainButton
               inline
@@ -387,7 +396,7 @@ function SummaryView({
               )}
             </>
           ) : (
-            <p className="text-sm" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.summary.noPrimaryInsight")}</p>
+            <p style={{ color: "var(--sub)", fontSize: "var(--fs-body)" }}>{t("portfolio.distribution.summary.noPrimaryInsight")}</p>
           )}
         </GlowCard>
       )}
@@ -396,15 +405,15 @@ function SummaryView({
         <button onClick={onUnderstand} className="rounded-2xl p-4 text-left flex items-start gap-2.5" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
           <IconSquare color={GOLD} size={32}><Compass className="w-4 h-4" style={{ color: GOLD }} /></IconSquare>
           <span>
-            <span className="block text-[14px] font-bold" style={{ color: "var(--text)" }}>{t("portfolio.distribution.summary.actionUnderstand")}</span>
-            <span className="block text-[12px] mt-0.5" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.summary.actionUnderstandHint")}</span>
+            <span className="block font-bold" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>{t("portfolio.distribution.summary.actionUnderstand")}</span>
+            <span className="block mt-0.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.summary.actionUnderstandHint")}</span>
           </span>
         </button>
         <button onClick={onNavigateToSimulate} className="rounded-2xl p-4 text-left flex items-start gap-2.5" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
           <IconSquare color={GOLD} size={32}><TrendingUp className="w-4 h-4" style={{ color: GOLD }} /></IconSquare>
           <span>
-            <span className="block text-[14px] font-bold" style={{ color: "var(--text)" }}>{t("portfolio.distribution.summary.actionSimulate")}</span>
-            <span className="block text-[12px] mt-0.5" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.summary.actionSimulateHint")}</span>
+            <span className="block font-bold" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>{t("portfolio.distribution.summary.actionSimulate")}</span>
+            <span className="block mt-0.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.summary.actionSimulateHint")}</span>
           </span>
         </button>
       </div>
@@ -420,8 +429,6 @@ function UnderstandView({
   currency: string; na: string; t: TFunction; lang: "es" | "en"; router: ReturnType<typeof useRouter>;
   primaryInsight: Insight | null; onBack: () => void;
 }) {
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [allSectorsOpen, setAllSectorsOpen] = useState(false);
   const { composition, sector_exposure, geographic_exposure, unverifiable_positions } = data;
   const positionsSorted = [...data.positions].sort((a, b) => (b.weight_pct ?? -1) - (a.weight_pct ?? -1));
   const equityCountries = geographic_exposure.by_country.filter((r) => r.methodology === "equity_domicile");
@@ -434,7 +441,7 @@ function UnderstandView({
   return (
     <div>
       <BackToSummaryButton onBack={onBack} t={t} />
-      <p className="text-[15px] font-extrabold tracking-tight mb-3" style={{ color: "var(--text)" }}>{t("portfolio.distribution.understand.exploreTitle")}</p>
+      <p className="font-extrabold tracking-tight mb-3" style={{ color: "var(--text)", fontSize: "var(--fs-h2)" }}>{t("portfolio.distribution.understand.exploreTitle")}</p>
       <DimensionSelector dimension={dimension} onChange={onDimensionChange} t={t} />
 
       {dimension === "posiciones" && (() => {
@@ -449,9 +456,9 @@ function UnderstandView({
           <GlowCard>
             <div className="flex items-center gap-2.5 mb-1">
               <IconSquare color={GOLD} size={30}><Layers className="w-3.5 h-3.5" style={{ color: GOLD }} /></IconSquare>
-              <span className="text-[15px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("portfolio.distribution.positions.title")}</span>
+              <span className="font-extrabold tracking-tight" style={{ color: "var(--text)", fontSize: "var(--fs-h2)" }}>{t("portfolio.distribution.positions.title")}</span>
             </div>
-            <p className="text-[12.5px] mb-3" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.positions.subtitle")}</p>
+            <p className="mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.positions.subtitle")}</p>
 
             <SegmentedBar
               equityPct={composition.equity_pct} etfPct={composition.etf_pct}
@@ -462,49 +469,53 @@ function UnderstandView({
                 shown above — only when BOTH shares are real numbers, never
                 fabricated when one side couldn't be computed. */}
             {composition.equity_pct !== null && composition.etf_pct !== null && (
-              <p className="text-[12.5px] mb-3" style={{ color: "var(--text)" }}>
+              <p className="mb-3" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>
                 {t("portfolio.distribution.positions.compositionNote", {
                   etf: Math.round(composition.etf_pct), equity: Math.round(composition.equity_pct),
                 })}
               </p>
             )}
 
-            {/* Conclusión de concentración — primero la interpretación,
-                luego los números exactos que la respaldan. */}
+            {/* Conclusión de concentración — primero el hecho verificable,
+                luego su consecuencia educativa (nunca un juicio de valor
+                como "bien distribuidas", Diego 2026-11). */}
             {positionsSummary.concentrationHeadline && (
-              <p className="text-[13.5px] font-semibold mb-0.5" style={{ color: "var(--text)" }}>{positionsSummary.concentrationHeadline}</p>
+              <p className="font-semibold mb-0.5" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>{positionsSummary.concentrationHeadline}</p>
             )}
             {positionsSummary.concentrationDetail && (
-              <p className="text-[12.5px] mb-3" style={{ color: "var(--sub)" }}>{positionsSummary.concentrationDetail}</p>
+              <p className="mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{positionsSummary.concentrationDetail}</p>
             )}
 
-            {/* Posición más grande, destacada antes de la lista completa. */}
+            {/* Posición más grande, destacada antes de la lista completa —
+                ahora con su consecuencia educativa explícita. */}
             {positionsSummary.largestHeadline && (
               <RaisedTile className="mb-3">
                 <div className="flex items-start gap-2.5">
                   {positionsSummary.largestTicker && <StockAvatar ticker={positionsSummary.largestTicker} size="sm" />}
                   <div className="min-w-0">
-                    <p className="text-[13.5px] font-semibold" style={{ color: "var(--text)" }}>{positionsSummary.largestHeadline}</p>
-                    <p className="text-[12px] mt-0.5" style={{ color: "var(--sub)" }}>{positionsSummary.largestDetail}</p>
+                    <p className="font-semibold" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>{positionsSummary.largestHeadline}</p>
+                    <p className="mt-0.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{positionsSummary.largestDetail}</p>
+                    {positionsSummary.largestConsequence && (
+                      <p className="mt-1" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{positionsSummary.largestConsequence}</p>
+                    )}
                   </div>
                 </div>
               </RaisedTile>
             )}
 
             {composition.unknown_asset_value_cost_basis > 0 && (
-              <p className="text-[12px] mb-3 flex items-start gap-1.5" style={{ color: "var(--sub)" }}>
+              <p className="mb-3 flex items-start gap-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
                 <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 {t("portfolio.distribution.positions.unknownAssetNote", { amount: fmtMoney(composition.unknown_asset_value_cost_basis, currency, na) })}
               </p>
             )}
 
             {/* Lista completa — sección secundaria, después de la
-                conclusión y del destaque. Estructura lista para un futuro
-                "Ver todas las posiciones" si la lista crece mucho; no se
-                implementa un truncado todavía porque no hace falta. */}
+                conclusión y del destaque. Nunca oculta posiciones; las 15
+                siguen todas aquí si existen 15. */}
             {verifiablePositions.length > 0 && (
               <>
-                <p className="text-[11px] font-black uppercase tracking-wide mb-1.5 mt-1" style={{ color: "var(--sub)" }}>
+                <p className="font-black uppercase tracking-wide mb-1.5 mt-1" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
                   {t("portfolio.distribution.positions.allPositionsTitle")}
                 </p>
                 {verifiablePositions.map((p) => (
@@ -521,8 +532,8 @@ function UnderstandView({
               className="w-full flex items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 mt-4 text-left"
               style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
             >
-              <span className="text-[12.5px] font-semibold" style={{ color: "var(--text)" }}>{t("portfolio.distribution.positions.bridgeToSectors")}</span>
-              <span className="flex items-center gap-1 text-[12.5px] font-bold shrink-0" style={{ color: GOLD }}>
+              <span className="font-semibold" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.positions.bridgeToSectors")}</span>
+              <span className="flex items-center gap-1 font-bold shrink-0" style={{ color: GOLD, fontSize: "var(--fs-body-sm)" }}>
                 {t("portfolio.distribution.positions.bridgeToSectorsCta")}
                 <ArrowRight className="w-3.5 h-3.5" />
               </span>
@@ -549,19 +560,27 @@ function UnderstandView({
           <GlowCard>
             <div className="flex items-center gap-2.5 mb-1">
               <IconSquare color={GOLD} size={30}><PieChart className="w-3.5 h-3.5" style={{ color: GOLD }} /></IconSquare>
-              <span className="text-[15px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("portfolio.distribution.sectors.title")}</span>
+              <span className="font-extrabold tracking-tight" style={{ color: "var(--text)", fontSize: "var(--fs-h2)" }}>{t("portfolio.distribution.sectors.title")}</span>
             </div>
-            <p className="text-[12.5px] mb-3" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.sectors.subtitle")}</p>
+            <p className="mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.sectors.subtitle")}</p>
 
             {topSector ? (
               <>
                 {topSector.pct_of_verified_total !== null ? (
                   <>
-                    <p className="text-[14px] font-extrabold leading-snug mb-2" style={{ color: "var(--text)" }}>
+                    <p className="font-extrabold leading-snug mb-2" style={{ color: "var(--text)", fontSize: "var(--fs-metric)" }}>
+                      {topSector.pct_of_verified_total.toFixed(1)}%
+                    </p>
+                    <p className="font-semibold leading-snug mb-2" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>
                       {describeSectorHeadline(topSector.sector, topSector.pct_of_verified_total, lang)}
                     </p>
+                    {/* Consecuencia educativa — ambas direcciones, nunca
+                        una predicción (Diego, 2026-11, rediseño). */}
+                    <p className="leading-relaxed mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body)" }}>
+                      {describeSectorConsequence(topSector.sector, lang)}
+                    </p>
                     <SingleBar label={topSector.sector} pct={topSector.pct_of_verified_total} value={topSector.value} currency={currency} na={na} />
-                    <p className="text-[12.5px] mt-2 mb-3" style={{ color: "var(--sub)" }}>
+                    <p className="mt-2 mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
                       {describeSectorShare(topSector.sector, topSector.pct_of_verified_total, lang)}
                     </p>
 
@@ -571,58 +590,47 @@ function UnderstandView({
                         contribuyen cuando el backend no lo calculó. */}
                     {contributors.length > 0 ? (
                       <div className="mb-3">
-                        <p className="text-[13px] font-bold mb-2" style={{ color: "var(--text)" }}>
+                        <p className="font-bold mb-2" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>
                           {t("portfolio.distribution.sectors.contributorsTitle", { sector: topSector.sector })}
                         </p>
                         {contributors.map((c) => (
                           <ContributionBar key={c.ticker} ticker={c.ticker} name={c.name} pctPoints={c.contribution_pct_points} />
                         ))}
-                        <p className="text-[11.5px] mt-1.5" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.sectors.contributorsClarification")}</p>
+                        <p className="mt-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>{t("portfolio.distribution.sectors.contributorsClarification")}</p>
                         {contributorsExplanation && (
-                          <p className="text-[12.5px] mt-2 leading-relaxed" style={{ color: "var(--text)" }}>{contributorsExplanation}</p>
+                          <p className="mt-2 leading-relaxed" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>{contributorsExplanation}</p>
                         )}
                       </div>
                     ) : (
-                      <p className="text-[12.5px] mb-3 flex items-start gap-1.5" style={{ color: "var(--sub)" }}>
+                      <p className="mb-3 flex items-start gap-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
                         <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />{t("portfolio.distribution.sectors.contributorsUnavailable")}
                       </p>
                     )}
                   </>
                 ) : (
-                  <p className="text-[13px] mb-3" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.sectors.noDominantSector")}</p>
+                  <p className="mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.sectors.noDominantSector")}</p>
                 )}
 
-                <p className="text-[12px] mb-1" style={{ color: "var(--sub)" }}>
+                <p className="mb-1" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
                   {t("portfolio.distribution.sectors.verifiedUniverseNote", { pct: fmtPct(sector_exposure.coverage_pct, na) })}
                 </p>
 
                 {otherSectors.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => setAllSectorsOpen((v) => !v)}
-                      className="w-full flex items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 mt-2 text-[12.5px] font-bold"
-                      style={{ background: "var(--raised)", color: "var(--sub)" }}
-                      aria-expanded={allSectorsOpen}
-                    >
-                      {t("portfolio.distribution.sectors.seeAllSectors")}
-                      <ChevronDown className={`w-4 h-4 transition-transform ${allSectorsOpen ? "rotate-180" : ""}`} />
-                    </button>
-                    {allSectorsOpen && (
-                      <div className="mt-2">
-                        {/* Nunca truncar — un sector pequeño debe seguir
-                            visible aquí (Fase 4D/4E: "nunca ocultar el
-                            porcentaje de sectores pequeños si el usuario
-                            decide consultar el detalle completo"). */}
-                        {otherSectors.map((row) => (
-                          <SingleBar key={row.sector} label={row.sector} pct={row.pct_of_verified_total} value={row.value} currency={currency} na={na} />
-                        ))}
-                      </div>
-                    )}
-                  </>
+                  <div className="mt-2">
+                    <ExpandableSection title={t("portfolio.distribution.sectors.seeAllSectors")}>
+                      {/* Nunca truncar — un sector pequeño debe seguir
+                          visible aquí (Fase 4D/4E: "nunca ocultar el
+                          porcentaje de sectores pequeños si el usuario
+                          decide consultar el detalle completo"). */}
+                      {otherSectors.map((row) => (
+                        <SingleBar key={row.sector} label={row.sector} pct={row.pct_of_verified_total} value={row.value} currency={currency} na={na} />
+                      ))}
+                    </ExpandableSection>
+                  </div>
                 )}
               </>
             ) : (
-              <p className="text-sm" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.sectors.empty")}</p>
+              <p style={{ color: "var(--sub)", fontSize: "var(--fs-body)" }}>{t("portfolio.distribution.sectors.empty")}</p>
             )}
           </GlowCard>
         );
@@ -632,82 +640,81 @@ function UnderstandView({
         <GlowCard>
           <div className="flex items-center gap-2.5 mb-3">
             <IconSquare color={GOLD} size={30}><Globe2 className="w-3.5 h-3.5" style={{ color: GOLD }} /></IconSquare>
-            <span className="text-[15px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>{t("portfolio.distribution.geography.title")}</span>
+            <span className="font-extrabold tracking-tight" style={{ color: "var(--text)", fontSize: "var(--fs-h2)" }}>{t("portfolio.distribution.geography.title")}</span>
           </div>
-          <p className="text-[12px] mb-3 leading-relaxed" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.geography.methodologyNote")}</p>
           {(topEtfCountry || topEquityCountry) && (
-            <p className="text-[12.5px] mb-3" style={{ color: "var(--text)" }}>
+            <p className="mb-3" style={{ color: "var(--text)", fontSize: "var(--fs-body)" }}>
               {topEtfCountry && t("portfolio.distribution.geography.topEtfCountry", { country: topEtfCountry.country, pct: fmtPct(topEtfCountry.pct_of_asset_class_value, na) })}
               {topEtfCountry && topEquityCountry ? " " : ""}
               {topEquityCountry && t("portfolio.distribution.geography.topEquityCountry", { country: topEquityCountry.country, pct: fmtPct(topEquityCountry.pct_of_asset_class_value, na) })}
             </p>
           )}
 
-          <p className="text-[11px] font-black uppercase tracking-wide mb-1.5" style={{ color: "var(--sub)" }}>
-            {t("portfolio.distribution.geography.etfUnderlying")} · {fmtPct(geographic_exposure.etf_underlying_coverage_pct, na)}
+          {/* Diego, 2026-11 (rediseño): la etiqueta de sección ahora es
+              corta ("etfUnderlyingLabel"/"equityDomicileLabel") — la
+              explicación metodológica completa vive en el toggle de
+              abajo, nunca repetida cada vez que se abre esta pantalla. */}
+          <p className="font-black uppercase tracking-wide mb-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
+            {t("portfolio.distribution.geography.etfUnderlyingLabel")} · {fmtPct(geographic_exposure.etf_underlying_coverage_pct, na)}
           </p>
           {etfCountries.length === 0 ? (
-            <p className="text-[12.5px] mb-3" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.geography.empty")}</p>
+            <p className="mb-3" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.geography.empty")}</p>
           ) : etfCountries.map((row) => (
             <SingleBar key={`etf-${row.country}`} label={row.country} pct={row.pct_of_asset_class_value} value={row.value} currency={currency} na={na} />
           ))}
 
-          <p className="text-[11px] font-black uppercase tracking-wide mb-1.5 mt-4" style={{ color: "var(--sub)" }}>
-            {t("portfolio.distribution.geography.equityDomicile")} · {fmtPct(geographic_exposure.equity_domicile_coverage_pct, na)}
+          <p className="font-black uppercase tracking-wide mb-1.5 mt-4" style={{ color: "var(--sub)", fontSize: "var(--fs-label)" }}>
+            {t("portfolio.distribution.geography.equityDomicileLabel")} · {fmtPct(geographic_exposure.equity_domicile_coverage_pct, na)}
           </p>
           {equityCountries.length === 0 ? (
-            <p className="text-[12.5px]" style={{ color: "var(--sub)" }}>{t("portfolio.distribution.geography.empty")}</p>
+            <p style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.geography.empty")}</p>
           ) : equityCountries.map((row) => (
             <SingleBar key={`eq-${row.country}`} label={row.country} pct={row.pct_of_asset_class_value} value={row.value} currency={currency} na={na} />
           ))}
           {geographic_exposure.etf_non_applicable_value > 0 && (
-            <p className="text-[12px] mt-3 flex items-start gap-1.5" style={{ color: "var(--sub)" }}>
+            <p className="mt-3 flex items-start gap-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               {t("portfolio.distribution.geography.nonApplicableNote", { amount: fmtMoney(geographic_exposure.etf_non_applicable_value, currency, na) })}
             </p>
           )}
+
+          <div className="mt-4">
+            <ExpandableSection title={t("portfolio.distribution.geography.whatThisMeansToggle")}>
+              <p className="leading-relaxed" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.geography.methodologyNote")}</p>
+            </ExpandableSection>
+          </div>
         </GlowCard>
       )}
 
       {/* Detalles, fuentes, cobertura y posiciones no verificables — bajo
           demanda (Fase 4D, punto 2 de la arquitectura aprobada), nunca
           ocultos permanentemente, solo colapsados por defecto. */}
-      <button
-        onClick={() => setDetailsOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 mt-4 text-[12.5px] font-bold"
-        style={{ background: "var(--raised)", color: "var(--sub)" }}
-        aria-expanded={detailsOpen}
-      >
-        {t("portfolio.distribution.detailsToggle")}
-        <ChevronDown className={`w-4 h-4 transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
-      </button>
-
-      {detailsOpen && (
-        <div className="space-y-3 mt-3">
+      <div className="mt-4">
+        <ExpandableSection title={t("portfolio.distribution.detailsToggle")}>
           {sector_exposure.unclassified_value > 0 && (
-            <p className="text-[12px] flex items-start gap-1.5" style={{ color: "var(--sub)" }}>
+            <p className="flex items-start gap-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               {t("portfolio.distribution.sectors.unclassifiedNote", { amount: fmtMoney(sector_exposure.unclassified_value, currency, na) })}
             </p>
           )}
           {sector_exposure.non_equity_style_value > 0 && (
-            <p className="text-[12px] flex items-start gap-1.5" style={{ color: "var(--sub)" }}>
+            <p className="flex items-start gap-1.5" style={{ color: "var(--sub)", fontSize: "var(--fs-body-sm)" }}>
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               {t("portfolio.distribution.sectors.nonEquityStyleNote", { amount: fmtMoney(sector_exposure.non_equity_style_value, currency, na) })}
             </p>
           )}
           {unverifiable_positions.length > 0 && (
             <div className="space-y-1">
-              <p className="text-[12.5px] font-bold" style={{ color: "var(--text)" }}>{t("portfolio.distribution.unverifiable.title")}</p>
+              <p className="font-bold" style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>{t("portfolio.distribution.unverifiable.title")}</p>
               {unverifiable_positions.map((u) => (
-                <p key={u.ticker} className="text-[13px]" style={{ color: "var(--text)" }}>
+                <p key={u.ticker} style={{ color: "var(--text)", fontSize: "var(--fs-body-sm)" }}>
                   {u.ticker} — {t(`portfolio.distribution.unverifiable.reason.${u.reason}`, u.reason || "")}
                 </p>
               ))}
             </div>
           )}
-        </div>
-      )}
+        </ExpandableSection>
+      </div>
     </div>
   );
 }

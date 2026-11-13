@@ -90,7 +90,19 @@ function _positionWeightInsight(sim: SimulationResult, ticker: string, lang: str
     ? `${ticker} pasaría de representar el ${fmt1(beforePct)}% a el ${fmt1(afterPct)}% de tu portafolio (${sign}${fmt1(delta)} puntos porcentuales).`
     : `${ticker} would go from ${fmt1(beforePct)}% to ${fmt1(afterPct)}% of your portfolio (${sign}${fmt1(delta)} percentage points).`;
 
-  return { category: "position_weight", text, supporting_data: { ticker, pct_before: beforePct, pct_after: afterPct, delta_pct_points: delta } };
+  // Diego, 2026-11 (rediseño): la consecuencia educativa pedida
+  // explícitamente — "¿y qué significa ese cambio?" — basada
+  // únicamente en la dirección real del delta ya calculado, nunca una
+  // predicción sobre si la inversión será buena o mala.
+  const meaning = delta >= 0
+    ? (lang === "es"
+        ? `Tu portafolio tendría una mayor dependencia del comportamiento de ${ticker}. Si esta inversión subiera o bajara, su movimiento tendría un impacto proporcionalmente mayor sobre el valor total de tus inversiones.`
+        : `Your portfolio would depend more on how ${ticker} performs. If this investment went up or down, its movement would have a proportionally larger impact on the total value of your investments.`)
+    : (lang === "es"
+        ? `Tu portafolio tendría una menor dependencia del comportamiento de ${ticker}. Su movimiento tendría un impacto proporcionalmente menor sobre el valor total de tus inversiones.`
+        : `Your portfolio would depend less on how ${ticker} performs. Its movement would have a proportionally smaller impact on the total value of your investments.`);
+
+  return { category: "position_weight", text, supporting_data: { ticker, pct_before: beforePct, pct_after: afterPct, delta_pct_points: delta, meaning } };
 }
 
 // Causal, not just descriptive: distinguishes "this sector's real dollar

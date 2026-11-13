@@ -50,7 +50,7 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import BrokerConnectModal from "@/components/BrokerConnectModal";
 import { useUpsellStore } from "@/lib/upsellStore";
 import {
-  PieChart, Menu, X, Upload, Plus, Trash2, BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Pencil, Eye, Cloud, CloudOff, Check, TrendingUp, Bell, Users, Share2, ChevronDown, ChevronUp, ChevronRight, Loader2, ArrowRight, PlayCircle, Link2, Lock, CloudUpload,
+  PieChart, Menu, X, Upload, Plus, Trash2, BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Pencil, Eye, Cloud, CloudOff, TrendingUp, Bell, Users, Share2, ChevronDown, ChevronUp, ChevronRight, Loader2, ArrowRight, PlayCircle, Link2, Lock, CloudUpload,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -2347,30 +2347,11 @@ export default function PortfolioPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Sync status */}
-            {syncStatus === "syncing" && (
-              <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
-                <RefreshCw className="w-3 h-3 animate-spin" /><span className="hidden sm:inline">{t("portfolio.header.saving")}</span>
-              </div>
-            )}
-            {syncStatus === "saved" && (
-              <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#22c55e" }}
-                   title={t("portfolio.header.savedOnServerTitle") ?? undefined}>
-                <Check className="w-3 h-3" /><span className="hidden sm:inline">{t("portfolio.header.savedOnServer")}</span>
-              </div>
-            )}
-            {syncStatus === "error" && (
-              <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#ef4444" }}>
-                <CloudOff className="w-3 h-3" /><span className="hidden sm:inline">{t("portfolio.header.saveError")}</span>
-              </div>
-            )}
-            {syncStatus === "idle" && lastSaved && (
-              <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--dim)" }}
-                   title={t("portfolio.header.savedAtTitle") ?? undefined}>
-                <Cloud className="w-3 h-3" />
-                <span className="hidden sm:inline">{t("portfolio.header.savedAt", { time: new Date(lastSaved).toLocaleTimeString(i18n.language === "en" ? "en-US" : "es-MX", { hour: "2-digit", minute: "2-digit" }) })}</span>
-              </div>
-            )}
+            {/* Diego, 2026-11 (rediseño): se eliminó el segundo indicador
+                de "Guardado" que vivía aquí — duplicaba exactamente el
+                mismo `syncStatus`/`lastSaved` ya mostrado junto a
+                "+ Nuevo" arriba, con íconos y colores distintos. Un solo
+                indicador, nunca dos. */}
             {/* View toggle removed — "Avanzado" is always on (Diego, 2026-08-12) */}
             {/* Fase 7.1 §2: una sola entrada "Explícame esto" visible a la
                 vez. Este botón flotante es el "original de Portafolio" —
