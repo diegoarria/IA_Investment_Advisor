@@ -499,13 +499,27 @@ class TestPulseRouteReal:
             await get_portfolio_pulse_route(request=_fake_request(), portfolio_id=portfolio_id, snapshot_type="bogus", user={"id": user_id, "email": admin_email})
         assert exc_info.value.status_code == 422
 
-    async def test_route_rejects_non_admin(self):
-        from fastapi import HTTPException
+    async def test_free_non_admin_user_is_allowed(self):
+        # Fase 8C (2026-11-12): "no Nuvos Plus subscription for now — ship
+        # free for every authenticated user." Force the seeded real user
+        # to a free, non-admin identity for the duration of this call and
+        # restore it after, confirming the route no longer rejects based
+        # on tier or email allowlist — only a verified session is needed.
         from app.api.routes.portfolio_exposure import get_portfolio_pulse_route
+        from app.core.database import get_supabase
         user_id, portfolio_id = _real_user_and_portfolio()
-        with pytest.raises(HTTPException) as exc_info:
-            await get_portfolio_pulse_route(request=_fake_request(), portfolio_id=portfolio_id, snapshot_type="on_demand", user={"id": user_id, "email": "not-an-admin@example.com"})
-        assert exc_info.value.status_code == 403
+        db = get_supabase()
+        original = db.table("user_profiles").select("subscription_tier, trial_started_at, streak_bonus_premium_until").eq("user_id", user_id).execute().data
+        original_row = original[0] if original else {}
+        try:
+            db.table("user_profiles").update({
+                "subscription_tier": "free", "trial_started_at": None, "streak_bonus_premium_until": None,
+            }).eq("user_id", user_id).execute()
+            result = await get_portfolio_pulse_route(request=_fake_request(), portfolio_id=portfolio_id, snapshot_type="on_demand", user={"id": user_id, "email": "not-an-admin@example.com"})
+            assert "available" in result  # the engine's own contract, never a 403
+        finally:
+            if original_row:
+                db.table("user_profiles").update(original_row).eq("user_id", user_id).execute()
 
     async def test_route_returns_insufficient_history_as_200_never_a_404(self):
         from app.api.routes.portfolio_exposure import get_portfolio_pulse_route

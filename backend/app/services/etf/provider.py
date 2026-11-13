@@ -67,6 +67,17 @@ def fetch(path: str, symbol: str, **extra_params) -> FMPResult:
     if not FMP_KEY:
         return FMPResult(ok=False, reason="no_api_key")
 
+    # Fase 8C (2026-11-12): ETF Explorer loses its admin-only gate this
+    # phase and becomes reachable by every authenticated user — this
+    # package's only real HTTP call site had no cross-request throttle at
+    # all (unlike get_fmp_quote_price/get_beta in financial_data_service.py
+    # and historical.py's fetch_adjusted_price_series, which already guard
+    # with the same shared budget). Per-ticker results are still cached
+    # 24h, but that doesn't cap a burst across many DIFFERENT tickers.
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return FMPResult(ok=False, reason="budget_exhausted")
+
     params = {"symbol": symbol, "apikey": FMP_KEY, **extra_params}
     try:
         r = requests.get(f"{FMP_BASE}{path}", params=params, headers=_REQ_HEADERS, timeout=_REQ_TIMEOUT)

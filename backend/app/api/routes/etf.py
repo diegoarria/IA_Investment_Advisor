@@ -1,12 +1,12 @@
 """
 Nuvos ETF — Fase 2A: the HTTP surface for the ETF engine (app/services/etf/).
 
-Admin-gated (same `admin_emails` mechanism app/api/routes/admin.py already
-uses) instead of a new feature-flag system — "nothing new to invent, this
-screen simply isn't reachable for a normal user yet" is exactly what the
-existing admin check already does elsewhere in the app. Not wired into
-public navigation; reachable only by a direct URL, and only for an admin
-account, until Fase 2B lifts the gate.
+Fase 8C (2026-11-12, Diego): "no Nuvos Plus subscription for now — ship
+what's built as free for every authenticated user, decide monetization
+later." The admin-only gate from Fase 2A is gone; every route below now
+only requires a verified session (`get_current_user`), same as any other
+free screen in the app. Nothing else changed here — rate limits, FMP
+caching/budget and input validation are exactly as they were.
 """
 import logging
 import re
@@ -14,7 +14,6 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.api.deps import get_current_user
-from app.core.config import settings
 from app.core.limiter import limiter
 from app.services.etf.categories import get_categories
 from app.services.etf.comparison import MAX_COMPARE, MIN_COMPARE, ComparisonValidationError, compare_etfs
@@ -27,21 +26,11 @@ router = APIRouter(prefix="/etf", tags=["etf"])
 _TICKER_RE = re.compile(r"^[A-Z]{1,6}(\.[A-Z]{1,3})?$")
 
 
-def _admin_emails() -> set[str]:
-    return {e.strip().lower() for e in settings.admin_emails.split(",") if e.strip()}
-
-
-async def _require_admin(user: dict) -> None:
-    if (user.get("email") or "").lower() not in _admin_emails():
-        raise HTTPException(status_code=403, detail="No autorizado")
-
-
 @router.get("/categories")
 @limiter.limit("20/minute")
 async def get_etf_categories(request: Request, user: dict = Depends(get_current_user)):
     """Curated, explicitly limited category buckets — see categories.py's
     docstring for why these are hand-picked rather than inferred."""
-    await _require_admin(user)
     import asyncio
     categories = await asyncio.to_thread(get_categories)
     return {"categories": categories}
@@ -54,7 +43,6 @@ async def search_etf(request: Request, q: str = "", limit: int = 20, user: dict 
     ETFs, one shared cache entry — see universe.py). No per-result
     classification calls; every entry is already a confirmed ETF by
     construction (it's FMP's own ETF list)."""
-    await _require_admin(user)
     q = (q or "").strip()
     if len(q) < 1:
         return {"query": q, "results": []}
@@ -80,8 +68,6 @@ async def get_etf_cards(request: Request, tickers: str = "", lang: str = "es", u
 
     Returns one entry per requested ticker, success or a clearly-marked
     unavailable one — never silently drops a ticker from the response."""
-    await _require_admin(user)
-
     requested = [t.strip().upper() for t in tickers.split(",") if t.strip()][:_MAX_CARDS_PER_REQUEST]
     if not requested:
         return {"cards": []}
@@ -117,8 +103,6 @@ async def compare_etf_route(request: Request, tickers: str = "", lang: str = "es
     calls. 400 for a malformed ticker, wrong count, or duplicates; never
     silently drops a requested ticker — one that isn't an ETF or whose
     fetch fails shows up in the response's `unavailable` list instead."""
-    await _require_admin(user)
-
     requested = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     if len(requested) < MIN_COMPARE or len(requested) > MAX_COMPARE:
         raise HTTPException(status_code=400, detail=f"Se requieren entre {MIN_COMPARE} y {MAX_COMPARE} tickers para comparar.")
@@ -150,8 +134,6 @@ async def get_etf(request: Request, ticker: str, lang: str = "es", user: dict = 
     """Returns get_etf_overview()'s structured result for `ticker`. 422 if
     it isn't an ETF, 400 for a malformed ticker, 503 if every provider
     call failed (degrades, never a raw 500)."""
-    await _require_admin(user)
-
     ticker = (ticker or "").strip().upper()
     if not ticker or not _TICKER_RE.match(ticker):
         raise HTTPException(status_code=400, detail=f"'{ticker}' no parece un símbolo de ticker válido")

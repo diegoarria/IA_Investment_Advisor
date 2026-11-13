@@ -1,33 +1,26 @@
-"""Nuvos ETF Fase 2A — the HTTP route's own logic (admin gate, ticker
-validation). The rate-limit decorator itself is slowapi's own, already
-covered upstream (same convention test_research_engine_cost_control.py
+"""Nuvos ETF — Fase 8C removed the Fase 2A admin-only gate (every
+authenticated user can reach these routes now, see etf.py's own updated
+docstring) — the admin-gate tests this file used to carry are gone with
+it. The rate-limit decorator itself is slowapi's own, already covered
+upstream (same convention test_research_engine_cost_control.py
 documents) — not re-tested here."""
 import pytest
-from fastapi import HTTPException
 
-from app.api.routes.etf import _require_admin, _TICKER_RE
+from app.api.routes.etf import _TICKER_RE
 
 
-class TestAdminGate:
-    async def test_admin_email_passes(self):
-        from app.core.config import settings
-        admin_email = settings.admin_emails.split(",")[0].strip()
-        await _require_admin({"id": "x", "email": admin_email})  # must not raise
-
-    async def test_non_admin_email_rejected(self):
-        with pytest.raises(HTTPException) as exc_info:
-            await _require_admin({"id": "x", "email": "random-user@example.com"})
-        assert exc_info.value.status_code == 403
-
-    async def test_missing_email_rejected(self):
-        with pytest.raises(HTTPException) as exc_info:
-            await _require_admin({"id": "x", "email": None})
-        assert exc_info.value.status_code == 403
-
-    async def test_email_check_is_case_insensitive(self):
-        from app.core.config import settings
-        admin_email = settings.admin_emails.split(",")[0].strip()
-        await _require_admin({"id": "x", "email": admin_email.upper()})  # must not raise
+class TestNoAdminGateRemains:
+    def test_admin_gate_helpers_are_gone(self):
+        # Fase 8A found a live contradiction once an admin-only backend
+        # gate was left behind while the frontend already showed a
+        # feature to everyone. Guard against that regression shape
+        # recurring here now that the gate itself is intentionally gone.
+        from pathlib import Path
+        path = Path(__file__).resolve().parent.parent / "app" / "api" / "routes" / "etf.py"
+        text = path.read_text(encoding="utf-8")
+        assert "_require_admin" not in text
+        assert "_admin_emails" not in text
+        assert "admin_emails" not in text
 
 
 class TestTickerValidation:

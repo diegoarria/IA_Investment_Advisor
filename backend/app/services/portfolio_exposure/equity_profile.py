@@ -56,6 +56,16 @@ def get_equity_profile(ticker: str) -> dict:
     if cached is not None:
         return cached
 
+    # Fase 8C (2026-11-12): Distribución loses its premium gate this phase
+    # and becomes reachable by every authenticated user — this was the one
+    # FMP call site in the exposure combiner with no cross-request budget
+    # check (1-2 calls per equity position, every uncached ticker, on
+    # every portfolio view). Same shared guard historical.py and
+    # financial_data_service.get_fmp_quote_price already use.
+    from app.core.fmp_budget import fmp_call_allowed
+    if not fmp_call_allowed():
+        return {}
+
     try:
         r = requests.get(
             f"{FMP_BASE}/profile",

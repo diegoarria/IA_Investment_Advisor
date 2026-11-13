@@ -3,9 +3,12 @@ Nuvos Plus — Fase 4A: the HTTP surface for the portfolio exposure engine
 (app/services/portfolio_exposure/). Strictly read-only — no endpoint here
 writes to user_portfolio.
 
-Admin-gated during development (same `admin_emails` mechanism etf.py
-already uses) — not linked into navigation, reachable only by a direct
-authenticated admin request, exactly like Nuvos ETF's own Fase 2A."""
+Fase 8C (2026-11-12, Diego): "no Nuvos Plus subscription for now — ship
+what's built as free for every authenticated user, decide monetization
+later." The Fase 8B premium/admin gate (`require_premium_or_admin`) is
+removed; every route below only requires a verified session
+(`get_current_user`). Portfolio ownership, RLS, rate limits and the FMP
+budget guard are untouched — only the commercial gate is gone."""
 import logging
 import re
 
@@ -13,7 +16,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.api.deps import get_current_user
 from app.core.cache import cache_get, cache_set
-from app.core.config import settings
 from app.core.limiter import limiter
 from app.services.portfolio_exposure.combiner import InvalidSimulationInputError
 from app.services.portfolio_exposure.pulse_compare import compare_latest_for_portfolio
@@ -41,15 +43,6 @@ _SIMULATION_ERROR_MESSAGES_ES = {
 }
 
 
-def _admin_emails() -> set[str]:
-    return {e.strip().lower() for e in settings.admin_emails.split(",") if e.strip()}
-
-
-async def _require_admin(user: dict) -> None:
-    if (user.get("email") or "").lower() not in _admin_emails():
-        raise HTTPException(status_code=403, detail="No autorizado")
-
-
 @router.get("/{portfolio_id}")
 @limiter.limit("20/minute")
 async def get_portfolio_exposure_route(request: Request, portfolio_id: str = "default", user: dict = Depends(get_current_user)):
@@ -59,8 +52,6 @@ async def get_portfolio_exposure_route(request: Request, portfolio_id: str = "de
     if that portfolio doesn't exist (or belongs to someone else — those
     two cases are indistinguishable on purpose, see service.py), 503 if
     the computation fails unexpectedly."""
-    await _require_admin(user)
-
     try:
         return await get_portfolio_exposure(user["id"], portfolio_id)
     except PortfolioNotFoundError:
@@ -78,8 +69,6 @@ async def simulate_portfolio_addition_route(request: Request, portfolio_id: str,
     quantities/prices/transactions. 404 if the portfolio doesn't exist (or
     belongs to someone else), 422 for an invalid ticker/amount (never a
     degraded 'simulation' for either), 503 for an unexpected failure."""
-    await _require_admin(user)
-
     ticker = (body.get("ticker") or "").strip().upper()
     amount = body.get("amount")
 
@@ -119,8 +108,6 @@ async def simulate_portfolio_addition_history_route(request: Request, portfolio_
     `history.available = false` y el motivo exacto — la comparación
     siempre es honesta sobre lo que no pudo construir, nunca lo oculta
     detrás de un 503."""
-    await _require_admin(user)
-
     ticker = (body.get("ticker") or "").strip().upper()
     amount = body.get("amount")
     period = body.get("period")
@@ -167,7 +154,6 @@ async def get_portfolio_pulse_route(request: Request, portfolio_id: str, snapsho
     Siempre 200 con el contrato propio del motor (`available`,
     `insufficient_history`, `not_comparable`, etc.) — nunca un error HTTP
     para un estado que el propio comparador ya sabe explicar."""
-    await _require_admin(user)
     if snapshot_type not in _VALID_PULSE_SNAPSHOT_TYPES:
         raise HTTPException(status_code=422, detail=f"'snapshot_type' debe ser uno de: {', '.join(sorted(_VALID_PULSE_SNAPSHOT_TYPES))}.")
 
