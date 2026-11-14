@@ -9,13 +9,15 @@ import { useAppStore } from "./profileStore";
 // same "never send PII" discipline — this file exists so Web and Mobile
 // report the identical schema, not two similar-but-drifted ones.
 //
-// Device-scoped on purpose, like the web version's localStorage flags, NOT
-// per-account like most of this app's other persisted stores (profile,
-// portfolio, subscription) — see userScopedStorage.ts's own comment on that
-// distinction. A "first_radar_completed, ever, on this device" flag should
-// behave the same whether the person is a guest or has switched accounts
-// since, mirroring how a browser's localStorage isn't user-scoped on web
-// either.
+// Device-scoped, not per-account-persisted like most of this app's stores
+// (profile, portfolio, subscription — see userScopedStorage.ts) — a guest's
+// "first_radar_completed" needs to survive into whatever account they
+// register next. BUT a permanent per-device key is the wrong SOLE source
+// for "did this person activate" across a logout: resetOnboardingAnalytics
+// below clears it on logout (called alongside posthog.reset()), so a
+// second real account on a shared device gets its own genuine activation
+// counted instead of being silently swallowed by the first account's
+// already-set flags.
 
 export type OnboardingGoal = "portfolio" | "company" | "etf";
 
@@ -26,6 +28,7 @@ interface OnboardingAnalyticsState {
   setGoal: (goal: OnboardingGoal | null) => void;
   markFired: (key: string) => void;
   markActivated: () => void;
+  resetAll: () => void;
 }
 
 const useOnboardingAnalyticsStore = create<OnboardingAnalyticsState>()(
@@ -37,6 +40,7 @@ const useOnboardingAnalyticsStore = create<OnboardingAnalyticsState>()(
       setGoal: (goal) => set({ goal }),
       markFired: (key) => set((s) => ({ firedFlags: { ...s.firedFlags, [key]: true } })),
       markActivated: () => set({ activatedFired: true }),
+      resetAll: () => set({ goal: null, firedFlags: {}, activatedFired: false }),
     }),
     { name: "nuvos-onboarding-analytics", storage: createJSONStorage(() => AsyncStorage) }
   )
@@ -140,6 +144,13 @@ export function readOnboardingGoal(): OnboardingGoal | null {
 
 export function clearOnboardingGoal() {
   useOnboardingAnalyticsStore.getState().setGoal(null);
+}
+
+// Call from the same logout path that calls posthog.reset() (app/(tabs)/
+// profile.tsx's handleLogout and Sidebar.tsx's useLogout) — never on
+// simple navigation/refresh. See the store's own comment above for why.
+export function resetOnboardingAnalytics() {
+  useOnboardingAnalyticsStore.getState().resetAll();
 }
 
 // Not persisted across app opens by design (AsyncStorage flag below, see

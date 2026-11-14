@@ -306,6 +306,12 @@ function AppStack() {
       <Stack.Screen name="stock/[ticker]" options={{ headerShown: false }} />
       <Stack.Screen name="earnings" options={{ headerShown: false }} />
       <Stack.Screen name="subvaluadas" options={{ headerShown: false }} />
+      {/* Fase 9C's Explorador de ETFs — had its own nested _layout.tsx
+          (headerShown: false for index/[ticker]/compare) but was never
+          registered here, unlike every sibling top-level route, so the
+          outer stack's default header would show above it. Completing the
+          Ruta ETF wiring (onboarding Stage E), not a new screen. */}
+      <Stack.Screen name="etf" options={{ headerShown: false }} />
       <Stack.Screen name="morning-brief" options={{ headerShown: false }} />
       {/* Own header with a real back button (RitualHeader) — the default one showed raw route names. */}
       <Stack.Screen name="weekly-ritual" options={{ headerShown: false }} />

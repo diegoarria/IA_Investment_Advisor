@@ -28,6 +28,7 @@ import {
   saveOnboardingGoal,
   readOnboardingGoal,
   clearOnboardingGoal,
+  resetOnboardingAnalyticsForLogout,
 } from "./onboardingAnalytics";
 
 function resetAll() {
@@ -140,5 +141,29 @@ describe("onboarding_activated — real activation, not a simple click", () => {
     checkOnboardingActivation();
     const activatedCalls = captureMock.mock.calls.filter((c) => c[0] === "onboarding_activated");
     expect(activatedCalls.length).toBe(1);
+  });
+
+  it("fires again for a second real account on the same shared device after logout resets the flags", () => {
+    // Account A activates.
+    authStateBox.value = { isAuthenticated: true };
+    saveOnboardingGoal("company");
+    captureFirstRadarCompleted();
+    expect(captureMock).toHaveBeenCalledWith("onboarding_activated", { platform: "web", goal: "company" });
+    captureMock.mockClear();
+
+    // Logout: without resetOnboardingAnalyticsForLogout, account B's own
+    // genuine activation would be silently swallowed by A's leftover flags.
+    resetOnboardingAnalyticsForLogout();
+    authStateBox.value = { isAuthenticated: false };
+
+    // Account B signs up and activates independently.
+    guestStateBox.value = true;
+    captureFirstEtfViewed();
+    expect(captureMock).not.toHaveBeenCalledWith("onboarding_activated", expect.anything());
+    authStateBox.value = { isAuthenticated: true };
+    guestStateBox.value = false;
+    saveOnboardingGoal("etf");
+    checkOnboardingActivation();
+    expect(captureMock).toHaveBeenCalledWith("onboarding_activated", { platform: "web", goal: "etf" });
   });
 });

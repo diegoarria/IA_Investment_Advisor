@@ -167,3 +167,25 @@ export function clearOnboardingGoal() {
     // ignore
   }
 }
+
+// Stage F fix: these dedupe flags are keyed per BROWSER, not per account —
+// correct for a guest who hasn't registered yet, wrong once someone logs
+// out of a shared device: the NEXT real person's genuine first_radar_
+// completed/onboarding_activated would be silently swallowed by the
+// previous person's already-set flags, exactly the same class of bug
+// posthog.reset() on logout fixes for PostHog's own identity. Call this
+// from the same logout path that calls posthog.reset() (useAuthStore's
+// clearAuth). Never call this on simple navigation/refresh — only logout.
+export function resetOnboardingAnalyticsForLogout() {
+  try {
+    localStorage.removeItem(ONBOARDING_GOAL_STORAGE_KEY);
+    localStorage.removeItem(FIRST_VALUE_DONE_KEY);
+    localStorage.removeItem(ACTIVATED_FIRED_KEY);
+    localStorage.removeItem("nuvos_first_radar_fired");
+    localStorage.removeItem("nuvos_first_etf_fired");
+    localStorage.removeItem("nuvos_first_portfolio_fired");
+  } catch {
+    // best-effort — worst case the next account's funnel is slightly
+    // undercounted, never a crash
+  }
+}

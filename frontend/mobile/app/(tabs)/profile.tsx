@@ -19,6 +19,7 @@ import UsageMeterCard from "../../src/components/UsageMeterCard";
 import EmailImportCard from "../../src/components/EmailImportCard";
 import { insightsApi, mentorLetterApi, profileApi, referralApi, syncApi, billingApi, voiceCallsApi, wrappedApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
+import { resetOnboardingAnalytics } from "../../src/lib/onboardingAnalytics";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
@@ -382,6 +383,7 @@ if (!profile) {
       {
         text: t("common.logout"), style: "destructive", onPress: () => {
           posthog.reset();
+          resetOnboardingAnalytics();
           logout();
           router.replace("/");
           SecureStore.deleteItemAsync("access_token").catch(() => {});

@@ -18,6 +18,7 @@ import { getUserLevel, useUserLevel, isAtLeast, getLevelLabel, LEVEL_COLOR } fro
 import { rcLogOut } from "../lib/revenuecat";
 import { useDeleteAccountModal } from "../lib/deleteAccountModal";
 import { posthog } from "../config/posthog";
+import { resetOnboardingAnalytics } from "../lib/onboardingAnalytics";
 
 const ARTHUR_PHOTO = require("../../assets/images/mentors/arthur.jpg");
 
@@ -422,6 +423,7 @@ function useLogout() {
     // right after would get merged into the previous person's identified
     // PostHog profile. Same fix as that other path.
     posthog.reset();
+    resetOnboardingAnalytics();
     logout();
     router.replace("/");
     SecureStore.deleteItemAsync("access_token").catch(() => {});

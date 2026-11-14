@@ -61,14 +61,8 @@ export default function OnboardingQuickScreen() {
 
   const destinationForGoal = (goal: ReturnType<typeof readOnboardingGoal>): string => {
     if (goal === "company") return "/(tabs)/oportunidades";
+    if (goal === "etf") return "/etf";
     if (goal === "portfolio") return "/(tabs)/patrimonio";
-    // "etf": the real Explorador de ETFs screen (Fase 9C) only exists on
-    // the separate, unmerged `etf-phase0-asset-classification` branch —
-    // this branch (onboarding-2-0, based on main) never had it. Falling
-    // back to Home rather than a route that doesn't exist here. See the
-    // Stage E report's "diferencias técnicas" section — merging that
-    // branch in is Diego's call, not something to do unilaterally from
-    // inside an onboarding change.
     return "/(tabs)/home";
   };
 

@@ -14,6 +14,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme, type Colors } from "../../src/lib/ThemeContext";
 import { etfApi } from "../../src/lib/api";
+import { captureFirstEtfViewed } from "../../src/lib/onboardingAnalytics";
 import StockAvatar from "../../src/components/StockAvatar";
 import { formatWeightPct, costTierColor, formatUnixTimestamp } from "../../src/lib/etfFormat";
 import {
@@ -109,7 +110,12 @@ export default function EtfDetailScreen() {
     setLoading(true);
     setError(null);
     etfApi.getOverview(ticker, i18n.language === "en" ? "en" : "es")
-      .then((res) => setData(res.data))
+      .then((res) => {
+        setData(res.data);
+        // "First value" for Ruta ETF — a real ficha actually loaded, not
+        // just the screen opening or a failed/empty request.
+        captureFirstEtfViewed();
+      })
       .catch((err) => {
         const status = err?.response?.status ?? 0;
         if (status === 422) setError(err?.response?.data?.detail?.message ?? t("etf.detail.error.notEtf", { ticker }));
