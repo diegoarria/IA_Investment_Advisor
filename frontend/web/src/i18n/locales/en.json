@@ -5268,6 +5268,7 @@
       "searchEmpty": "We couldn't find any ETFs matching \"{{query}}\".",
       "searchError": "We couldn't search right now. Try again.",
       "categoriesTitle": "Categories",
+      "categoriesEducationalNote": "These categories are curated groupings for exploring, not a formal GICS sector classification.",
       "categoriesLoading": "Loading categories…",
       "categoriesError": "We couldn't load categories right now.",
       "categories": {

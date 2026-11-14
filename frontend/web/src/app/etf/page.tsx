@@ -187,7 +187,13 @@ export default function EtfExplorerPage() {
               <div className="space-y-8">
                 {/* Categorías como intereses */}
                 <div>
-                  <p className="text-sm font-bold mb-3" style={{ color: "var(--text)" }}>{t("etf.explorer.categoriesTitle")}</p>
+                  <p className="text-sm font-bold mb-1" style={{ color: "var(--text)" }}>{t("etf.explorer.categoriesTitle")}</p>
+                  {/* Diego, 2026-11 (rediseño): aclarar ANTES de entrar a
+                      una categoría que son agrupaciones curadas para
+                      explorar, no una clasificación GICS formal — ya
+                      existía esta nota dentro de cada categoría
+                      (`categoryCuratedNote`), ahora también aquí. */}
+                  <p className="text-[12px] mb-3" style={{ color: "var(--sub)" }}>{t("etf.explorer.categoriesEducationalNote")}</p>
                   {categoriesLoading && (
                     <div className="flex items-center gap-2 py-6 justify-center">
                       <Loader2 className="w-4 h-4 animate-spin" style={{ color: GOLD }} />

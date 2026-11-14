@@ -66,7 +66,10 @@ export function EtfCard({ card }: { card: EtfCardData }) {
           <div className="flex items-center gap-2.5 min-w-0">
             <StockAvatar ticker={card.ticker} size="sm" />
             <div className="min-w-0">
-              <p className="text-[15px] font-black tracking-tight truncate" style={{ color: "var(--text)" }}>{card.name}</p>
+              {/* Diego, 2026-11 (rediseño): hasta 2 líneas en vez de
+                  truncar a mitad de palabra — "Vanguard Total
+                  International Stock..." ya no se corta. */}
+              <p className="text-[15px] font-black tracking-tight leading-snug line-clamp-2" style={{ color: "var(--text)" }}>{card.name}</p>
               <p className="text-[12px] font-semibold" style={{ color: GOLD }}>{card.ticker}</p>
             </div>
           </div>
