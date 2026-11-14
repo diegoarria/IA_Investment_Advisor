@@ -205,9 +205,10 @@ const MAIN_NAV = [
 ];
 
 const SECONDARY_NAV = [
-  { icon: "person-outline", labelKey: "common.nav.profile", path: "/profile", minLevel: "basico" as const },
-  { icon: "school-outline", labelKey: "common.nav.academy",  path: "/academy",  minLevel: "basico" as const },
-  { icon: "bag-outline",    labelKey: "common.nav.products", path: "/products", minLevel: "basico" as const },
+  { icon: "person-outline",     labelKey: "common.nav.profile",     path: "/profile", minLevel: "basico" as const },
+  { icon: "school-outline",     labelKey: "common.nav.academy",     path: "/academy",  minLevel: "basico" as const },
+  { icon: "pie-chart-outline",  labelKey: "common.nav.etfExplorer", path: "/etf",      minLevel: "basico" as const },
+  { icon: "bag-outline",        labelKey: "common.nav.products",    path: "/products", minLevel: "basico" as const },
 ];
 
 function NavItems({

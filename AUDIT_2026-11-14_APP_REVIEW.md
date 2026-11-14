@@ -384,7 +384,7 @@ No se encontraron hallazgos nuevos más allá de los ya documentados en los Bloq
 
 | Suite | Resultado |
 |---|---|
-| `backend` (pytest, Supabase local) | pendiente de confirmar el número final tras el fix de concurrencia — se registra en cuanto termine la corrida en curso. |
+| `backend` (pytest, Supabase local) | **2500/2500 PASS, 0 fallos, 0 omitidos** (394.04s) — tras el fix de concurrencia + sus 2 tests nuevos. |
 | `frontend/mobile` (jest) | sin cambios de código en este bloque — se mantiene 140/140. |
 | `frontend/web` (vitest) | sin cambios en este bloque — se mantiene 287/287. |
 

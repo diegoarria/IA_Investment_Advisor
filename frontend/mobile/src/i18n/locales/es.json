@@ -45,6 +45,7 @@
       },
       "academy": "Aprendizaje",
       "undervalued": "Nuvos Radar",
+      "etfExplorer": "Explorar ETFs",
       "notifications": "Notificaciones",
       "profile": "Perfil",
       "products": "Productos",
@@ -1707,7 +1708,6 @@
     "tabs": {
       "myPortfolio": "Posiciones",
       "distribution": "Distribución",
-      "tools": "Herramientas",
       "beforeInvesting": "Antes de invertir"
     },
     "distribution": {
@@ -1801,22 +1801,6 @@
           "warnings": "Algunos datos tienen advertencias — revisa en la web para el detalle completo.",
           "errorGeneric": "No pudimos generar la comparación histórica en este momento."
         }
-      }
-    },
-    "premiumTools": {
-      "title": "Herramientas Premium",
-      "subtitle": "Análisis avanzado de tu portafolio",
-      "weeklyScreener": {
-        "title": "Screener Semanal",
-        "tagline": "5 oportunidades personalizadas cada domingo",
-        "description": "Cada domingo la IA escanea el mercado y selecciona 5 oportunidades que encajan con tu perfil de riesgo, filosofía de tu mentor y los huecos en tu portafolio.",
-        "teaser": "Esta semana Nuvos encontró {{count}} empresas que podrían estar infravaloradas. Activa Premium para descubrir cuáles son.",
-        "benefits": [
-          "Filtradas por tu perfil de riesgo y mentor",
-          "Catalizador concreto y riesgo por cada pick",
-          "Nunca te sugiere lo que ya tienes ni lo que viste semanas recientes",
-          "Se actualiza cada domingo automáticamente"
-        ]
       }
     },
     "screenshot": {

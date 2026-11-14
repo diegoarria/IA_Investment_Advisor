@@ -45,6 +45,7 @@
       },
       "academy": "Learning",
       "undervalued": "Nuvos Radar",
+      "etfExplorer": "Explore ETFs",
       "notifications": "Notifications",
       "profile": "Profile",
       "products": "Products",
@@ -1707,7 +1708,6 @@
     "tabs": {
       "myPortfolio": "Positions",
       "distribution": "Distribución",
-      "tools": "Tools",
       "beforeInvesting": "Before investing"
     },
     "distribution": {
@@ -1801,22 +1801,6 @@
           "warnings": "Some data has warnings — see the web for full detail.",
           "errorGeneric": "We couldn't generate the historical comparison right now."
         }
-      }
-    },
-    "premiumTools": {
-      "title": "Premium Tools",
-      "subtitle": "Advanced analysis of your portfolio",
-      "weeklyScreener": {
-        "title": "Weekly Screener",
-        "tagline": "5 personalized opportunities every Sunday",
-        "description": "Every Sunday the AI scans the market and selects 5 opportunities that match your risk profile, your mentor's philosophy, and the gaps in your portfolio.",
-        "teaser": "This week Nuvos found {{count}} companies that could be undervalued. Activate Premium to discover which ones.",
-        "benefits": [
-          "Filtered by your risk profile and mentor",
-          "Concrete catalyst and risk for every pick",
-          "Never suggests what you already own or saw in recent weeks",
-          "Updates automatically every Sunday"
-        ]
       }
     },
     "screenshot": {
