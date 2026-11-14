@@ -34,6 +34,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronLeft, Loader2, AlertTriangle, PieChart, Globe2, DollarSign, TrendingUp, Info, Clock, ArrowRight, Scale } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
+import StockAvatar from "@/components/StockAvatar";
 import { GlowCard, PillarSection, Eyebrow, RaisedTile } from "@/components/subvaluadas/radarUi";
 // Fase 7.2 (Diego, captura real): verde de marca, no el dorado de
 // Radar — mismo criterio en toda la sección "Explorar ETFs".
@@ -219,12 +220,17 @@ export default function EtfDetailPage() {
                 secundaria pequeña. */}
             <GlowCard tint={GOLD} strong>
               <Eyebrow color={GOLD}>{t("etf.detail.etfBadge")}</Eyebrow>
-              <h1 className="text-2xl font-black tracking-tight mb-1 line-clamp-2" style={{ color: "var(--text)" }}>
-                {data.identification.name || data.ticker}
-              </h1>
-              <p className="text-sm font-semibold mb-3" style={{ color: "var(--sub)" }}>
-                {data.ticker}{data.identification.etf_company && ` · ${data.identification.etf_company}`}
-              </p>
+              <div className="flex items-start gap-3 mb-1">
+                <StockAvatar ticker={data.ticker} size="lg" />
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-black tracking-tight line-clamp-2" style={{ color: "var(--text)" }}>
+                    {data.identification.name || data.ticker}
+                  </h1>
+                  <p className="text-sm font-semibold" style={{ color: "var(--sub)" }}>
+                    {data.ticker}{data.identification.etf_company && ` · ${data.identification.etf_company}`}
+                  </p>
+                </div>
+              </div>
               <p className="text-sm leading-relaxed mb-3" style={{ color: data.identification.has_editorial_description ? "var(--text)" : "var(--sub)" }}>
                 {data.identification.description || t("etf.detail.noDescription")}
               </p>
