@@ -190,6 +190,15 @@ async def create_profile(
             if not result.data:
                 raise HTTPException(status_code=503, detail="No se pudo guardar tu perfil. Intenta de nuevo en unos segundos.")
     else:
+        # name is now optional (UserProfileCreate) — the new minimal
+        # /onboarding/quick screen never sends it. A NULL name would still
+        # break the UserProfile response model (name: str, required) and
+        # the welcome-email build below already guards against a missing
+        # name the same way — make the fallback explicit here, once, for
+        # the actual DB row, instead of relying on two separate `.get(...,
+        # "Inversor")` call sites to happen to agree.
+        if not db_data.get("name"):
+            db_data["name"] = "Investor" if data.language == "en" else "Inversor"
         # Start the Premium trial the instant the profile row is created
         # (onboarding completion) instead of waiting for the client to
         # happen to call GET /billing/status afterwards. Previously the
