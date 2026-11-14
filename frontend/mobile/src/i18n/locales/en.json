@@ -377,6 +377,8 @@
     "deleteAccountYes": "Yes, delete",
     "deleteAccountDeleting": "Deleting...",
     "deleteAccountError": "Could not delete your account. Check your connection and try again.",
+    "deleteAccountSubscriptionNote": "Deleting your account erases your Nuvos data, but does NOT automatically cancel an active Apple subscription. If you have Premium or Duo, cancel it separately to stop being charged.",
+    "deleteAccountManageSubscription": "Manage my Apple subscription →",
     "goal": {
       "sectionLabel": "MY FINANCIAL GOAL"
     },

@@ -377,6 +377,8 @@
     "deleteAccountYes": "Sí, eliminar",
     "deleteAccountDeleting": "Eliminando...",
     "deleteAccountError": "No se pudo eliminar tu cuenta. Revisa tu conexión e intenta de nuevo.",
+    "deleteAccountSubscriptionNote": "Eliminar tu cuenta borra tus datos en Nuvos, pero NO cancela automáticamente una suscripción activa de Apple. Si tienes Premium o Duo, cancélala por separado para no seguir pagando.",
+    "deleteAccountManageSubscription": "Gestionar mi suscripción de Apple →",
     "goal": {
       "sectionLabel": "MI META FINANCIERA"
     },

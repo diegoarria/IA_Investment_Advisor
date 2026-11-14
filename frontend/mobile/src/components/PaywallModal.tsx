@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, Modal, StyleSheet,
-  Linking, ScrollView, ActivityIndicator,
+  Linking, ScrollView, ActivityIndicator, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -11,6 +11,8 @@ import { useTheme } from "../lib/ThemeContext";
 import { useBillingPricing, fmtMxn } from "../lib/billingPricing";
 import { useSubscribeCheckout } from "../lib/useSubscribeCheckout";
 import { usePaywallModalGuard } from "../lib/paywallModalGuard";
+import { isRevenueCatSupported, restorePurchases } from "../lib/revenuecat";
+import { useSubscriptionStore } from "../lib/subscriptionStore";
 
 const getHeroFeatures = (t: TFunction): string[] => [
   t("paywallModal.heroFeature1"),
@@ -43,6 +45,28 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
   // PricingModal — see that file's comment on Apple 3.1.1. Duo stays
   // informational (manageOnWeb), out of scope for now.
   const { subscribe, subscribing, subscribeDuo, subscribingDuo } = useSubscribeCheckout();
+  const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
+  const [restoring, setRestoring] = useState(false);
+
+  // Apple requires Restore Purchases reachable from every purchase screen,
+  // not just PricingModal — a user who already bought (reinstall, new
+  // device, App Review's own sandbox tester) must be able to restore from
+  // HERE too, not be forced to find the other screen first.
+  const handleRestore = async () => {
+    if (restoring) return;
+    setRestoring(true);
+    try {
+      const result = await restorePurchases();
+      if (result.status === "error") {
+        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
+      } else if (result.status === "ok") {
+        await fetchStatus();
+        Alert.alert(t("pricingModal.restoreDoneTitle"), t("pricingModal.restoreDoneBody"));
+      }
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const HERO_FEATURES = getHeroFeatures(t);
   const DUO_FEATURES = getDuoFeatures(t);
@@ -235,6 +259,14 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {isRevenueCatSupported() && (
+              <TouchableOpacity onPress={handleRestore} disabled={restoring} style={{ marginTop: 14, alignItems: "center", paddingVertical: 8 }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub, textDecorationLine: "underline" }}>
+                  {restoring ? t("pricingModal.restoring") : t("pricingModal.restorePurchases")}
+                </Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
       </View>

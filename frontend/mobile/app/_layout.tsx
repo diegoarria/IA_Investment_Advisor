@@ -31,6 +31,7 @@ import PhoneNumberPromptCard from "../src/components/PhoneNumberPromptCard";
 import * as Notifications from "expo-notifications";
 import { configureRevenueCat } from "../src/lib/revenuecat";
 import { usePaywallModalGuard } from "../src/lib/paywallModalGuard";
+import { decidePushPromptAction } from "../src/lib/pushPermissionPrompt";
 
 // Module-level, not inside a component — must run exactly once, before any
 // screen can call rcLogIn()/purchasePlan(), and must survive RootLayout
@@ -141,10 +142,10 @@ function AppStack() {
     const inApp = !HIDE_SIDEBAR_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
     if (inApp) {
       startTrialIfNeeded();
-      if (!pushPromptShownRef.current) {
-        pushPromptShownRef.current = true;
-        registerPushToken();
-      }
+      // registerPushToken() itself decides whether to actually show
+      // anything (decidePushPromptAction) and flips pushPromptShownRef —
+      // called every navigation, but a no-op after the first ask.
+      registerPushToken();
     }
   }, [pathname]);
 
@@ -223,39 +224,46 @@ function AppStack() {
       const { status: existing } = await Notifications.getPermissionsAsync();
       let finalStatus = existing;
 
-      if (existing !== "granted") {
-        if (existing === "undetermined") {
-          // Show rationale before triggering the system dialog
-          await new Promise<void>((resolve) => {
-            Alert.alert(
-              "Mantente informado",
-              "Activa las notificaciones para recibir alertas de tus posiciones, oportunidades de mercado y mensajes de tu mentor.",
-              [
-                { text: "Ahora no", style: "cancel", onPress: () => resolve() },
-                {
-                  text: "Activar",
-                  onPress: async () => {
-                    const { status } = await Notifications.requestPermissionsAsync();
-                    finalStatus = status;
-                    resolve();
-                  },
-                },
-              ]
-            );
-          });
-        } else {
-          // The OS won't show its permission dialog again once denied —
-          // the only way back is the device Settings app.
+      // decidePushPromptAction is the single source of truth for whether to
+      // show anything at all — see pushPermissionPrompt.ts for why this is
+      // a separate, unit-tested module (Guideline 4.5.4 rejection root
+      // cause: this used to run unconditionally on every navigation).
+      const action = decidePushPromptAction(existing, pushPromptShownRef.current);
+      pushPromptShownRef.current = true;
+
+      if (action === "show_rationale") {
+        // Show rationale before triggering the system dialog
+        await new Promise<void>((resolve) => {
           Alert.alert(
-            "Notificaciones desactivadas",
-            "Activa las notificaciones para Nuvos desde los ajustes de tu teléfono para recibir alertas de tus posiciones y del mercado.",
+            "Mantente informado",
+            "Activa las notificaciones para recibir alertas de tus posiciones, oportunidades de mercado y mensajes de tu mentor.",
             [
-              { text: "Ahora no", style: "cancel" },
-              { text: "Abrir ajustes", onPress: () => Linking.openSettings() },
+              { text: "Ahora no", style: "cancel", onPress: () => resolve() },
+              {
+                text: "Activar",
+                onPress: async () => {
+                  const { status } = await Notifications.requestPermissionsAsync();
+                  finalStatus = status;
+                  resolve();
+                },
+              },
             ]
           );
-          return;
-        }
+        });
+      } else if (action === "show_settings_hint") {
+        // The OS won't show its permission dialog again once denied —
+        // the only way back is the device Settings app.
+        Alert.alert(
+          "Notificaciones desactivadas",
+          "Activa las notificaciones para Nuvos desde los ajustes de tu teléfono para recibir alertas de tus posiciones y del mercado.",
+          [
+            { text: "Ahora no", style: "cancel" },
+            { text: "Abrir ajustes", onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      } else if (action === "skip") {
+        return;
       }
 
       if (finalStatus !== "granted") {

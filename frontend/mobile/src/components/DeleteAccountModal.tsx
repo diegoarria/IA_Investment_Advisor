@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, Platform, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
@@ -11,6 +11,7 @@ import { rcLogOut } from "../lib/revenuecat";
 import { authApi } from "../lib/api";
 import { useDeleteAccountModal } from "../lib/deleteAccountModal";
 import { usePaywallModalGuard } from "../lib/paywallModalGuard";
+import { confirmWordMatches } from "../lib/deleteAccountConfirm";
 
 // Diego, 2026-11-14: Apple rejected build 46 (Guideline 5.1.1(v)) saying
 // there was no way to delete the account — the real flow (DELETE
@@ -40,7 +41,7 @@ export default function DeleteAccountModal() {
   const [error, setError] = useState<string | null>(null);
 
   const confirmWord = t("profile.deleteAccountConfirmWord");
-  const canDelete = confirmText.trim().toUpperCase() === confirmWord.toUpperCase();
+  const canDelete = confirmWordMatches(confirmText, confirmWord);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -94,9 +95,27 @@ export default function DeleteAccountModal() {
             </Text>
           </View>
 
-          <Text style={{ fontSize: 13, color: colors.textMuted, lineHeight: 19, marginBottom: 16 }}>
+          <Text style={{ fontSize: 13, color: colors.textMuted, lineHeight: 19, marginBottom: 12 }}>
             {t("profile.deleteAccountMsg")}
           </Text>
+
+          {/* Apple 5.1.1(v) explicitly requires both of these: deleting the
+              account does NOT touch Apple's own subscription billing, and
+              the user must be able to reach subscription management from
+              right here — StoreKit purchases are cancelled only through
+              Apple, never through our backend. */}
+          {Platform.OS === "ios" && (
+            <View style={{ borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, padding: 12, marginBottom: 16 }}>
+              <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 18, marginBottom: 8 }}>
+                {t("profile.deleteAccountSubscriptionNote")}
+              </Text>
+              <TouchableOpacity onPress={() => Linking.openURL("https://apps.apple.com/account/subscriptions")}>
+                <Text style={{ fontSize: 12, fontWeight: "800", color: colors.accentLight ?? "#00d47e" }}>
+                  {t("profile.deleteAccountManageSubscription")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub, marginBottom: 8 }}>
             {t("profile.deleteAccountTypeInstruction", { word: confirmWord })}
