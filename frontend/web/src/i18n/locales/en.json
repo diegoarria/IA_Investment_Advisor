@@ -3847,7 +3847,7 @@
   },
   "paywallModal": {
     "planYearlyBadge": "MOST POPULAR",
-    "heroFeature1": "Chat with Arthur with no limits",
+    "heroFeature1": "Chat with Arthur up to 80 times a day",
     "heroFeature2": "We explain why your money is moving, so it never catches you off guard",
     "heroFeature3": "Every month we tell you if you beat the market or not",
     "heroFeature4": "5 investment ideas picked for you every week",
@@ -3862,13 +3862,16 @@
     "oneOnOneCta": "Prefer a 1:1 guide with an expert from our team?"
   },
   "welcomePremiumCard": {
-    "title": "Welcome to Nuvos, {{name}}!",
-    "subtitle": "We activated your Premium trial — no card, no commitment.",
+    "title": "Welcome to Nuvos! Your first month of Premium is included",
+    "subtitle": "Explore Nuvos' tools for 30 days, no credit card required.",
     "trialLabel": "30 days of Premium, free",
     "trialEndsPrefix": "Your trial ends on",
     "featuresLabel": "With Premium you get",
     "continue": "Continue",
-    "noCardRequired": "No card required to start"
+    "ctaCompany": "Keep analyzing",
+    "ctaEtf": "Explore ETFs",
+    "ctaPortfolio": "Understand my portfolio",
+    "noCardRequired": "No credit card required"
   },
   "weeklyOpportunityCard": {
     "priceNow": "Current price",
@@ -4607,6 +4610,11 @@
     "verifyYour": "Verify your {{channel}}",
     "viewDemoAccount": "View demo account",
     "welcomeBack": "Welcome back",
+    "welcomeTitle": "Understand what you're investing in",
+    "welcomeSubtitle": "Make sense of companies, ETFs and your portfolio without spending hours analyzing information.",
+    "welcomeCtaStart": "Start for free",
+    "welcomeCtaLogin": "I already have an account",
+    "welcomeCtaExplore": "Explore without signing up",
     "yourAccount": "your account"
   },
   "notificationSettings": {

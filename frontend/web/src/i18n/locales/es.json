@@ -3847,7 +3847,7 @@
   },
   "paywallModal": {
     "planYearlyBadge": "MÁS POPULAR",
-    "heroFeature1": "Habla con Arthur sin límites",
+    "heroFeature1": "Habla con Arthur hasta 80 veces al día",
     "heroFeature2": "Te explicamos por qué sube o baja tu dinero, para que no te agarre de sorpresa",
     "heroFeature3": "Cada mes te decimos si le ganaste al mercado o no",
     "heroFeature4": "Cada semana, 5 ideas de inversión pensadas para ti",
@@ -3862,13 +3862,16 @@
     "oneOnOneCta": "¿Prefieres una guía 1:1 con experto de nuestro equipo?"
   },
   "welcomePremiumCard": {
-    "title": "¡Bienvenido a Nuvos, {{name}}!",
-    "subtitle": "Activamos tu prueba Premium — sin tarjeta, sin compromiso.",
+    "title": "¡Bienvenido a Nuvos! Tu primer mes Premium está incluido",
+    "subtitle": "Explora las herramientas de Nuvos durante 30 días, sin tarjeta de crédito.",
     "trialLabel": "30 días de Premium gratis",
     "trialEndsPrefix": "Tu prueba termina el",
     "featuresLabel": "Con Premium tienes acceso a",
     "continue": "Continuar",
-    "noCardRequired": "Sin tarjeta requerida para empezar"
+    "ctaCompany": "Continuar analizando",
+    "ctaEtf": "Explorar ETFs",
+    "ctaPortfolio": "Entender mi portafolio",
+    "noCardRequired": "Sin tarjeta de crédito requerida"
   },
   "weeklyOpportunityCard": {
     "priceNow": "Precio actual",
@@ -4607,6 +4610,11 @@
     "verifyYour": "Verifica tu {{channel}}",
     "viewDemoAccount": "Ver cuenta demo",
     "welcomeBack": "Bienvenido de vuelta",
+    "welcomeTitle": "Entiende en qué inviertes",
+    "welcomeSubtitle": "Comprende empresas, ETFs y tu portafolio sin pasar horas analizando información.",
+    "welcomeCtaStart": "Comenzar gratis",
+    "welcomeCtaLogin": "Ya tengo una cuenta",
+    "welcomeCtaExplore": "Explorar sin registrarme",
     "yourAccount": "tu cuenta"
   },
   "notificationSettings": {

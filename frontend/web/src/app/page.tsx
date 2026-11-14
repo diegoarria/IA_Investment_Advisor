@@ -9,7 +9,7 @@ import { auth, profile as profileApi } from "@/lib/api";
 import { applyPendingReferralIfAny } from "@/lib/referral";
 import { consumeReturnTo } from "@/lib/returnTo";
 import { getSupabaseClient } from "@/lib/supabase";
-import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode } from "@/lib/store";
+import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode, isGuestUser } from "@/lib/store";
 import { Eye, EyeOff, ArrowRight, User, Send, PieChart, Search, ListChecks } from "lucide-react";
 import {
   captureOnboardingStarted,
@@ -21,6 +21,12 @@ import {
   readOnboardingGoal,
   type OnboardingGoal,
 } from "@/lib/onboardingAnalytics";
+
+// Stage D: shown at most once, ever, per browser — a visitor who's already
+// seen the Bienvenida screen (whatever they did next) never sees it again,
+// same "no pantalla obligatoria cada vez que se abre Nuvos" rule the goal
+// screen already follows.
+const WELCOME_SEEN_KEY = "nuvos_seen_welcome";
 
 function getPillars(t: TFunction) {
   return [
@@ -78,7 +84,12 @@ function HomeContent() {
   // already saved (e.g. a guest who explored Empresa/ETF via the Radar
   // public route and is now coming back to create an account) — Stage C:
   // never lose the intention the user already gave us.
-  const [mode, setMode]             = useState<"login" | "register" | "forgot" | "goal">(
+  // "welcome" = Stage D's Bienvenida screen (title + 3 actions, no form) —
+  // shown only to a truly first-ever, unknown visitor (see the ?auth=1
+  // catch-block below); every other entry point (?auth=1 explicitly,
+  // ?mode=register, a returning guest) is unaffected and starts at its
+  // existing mode exactly as before.
+  const [mode, setMode]             = useState<"login" | "register" | "forgot" | "goal" | "welcome">(
     () => (searchParams.get("mode") === "register" ? (readOnboardingGoal() ? "register" : "goal") : "login")
   );
   const [goal, setGoal] = useState<OnboardingGoal | null>(() => readOnboardingGoal());
@@ -202,7 +213,23 @@ function HomeContent() {
         // no portfolio, no positions, nothing personal to already feel like
         // the real product.
         if (!wantsAuthForm) {
-          enterGuestMode().finally(() => router.replace("/chat"));
+          // Stage D: a truly first-ever, unknown visitor (never seen the
+          // Bienvenida screen, never explored as a guest before) sees it
+          // once instead of silently dropping straight into guest chat.
+          // Anyone who's already been through it — or already explored as
+          // a guest via any other entry point — keeps the exact prior
+          // behavior (auto guest → /chat, no screen in the way at all).
+          let alreadySeenWelcome = false;
+          try {
+            alreadySeenWelcome = localStorage.getItem(WELCOME_SEEN_KEY) === "1" || isGuestUser();
+          } catch { /* Safari private mode — treat as never seen, harmless either way */ }
+          if (alreadySeenWelcome) {
+            enterGuestMode().finally(() => router.replace("/chat"));
+            return;
+          }
+          try { localStorage.setItem(WELCOME_SEEN_KEY, "1"); } catch { /* cosmetic only */ }
+          setMode("welcome");
+          setChecking(false);
           return;
         }
         setChecking(false);
@@ -210,7 +237,12 @@ function HomeContent() {
   }, []);
 
   useEffect(() => {
-    if (mode === "goal") captureOnboardingStarted();
+    // Either entry point counts as "started" — a direct ?mode=register
+    // link that skips Bienvenida (e.g. AppSidebar's CTA) still reaches
+    // Personalización, so it must still register as onboarding_started.
+    // captureOnboardingStarted dedupes per browser session on its own, so
+    // reaching both "welcome" then "goal" in the same visit never double-fires.
+    if (mode === "welcome" || mode === "goal") captureOnboardingStarted();
     if (mode === "register") captureSignupStarted();
   }, [mode]);
 
@@ -611,7 +643,35 @@ function HomeContent() {
           <div className="glass rounded-3xl p-7 animate-fade-in-up"
                style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
 
-            {mode === "forgot" ? (
+            {mode === "welcome" ? (
+              /* ── BIENVENIDA (Stage D) — título + 3 acciones, sin formulario ── */
+              <div className="py-2">
+                <h1 className="text-2xl font-black tracking-tight mb-2"
+                    style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {t("landing.welcomeTitle")}
+                </h1>
+                <p className="text-sm mb-7" style={{ color: "var(--muted)" }}>
+                  {t("landing.welcomeSubtitle")}
+                </p>
+                <div className="space-y-2.5">
+                  <button type="button" onClick={() => setMode("goal")}
+                          className="btn-primary w-full flex items-center justify-center gap-2">
+                    {t("landing.welcomeCtaStart")} <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <button type="button" onClick={() => setMode("login")}
+                          className="w-full py-3 rounded-2xl text-sm font-bold transition-opacity hover:opacity-80"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--border)", color: "var(--text)" }}>
+                    {t("landing.welcomeCtaLogin")}
+                  </button>
+                  <button type="button"
+                          onClick={() => enterGuestMode().finally(() => router.push("/chat"))}
+                          className="w-full py-2.5 rounded-2xl text-xs font-semibold text-center transition-opacity hover:opacity-80"
+                          style={{ color: "var(--muted)" }}>
+                    {t("landing.welcomeCtaExplore")}
+                  </button>
+                </div>
+              </div>
+            ) : mode === "forgot" ? (
               /* ── FORGOT PASSWORD ── */
               forgotDone ? (
                 <div className="text-center py-4 space-y-4">
@@ -863,8 +923,9 @@ function HomeContent() {
             )}
           </div>
 
-          {/* Low-friction entry points */}
-          {mode !== "forgot" && (
+          {/* Low-friction entry points — not on "welcome", which already has
+              its own explore/login actions right above (no duplicates). */}
+          {mode !== "forgot" && mode !== "welcome" && (
             <div className="grid grid-cols-2 gap-2 mt-3">
               <button onClick={() => { localStorage.setItem("nuvos_ob", "1"); setEmail("demo@nuvosai.app"); setPassword("demo1234"); setMode("login"); }}
                       className="text-xs py-2.5 rounded-xl text-center transition-all hover:opacity-80"

@@ -340,6 +340,20 @@ export const useAuthStore = create<AuthState>()(
         // un-namespaced "guest" bucket (see userStorage below) — clear the
         // flag so a real account logged into next doesn't inherit it.
         try { localStorage.removeItem("nuvos_guest"); } catch {}
+        // Stage D analytics audit: identifyUser() (onboardingAnalytics.ts)
+        // calls posthog.identify() on login/register, but nothing ever
+        // called the reverse on logout — PostHog's own distinct_id (and
+        // whatever person it's linked to) survived across accounts on a
+        // shared device/browser, so the next person signing in on this
+        // same tab could get merged into the PREVIOUS user's identified
+        // profile instead of starting a clean one. reset() starts a fresh
+        // anonymous distinct_id; it does not touch our own localStorage
+        // dedupe flags (first_radar_completed etc.), which are keyed
+        // per-browser on purpose, not per-identity.
+        try {
+          const posthog = (await import("posthog-js")).default;
+          posthog.reset();
+        } catch {}
         // Let the next login (even in this same tab) re-apply the user's
         // preferred start screen once — see home/page.tsx's one-shot guard.
         try { sessionStorage.removeItem("nuvos_start_screen_redirected"); } catch {}

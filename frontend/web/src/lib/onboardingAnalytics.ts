@@ -40,7 +40,18 @@ function isAuthed(): boolean {
   }
 }
 
+// Session-scoped (not forever, unlike fireOnce's localStorage flags below):
+// "onboarding_started" can legitimately fire again on a genuinely new visit
+// (another day, another tab) — it just must not double-fire for the SAME
+// visit when a user passes through both the Bienvenida and Personalización
+// screens, which both call this.
 export function captureOnboardingStarted() {
+  try {
+    if (sessionStorage.getItem("nuvos_onboarding_started_fired") === "1") return;
+    sessionStorage.setItem("nuvos_onboarding_started_fired", "1");
+  } catch {
+    // storage unavailable — fire anyway rather than silently drop the event
+  }
   posthog.capture("onboarding_started", { platform: "web" });
 }
 
