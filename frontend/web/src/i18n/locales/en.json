@@ -5218,8 +5218,12 @@
       "performance": {
         "title": "How has it performed?",
         "currentPrice": "Current price",
-        "priceChange": "Price change ({{days}} days of history)",
-        "priceOnlyDisclaimer": "This is a price-only change — it doesn't include any dividends the fund paid out in that period. Real total return would differ.",
+        "ytd": "YTD",
+        "oneYear": "1 year",
+        "fiveYear": "5 years",
+        "maxFullHistory": "Max. (since inception)",
+        "maxCapped": "Max. (last {{years}} years)",
+        "priceOnlyDisclaimer": "These are price-only changes — they don't include any dividends the fund paid out in each period. Real total return would differ.",
         "recentDividends": "Recent dividends",
         "currentYield": " · current yield {{pct}}"
       },
@@ -5229,7 +5233,7 @@
         "countryConcentration": "Geographic concentration: {{pct}} is in {{country}}.",
         "disclaimer": "Nuvos doesn't assign a risk rating to this ETF or any other — these are real concentration figures, not an opinion. Past performance shown above doesn't guarantee future results.",
         "sectorConcentrationTop3Part": " (the top 3 sectors add up to {{pct}})",
-        "limitedHistory": "This fund still has limited price history ({{days}} days) — be careful drawing conclusions from its past performance."
+        "limitedHistory": "This fund doesn't have a full year of price history yet — be careful drawing conclusions from its past performance."
       },
       "footer": {
         "source": "Source: Financial Modeling Prep",

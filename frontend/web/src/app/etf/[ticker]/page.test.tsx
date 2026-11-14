@@ -50,7 +50,10 @@ function baseOverview(overrides: Record<string, unknown> = {}) {
       by_sector: { top1_name: "Tecnología", top1_weight_pct: 32.4, top3_weight_pct: 58.1, bucket_count: 11 },
       by_country: { top1_name: "Estados Unidos", top1_weight_pct: 99.1, top3_weight_pct: 99.8, bucket_count: 3 },
     },
-    price: { current: 450.1, change_pct_today: 0.5, year_low: 400, year_high: 460, history_based_change: { since_earliest_available_pct: 12.3, days_of_history: 1000 } },
+    price: {
+      current: 450.1, change_pct_today: 0.5, year_low: 400, year_high: 460,
+      returns: { ytd_pct: 8.2, one_year_pct: 12.3, five_year_pct: 65.4, max_pct: 180.5, max_start_date: "2010-09-07", max_is_full_history: true },
+    },
     dividends: { recent: [{ ex_date: "2026-09-20", amount: 1.8, yield_pct: 1.3, frequency: "quarterly" }], latest_yield_pct: 1.3 },
     data_quality: { source: "fmp", structural_fetched_at: 1700000000, price_fetched_at: 1700000500, missing_fields: [], is_actively_trading: true, suspicious_expense_ratio: false },
     insights: [

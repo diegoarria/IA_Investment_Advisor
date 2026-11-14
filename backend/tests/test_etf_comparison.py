@@ -64,7 +64,9 @@ def _overview(
             "by_country": {"top1_name": country_top1, "top1_weight_pct": country_pct, "bucket_count": country_bucket},
         },
         "price": {"current": None, "change_pct_today": None, "year_low": None, "year_high": None, "volume": None,
-                   "history_based_change": {"since_earliest_available_pct": since_pct, "days_of_history": days_of_history}},
+                   "returns": {"ytd_pct": None, "one_year_pct": None, "five_year_pct": None,
+                               "max_pct": since_pct, "max_start_date": None,
+                               "max_is_full_history": days_of_history is not None}},
         "dividends": {"recent": [], "latest_yield_pct": None},
         "data_quality": {"source": "fmp", "structural_fetched_at": 1700000000.0, "price_fetched_at": 1700000100.0,
                           "missing_fields": missing_fields or [], "provider_errors": {},
@@ -338,8 +340,8 @@ class TestPerformanceNeverComparedDirectly:
             result = compare_etfs(["VOO", "QQQ"])
         voo = next(e for e in result["etfs"] if e["ticker"] == "VOO")
         qqq = next(e for e in result["etfs"] if e["ticker"] == "QQQ")
-        assert voo["performance"]["since_earliest_available_pct"] == 20.0
-        assert qqq["performance"]["since_earliest_available_pct"] == 5.0
+        assert voo["performance"]["max_pct"] == 20.0
+        assert qqq["performance"]["max_pct"] == 5.0
 
 
 class TestMaxThreeInsightsOnePerDimension:

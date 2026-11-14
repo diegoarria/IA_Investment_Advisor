@@ -5218,8 +5218,12 @@
       "performance": {
         "title": "¿Cómo ha evolucionado?",
         "currentPrice": "Precio actual",
-        "priceChange": "Variación de precio ({{days}} días de historial)",
-        "priceOnlyDisclaimer": "Esta variación es solo del precio — no incluye los dividendos que el fondo haya repartido en ese periodo. El rendimiento total real sería distinto.",
+        "ytd": "YTD",
+        "oneYear": "1 año",
+        "fiveYear": "5 años",
+        "maxFullHistory": "Máx. (desde el inicio)",
+        "maxCapped": "Máx. (últimos {{years}} años)",
+        "priceOnlyDisclaimer": "Estas variaciones son solo del precio — no incluyen los dividendos que el fondo haya repartido en cada periodo. El rendimiento total real sería distinto.",
         "recentDividends": "Dividendos recientes",
         "currentYield": " · yield actual {{pct}}"
       },
@@ -5229,7 +5233,7 @@
         "countryConcentration": "Concentración geográfica: {{pct}} está en {{country}}.",
         "disclaimer": "Nuvos no asigna una calificación de riesgo a este ETF ni a ningún otro — estos son datos reales de concentración, no una opinión. El desempeño pasado mostrado arriba no garantiza resultados futuros.",
         "sectorConcentrationTop3Part": " (los 3 sectores principales suman {{pct}})",
-        "limitedHistory": "Este fondo tiene poco historial de precios todavía ({{days}} días) — ten cuidado al sacar conclusiones de su desempeño pasado."
+        "limitedHistory": "Este fondo todavía no tiene un año completo de historial de precios — ten cuidado al sacar conclusiones de su desempeño pasado."
       },
       "footer": {
         "source": "Fuente: Financial Modeling Prep",

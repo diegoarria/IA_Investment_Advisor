@@ -55,7 +55,10 @@ type EtfSummary = {
     by_sector: { top1_name: string | null; top1_weight_pct: number | null; bucket_count: number };
     by_country: { top1_name: string | null; top1_weight_pct: number | null; bucket_count: number };
   };
-  performance: { since_earliest_available_pct: number | null; days_of_history: number | null };
+  performance: {
+    ytd_pct: number | null; one_year_pct: number | null; five_year_pct: number | null;
+    max_pct: number | null; max_start_date: string | null; max_is_full_history: boolean;
+  };
   data_quality: { missing_fields: string[]; provider_errors: Record<string, string>; structural_fetched_at: number; price_fetched_at: number };
 };
 
@@ -541,10 +544,12 @@ function EtfCompareContent() {
                           <RaisedTile key={etf.ticker}>
                             <p className="text-[11px] font-bold mb-1" style={{ color: colorFor(etf.ticker, tickers) }}>{etf.ticker}</p>
                             <p className="text-[11px] font-semibold mb-0.5" style={{ color: "var(--sub)" }}>
-                              {t("etf.detail.performance.priceChange", { days: etf.performance.days_of_history ?? 0 })}
+                              {etf.performance.max_is_full_history
+                                ? t("etf.detail.performance.maxFullHistory")
+                                : t("etf.detail.performance.maxCapped", { years: 10 })}
                             </p>
-                            <p className="text-lg font-black" style={{ color: (etf.performance.since_earliest_available_pct ?? 0) >= 0 ? "#4CAF50" : "#E05252" }}>
-                              {fmtPct(etf.performance.since_earliest_available_pct, na, 2)}
+                            <p className="text-lg font-black" style={{ color: (etf.performance.max_pct ?? 0) >= 0 ? "#4CAF50" : "#E05252" }}>
+                              {fmtPct(etf.performance.max_pct, na, 2)}
                             </p>
                           </RaisedTile>
                         ))}

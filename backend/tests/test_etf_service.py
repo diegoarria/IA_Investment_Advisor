@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from app.services.etf import normalize
-from app.services.etf.metrics import concentration_metrics, cost_tier, price_change_pct
+from app.services.etf.metrics import concentration_metrics, cost_tier, price_returns
 from app.services.etf.provider import FMPResult, fetch
 from app.services.etf.service import NotAnETFError, get_etf_overview
 
@@ -136,15 +136,48 @@ class TestMetrics:
     def test_cost_tier_none_for_missing_data(self):
         assert cost_tier(None) is None
 
-    def test_price_change_pct_computes_from_real_series(self):
-        history = [{"date": "2026-11-02", "price": 110.0}, {"date": "2026-01-02", "price": 100.0}]
-        result = price_change_pct(history)
-        assert result["since_earliest_available_pct"] == 10.0
-        assert result["days_of_history"] == 2
+    def test_price_returns_computes_ytd_and_max_from_real_series(self):
+        from datetime import date, timedelta
+        today = date.today()
+        jan1 = date(today.year, 1, 1).isoformat()
+        history = [
+            {"date": today.isoformat(), "price": 110.0},
+            {"date": jan1, "price": 100.0},
+            {"date": (date(today.year, 1, 1) - timedelta(days=1)).isoformat(), "price": 90.0},
+        ]
+        result = price_returns(history, requested_from_date=(today - timedelta(days=3650)).isoformat())
+        assert result["ytd_pct"] == 10.0  # 110 vs the first row on/before Jan 1
+        assert result["max_pct"] == pytest.approx((110.0 / 90.0 - 1) * 100, abs=0.01)
+        assert result["max_start_date"] == (date(today.year, 1, 1) - timedelta(days=1)).isoformat()
 
-    def test_price_change_pct_empty_history_returns_none_not_zero(self):
-        result = price_change_pct([])
-        assert result["since_earliest_available_pct"] is None
+    def test_price_returns_window_without_enough_history_is_none_not_guessed(self):
+        from datetime import date
+        history = [{"date": date.today().isoformat(), "price": 100.0}]
+        result = price_returns(history, requested_from_date=None)
+        assert result["one_year_pct"] is None
+        assert result["five_year_pct"] is None
+
+    def test_price_returns_empty_history_returns_none_not_zero(self):
+        result = price_returns([], requested_from_date=None)
+        assert result["ytd_pct"] is None
+        assert result["max_pct"] is None
+
+    def test_price_returns_max_is_full_history_flag(self):
+        from datetime import date, timedelta
+        today = date.today()
+        requested_from = (today - timedelta(days=3650)).isoformat()
+        # FMP ran out of real data well after our requested "from" — this
+        # genuinely is all the history there is.
+        oldest_real = (today - timedelta(days=3000)).isoformat()
+        history = [{"date": today.isoformat(), "price": 110.0}, {"date": oldest_real, "price": 100.0}]
+        result = price_returns(history, requested_from_date=requested_from)
+        assert result["max_is_full_history"] is True
+
+        # FMP returned data right up to (basically) our requested window —
+        # there's likely more real history before it we just didn't fetch.
+        history_capped = [{"date": today.isoformat(), "price": 110.0}, {"date": requested_from, "price": 100.0}]
+        result_capped = price_returns(history_capped, requested_from_date=requested_from)
+        assert result_capped["max_is_full_history"] is False
 
 
 # ---------------------------------------------------------------------------

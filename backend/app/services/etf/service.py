@@ -25,12 +25,20 @@ everything is equally fresh.
 """
 import logging
 import time
+from datetime import date, timedelta
 
 from app.core.cache import cache_get, cache_set
 from app.services.asset_classification import classify_asset, ETF
 from app.services.etf import normalize
-from app.services.etf.metrics import concentration_metrics, cost_tier, price_change_pct
+from app.services.etf.metrics import concentration_metrics, cost_tier, price_returns
 from app.services.etf.provider import fetch
+
+# How far back we ask FMP for daily closes — covers YTD/1-year/5-year real
+# windows in a single call, within FMP's confirmed ~5,000-row-per-request
+# cap (10y of daily closes is ~2,600 rows, comfortable margin). Not every
+# fund's full since-inception history (some ETFs are 20+ years old) — see
+# price_returns()'s docstring for how "max" stays honest about that.
+_PRICE_HISTORY_YEARS = 10
 
 logger = logging.getLogger(__name__)
 
@@ -113,18 +121,26 @@ def _fetch_price_data(ticker: str, use_cache: bool) -> dict:
     missing_fields: list[str] = []
     provider_errors: dict[str, str] = {}
 
+    history_from = (date.today() - timedelta(days=365 * _PRICE_HISTORY_YEARS)).isoformat()
+    history_to = date.today().isoformat()
+
     quote_res = _record("quote", fetch("/quote", ticker), missing_fields, provider_errors)
     dividends_res = _record("dividends", fetch("/dividends", ticker), missing_fields, provider_errors)
-    history_res = _record("price_history", fetch("/historical-price-eod/light", ticker), missing_fields, provider_errors)
+    history_res = _record(
+        "price_history",
+        fetch("/historical-price-eod/light", ticker, **{"from": history_from, "to": history_to}),
+        missing_fields, provider_errors,
+    )
 
     quote = normalize.normalize_quote(quote_res.data[0]) if quote_res.ok and quote_res.data else {}
     dividends = normalize.normalize_dividends(dividends_res.data) if dividends_res.ok else []
-    price_history = normalize.normalize_price_history(history_res.data) if history_res.ok else []
+    price_history = normalize.normalize_price_history(history_res.data, limit=365 * _PRICE_HISTORY_YEARS) if history_res.ok else []
 
     result = {
         "quote": quote,
         "dividends": dividends,
         "price_history": price_history,
+        "history_from": history_from,
         "missing_fields": missing_fields,
         "provider_errors": provider_errors,
         "fetched_at": time.time(),
@@ -221,6 +237,10 @@ def get_etf_overview(ticker: str, use_cache: bool = True, lang: str = "es") -> d
     quote = price_data["quote"]
     dividends = price_data["dividends"]
     price_history = price_data["price_history"]
+    # .get(), not [...]: a Redis-cached entry written by the pre-returns
+    # code (up to _TTL_PRICE_S old right after this deploy) won't have this
+    # key yet — never let a stale cache shape 500 the whole overview.
+    history_from = price_data.get("history_from")
 
     missing_fields = structural["missing_fields"] + price_data["missing_fields"]
     provider_errors = {**structural["provider_errors"], **price_data["provider_errors"]}
@@ -279,7 +299,7 @@ def get_etf_overview(ticker: str, use_cache: bool = True, lang: str = "es") -> d
             "year_low": quote.get("year_low"),
             "year_high": quote.get("year_high"),
             "volume": quote.get("volume"),
-            "history_based_change": price_change_pct(price_history),
+            "returns": price_returns(price_history, history_from),
         },
         "dividends": {
             "recent": dividends,

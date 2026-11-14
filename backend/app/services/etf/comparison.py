@@ -74,7 +74,7 @@ def _validate_tickers(tickers: list[str]) -> None:
 
 
 def _etf_summary(ticker: str, overview: dict) -> dict:
-    perf = overview["price"]["history_based_change"]
+    perf = overview["price"]["returns"]
     exposure = overview["exposure"]
     return {
         "ticker": ticker,
@@ -89,8 +89,12 @@ def _etf_summary(ticker: str, overview: dict) -> dict:
         },
         "diversification": overview["diversification"],
         "performance": {
-            "since_earliest_available_pct": perf.get("since_earliest_available_pct"),
-            "days_of_history": perf.get("days_of_history"),
+            "ytd_pct": perf.get("ytd_pct"),
+            "one_year_pct": perf.get("one_year_pct"),
+            "five_year_pct": perf.get("five_year_pct"),
+            "max_pct": perf.get("max_pct"),
+            "max_start_date": perf.get("max_start_date"),
+            "max_is_full_history": perf.get("max_is_full_history"),
         },
         "data_quality": {
             "missing_fields": overview["data_quality"]["missing_fields"],

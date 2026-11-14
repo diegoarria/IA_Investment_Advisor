@@ -69,7 +69,10 @@ type EtfOverview = {
   };
   price: {
     current: number | null; change_pct_today: number | null; year_low: number | null; year_high: number | null;
-    history_based_change: { since_earliest_available_pct: number | null; days_of_history: number };
+    returns: {
+      ytd_pct: number | null; one_year_pct: number | null; five_year_pct: number | null;
+      max_pct: number | null; max_start_date: string | null; max_is_full_history: boolean;
+    };
   };
   dividends: { recent: { ex_date: string | null; amount: number | null; yield_pct: number | null; frequency: string | null }[]; latest_yield_pct: number | null };
   data_quality: {
@@ -182,7 +185,7 @@ export default function EtfDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticker, lang]);
 
-  const hasRiskNotes = data && (data.data_quality.suspicious_expense_ratio || data.price.history_based_change.days_of_history < 252);
+  const hasRiskNotes = data && (data.data_quality.suspicious_expense_ratio || data.price.returns.one_year_pct === null);
   const primaryObservation = data ? selectPrimaryObservation(data.insights) : null;
   const primaryAnchor = primaryObservation ? anchorForInsight(primaryObservation) : null;
   const sectorNote = data ? describeSectorConcentration(data.diversification.by_sector, lang) : null;
@@ -354,19 +357,30 @@ export default function EtfDetailPage() {
             {/* 7. Evolución histórica */}
             <GlowCard>
               <PillarSection title={t("etf.detail.performance.title")} icon={<TrendingUp className="w-4 h-4" style={{ color: GOLD }} />} iconColor={GOLD}>
-                <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
                   <RaisedTile>
                     <p className="text-[11px] font-semibold mb-1" style={{ color: "var(--sub)" }}>{t("etf.detail.performance.currentPrice")}</p>
                     <p className="text-xl font-black" style={{ color: "var(--text)" }}>{data.price.current != null ? `$${data.price.current.toFixed(2)}` : na}</p>
                   </RaisedTile>
-                  <RaisedTile>
-                    <p className="text-[11px] font-semibold mb-1" style={{ color: "var(--sub)" }}>
-                      {t("etf.detail.performance.priceChange", { days: data.price.history_based_change.days_of_history })}
-                    </p>
-                    <p className="text-xl font-black" style={{ color: (data.price.history_based_change.since_earliest_available_pct ?? 0) >= 0 ? "#4CAF50" : "#E05252" }}>
-                      {fmtPct(data.price.history_based_change.since_earliest_available_pct, na)}
-                    </p>
-                  </RaisedTile>
+                  {[
+                    { key: "ytd", label: t("etf.detail.performance.ytd"), pct: data.price.returns.ytd_pct },
+                    { key: "1y", label: t("etf.detail.performance.oneYear"), pct: data.price.returns.one_year_pct },
+                    { key: "5y", label: t("etf.detail.performance.fiveYear"), pct: data.price.returns.five_year_pct },
+                    {
+                      key: "max",
+                      label: data.price.returns.max_is_full_history
+                        ? t("etf.detail.performance.maxFullHistory")
+                        : t("etf.detail.performance.maxCapped", { years: 10 }),
+                      pct: data.price.returns.max_pct,
+                    },
+                  ].filter((w) => w.pct !== null).map((w) => (
+                    <RaisedTile key={w.key}>
+                      <p className="text-[11px] font-semibold mb-1" style={{ color: "var(--sub)" }}>{w.label}</p>
+                      <p className="text-xl font-black" style={{ color: (w.pct ?? 0) >= 0 ? "#4CAF50" : "#E05252" }}>
+                        {fmtPct(w.pct, na)}
+                      </p>
+                    </RaisedTile>
+                  ))}
                 </div>
                 <p className="text-[12px] mb-3 flex items-start gap-1.5" style={{ color: "var(--sub)" }}>
                   <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -395,10 +409,10 @@ export default function EtfDetailPage() {
               <GlowCard>
                 <PillarSection title={t("etf.detail.risks.title")} icon={<AlertTriangle className="w-4 h-4" style={{ color: "#E0A030" }} />} iconColor="#E0A030">
                   <div className="space-y-2.5">
-                    {data.price.history_based_change.days_of_history < 252 && (
+                    {data.price.returns.one_year_pct === null && (
                       <p className="text-[13px] leading-relaxed flex items-start gap-2" style={{ color: "var(--text)" }}>
                         <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#E0A030" }} />
-                        {t("etf.detail.risks.limitedHistory", { days: data.price.history_based_change.days_of_history })}
+                        {t("etf.detail.risks.limitedHistory")}
                       </p>
                     )}
                   </div>
