@@ -6,6 +6,7 @@ import { getSupabaseClient, forgetLocalSupabaseSession } from "@/lib/supabase";
 import { useAuthStore, useProfileStore } from "@/lib/store";
 import { profile as profileApi, auth as authApi } from "@/lib/api";
 import { applyPendingReferralIfAny } from "@/lib/referral";
+import { identifyUser, captureSignupCompleted } from "@/lib/onboardingAnalytics";
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function AuthCallback() {
       }
       if (handedOff) forgetLocalSupabaseSession();
       setAuth(session.access_token, session.user.id);
+      identifyUser(session.user.id);
       try {
         const p = await profileApi.get();
         setProfile(p.data);
@@ -53,7 +55,10 @@ export default function AuthCallback() {
         // uses to mean "this actually is a brand-new signup" — matching
         // page.tsx's email/password flow, which already only calls this
         // when mode === "register".
-        if (isNewUser) applyPendingReferralIfAny();
+        if (isNewUser) {
+          applyPendingReferralIfAny();
+          captureSignupCompleted("google");
+        }
         window.location.href = isNewUser ? "/onboarding" : "/home";
       }
     }

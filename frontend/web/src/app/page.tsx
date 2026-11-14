@@ -10,7 +10,16 @@ import { applyPendingReferralIfAny } from "@/lib/referral";
 import { consumeReturnTo } from "@/lib/returnTo";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode } from "@/lib/store";
-import { Eye, EyeOff, ArrowRight, User, Send } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, User, Send, PieChart, Search, ListChecks } from "lucide-react";
+import {
+  captureOnboardingStarted,
+  captureOnboardingGoalSelected,
+  captureSignupStarted,
+  captureSignupCompleted,
+  identifyUser,
+  saveOnboardingGoal,
+  type OnboardingGoal,
+} from "@/lib/onboardingAnalytics";
 
 function getPillars(t: TFunction) {
   return [
@@ -59,9 +68,15 @@ function HomeContent() {
   // AppSidebar's guest CTA links to /?auth=1&mode=register for "Crear
   // cuenta" — was already a no-op before (this page never read a `mode`
   // param at all), now made real.
-  const [mode, setMode]             = useState<"login" | "register" | "forgot">(
-    () => (searchParams.get("mode") === "register" ? "register" : "login")
+  // "goal" = the new Personalización step (one question: ¿qué quieres
+  // entender primero?) shown before the email/password form for anyone
+  // heading toward registration. Existing links to ?mode=register (e.g.
+  // AppSidebar's guest CTA) now land on "goal" first instead of skipping
+  // straight to the form — registration itself is unchanged.
+  const [mode, setMode]             = useState<"login" | "register" | "forgot" | "goal">(
+    () => (searchParams.get("mode") === "register" ? "goal" : "login")
   );
+  const [goal, setGoal] = useState<OnboardingGoal | null>(null);
   const [email, setEmail]           = useState("");
   const [password, setPassword]     = useState("");
   const [showPass, setShowPass]     = useState(false);
@@ -188,6 +203,19 @@ function HomeContent() {
   }, []);
 
   useEffect(() => {
+    if (mode === "goal") captureOnboardingStarted();
+    if (mode === "register") captureSignupStarted();
+  }, [mode]);
+
+  const handleGoalSelect = (selected: OnboardingGoal) => {
+    setGoal(selected);
+    saveOnboardingGoal(selected);
+    captureOnboardingGoalSelected(selected);
+    setMode("register");
+    setError("");
+  };
+
+  useEffect(() => {
     if (forgotStep !== "code") return;
     setResendCooldown(30);
     const id = setInterval(() => setResendCooldown((v) => (v > 0 ? v - 1 : 0)), 1000);
@@ -275,8 +303,10 @@ function HomeContent() {
         ? await auth.login(email, password)
         : await auth.register(email, password, language);
       setAuth(res.data.access_token, res.data.user_id);
+      identifyUser(res.data.user_id);
       if (mode === "register") {
         applyPendingReferralIfAny();
+        captureSignupCompleted("email");
       }
       try {
         const p = await profileApi.get();
@@ -678,6 +708,34 @@ function HomeContent() {
                   </form>
                 </>
               )
+            ) : mode === "goal" ? (
+              /* ── PERSONALIZACIÓN (una sola pregunta antes del registro) ── */
+              <>
+                <button onClick={() => { setMode("login"); setError(""); }}
+                        className="flex items-center gap-2 text-sm mb-6 transition-opacity hover:opacity-70"
+                        style={{ color: "var(--muted)" }}>{t("landing.goalBack")}</button>
+                <h2 className="text-xl font-black tracking-tight mb-5"
+                    style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {t("landing.goalTitle")}
+                </h2>
+                <div className="space-y-3">
+                  {([
+                    { key: "portfolio" as const, label: t("landing.goalOptionPortfolio"), Icon: PieChart },
+                    { key: "company" as const, label: t("landing.goalOptionCompany"), Icon: Search },
+                    { key: "etf" as const, label: t("landing.goalOptionEtf"), Icon: ListChecks },
+                  ]).map(({ key, label, Icon }) => (
+                    <button key={key} type="button" onClick={() => handleGoalSelect(key)}
+                            className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all hover:opacity-90"
+                            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)" }}>
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                           style={{ background: "rgba(0,168,94,0.12)" }}>
+                        <Icon className="w-4.5 h-4.5" style={{ color: "var(--accent-l)" }} />
+                      </div>
+                      <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
             ) : (
               /* ── LOGIN / REGISTER ── */
               <>
@@ -767,7 +825,7 @@ function HomeContent() {
                 <p className="text-center text-sm mt-5" style={{ color: "var(--muted)" }}>
                   {mode === "login" ? (
                     <>{t("landing.newHere")}{" "}
-                      <button onClick={() => { setMode("register"); setError(""); }}
+                      <button onClick={() => { setMode("goal"); setError(""); }}
                               className="font-bold transition-opacity hover:opacity-80"
                               style={{ color: "var(--accent-l)" }}>
                         {t("landing.createFreeAccount")}
