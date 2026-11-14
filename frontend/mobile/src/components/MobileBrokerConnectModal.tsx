@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { brokerageApi } from "../lib/api";
+import { captureBrokerConnectionStarted } from "../lib/onboardingAnalytics";
 
 interface Connection {
   id: string;
@@ -140,7 +141,10 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
       t("mobileBrokerConnectModal.connectOnWebMsg", { brokerName }),
       [
         { text: t("common.cancel"), style: "cancel" },
-        { text: t("mobileBrokerConnectModal.openWeb"), onPress: () => Linking.openURL("https://www.nuvosai.com/portfolio?connect=1") },
+        { text: t("mobileBrokerConnectModal.openWeb"), onPress: () => {
+            captureBrokerConnectionStarted(brokerName);
+            Linking.openURL("https://www.nuvosai.com/portfolio?connect=1");
+          } },
       ]
     );
   };

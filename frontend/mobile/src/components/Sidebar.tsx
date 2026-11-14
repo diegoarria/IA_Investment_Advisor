@@ -16,6 +16,7 @@ import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
 import { getUserLevel, useUserLevel, isAtLeast, getLevelLabel, LEVEL_COLOR } from "../lib/userLevel";
 import { rcLogOut } from "../lib/revenuecat";
+import { posthog } from "../config/posthog";
 
 const ARTHUR_PHOTO = require("../../assets/images/mentors/arthur.jpg");
 
@@ -413,6 +414,12 @@ function useLogout() {
     // Do NOT clear portfolio or watchlist — data belongs to the user and must
     // survive logout. Server sync on next login will restore the correct state.
     useChatStore.getState().createSession();
+    // Stage E parity audit: this logout path (sidebar) never called
+    // posthog.reset(), unlike app/(tabs)/profile.tsx's handleLogout — a
+    // shared device logging out here and a different person logging in
+    // right after would get merged into the previous person's identified
+    // PostHog profile. Same fix as that other path.
+    posthog.reset();
     logout();
     router.replace("/");
     SecureStore.deleteItemAsync("access_token").catch(() => {});

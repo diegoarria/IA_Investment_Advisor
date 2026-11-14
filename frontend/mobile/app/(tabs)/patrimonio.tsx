@@ -15,6 +15,7 @@ import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { usePaperStore, PAPER_INITIAL_CASH } from "../../src/lib/paperStore";
 import { marketApi } from "../../src/lib/api";
 import { useCashDividends } from "../../src/lib/cashDividendsStore";
+import { captureFirstPortfolioViewed } from "../../src/lib/onboardingAnalytics";
 import StockAvatar from "../../src/components/StockAvatar";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
@@ -69,6 +70,15 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
   const fxRate = useFxRate(portfolioCurrency);
   const balanceHidden = useBalanceVisibilityStore((s) => s.hidden);
   const mask = (s: string) => (balanceHidden ? "••••••" : s);
+
+  // "First value" for Ruta Portafolio — this tab is the Stage E landing
+  // screen for that goal, so the event belongs here, not only on the
+  // deeper /(tabs)/portfolio screen most users won't drill into right away.
+  useEffect(() => {
+    if (rawPositions.length > 0 && !!useAppStore.getState().profile) {
+      captureFirstPortfolioViewed();
+    }
+  }, [rawPositions.length]);
 
   // One row per ticker, combining every purchase lot — `rawPositions` keeps each
   // purchase as its own row internally (for the lots panel on /portfolio), but this
