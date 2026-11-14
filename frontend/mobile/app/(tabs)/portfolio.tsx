@@ -22,6 +22,7 @@ import { posthog } from "../../src/config/posthog";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
+import { captureFirstPortfolioViewed } from "../../src/lib/onboardingAnalytics";
 import { isNYSEOpen, readPriceCache, writePriceCache, needsPriceRefresh, type PriceCache } from "../../src/lib/marketHours";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
@@ -987,6 +988,15 @@ export default function PortfolioScreen() {
   useEffect(() => {
     AsyncStorage.getItem("nuvos_demo_done").then((v) => { if (!v) setDemoMode(true); });
   }, []);
+
+  // "First value" for Ruta Portafolio: a real account (not demoMode's
+  // unauthenticated seed positions) with at least one real position.
+  useEffect(() => {
+    if (!demoMode && positions.length > 0 && !!useAppStore.getState().profile) {
+      captureFirstPortfolioViewed();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoMode, positions.length]);
   const dismissDemo = async (choice: "has_portfolio" | "has_cash" | "wants_to_learn") => {
     await AsyncStorage.setItem("nuvos_demo_done", "1");
     setDemoMode(false);

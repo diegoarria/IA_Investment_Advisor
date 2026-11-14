@@ -2616,6 +2616,15 @@
     "forgot": "Forgot?",
     "forgotPasswordTitle": "Forgot your password?",
     "genericError": "Something went wrong. Try again.",
+    "welcomeTitle": "Understand what you're investing in",
+    "welcomeSubtitle": "Make sense of companies, ETFs and your portfolio without spending hours analyzing information.",
+    "welcomeCtaStart": "Start for free",
+    "welcomeCtaLogin": "I already have an account",
+    "welcomeCtaExplore": "Explore without signing up",
+    "goalTitle": "What would you like to understand first?",
+    "goalOptionPortfolio": "Understand my portfolio",
+    "goalOptionCompany": "Analyze a company",
+    "goalOptionEtf": "Explore ETFs",
     "hasAccount": "Already have an account? ",
     "invalidCredentials": "Invalid credentials",
     "login": "Log in",
@@ -3030,6 +3039,12 @@
       "messageWithGoal": "**Decide better.** That's what Nuvos is for — to help you understand your money, discover good opportunities, and choose where to put it, with clarity and confidence.\n\nWelcome, **{{name}}**! 🎉 I see your goal is **{{goal}}** — let's work together to get you there.\n\nAs we talk, I'll get to know you better: your experience, your financial situation, your questions. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**",
       "messageNoGoal": "**Decide better.** That's what Nuvos is for — to help you understand your money, discover good opportunities, and choose where to put it, with clarity and confidence.\n\nWelcome, **{{name}}**! 🎉 As we talk, I'll get to know you better: your experience, your financial situation, your goals. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**"
     }
+  },
+  "onboardingQuick": {
+    "title": "Before you continue",
+    "subtitle": "Just the minimum to activate your account — we'll get to know the rest as we talk.",
+    "continueButton": "Continue",
+    "savingButton": "Saving..."
   },
   "streakMilestoneModal": {
     "daysStreak": "{{days}} day streak",
@@ -3706,7 +3721,7 @@
     }
   },
   "paywallModal": {
-    "heroFeature1": "Chat with Arthur with no limits",
+    "heroFeature1": "Chat with Arthur up to 80 times a day",
     "heroFeature2": "We explain why your money is moving, so it never catches you off guard",
     "heroFeature3": "Every month we tell you if you beat the market or not",
     "heroFeature4": "5 investment ideas picked for you every week",
@@ -3721,13 +3736,16 @@
     "coachingCta": "Prefer a 1:1 guide with an expert from our team?"
   },
   "welcomePremiumCard": {
-    "title": "Welcome to Nuvos, {{name}}!",
-    "subtitle": "We activated your Premium trial — no card, no commitment.",
+    "title": "Welcome to Nuvos! Your first month of Premium is included",
+    "subtitle": "Explore Nuvos' tools for 30 days, no credit card required.",
     "trialLabel": "30 days of Premium, free",
     "trialEndsPrefix": "Your trial ends on",
     "featuresLabel": "With Premium you get",
     "continue": "Continue",
-    "noCardRequired": "No card required to start"
+    "ctaCompany": "Keep analyzing",
+    "ctaEtf": "Explore ETFs",
+    "ctaPortfolio": "Understand my portfolio",
+    "noCardRequired": "No credit card required"
   },
   "phonePromptCard": {
     "title": "One last thing",

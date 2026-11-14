@@ -10,7 +10,9 @@ import { useTranslation } from "react-i18next";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { useTheme } from "../../src/lib/ThemeContext";
-import { screenerWeeklyApi, watchlistServerApi, marketApi } from "../../src/lib/api";
+import { screenerWeeklyApi, watchlistServerApi, marketApi, getStableGuestId } from "../../src/lib/api";
+import { useAppStore } from "../../src/lib/profileStore";
+import { captureFirstRadarCompleted } from "../../src/lib/onboardingAnalytics";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
 import ExplainButton from "../../src/components/ExplainButton";
@@ -118,12 +120,26 @@ export default function SubvaluadasScreen() {
 
       if (!hadCache && !cancelled) { setLoading(true); setError(null); }
 
+      // Stage E (mobile parity, 2026-11): mobile always called the
+      // authenticated route, so a guest here always 401'd — unlike web,
+      // which already has a public/guest counterpart to this exact
+      // endpoint. There's no "isGuestUser" flag on mobile (see
+      // onboardingAnalytics.ts's isAuthed()) — the absence of a local
+      // profile IS the guest signal, same proxy app/index.tsx already uses.
+      const isGuest = !useAppStore.getState().profile;
+
       const attempt = async (n: number): Promise<void> => {
         try {
-          const res: any = await screenerWeeklyApi.quickAnalysis(ticker, i18n.language, isDefaultView);
+          const res: any = isGuest
+            ? await screenerWeeklyApi.quickAnalysisPublic(ticker, await getStableGuestId(), i18n.language, isDefaultView)
+            : await screenerWeeklyApi.quickAnalysis(ticker, i18n.language, isDefaultView);
           if (cancelled) return;
           setData(res.data);
           setError(null);
+          // "First value" for Ruta Empresa: an explicit search (not the
+          // AAPL default) that came back as a real, visible result (not
+          // blurred by the free weekly-search limit).
+          if (searchTriggered && !res.data?.locked) captureFirstRadarCompleted();
           AsyncStorage.setItem(cacheKey, JSON.stringify(res.data)).catch(() => {});
         } catch (err: any) {
           const status = err?.response?.status;

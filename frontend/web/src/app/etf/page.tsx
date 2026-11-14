@@ -22,6 +22,7 @@ const GOLD = "#00e887";
 import { EtfCard, EtfCardSkeleton } from "@/components/etf/EtfCard";
 import { useEnrichedCards } from "@/components/etf/useEnrichedCards";
 import { etfApi } from "@/lib/api";
+import { captureFirstEtfViewed } from "@/lib/onboardingAnalytics";
 
 type SearchResult = { symbol: string; name: string };
 type Category = { key: string; label: string; etfs: { ticker: string; label: string }[] };
@@ -55,6 +56,10 @@ function LoadMoreRow({ hasMore, loading, onClick, label, loadingLabel }: { hasMo
 function CardGrid({ tickers }: { tickers: string[] }) {
   const { t } = useTranslation();
   const { cards, loading, error, hasMore, loadMore, loadedCount } = useEnrichedCards(tickers);
+  // "First value" for Ruta ETF: a real ficha actually loaded and rendered
+  // (discovery row, a category, or a search result all count — any of
+  // them is a real ETF, not a placeholder).
+  useEffect(() => { if (cards.length > 0) captureFirstEtfViewed(); }, [cards.length]);
   return (
     <div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">

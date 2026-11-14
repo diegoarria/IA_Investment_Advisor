@@ -1,6 +1,7 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 
 export const BASE_URL =
@@ -520,6 +521,13 @@ export const screenerWeeklyApi = {
     api.get("/api/market/screener/weekly-opportunities", { params: { lang }, timeout: timeoutMs }),
   quickAnalysis: (query: string, lang?: string, isDefaultView?: boolean) =>
     api.get("/api/market/screener/quick-analysis", { params: { query, lang, is_default_view: isDefaultView }, timeout: 25000 }),
+  // Stage E (onboarding 2.0 mobile parity, 2026-11): the no-auth counterpart
+  // already existed server-side for web (3 real searches/week for a true
+  // guest, same engine, same data) — mobile just never had a client method
+  // for it, so Ruta Empresa here always required an account even though
+  // the public contract was already there. See getStableGuestId below.
+  quickAnalysisPublic: (query: string, guestId: string, lang?: string, isDefaultView?: boolean) =>
+    api.get("/api/market/screener/quick-analysis/public", { params: { query, guest_id: guestId, lang, is_default_view: isDefaultView }, timeout: 25000 }),
   nifDashboard: (query: string, lang?: string) =>
     api.get("/api/market/screener/nif-dashboard", { params: { query, lang }, timeout: 25000 }),
   // 100s (bumped from 75s, 2026-10-19 — same fix as web's api.ts: AAPL
@@ -701,5 +709,28 @@ export const researchEngineApi = {
   reviewThesis: (ticker: string, lang?: string) =>
     api.post(`/api/research-engine/company/${ticker}/thesis/review`, {}, { params: { lang }, timeout: 30000 }),
 };
+
+// Stable, anonymous per-device id — mirrors web's getGuestId() (localStorage
+// UUID). NOT the same as MOBILE_CHAT_GUEST_ID above (a fresh random value
+// per module load, fine for that feature's lenient per-session quota) —
+// this one is persisted across app restarts because it backs a real
+// weekly counter (Radar's 3 free guest searches/week) that must survive
+// closing and reopening the app.
+const GUEST_ID_KEY = "nuvos_guest_id";
+let _cachedGuestId: string | null = null;
+export async function getStableGuestId(): Promise<string> {
+  if (_cachedGuestId) return _cachedGuestId;
+  try {
+    let id = await AsyncStorage.getItem(GUEST_ID_KEY);
+    if (!id) {
+      id = `g-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      await AsyncStorage.setItem(GUEST_ID_KEY, id);
+    }
+    _cachedGuestId = id;
+    return id;
+  } catch {
+    return `g-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
 
 export default api;
