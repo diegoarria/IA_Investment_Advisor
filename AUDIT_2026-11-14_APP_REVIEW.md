@@ -22,6 +22,16 @@ TypeScript mobile: **13 errores preexistentes**, no relacionados con los cambios
 
 ---
 
+## ⚠️ Distinción importante — estado real de los 3 motivos de rechazo
+
+**Los 3 tienen corrección de código implementada y verificada con test unitario/mockeado. Ninguno tiene cierre end-to-end todavía.** Un test con mocks (Supabase mockeado, SDK de RevenueCat mockeado) prueba que la LÓGICA hace lo que promete, nunca que el sistema real (Supabase Auth + Postgres, StoreKit real, el SO denegando un permiso en una pantalla física) se comporta igual. No se declara ninguno de los 3 como "listo para reenviar a Apple" sin lo que falta abajo:
+
+1. **Notificaciones (4.5.4):** PASS de unit test confirmado. Pendiente: **validación manual en un iPad/iPhone físico** con el permiso realmente denegado desde el sistema operativo (no simulado) — confirmar que ninguna pantalla se queda bloqueada, ningún loading infinito, ningún re-prompt, navegando la app completa.
+2. **Eliminación de cuenta (5.1.1v):** los tests con mocks (`test_delete_account.py`) prueban la lógica de orden/atomicidad del código Python, **no una transacción distribuida real** — Supabase Auth (GoTrue) y la base Postgres de `user_profiles`/etc. son dos sistemas distintos sin una transacción ACID conjunta entre ellos. Ver análisis detallado abajo. Pendiente: prueba de integración contra Supabase LOCAL real (no mocks) + grabación en dispositivo físico.
+3. **RevenueCat (2.1b/3.1.1):** se agregó el botón de Restore Purchases a `PaywallModal.tsx`, pero **un botón visible no es lo mismo que una restauración funcional** — nunca se ha ejecutado una restauración real (requiere Sandbox/TestFlight). Mantener BLOCKED todo lo que dependa del dashboard de RevenueCat o de una compra/restauración real.
+
+---
+
 ## Los 3 motivos de rechazo de Apple (14 nov 2026)
 
 ### 1. Guideline 4.5.4 — Notificaciones push obligatorias
@@ -35,7 +45,7 @@ Suite completa mobile tras el fix: **135/135 PASS** (13 suites, antes 129/129 en
 
 Verificado además por lectura de código: `onboarding/index.tsx` no solicita push en ningún punto; ninguna pantalla condiciona función alguna a `Notifications.getPermissionsAsync()`.
 
-**PUNTO 1: CERRADO.**
+**Guideline 4.5.4 — cerrado a nivel de lógica unitaria (PASS con test real), NO cerrado end-to-end.** Pendiente: validación manual en iPad/iPhone físico con el permiso realmente denegado desde el SO (Ajustes), navegando la app completa, confirmando que ninguna pantalla bloquea y que no reaparece el aviso.
 
 ### 2. Guideline 2.1(b) — IAP no enviados a revisión
 **N/A para código.** Es una tarea externa en App Store Connect (ya resuelta por Diego manualmente: grupo + 4 suscripciones consolidados en un Draft Submission y adjuntados a la versión). No hay cambio de código posible aquí.
@@ -44,8 +54,15 @@ Verificado además por lectura de código: `onboarding/index.tsx` no solicita pu
 **FAIL → FIXED.** El backend (`DELETE /api/auth/account`) ya era robusto (atómico vía RPC `delete_user_data` sobre ~50 tablas, revoca Plaid, borra el usuario de Supabase Auth con cliente fresco para evitar contaminación de sesión — ver comentario in-line de 2026-10-20). El problema real era de UI: un link pequeño al fondo de Perfil, ya pasado por alto una vez (build 36) y otra vez (build 46).
 Fix: `DeleteAccountModal.tsx` (nuevo, global, montado en `_layout.tsx`), con entrada en **Sidebar** y **Perfil**. Exige escribir la palabra de confirmación exacta. Nunca cierra sesión ni oculta un error salvo que el servidor confirme el borrado real. Incluye el aviso explícito (pedido por Apple) de que borrar la cuenta NO cancela una suscripción activa de Apple, con link a gestión de suscripción. Commits `92ae3ab8` + working tree (nota de suscripción, pendiente commit).
 
-**Verificación de flujo completo (no solo que el modal sea visible):**
-- Backend: `tests/test_delete_account.py` (nuevo), **4/4 PASS**, contra Supabase LOCAL mockeado (nunca producción, guard de `conftest.py` activo). Verifica el contrato exacto que el propio código promete en sus comentarios:
+**Verificación de integración REAL (no mockeada) — Supabase local, nunca producción:**
+`tests/test_delete_account_integration.py` (nuevo), **2/2 PASS**. Crea y destruye su propio usuario real en Supabase local en cada test (limpieza verificada, cero usuarios de prueba huérfanos al final). Prueba la pregunta exacta que pediste: **Supabase Auth (GoTrue) y Postgres NO son una transacción distribuida — son dos sistemas separados.**
+
+- **La "ventana huérfana" es real y observable:** justo después de correr el RPC `delete_user_data` (que sí borra de verdad las filas en Postgres, confirmado por SELECT), el usuario de Auth **sigue existiendo** — confirmado con una llamada real a `get_user_by_id`. Esto no es un bug, es la naturaleza de dos sistemas sin transacción conjunta — pero ahora está probado, no solo documentado en un comentario.
+- **La recuperación por reintento es real:** simulando exactamente esa falla parcial (deteniéndose ahí a propósito) y luego reintentando desde cero, el segundo intento completa la eliminación sin error — exactamente el comportamiento que depende un usuario que reintenta "Eliminar cuenta" tras una conexión caída.
+- Hallazgo incidental durante la construcción de este test: la API admin de GoTrue **lanza** `AuthApiError` para un usuario inexistente en vez de devolver `user=None` — documentado en el propio archivo de test para que nadie repita el error de asumir lo contrario.
+
+**Verificación con mocks (complementaria, prueba el ORDEN del código Python, no la semántica distribuida):**
+- Backend: `tests/test_delete_account.py`, **4/4 PASS**, contra Supabase mockeado. Verifica el contrato exacto que el propio código promete en sus comentarios:
   1. Éxito completo: Plaid revocado (si aplica) → RPC `delete_user_data` → borrado del auth user → `{"message": "Cuenta eliminada"}`.
   2. **Si el RPC atómico falla, el auth user JAMÁS se borra** (nunca libera el email con datos huérfanos) — HTTP 500, `admin.delete_user` nunca invocado.
   3. Si el RPC tiene éxito pero borrar el auth user falla, sigue siendo un error real (nunca éxito falso) — estado documentado de "reintento seguro".
@@ -65,11 +82,11 @@ Fix: `DeleteAccountModal.tsx` (nuevo, global, montado en `_layout.tsx`), con ent
 9. Intentar iniciar sesión de nuevo con el mismo correo/contraseña → debe fallar (cuenta ya no existe) — esto demuestra que el borrado fue real, no cosmético.
 10. (Opcional, recomendado para la nota a Apple) Repetir el mismo flujo entrando por Perfil → "Eliminar mi cuenta" en vez del Sidebar, para mostrar ambos puntos de entrada.
 
-**PUNTO 3: CERRADO en lo que a código/backend respecta.** Pendiente únicamente la grabación física (requiere a Diego con un iPhone real) y la verificación en Supabase Studio (opcional) de que las tablas quedaron realmente vacías para ese `user_id`.
+**Guideline 5.1.1(v) — CERRADO en lo verificable por código, incluida integración real contra Supabase local.** Pendiente únicamente la grabación física (requiere a Diego con un iPhone real).
 
 ---
 
-## 2. RevenueCat / IAP — verificación (punto 3 del pedido de continuación, 14 nov)
+## RevenueCat / IAP — verificación
 
 | Elemento | Resultado | Evidencia / Nota |
 |---|---|---|
@@ -83,7 +100,7 @@ Fix: `DeleteAccountModal.tsx` (nuevo, global, montado en `_layout.tsx`), con ent
 | Compra real, renovación, upgrade/downgrade, compra interrumpida | **BLOCKED** | Requiere Sandbox tester de Apple + TestFlight — no reproducible en este entorno de auditoría. |
 | Información de precio/periodo/renovación/cancelación visible en la UI de suscripción | **PASS** | `PricingModal.tsx`/`PaywallModal.tsx` muestran precio mensual vs. anual, nota de facturación, y ahora también los links legales + Restore. |
 
-**PUNTO 3 (continuación): CERRADO en lo verificable por código; 2 ítems quedan explícitamente BLOCKED (dashboard de RevenueCat, compra real en Sandbox) — no se declaran PASS.**
+**RevenueCat — estado real, sin inflar:** el botón de Restore Purchases ahora es **visible y accesible** desde ambas pantallas de compra (PASS, verificado por código/UI). Que la restauración **funcione de verdad** contra StoreKit real — reciba la respuesta de Apple, llame a `fetchStatus()`, actualice el tier en backend — es **BLOCKED**: nunca se ejecutó una restauración real en este pase, solo se confirmó que el botón existe, llama a `restorePurchases()`, y que esa función (ver tabla anterior) tiene su propio timeout y manejo de error/éxito. Agregar el botón NO equivale a una restauración exitosa comprobada. El mapeo de Product ID/Package/Entitlement también sigue BLOCKED (dashboard de RevenueCat, fuera del repo).
 
 ---
 
@@ -100,6 +117,48 @@ Fix: `DeleteAccountModal.tsx` (nuevo, global, montado en `_layout.tsx`), con ent
 | Sign in with Apple / Google — Guideline 4.8 | **N/A** | La app NO ofrece login social de ningún tipo (solo email/password) — 4.8 solo aplica si se ofrece un login de terceros sin ofrecer también Apple. Confirmado por grep, no existe ningún SDK de Google/Apple Sign-In en el repo. |
 
 ---
+
+## 3. Arthur y límites de costo de IA
+
+| Elemento | Resultado | Evidencia |
+|---|---|---|
+| Reintentos ante error de proveedor están acotados, nunca infinitos | **PASS** | `chat.py::_resilient_reply`: exactamente 2 intentos (modelo primario + Haiku), cada uno con `asyncio.wait_for(..., timeout=75)`, luego 1 fallback a un proveedor distinto (GPT-mini) con `timeout=45`, y si todo falla, 503 (que el cliente reintenta con backoff propio). Nunca un loop sin límite. |
+| Protección de costo real (no solo conteo de mensajes) | **PASS** | `cost_guard.py`: trackea gasto real mes/día desde `llm_usage_log`, clasifica en 5 niveles (NORMAL→HARD_STOP), degrada a modelo barato antes de bloquear. Falla abierto ante error de monitoreo (decisión de negocio documentada, no bug). |
+| Prevención de doble envío / llamadas duplicadas desde el cliente | **PASS** | `chat.tsx`: `sendMessage()` retorna temprano si `streaming` es true (línea 605); el input se deshabilita y el botón de enviar cambia a "detener" mientras transmite — imposible disparar un segundo request desde la UI durante uno en curso. |
+| Rate limits en las rutas de chat | **PASS** | `@limiter.limit("20/minute")` en `/chat/stream`, `30/minute` en `/chat/message`, `10/minute` en la variante pública (más restrictiva, sin auth). |
+| Arthur no debe inventar cifras/fuentes/precios | **BLOCKED (parcial)** | No verificable por test automatizado sin un juicio humano o LLM-evaluador sobre respuestas reales — requiere revisión manual de transcripts o un eval dedicado, fuera de alcance de este pase. El prompt/guardrails existen (ver `project_security_audit_sep2026` en memoria — ya se revisaron en una sesión previa), pero no hay verificación nueva aquí. |
+
+## 4. Portafolio y Patrimonio
+
+| Elemento | Resultado | Evidencia |
+|---|---|---|
+| Aislamiento entre usuarios (IDOR) en portfolio-exposure | **PASS** | `portfolio_exposure.py`: `user["id"]` viene SIEMPRE de `get_current_user` (sesión verificada), nunca de un parámetro del cliente; un `portfolio_id` ajeno da 404 indistinguible de "no existe" (documentado a propósito, evita filtrar qué IDs existen). |
+| División por cero / NaN en patrimonio (`patrimonio.tsx`) | **PASS** | Cada cálculo de porcentaje (`totalGainPct`, `dayGainPct`, `gainPct` por posición ×2) está guardado con `cost > 0 ? ... : 0`. La única división sin guard explícito (`gain / PAPER_INITIAL_CASH`) es segura porque el denominador es una constante fija del módulo, no un dato que pueda ser cero. |
+| División por cero en conversión de divisas (portfolio_exposure) | **PASS** (ya verificado arriba en la sección de RevenueCat/backend) | `combiner.py:83`: guarda explícita antes de dividir por `rate_portfolio_to_usd`. |
+| Sincronización portafolio/watchlist entre dispositivos | **PASS (verificado en sesiones de auditoría previas)** | Ver memoria del proyecto: `project_watchlist_sync_race` (fix 2026-09-15), `project_watchlist_never_disappear_consolidation` (4ª pasada, 2026-10-03), `project_portfolio_sync_race` (fix 2026-07-01). No se re-verificó en este pase — se registra como ya cerrado previamente, no como verificado hoy. |
+
+## Clasificación de los 13 errores preexistentes de TypeScript (mobile)
+
+Inspeccionados individualmente, no solo contados. Los dos tipos de error que PODRÍAN implicar riesgo real se verificaron a mano:
+
+- **`'appState.current'/'appStateRef.current' possibly null`** (`(tabs)/_layout.tsx:427`, `(tabs)/chat.tsx:276`) — inspeccionado: ambos refs se inicializan con `useRef(AppState.currentState)` / `{ current: AppState.currentState }`, un valor real no-nulo siempre, nunca `null` en runtime. El tipo de la librería simplemente quedó más estricto tras una actualización — **falso positivo, cero riesgo**.
+- **`ListEmptyComponent` no acepta `Element | null`** (`learn.tsx:448`) — inspeccionado: la rama `else` del ternario retorna `null`, que `FlatList` maneja sin problema en runtime (simplemente no renderiza nada); el tipo de `@types` no contempla ese valor — **falso positivo, cero riesgo**.
+- El resto (10 errores: `Tabs`/`Stack` children, `RefObject` vs `Ref`, `TextInputType.focus`, `ScrollView.scrollToEnd`, `CaptureTarget` de la librería de screenshots) son todos el mismo patrón: desfases de definiciones de tipos entre `react-navigation`/`react-native`/`expo`/librerías de captura y la versión de TypeScript (6.0.3) — nunca afectan el bundle real (Babel solo despoja tipos, Metro no corre `tsc`).
+
+**Conclusión: los 13 son P3, ninguno corregido** — forzar los tipos (con `!`, downgrades de `@types`, o casts) sería únicamente ruido cosmético sin beneficio funcional, y el propio pedido de auditoría pide evitar refactorizaciones innecesarias.
+
+**Importante, explícito: `npx tsc --noEmit -p .` en `frontend/mobile` NO pasa hoy — termina con 13 errores.** Esto no se oculta ni se "resuelve" con casts — queda así a propósito, documentado arriba con su causa raíz y evidencia de por qué ninguno es un riesgo real de runtime. Si en algún momento se quiere un `tsc` limpio, el camino correcto es alinear versiones de `@types/react`/`react-navigation`/la librería de screenshots con la versión de React Native 0.88 instalada — no parchear cada error individualmente.
+
+## 5. Nuvos Radar — exactitud financiera y clasificación de instrumentos
+
+| Elemento | Resultado | Evidencia |
+|---|---|---|
+| ETFs nunca entran al DCF de empresas | **PASS** (ya documentado arriba) | 4 gates `is_etf` → 422 en `research_engine.py`, `screener.py` (`_build_quick_analysis` y otro endpoint) antes de cualquier cómputo. |
+| **Mensaje de error ETF llega al usuario de verdad** | **FAIL → FIXED** | Hallazgo real: cuando el backend bloquea una búsqueda de ETF con 422, manda `detail={is_etf, ticker, message}` (un objeto con un mensaje específico y útil: *"SPY es un ETF... el análisis especializado para ETFs estará disponible próximamente"*). El frontend (web `subvaluadas/page.tsx` Y mobile `subvaluadas/index.tsx`, código espejo) solo mostraba ese mensaje cuando `detail` era un **string plano** — al ser un objeto, lo descartaba y mostraba el error genérico "hubo un problema en la búsqueda". Corregido en ambas plataformas (mismo patrón que el branch 429 ya usaba correctamente, justo arriba en el mismo archivo — fue una inconsistencia, no una decisión de diseño). Verificado: 287/287 (web) + 140/140 (mobile) tras el fix, 0 regresiones. |
+| BRK.B / BRK.A — bandera de revisión por distorsión de ROE | **PASS, ahora con test** | Encontré trabajo en progreso sin commitear (`company_valuation_service.py`, 2026-11-13) que ya implementa un flag explícito y angosto (no una regla general) para BRK.B/BRK.A, con justificación económica documentada in-line (cross-checks independientes muy por debajo del output del motor de Residual Income). **No tenía ningún test.** Agregué 2 tests deterministas (`test_company_valuation_service.py`): confirma que dispara para cualquier variante de ticker (BRK.B/BRK-B/brk.b/BRK.A/BRK-A) y que NO se activa para un ticker no relacionado con un gap normal (prueba de que la regla sigue siendo angosta, no una regla general disfrazada). 2/2 PASS. |
+| Conversión de divisas en datos financieros (NVO/DKK, BABA/CNY) | **PASS (ya verificado y testeado en sesión previa)** | `financial_data_service.py` — sin diff pendiente (ya committeado), 8 tests dedicados en `test_financial_data_service_currency.py`, todos dentro del run de 2490. |
+| Manejo de datos faltantes / `insufficient_data` | **PASS (ya verificado y testeado en sesiones previas)** | 23 referencias en el motor de valuación, cubierto por 5+ archivos de test (`test_company_diagnostic_under_review.py`, `test_degraded_diagnostic.py`, etc.) |
+| Consistencia frontend/backend en clasificación de instrumentos | **PASS parcial, con la corrección de arriba** | El frontend no reimplementa `is_etf` (correcto, evita que se desincronice) — confía por completo en el backend, y ahora SÍ muestra el motivo real cuando el backend lo rechaza. |
 
 ## Pendiente (no cubierto aún en este pase)
 

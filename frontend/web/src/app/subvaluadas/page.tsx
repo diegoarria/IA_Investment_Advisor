@@ -414,7 +414,15 @@ function SubvaluadasPageInner() {
           posthog.capture("dcf_limit_reached", { ticker });
           return;
         }
-        setError(typeof rawDetail === "string" ? rawDetail : t("subvaluadas.search.error"));
+        // is_etf (422) and a few other structured errors carry a specific,
+        // already-translated `message` (e.g. "SPY es un ETF... búscalo en
+        // el Explorador de ETFs") instead of a plain string `detail` — this
+        // used to be silently discarded in favor of the generic fallback,
+        // same bug class the 429 branch above already guards against.
+        const objectMessage = typeof rawDetail === "object" && rawDetail !== null
+          ? (rawDetail as { message?: string }).message
+          : undefined;
+        setError(typeof rawDetail === "string" ? rawDetail : objectMessage || t("subvaluadas.search.error"));
       }
     };
 

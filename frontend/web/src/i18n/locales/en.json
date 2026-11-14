@@ -1435,6 +1435,7 @@
       "reasonLabel": "Why is this under review?",
       "reasonFallback": "We flagged something unusual in the calculation, but we don't yet have a verified, simplified explanation for this specific case. The original technical reason is available below.",
       "reasonMixedRegime": "The model needs the company's historical operating margin to calculate its value, but recent years show a mixed pattern (often due to stock-based compensation) that doesn't allow a reliable historical anchor. The value shown is real, but shouldn't be treated as a validated conclusion yet.",
+      "reasonConglomerateRoe": "Valuation under methodological review. At Berkshire Hathaway, accounting swings in its investment portfolio can distort historical ROE and affect the value estimate.",
       "reasonPriceGapBelow": "The value our model calculates is far below the real market price ({{ratio}}x), outside the range we consider reliable. This could mean the market is pricing in information or expectations the model doesn't capture, or that one of the assumptions used doesn't reflect the business well. We haven't confirmed which it is yet.",
       "reasonPriceGapAbove": "The value our model calculates is far above the real market price ({{ratio}}x), outside the range we consider reliable. This could mean the market is pricing in information or expectations the model doesn't capture, or that one of the assumptions used doesn't reflect the business well. We haven't confirmed which it is yet."
     },
