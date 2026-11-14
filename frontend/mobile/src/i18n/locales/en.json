@@ -72,7 +72,8 @@
       "navLocked": "Locked",
       "coachingTitle": "1:1 session with an expert from our team",
       "coachingSub": "Personalized guidance · 45 min",
-      "logout": "Log out"
+      "logout": "Log out",
+      "deleteAccount": "Delete my account"
     },
     "year": "year",
     "close": "Close"
@@ -371,10 +372,11 @@
     "genericSaveError": "Couldn't save. Please try again.",
     "deleteAccountTitle": "Delete account",
     "deleteAccountMsg": "This action is permanent. All your data, portfolio, history and subscription will be deleted. This cannot be undone.",
-    "deleteAccountConfirm": "Delete my account",
-    "deleteAccountSureTitle": "Are you sure?",
-    "deleteAccountSureMsg": "Your account and all your data will be permanently deleted.",
+    "deleteAccountConfirmWord": "DELETE",
+    "deleteAccountTypeInstruction": "Type {{word}} to delete this account",
     "deleteAccountYes": "Yes, delete",
+    "deleteAccountDeleting": "Deleting...",
+    "deleteAccountError": "Could not delete your account. Check your connection and try again.",
     "goal": {
       "sectionLabel": "MY FINANCIAL GOAL"
     },

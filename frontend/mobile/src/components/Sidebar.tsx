@@ -16,6 +16,7 @@ import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
 import { getUserLevel, useUserLevel, isAtLeast, getLevelLabel, LEVEL_COLOR } from "../lib/userLevel";
 import { rcLogOut } from "../lib/revenuecat";
+import { useDeleteAccountModal } from "../lib/deleteAccountModal";
 
 const ARTHUR_PHOTO = require("../../assets/images/mentors/arthur.jpg");
 
@@ -512,6 +513,11 @@ function WebSidebar() {
               <Ionicons name="log-out-outline" size={20} color="#ef4444" />
               <Text style={[styles.navLabel, { color: "#ef4444" }]}>{t("common.sidebar.logout")}</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity style={styles.navItem} onPress={() => useDeleteAccountModal.getState().open()}>
+              <Ionicons name="trash-outline" size={20} color={colors.textDim} />
+              <Text style={[styles.navLabel, { color: colors.textDim }]}>{t("common.sidebar.deleteAccount")}</Text>
+            </TouchableOpacity>
           </>
         )}
       </View>
@@ -617,6 +623,11 @@ function MobileSidebar() {
           <TouchableOpacity style={styles.navItem} onPress={() => { closeSidebar(); handleLogout(); }}>
             <Ionicons name="log-out-outline" size={20} color="#ef4444" />
             <Text style={[styles.navLabel, { color: "#ef4444" }]}>Cerrar sesión</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.navItem} onPress={() => { closeSidebar(); useDeleteAccountModal.getState().open(); }}>
+            <Ionicons name="trash-outline" size={20} color={colors.textDim} />
+            <Text style={[styles.navLabel, { color: colors.textDim }]}>{t("common.sidebar.deleteAccount")}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

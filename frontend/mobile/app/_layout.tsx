@@ -25,6 +25,7 @@ import { LanguageProvider } from "../src/lib/LanguageContext";
 import Sidebar from "../src/components/Sidebar";
 import { useSubscriptionStore, hasPremiumAccess } from "../src/lib/subscriptionStore";
 import PaywallModal from "../src/components/PaywallModal";
+import DeleteAccountModal from "../src/components/DeleteAccountModal";
 import WelcomeCard from "../src/components/WelcomeCard";
 import PhoneNumberPromptCard from "../src/components/PhoneNumberPromptCard";
 import * as Notifications from "expo-notifications";
@@ -120,6 +121,14 @@ function AppStack() {
   const params = useGlobalSearchParams();
   const previousPathname = useRef<string | undefined>(undefined);
   const startTrialIfNeeded = useSubscriptionStore((s) => s.startTrialIfNeeded);
+  // Apple rejection (Guideline 4.5.4, 2026-11-14): registerPushToken() ran on
+  // every pathname change, so its rationale/settings Alert re-appeared on
+  // every single screen navigation until the user gave in and granted the
+  // permission — indistinguishable, from the outside, from the app
+  // requiring push to function. Notifications must only ever be asked for
+  // once per app session; a user who wants to enable them later already has
+  // a manual path via Profile > Notifications.
+  const pushPromptShownRef = useRef(false);
 
   useEffect(() => {
     if (previousPathname.current !== pathname) {
@@ -132,7 +141,10 @@ function AppStack() {
     const inApp = !HIDE_SIDEBAR_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
     if (inApp) {
       startTrialIfNeeded();
-      registerPushToken();
+      if (!pushPromptShownRef.current) {
+        pushPromptShownRef.current = true;
+        registerPushToken();
+      }
     }
   }, [pathname]);
 
@@ -325,6 +337,7 @@ function AppStack() {
         <View style={{ flex: 1, overflow: "hidden" }}>
           {stackScreens}
         </View>
+        <DeleteAccountModal />
       </View>
     );
   }
@@ -339,6 +352,7 @@ function AppStack() {
       {stackScreens}
       {showSidebar && <Sidebar />}
       <TrialExpiredModal />
+      <DeleteAccountModal />
       <WelcomeCard />
       {/* Never over login/onboarding: those routes hide the sidebar, and a stale
           persisted profile without a phone made this modal (+ number pad) cover the

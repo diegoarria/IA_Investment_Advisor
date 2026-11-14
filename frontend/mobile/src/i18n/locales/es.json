@@ -72,7 +72,8 @@
       "navLocked": "Bloqueado",
       "coachingTitle": "Sesión 1:1 con experto de nuestro equipo",
       "coachingSub": "Guía personalizada · 45 min",
-      "logout": "Cerrar sesión"
+      "logout": "Cerrar sesión",
+      "deleteAccount": "Eliminar mi cuenta"
     },
     "year": "año",
     "close": "Cerrar"
@@ -371,10 +372,11 @@
     "genericSaveError": "No se pudo guardar. Intenta de nuevo.",
     "deleteAccountTitle": "Eliminar cuenta",
     "deleteAccountMsg": "Esta acción es permanente. Se borrarán todos tus datos, portafolio, historial y suscripción. No se puede deshacer.",
-    "deleteAccountConfirm": "Eliminar mi cuenta",
-    "deleteAccountSureTitle": "¿Estás seguro?",
-    "deleteAccountSureMsg": "Se eliminará tu cuenta y todos tus datos de forma permanente.",
+    "deleteAccountConfirmWord": "ELIMINAR",
+    "deleteAccountTypeInstruction": "Escribe {{word}} para poder eliminar esta cuenta",
     "deleteAccountYes": "Sí, eliminar",
+    "deleteAccountDeleting": "Eliminando...",
+    "deleteAccountError": "No se pudo eliminar tu cuenta. Revisa tu conexión e intenta de nuevo.",
     "goal": {
       "sectionLabel": "MI META FINANCIERA"
     },

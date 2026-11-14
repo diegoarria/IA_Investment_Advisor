@@ -17,7 +17,7 @@ import TutorialModal from "../../src/components/TutorialModal";
 import PaywallModal from "../../src/components/PaywallModal";
 import UsageMeterCard from "../../src/components/UsageMeterCard";
 import EmailImportCard from "../../src/components/EmailImportCard";
-import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, billingApi, voiceCallsApi, wrappedApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi, profileApi, referralApi, syncApi, billingApi, voiceCallsApi, wrappedApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -25,6 +25,7 @@ import { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModa
 import { useLanguage, Language } from "../../src/lib/LanguageContext";
 import { useTranslation } from "react-i18next";
 import { rcLogOut } from "../../src/lib/revenuecat";
+import { useDeleteAccountModal } from "../../src/lib/deleteAccountModal";
 
 const LANGUAGE_OPTIONS: { key: Language; label: string; icon: string; color: string }[] = [
   { key: "es", label: "Español 🇪🇸", icon: "chatbubbles-outline", color: "#00d47e" },
@@ -431,49 +432,12 @@ if (!profile) {
     setSavingPsy(false);
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      t("profile.deleteAccountTitle"),
-      t("profile.deleteAccountMsg"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("profile.deleteAccountConfirm"), style: "destructive",
-          onPress: () => {
-            Alert.alert(
-              t("profile.deleteAccountSureTitle"),
-              t("profile.deleteAccountSureMsg"),
-              [
-                { text: t("common.cancel"), style: "cancel" },
-                {
-                  text: t("profile.deleteAccountYes"), style: "destructive",
-                  onPress: async () => {
-                    try {
-                      await authApi.deleteAccount();
-                    } catch {
-                      // The failure used to be swallowed and the user logged
-                      // out anyway — they'd believe the account (and any
-                      // Stripe subscription) was deleted while the server
-                      // row was still fully active, with no way to find out
-                      // since they were no longer even logged in to check.
-                      Alert.alert(t("common.error"), t("profile.deleteAccountError", "No se pudo eliminar tu cuenta. Revisa tu conexión e intenta de nuevo."));
-                      return;
-                    }
-                    logout();
-                    SecureStore.deleteItemAsync("access_token").catch(() => {});
-                    SecureStore.deleteItemAsync("refresh_token").catch(() => {});
-                    SecureStore.deleteItemAsync("user_id").catch(() => {});
-                    rcLogOut().catch(() => {});
-                    router.replace("/");
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
-  };
+  // Apple rejection (Guideline 5.1.1(v), 2026-11-14): replaced the old
+  // nested-Alert.alert confirmation with a single shared modal (see
+  // DeleteAccountModal.tsx, mounted globally in app/_layout.tsx) that
+  // requires typing a confirm word — also reachable from Sidebar now, so
+  // the reviewer can't miss it from either entry point.
+  const handleDeleteAccount = () => useDeleteAccountModal.getState().open();
 
   // ── Derived goal info ────────────────────────────────────────────────────────
   const goalKey   = profile.investment_goal ?? null;
