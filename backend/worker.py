@@ -3459,6 +3459,23 @@ async def job_poll_undervalued_screener_batch():
         logger.error("job_poll_undervalued_screener_batch failed: %s", e)
 
 
+async def job_reconcile_pending_account_deletions():
+    """Every 15 minutes — App Review audit 2026-11-14, point 6: finishes
+    any 'Eliminar cuenta' request that died between its atomic data-wipe
+    RPC and the final Supabase Auth delete (process crash, deploy
+    restart, network drop) — see migration 126 and
+    reconcile_pending_account_deletions's own docstring in auth.py. A
+    near-instant no-op on every tick where nothing is stuck, which is
+    almost always."""
+    from app.api.routes.auth import reconcile_pending_account_deletions
+    try:
+        result = await reconcile_pending_account_deletions()
+        if result["reconciled"] or result["failed"]:
+            logger.warning("job_reconcile_pending_account_deletions: %s", result)
+    except Exception as e:
+        logger.error("job_reconcile_pending_account_deletions failed: %s", e)
+
+
 async def job_refresh_macro_calendar():
     """6:00 AM ET daily — refreshes the Watchlist calendar's macro-economic
     events layer (FOMC, CPI, NFP, GDP, PMIs, jobless claims, etc.) from FMP's
@@ -7518,6 +7535,11 @@ async def main():
     # plans/cosmic-munching-crown.md). Near-instant no-op when nothing is
     # pending, which is almost always.
     scheduler.add_job(job_poll_undervalued_screener_batch, "interval", minutes=10)
+
+    # ── Every 15 min: finish any account deletion stuck between its data
+    # wipe and the final Auth delete — App Review audit 2026-11-14 point 6,
+    # see migration 126. Near-instant no-op when nothing is stuck. ─────────
+    scheduler.add_job(job_reconcile_pending_account_deletions, "interval", minutes=15)
 
     # ── Daily 6:00am ET: macro-economic events calendar refresh (Watchlist
     # calendar's macro layer) — before market open, no notification. ─────────

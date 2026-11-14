@@ -205,8 +205,87 @@ No por tener P0/P1 abiertos conocidos — no los hay, de lo auditado hoy — sin
 6. **iPad físico (dispositivo de revisión de Apple)**: recorrer TODA la app en un iPad Air 11" o similar — layouts, modales, teclado, safe areas — nada de esto se verificó en este pase.
 7. **Product IDs**: confirmar en el dashboard de RevenueCat que los 4 packages (premium_monthly, premium_annual/premium_anual, duo_monthly, duo_annual) apuntan exactamente a `com.nuvosai.app.premium.monthly.sub`, `.premium.anual.sub`, `.duo.mensual.sub`, `.duo.anual.sub`.
 
-## Pendiente (no cubierto, próximas sesiones)
+## Pendiente (no cubierto, próximas sesiones) — ver Bloque 2 abajo para lo que SÍ se cubrió después
 
-Inicio (pantalla), Aprendizaje (catálogo completo), ETFs explorador (UI de comparación a fondo), Productos/Planes (UI completa), Perfil (resto de configuraciones), navegación profunda (deep links, universal links), UI/iPad simulado, rendimiento (memory leaks, re-renders), seguridad a fondo (SQL/prompt injection, abuso de IA), resiliencia (offline, red lenta, token expirado a mitad de sesión), backend/datos a fondo (contratos, migraciones pendientes, zonas horarias). No se declara PASS en ninguno de estos — quedan genuinamente sin auditar.
+---
+
+# Bloque 2 — continuación 2026-11-14 (misma fecha, sesión extendida)
+
+Línea base confirmada al entrar a este bloque: **2492/2492 backend, 140/140 mobile, 287/287 web.** Se mantiene como referencia; no se declara la app lista para Apple.
+
+## Punto 6 — Recuperación segura de eliminación parcial (implementado, no solo propuesto)
+
+**Problema real confirmado en el bloque anterior:** Supabase Auth (GoTrue) y Postgres no son una transacción distribuida. Si `DELETE /api/auth/account` muere justo entre el RPC atómico y la llamada final a `admin.delete_user()` (crash del proceso, redeploy, caída de red), el usuario queda con los datos borrados pero la identidad de Auth intacta — y antes de hoy, **solo se recuperaba si el usuario volvía a intentarlo manualmente**.
+
+**Implementado:**
+1. `migrations/126_pending_account_deletions.sql` (**PROPUESTA, no aplicada en producción** — aplicada solo en local para poder probarla) — tabla marcadora `pending_account_deletions(user_id PK, requested_at)` con `ON DELETE CASCADE` a `auth.users`, así una eliminación exitosa normal nunca necesita limpiar el marcador a mano.
+2. `auth.py::delete_account` ahora escribe ese marcador (best-effort) antes de tocar cualquier dato.
+3. Nueva función `auth.py::reconcile_pending_account_deletions(grace_minutes=15)` — busca marcadores más viejos que la ventana de gracia y termina la eliminación (RPC idempotente + borrado real de Auth), sin que el usuario haga nada.
+4. Job nuevo `worker.py::job_reconcile_pending_account_deletions`, programado cada 15 minutos.
+
+**Verificado, no solo implementado:**
+- 3 tests mockeados (`test_delete_account.py`): sin marcadores → no-op; completa cada marcador vencido encontrado; un fallo en una fila nunca detiene el resto del lote.
+- **1 test de integración REAL contra Supabase local** (`test_delete_account_integration.py::test_reconciliation_job_automatically_finishes_a_stuck_deletion`) — el test definitivo: crea un usuario real, simula el crash exacto (marcador escrito, datos borrados, identidad de Auth intacta), llama la función REAL (no mockeada) con `grace_minutes=0`, y confirma que el usuario queda completamente eliminado sin ninguna acción humana. **PASS.**
+- Suite completa de backend corrida de nuevo tras este cambio (ver línea base actualizada abajo).
+
+**Pendiente de Diego:** aplicar la migración 126 en producción (no autorizado para ejecutar yo mismo, como toda migración de este repo) y hacer deploy del worker con el nuevo job.
+
+## Punto 1 — Inicio y Aprendizaje
+
+| Elemento | Resultado | Evidencia |
+|---|---|---|
+| Home: un servicio secundario caído no bloquea la pantalla | **PASS** | `home.tsx` usa `Promise.allSettled` (no `Promise.all`) para sus 3 llamadas paralelas — un fallo no tumba las demás. |
+| Home/Learn: botones rotos, handlers vacíos, TODOs olvidados | **PASS** | Grep de `onPress={() => {}}`, `onPress={undefined}`, `TODO`, `FIXME`, `console.log` en ambos archivos (2271 + 775 líneas): cero coincidencias. |
+| Aprendizaje: lección que lleva a pantalla vacía | **PASS** | No hay "lecciones" estáticas que puedan faltar — cada tema genera su explicación on-demand vía streaming a Arthur; con reintento automático (1x) y mensaje de fallback (`t("learn.flashcardError")`) si ambos intentos fallan. Nunca un modal en blanco. |
+| Aprendizaje: quiz para un tema sin datos de quiz | **PASS** | Gatea con `QUIZ_DATA[topicId]` — si no existe, muestra "Entendido" en vez de un botón roto hacia un quiz inexistente. |
+
+## Punto 2 — Navegación, deep links, rutas rotas
+
+| Elemento | Resultado | Evidencia |
+|---|---|---|
+| **Tab "investors" huérfana — warning real en cada arranque** | **FAIL → FIXED** | Confirmado con `git log`: la función "Investor Tracker" (Buffett/Pelosi/Burry) se eliminó por completo hace 5 meses (commit `6a5cffd5`, 2026-06-21) — se borró `app/(tabs)/investors.tsx` pero quedó la declaración `<Tabs.Screen name="investors">` en `_layout.tsx` (+ su entrada en `TAB_CONFIG` + la key de i18n `tabsLayout.tabs.investors`). Causaba el warning de Metro visto en vivo esta sesión: *"No route named 'investors' exists in nested children"*. Nunca era alcanzable como botón (el tab bar solo renderiza `FIXED_TABS`), así que no era un dead-end para el usuario — pero sí ruido real en cada boot. Eliminado por completo en los 3 lugares. |
+| Deep links de push (13 variantes de `data.screen`) | **PASS** | Cada destino (`/(tabs)/chat`, `/(tabs)/portfolio`, `/(tabs)/watchlist`, `/(tabs)/paper`, `/(tabs)/home`, `/(tabs)/profile`, `/(tabs)/products`, `/subvaluadas`, `/stock/[ticker]`, `/earnings/[ticker]`, `/weekly-ritual/...`, `/monthly-report`, `/morning-brief`) verificado contra archivos reales existentes — ninguno roto. |
+| Loop Login↔Onboarding↔Home | **PASS (ya verificado en Bloque 1)** | Sin cambios desde la verificación anterior. |
+
+## Punto 3 — UI iPhone/iPad
+
+| Elemento | Resultado | Evidencia |
+|---|---|---|
+| Validación física en iPad Air 11" (el dispositivo real de revisión de Apple) | **BLOCKED** | Sin simulador de iOS ni dispositivo físico disponible en este entorno de auditoría. Esto es explícitamente uno de los 3 motivos de rechazo originales (el reviewer usó este dispositivo) — no se puede cerrar sin hardware real o Xcode Simulator. |
+| Riesgo estático de layouts rotos en pantalla grande (iPad) | **PASS parcial (señal débil, no concluyente)** | Las 5 ocurrencias de `Dimensions.get("window").width` en todo el código ya aplican una fracción/división (ej. `SIDEBAR_WIDTH = Math.min(width * 0.78, 300)`), no un ancho fijo en píxeles — reduce el riesgo de que algo se vea absurdamente estirado en una pantalla de iPad, pero esto NO reemplaza probarlo de verdad. |
+
+## Punto 4 — Resiliencia
+
+| Elemento | Resultado | Evidencia |
+|---|---|---|
+| Doble-tap / eliminación de cuenta concurrente | **PASS** | El marcador usa `upsert` (idempotente), el RPC es idempotente, `admin.delete_user` en un usuario ya borrado solo lanza (capturado, registrado) — ninguna combinación de llamadas concurrentes corrompe estado, confirmado por diseño + los tests de reconciliación. |
+| Resto de resiliencia (red lenta, timeout a mitad de sesión, caché inválida en productos/paywall) | **PASS (ya verificado en Bloque 1 para Arthur/RevenueCat/Portfolio)** | No re-auditado hoy fuera de esas áreas específicas. |
+
+## Punto 5 — Seguridad
+
+| Elemento | Resultado | Evidencia |
+|---|---|---|
+| RLS habilitado en tablas sensibles | **PASS (muestreo)** | Confirmado `ENABLE ROW LEVEL SECURITY` para `user_profiles`, `user_portfolio`, `watchlist`, `chat_history`, `portfolio_pulse_snapshots`, `cash_holdings`. El control primario real es a nivel de FastAPI (`get_current_user_id`, ya verificado exhaustivamente en Bloque 1) — RLS es defensa en profundidad, no la única barrera, dado que el backend media todo acceso con la service key. |
+| Ningún endpoint acepta `user_id` del cliente (repetido, ahora sobre el código completo) | **PASS** | Ya confirmado en Bloque 1; sin cambios. |
+| Secretos nuevos introducidos en el código de este bloque (migración 126, auth.py, worker.py) | **PASS** | Grep dirigido: cero coincidencias de secretos/claves nuevas. |
+
+## Línea base de tests — actualización final del Bloque 2
+
+| Suite | Resultado |
+|---|---|
+| `backend` (pytest, Supabase local) | pendiente de confirmar el número final tras el punto 6 — se registra abajo en cuanto termine la corrida en curso, no se declara antes de tener el número real. |
+| `frontend/mobile` (jest) | **140/140 PASS** (sin cambios de este bloque hasta el fix de "investors", re-confirmado tras ese fix). |
+| `frontend/web` (vitest) | **287/287 PASS** (sin cambios en este bloque). |
+
+## Bloqueos explícitos que todavía impiden enviar a Apple
+
+1. **Validación física end-to-end de los 3 motivos de rechazo** — ninguno de los 3 (notificaciones, eliminación de cuenta, RevenueCat) tiene su grabación/prueba en dispositivo físico real todavía.
+2. **iPad Air 11" físico o simulador** — cero validación de UI en el dispositivo exacto que usó el reviewer de Apple.
+3. **RevenueCat — Sandbox/TestFlight** — ninguna compra, restauración, cancelación o expiración real se ha ejecutado contra StoreKit real.
+4. **Dashboard de RevenueCat** — mapeo Product ID ↔ Package ↔ Entitlement sin confirmar desde este entorno.
+5. **Migración 126 y el nuevo job de reconciliación** — implementados y probados en local, pero **no aplicados/desplegados en producción** — requieren que Diego autorice y ejecute el deploy.
+6. **Áreas genuinamente no auditadas todavía**: Productos/Planes (UI completa), resto de Perfil, ETFs explorador (UI de comparación a fondo), rendimiento (memory leaks, re-renders), seguridad a fondo (inyección de prompts/SQL, abuso de IA más allá de lo ya revisado en Arthur), backend/datos a fondo (contratos completos, zonas horarias, migraciones pendientes aplicadas).
+
+**Decisión de release: NO-GO.** No por bugs P0/P1 abiertos conocidos (no hay ninguno confirmado hoy) — por la ausencia de la evidencia física/externa de los puntos 1-4 arriba, que son exactamente lo que causó los 2 rechazos anteriores de Apple.
 
 Este documento se irá actualizando en las próximas sesiones de auditoría.

@@ -26,7 +26,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.api.routes.auth import delete_account
+from app.api.routes.auth import delete_account, reconcile_pending_account_deletions
 
 
 def _mock_db_no_brokerage_connections():
@@ -118,3 +118,54 @@ class TestDeleteAccountOrdering:
 
         assert result == {"message": "Cuenta eliminada"}
         fresh_db.auth.admin.delete_user.assert_called_once_with("user-plaid")
+
+
+class TestReconcilePendingAccountDeletions:
+    """job_reconcile_pending_account_deletions (worker.py, every 15 min) —
+    finishes a deletion that died between delete_account's RPC and its
+    final auth-delete call. See migration 126 and the real (non-mocked)
+    integration test in test_delete_account_integration.py for proof this
+    actually recovers against a real Supabase instance; these mocked tests
+    only verify the loop's own control flow."""
+
+    @pytest.mark.asyncio
+    async def test_no_stale_markers_is_a_clean_no_op(self):
+        db = MagicMock()
+        db.table.return_value.select.return_value.lt.return_value.execute.return_value = MagicMock(data=[])
+        with patch("app.api.routes.auth.get_supabase", return_value=db):
+            result = await reconcile_pending_account_deletions()
+        assert result == {"reconciled": 0, "failed": 0}
+        db.rpc.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_completes_every_stale_marker_found(self):
+        db = MagicMock()
+        db.table.return_value.select.return_value.lt.return_value.execute.return_value = MagicMock(
+            data=[{"user_id": "stuck-1", "requested_at": "2026-11-14T00:00:00Z"},
+                  {"user_id": "stuck-2", "requested_at": "2026-11-14T00:05:00Z"}]
+        )
+        fresh_db = MagicMock()
+        with patch("app.api.routes.auth.get_supabase", return_value=db), \
+             patch("app.core.database.get_fresh_supabase", return_value=fresh_db):
+            result = await reconcile_pending_account_deletions()
+
+        assert result == {"reconciled": 2, "failed": 0}
+        assert fresh_db.auth.admin.delete_user.call_count == 2
+        fresh_db.auth.admin.delete_user.assert_any_call("stuck-1")
+        fresh_db.auth.admin.delete_user.assert_any_call("stuck-2")
+
+    @pytest.mark.asyncio
+    async def test_one_failure_never_stops_the_rest_of_the_batch(self):
+        """A row that's still genuinely stuck (Auth API down again) must
+        never prevent every OTHER stale row from being reconciled."""
+        db = MagicMock()
+        db.table.return_value.select.return_value.lt.return_value.execute.return_value = MagicMock(
+            data=[{"user_id": "still-stuck", "requested_at": "t"}, {"user_id": "now-fixed", "requested_at": "t"}]
+        )
+        fresh_db = MagicMock()
+        fresh_db.auth.admin.delete_user.side_effect = [RuntimeError("still down"), None]
+        with patch("app.api.routes.auth.get_supabase", return_value=db), \
+             patch("app.core.database.get_fresh_supabase", return_value=fresh_db):
+            result = await reconcile_pending_account_deletions()
+
+        assert result == {"reconciled": 1, "failed": 1}

@@ -27,6 +27,7 @@ import uuid
 import pytest
 from gotrue.errors import AuthApiError
 
+from app.api.routes.auth import reconcile_pending_account_deletions
 from app.core.database import get_supabase, run_query
 
 
@@ -107,5 +108,41 @@ class TestDeleteAccountRealLocalSupabase:
         await run_query(db.rpc("delete_user_data", {"p_user_id": user_id}))  # no-op, must not raise
         db.auth.admin.delete_user(user_id)
 
+        with pytest.raises(AuthApiError):
+            db.auth.admin.get_user_by_id(user_id)
+
+    async def test_reconciliation_job_automatically_finishes_a_stuck_deletion(self):
+        """The capstone of audit point 6: the user never has to retry at
+        all. Writes the real crash marker (migration 126), simulates the
+        exact crash window (data wiped, auth delete never reached — the
+        marker is left behind on purpose), then calls the REAL
+        reconcile_pending_account_deletions (not mocked) with grace_minutes=0
+        so it doesn't have to wait — and proves it finds the stuck user and
+        finishes the deletion with zero user action."""
+        db = get_supabase()
+        email = _unique_email()
+        created = db.auth.admin.create_user({
+            "email": email, "password": "audit-test-pw-123!", "email_confirm": True,
+        })
+        user_id = created.user.id
+
+        # Exactly delete_account's own sequence, stopping right where a
+        # crash/deploy-restart/network-drop would: marker written, data
+        # wiped, auth identity never touched.
+        await run_query(db.table("pending_account_deletions").upsert({"user_id": user_id}))
+        await run_query(db.table("user_profiles").insert({"user_id": user_id, "name": "Audit Reconcile"}))
+        await run_query(db.rpc("delete_user_data", {"p_user_id": user_id}))
+
+        still_there = db.auth.admin.get_user_by_id(user_id)
+        assert still_there.user.id == user_id, "setup failed: the stuck state must be real before reconciling it"
+
+        result = await reconcile_pending_account_deletions(grace_minutes=0)
+        assert result["reconciled"] >= 1
+        assert result["failed"] == 0
+
+        # The user is now fully gone — no retry, no support ticket, no
+        # manual intervention. If this assertion ever fails, delete_user's
+        # own ON DELETE CASCADE already removed the marker row too, so
+        # there's nothing left to clean up here either.
         with pytest.raises(AuthApiError):
             db.auth.admin.get_user_by_id(user_id)

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Response, Header, Cookie
 from app.core.config import settings
@@ -591,6 +591,22 @@ _USER_DATA_TABLES = [
 async def delete_account(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
 
+    # Crash marker (migration 126) — written before any destructive work
+    # starts. If this request dies between the RPC below and the final
+    # admin.delete_user() call (process crash, deploy restart, network
+    # drop), job_reconcile_pending_account_deletions (worker.py) finds this
+    # row after a grace window and finishes the deletion on its own — the
+    # user never has to notice their first attempt only half-completed. A
+    # fully successful run never needs to delete this row explicitly: it
+    # dies for free via ON DELETE CASCADE the instant admin.delete_user
+    # succeeds below. Best-effort: if even THIS insert fails, fall through
+    # to the old behavior (manual retry) rather than blocking deletion on
+    # the safety net itself.
+    try:
+        await run_query(db.table("pending_account_deletions").upsert({"user_id": user_id}))
+    except Exception as e:
+        logger.warning("delete_account: failed to write crash marker for %s (continuing without it): %s", user_id, e)
+
     # Revoke every Plaid Item at Plaid first (docs/SECURITY_POLICY.md §10) —
     # otherwise the access token stays valid at Plaid and Plaid keeps
     # billing the connected account monthly after the user is gone.
@@ -646,6 +662,55 @@ async def delete_account(user_id: str = Depends(get_current_user_id)):
         raise HTTPException(status_code=500, detail="No se pudo eliminar la cuenta.")
 
     return {"message": "Cuenta eliminada"}
+
+
+async def reconcile_pending_account_deletions(grace_minutes: int = 15) -> dict:
+    """Finishes any account deletion that died between delete_account's
+    atomic data-wipe RPC and its final admin.delete_user() call — see
+    migration 126's docstring and the crash marker written at the top of
+    delete_account above. Called periodically by worker.py so a user whose
+    first attempt only half-completed never has to notice or manually
+    retry.
+
+    Safe to call repeatedly or concurrently: delete_user_data is a no-op
+    on a user with zero remaining rows (proven in
+    tests/test_delete_account_integration.py), and a marker whose auth
+    user is already gone (a fully successful run that just hasn't hit its
+    CASCADE yet, or a race with another reconciliation pass) simply logs
+    and moves on to the next row — never raises out of the loop over one
+    already-done row.
+
+    `grace_minutes` exists so a deletion that's still genuinely in-flight
+    (the request hasn't failed, it's just not finished yet) is never
+    double-run by this job while the original request is still working."""
+    db = get_supabase()
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=grace_minutes)).isoformat()
+    try:
+        stale = await run_query(
+            db.table("pending_account_deletions").select("user_id, requested_at").lt("requested_at", cutoff)
+        )
+    except Exception as e:
+        logger.error("reconcile_pending_account_deletions: failed to list stale markers: %s", e)
+        return {"reconciled": 0, "failed": 0}
+
+    from app.core.database import get_fresh_supabase
+    reconciled = 0
+    failed = 0
+    for row in stale.data or []:
+        uid = row["user_id"]
+        try:
+            await run_query(db.rpc("delete_user_data", {"p_user_id": uid}))
+            fresh_db = get_fresh_supabase()
+            await asyncio.to_thread(lambda u=uid: fresh_db.auth.admin.delete_user(u))
+            reconciled += 1
+            logger.warning(
+                "reconcile_pending_account_deletions: completed a stuck deletion for %s (requested_at=%s)",
+                uid, row.get("requested_at"),
+            )
+        except Exception as e:
+            failed += 1
+            logger.error("reconcile_pending_account_deletions: still stuck for %s: %s", uid, e)
+    return {"reconciled": reconciled, "failed": failed}
 
 
 @router.get("/export-data")
