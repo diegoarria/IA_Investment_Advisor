@@ -104,6 +104,13 @@ class Settings(BaseSettings):
     # Env: CHECKOUT_ADAPTIVE_PRICING=true. Any failure falls back to the
     # existing embedded Payment Element flow on the client.
     checkout_adaptive_pricing: bool = False
+    # Stage F (onboarding 2.0 integration, 2026-11): age/consent validation
+    # for NEW profiles only — prepared with tests, deliberately OFF by
+    # default. Diego asked for the mechanism, not for it to go live without
+    # a separate review of the acceptance mechanism and eligibility policy.
+    # Env: ENFORCE_ONBOARDING_ELIGIBILITY=true. See create_profile in
+    # app/api/routes/profile.py for what it actually gates.
+    enforce_onboarding_eligibility: bool = False
     # ui_mode="elements" needs a newer API version than the pinned SDK default
     # (2024-12-18.acacia); it's sent per request, so nothing else is affected.
     stripe_checkout_api_version: str = "2026-08-26.dahlia"
