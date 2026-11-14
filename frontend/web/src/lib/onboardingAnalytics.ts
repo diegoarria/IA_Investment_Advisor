@@ -8,10 +8,37 @@
 // property — these events are funnel/activation signals only.
 
 import posthog from "posthog-js";
+import { useAuthStore, isGuestUser } from "@/lib/store";
 
 export type OnboardingGoal = "portfolio" | "company" | "etf";
 
 export const ONBOARDING_GOAL_STORAGE_KEY = "nuvos_onboarding_goal";
+const FIRST_VALUE_DONE_KEY = "nuvos_first_value_done";
+const ACTIVATED_FIRED_KEY = "nuvos_onboarding_activated_fired";
+
+// Fires an event (and marks a localStorage flag) at most once per browser —
+// "first_X_completed" must mean first, not "every time the page loads."
+// Returns whether it actually fired (false = already fired before, or
+// storage unavailable and we can't safely dedupe so we skip rather than
+// risk re-firing "first_*" on every refresh).
+function fireOnce(flagKey: string, fire: () => void): boolean {
+  try {
+    if (localStorage.getItem(flagKey) === "1") return false;
+    localStorage.setItem(flagKey, "1");
+  } catch {
+    return false;
+  }
+  fire();
+  return true;
+}
+
+function isAuthed(): boolean {
+  try {
+    return useAuthStore.getState().isAuthenticated && !isGuestUser();
+  } catch {
+    return false;
+  }
+}
 
 export function captureOnboardingStarted() {
   posthog.capture("onboarding_started", { platform: "web" });
@@ -33,17 +60,31 @@ export function captureOnboardingSkipped(step: string) {
   posthog.capture("onboarding_skipped", { platform: "web", step });
 }
 
-export function captureFirstRadarCompleted(ticker?: string) {
-  // ticker omitted on purpose — see file header on not sending identifying data
-  posthog.capture("first_radar_completed", { platform: "web" });
+// "First value" events below all share the same shape: fire at most once
+// ever (per browser), tag whether this was a guest or a registered user,
+// mark the shared first-value flag, and check whether that's enough to
+// also fire onboarding_activated (see checkOnboardingActivation).
+
+export function captureFirstRadarCompleted() {
+  // No ticker — see file header on not sending identifying data.
+  const fired = fireOnce("nuvos_first_radar_fired", () =>
+    posthog.capture("first_radar_completed", { platform: "web", guest: !isAuthed() })
+  );
+  if (fired) markFirstValueDone();
 }
 
 export function captureFirstEtfViewed() {
-  posthog.capture("first_etf_viewed", { platform: "web" });
+  const fired = fireOnce("nuvos_first_etf_fired", () =>
+    posthog.capture("first_etf_viewed", { platform: "web", guest: !isAuthed() })
+  );
+  if (fired) markFirstValueDone();
 }
 
 export function captureFirstPortfolioViewed() {
-  posthog.capture("first_portfolio_viewed", { platform: "web" });
+  const fired = fireOnce("nuvos_first_portfolio_fired", () =>
+    posthog.capture("first_portfolio_viewed", { platform: "web", guest: !isAuthed() })
+  );
+  if (fired) markFirstValueDone();
 }
 
 export function captureBrokerConnectionStarted(provider: string) {
@@ -54,8 +95,31 @@ export function captureBrokerConnectionCompleted(provider: string) {
   posthog.capture("broker_connection_completed", { platform: "web", provider });
 }
 
-export function captureOnboardingActivated(goal: OnboardingGoal | null) {
-  posthog.capture("onboarding_activated", { platform: "web", goal });
+function markFirstValueDone() {
+  try {
+    localStorage.setItem(FIRST_VALUE_DONE_KEY, "1");
+  } catch {
+    // best-effort only
+  }
+  checkOnboardingActivation();
+}
+
+// onboarding_activated = registered account + at least one first-value
+// event, in EITHER order: a guest who saw a real Radar result and only
+// registered afterward still counts, same as someone who registers first
+// and then views their first Distribución. Call this after login/register
+// succeeds AND from markFirstValueDone above — whichever side completes
+// second is what actually fires it. Fires at most once per browser.
+export function checkOnboardingActivation() {
+  try {
+    if (localStorage.getItem(ACTIVATED_FIRED_KEY) === "1") return;
+    if (localStorage.getItem(FIRST_VALUE_DONE_KEY) !== "1") return;
+    if (!isAuthed()) return;
+    localStorage.setItem(ACTIVATED_FIRED_KEY, "1");
+  } catch {
+    return;
+  }
+  posthog.capture("onboarding_activated", { platform: "web", goal: readOnboardingGoal() });
 }
 
 export function identifyUser(userId: string) {
@@ -64,6 +128,7 @@ export function identifyUser(userId: string) {
   // person once they authenticated. Call once per login/register/OAuth
   // success; posthog.identify is itself idempotent for the same id.
   posthog.identify(userId);
+  checkOnboardingActivation();
 }
 
 export function saveOnboardingGoal(goal: OnboardingGoal) {

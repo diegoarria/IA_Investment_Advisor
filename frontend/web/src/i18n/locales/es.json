@@ -5015,6 +5015,15 @@
       "messageNoGoal": "**Decide mejor.** Para eso existe Nuvos — para ayudarte a entender tu dinero, descubrir buenas oportunidades y elegir dónde ponerlo, con claridad y confianza.\n\n¡Bienvenido, **{{name}}**! 🎉 Conforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus metas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**"
     }
   },
+  "onboardingQuick": {
+    "title": "Antes de continuar",
+    "subtitle": "Solo lo mínimo para activar tu cuenta — todo lo demás lo iremos conociendo conforme platiquemos.",
+    "birthDateLabel": "Fecha de nacimiento",
+    "birthDateHint": "Para confirmar que eres mayor de edad.",
+    "continueButton": "Continuar",
+    "savingButton": "Guardando...",
+    "errorGeneric": "No se pudo guardar. Intenta de nuevo."
+  },
   "weeklyRitual": {
     "question": {
       "title": "Pregunta del Día",

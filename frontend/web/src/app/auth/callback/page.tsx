@@ -59,7 +59,7 @@ export default function AuthCallback() {
           applyPendingReferralIfAny();
           captureSignupCompleted("google");
         }
-        window.location.href = isNewUser ? "/onboarding" : "/home";
+        window.location.href = isNewUser ? "/onboarding/quick" : "/home";
       }
     }
 

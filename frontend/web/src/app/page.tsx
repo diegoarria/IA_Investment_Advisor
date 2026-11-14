@@ -18,6 +18,7 @@ import {
   captureSignupCompleted,
   identifyUser,
   saveOnboardingGoal,
+  readOnboardingGoal,
   type OnboardingGoal,
 } from "@/lib/onboardingAnalytics";
 
@@ -73,10 +74,14 @@ function HomeContent() {
   // heading toward registration. Existing links to ?mode=register (e.g.
   // AppSidebar's guest CTA) now land on "goal" first instead of skipping
   // straight to the form — registration itself is unchanged.
+  // Skip straight to "register" instead of re-asking "goal" when a goal is
+  // already saved (e.g. a guest who explored Empresa/ETF via the Radar
+  // public route and is now coming back to create an account) — Stage C:
+  // never lose the intention the user already gave us.
   const [mode, setMode]             = useState<"login" | "register" | "forgot" | "goal">(
-    () => (searchParams.get("mode") === "register" ? "goal" : "login")
+    () => (searchParams.get("mode") === "register" ? (readOnboardingGoal() ? "register" : "goal") : "login")
   );
-  const [goal, setGoal] = useState<OnboardingGoal | null>(null);
+  const [goal, setGoal] = useState<OnboardingGoal | null>(() => readOnboardingGoal());
   const [email, setEmail]           = useState("");
   const [password, setPassword]     = useState("");
   const [showPass, setShowPass]     = useState(false);
@@ -182,7 +187,9 @@ function HomeContent() {
         if (status === 404) {
           // Valid session (the auth dependency already rejects an invalid
           // one with 401 before this can even 404), just no profile row yet.
-          router.replace("/onboarding");
+          // Stage C: the minimal screen (birth date + legal consent only),
+          // not the old 6-step wizard — see /onboarding/quick.
+          router.replace("/onboarding/quick");
           return;
         }
         // No valid session (or profileApi itself failed) — send straight
@@ -211,8 +218,19 @@ function HomeContent() {
     setGoal(selected);
     saveOnboardingGoal(selected);
     captureOnboardingGoalSelected(selected);
-    setMode("register");
     setError("");
+    if (selected === "company") {
+      // Ruta Empresa ya es pública hoy: /subvaluadas atiende invitados vía
+      // su propio endpoint público (3 búsquedas/semana, mismo dato real,
+      // sin cuenta). No forzar registro para ver algo que ya es público.
+      enterGuestMode().finally(() => router.push("/subvaluadas"));
+      return;
+    }
+    // ETF y Portafolio sí requieren cuenta hoy: /etf no tiene ninguna ruta
+    // pública en el backend (todas exigen get_current_user — confirmado en
+    // la auditoría, no es una decisión de este cambio), y Portafolio
+    // siempre la requiere por tratarse de datos personales.
+    setMode("register");
   };
 
   useEffect(() => {
@@ -328,7 +346,7 @@ function HomeContent() {
         // send a fresh signup to a profile-less /home with no way back into
         // onboarding from the UI.
         const noProfileYet = err?.response?.status === 404 || mode === "register";
-        window.location.href = noProfileYet ? "/onboarding" : "/home";
+        window.location.href = noProfileYet ? "/onboarding/quick" : "/home";
       }
     } catch (err: unknown) {
       setError(extractErrorMsg(err) || t("landing.checkCredentials"));

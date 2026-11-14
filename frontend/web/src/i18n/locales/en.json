@@ -5015,6 +5015,15 @@
       "messageNoGoal": "**Decide better.** That's what Nuvos is for — to help you understand your money, discover good opportunities, and choose where to put it, with clarity and confidence.\n\nWelcome, **{{name}}**! 🎉 As we talk, I'll get to know you better: your experience, your financial situation, your goals. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**"
     }
   },
+  "onboardingQuick": {
+    "title": "Before you continue",
+    "subtitle": "Just the minimum to activate your account — we'll get to know the rest as we talk.",
+    "birthDateLabel": "Date of birth",
+    "birthDateHint": "To confirm you're an adult.",
+    "continueButton": "Continue",
+    "savingButton": "Saving...",
+    "errorGeneric": "Couldn't save. Try again."
+  },
   "weeklyRitual": {
     "question": {
       "title": "Question of the Day",
