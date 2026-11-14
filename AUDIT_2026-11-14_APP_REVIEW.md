@@ -273,7 +273,7 @@ Línea base confirmada al entrar a este bloque: **2492/2492 backend, 140/140 mob
 
 | Suite | Resultado |
 |---|---|
-| `backend` (pytest, Supabase local) | pendiente de confirmar el número final tras el punto 6 — se registra abajo en cuanto termine la corrida en curso, no se declara antes de tener el número real. |
+| `backend` (pytest, Supabase local) | **2498/2498 PASS, 0 fallos, 0 omitidos** (397.70s) — corrida completa tras el punto 6 (reconciliación de eliminación) y la limpieza de la tab "investors". |
 | `frontend/mobile` (jest) | **140/140 PASS** (sin cambios de este bloque hasta el fix de "investors", re-confirmado tras ese fix). |
 | `frontend/web` (vitest) | **287/287 PASS** (sin cambios en este bloque). |
 
