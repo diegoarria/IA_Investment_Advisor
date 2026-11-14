@@ -31,6 +31,8 @@ import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore"
 import ExplainButton from "../../src/components/ExplainButton";
 import PaywallModal from "../../src/components/PaywallModal";
 import MobileBrokerConnectModal from "../../src/components/MobileBrokerConnectModal";
+import PortfolioDistribution from "../../src/components/PortfolioDistribution";
+import BeforeAfterSimulator from "../../src/components/BeforeAfterSimulator";
 
 const FREE_POSITION_LIMIT = 10;
 
@@ -1032,7 +1034,21 @@ export default function PortfolioScreen() {
       })
       .catch(() => setOpportunitiesTeaserCount(0));
   }, [isPremiumAccess]);
-  const [activeSection, setActiveSection] = useState<"portafolio" | "herramientas">("portafolio");
+  // Fase 9A agregó "distribucion"; Fase 9B agrega "antes_de_invertir" —
+  // "portafolio" conserva su contenido exacto (Posiciones), ahora con la
+  // etiqueta visual "Posiciones" para alinear con la arquitectura
+  // Posiciones | Distribución | Antes de invertir que ya existe en la
+  // web. "herramientas" se conserva sin cambios ni decisión de
+  // eliminarla — ver el reporte de Fase 9B §1 para la propuesta.
+  const [activeSection, setActiveSection] = useState<"portafolio" | "distribucion" | "antes_de_invertir" | "herramientas">("portafolio");
+  // "Antes de invertir" se monta una sola vez, la primera vez que el
+  // usuario la abre, y nunca se desmonta después — mismo patrón que la
+  // web (BeforeAfterSimulator) para conservar el escenario hipotético en
+  // curso al cambiar de sección.
+  const [simulatorOpened, setSimulatorOpened] = useState(false);
+  useEffect(() => {
+    if (activeSection === "antes_de_invertir") setSimulatorOpened(true);
+  }, [activeSection]);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
@@ -2313,39 +2329,58 @@ export default function PortfolioScreen() {
           </View>
         </Modal>
 
-        {/* ── TAB SWITCHER ── */}
+        {/* ── TAB SWITCHER ──
+            Fase 9B §1/§6: 4 secciones ahora caben en el mismo selector
+            sin saturarlo — la etiqueta de texto solo se muestra en la
+            sección ACTIVA (el ícono solo identifica a las demás, con su
+            propio accessibilityLabel para lectores de pantalla), en vez
+            de 4 etiquetas completas compitiendo por el mismo ancho. */}
         <View style={[s.subTabBar, { backgroundColor: colors.bg }]}>
           <View style={[s.subTabInner, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <TouchableOpacity
-              style={[s.subTab, activeSection === "portafolio" && s.subTabActive]}
-              onPress={() => setActiveSection("portafolio")}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={activeSection === "portafolio" ? "briefcase" : "briefcase-outline"}
-                size={15}
-                color={activeSection === "portafolio" ? "#04211a" : colors.textMuted}
-              />
-              <Text style={[s.subTabText, { color: activeSection === "portafolio" ? "#04211a" : colors.textMuted }]}>
-                {t("portfolio.tabs.myPortfolio")}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.subTab, activeSection === "herramientas" && s.subTabActive]}
-              onPress={() => setActiveSection("herramientas")}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={activeSection === "herramientas" ? "sparkles" : "sparkles-outline"}
-                size={15}
-                color={activeSection === "herramientas" ? "#04211a" : colors.textMuted}
-              />
-              <Text style={[s.subTabText, { color: activeSection === "herramientas" ? "#04211a" : colors.textMuted }]}>
-                {t("portfolio.tabs.tools")}
-              </Text>
-            </TouchableOpacity>
+            {([
+              { key: "portafolio" as const, icon: "briefcase" as const, iconOutline: "briefcase-outline" as const, label: t("portfolio.tabs.myPortfolio") },
+              { key: "distribucion" as const, icon: "pie-chart" as const, iconOutline: "pie-chart-outline" as const, label: t("portfolio.tabs.distribution") },
+              { key: "antes_de_invertir" as const, icon: "trending-up" as const, iconOutline: "trending-up-outline" as const, label: t("portfolio.tabs.beforeInvesting") },
+              { key: "herramientas" as const, icon: "sparkles" as const, iconOutline: "sparkles-outline" as const, label: t("portfolio.tabs.tools") },
+            ] satisfies { key: typeof activeSection; icon: keyof typeof Ionicons.glyphMap; iconOutline: keyof typeof Ionicons.glyphMap; label: string }[]).map((opt) => {
+              const active = activeSection === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[s.subTab, active && s.subTabActive]}
+                  onPress={() => setActiveSection(opt.key)}
+                  activeOpacity={0.8}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={opt.label}
+                >
+                  <Ionicons
+                    name={active ? opt.icon : opt.iconOutline}
+                    size={15}
+                    color={active ? "#04211a" : colors.textMuted}
+                  />
+                  {active && (
+                    <Text style={[s.subTabText, { color: "#04211a" }]} numberOfLines={1}>
+                      {opt.label}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
+
+        {activeSection === "distribucion" && (
+          <View style={{ paddingBottom: 32 }}>
+            <PortfolioDistribution portfolioId={activePortfolioId} />
+          </View>
+        )}
+
+        {simulatorOpened && (
+          <View style={{ paddingBottom: 32, display: activeSection === "antes_de_invertir" ? "flex" : "none" }}>
+            <BeforeAfterSimulator portfolioId={activePortfolioId} currency={portfolioCurrency} />
+          </View>
+        )}
 
         {activeSection === "herramientas" && (
           <View style={{ gap: 12, paddingBottom: 32 }}>
@@ -2418,6 +2453,27 @@ export default function PortfolioScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text }}>{t("earnings.title")}</Text>
                   <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{t("earnings.premiumGate.desc")}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Fase 9C §4: Explorador de ETFs — mismo patrón de acceso
+                que Subvaluadas/Earnings (un punto de entrada reconocible
+                dentro de Herramientas, sin saturar la barra principal de
+                Expo Router ni crear una nueva arquitectura de navegación). */}
+            <TouchableOpacity
+              onPress={() => router.push("/etf" as any)}
+              activeOpacity={0.85}
+              style={{ borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden", marginTop: 12 }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, backgroundColor: colors.card }}>
+                <View style={{ width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#8b5cf6" }}>
+                  <Ionicons name="pie-chart-outline" size={24} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text }}>{t("etf.explorer.title")}</Text>
+                  <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{t("etf.explorer.subtitle")}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
               </View>

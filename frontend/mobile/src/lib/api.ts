@@ -539,6 +539,38 @@ export const simulateApi = {
   ) => api.post("/api/simulate", { scenario_type: scenarioType, scenario_params: scenarioParams, portfolio }),
 };
 
+// Fase 9A: Distribución en mobile — el mismo backend y contrato que la
+// web (frontend/web/src/lib/api.ts's portfolioExposureApi), sin motor
+// financiero nuevo. Solo lectura. "Antes de invertir"/Historia
+// deliberadamente no incluidos todavía (fuera del alcance de esta fase).
+export const portfolioExposureApi = {
+  get: (portfolioId: string = "default") => api.get(`/api/portfolio-exposure/${portfolioId}`, { timeout: 25000 }),
+  getPulse: (portfolioId: string = "default", snapshotType: "month_end" | "on_demand" = "month_end") =>
+    api.get(`/api/portfolio-exposure/${portfolioId}/pulse`, { params: { snapshot_type: snapshotType }, timeout: 20000 }),
+  // Fase 9B: "Antes de invertir" — estrictamente de solo lectura, nunca
+  // escribe en el portafolio real. Monto en el body, nunca en la URL
+  // (mismo motivo que la web: no dejarlo en logs/historial del navegador).
+  simulate: (portfolioId: string, ticker: string, amount: number) =>
+    api.post(`/api/portfolio-exposure/${portfolioId}/simulate`, { ticker, amount }, { timeout: 25000 }),
+  simulateHistory: (portfolioId: string, ticker: string, amount: number, period: "1y" | "3y" | "5y") =>
+    api.post(`/api/portfolio-exposure/${portfolioId}/simulate-history`, { ticker, amount, period }, { timeout: 30000 }),
+};
+
+// Fase 9C §3: Explorador y Comparador de ETFs en mobile — mismos 5
+// endpoints y mismo contrato que la web (frontend/web/src/lib/api.ts
+// líneas 887-893), sin cálculo financiero nuevo. Solo lectura, sin
+// gate de admin/premium (igual que el backend desde Fase 8C).
+export const etfApi = {
+  getOverview: (ticker: string, lang: string = "es") =>
+    api.get(`/api/etf/${encodeURIComponent(ticker)}`, { params: { lang }, timeout: 20000 }),
+  search: (q: string, limit = 20) => api.get("/api/etf/search", { params: { q, limit } }),
+  getCategories: () => api.get("/api/etf/categories"),
+  getCards: (tickers: string[], lang: string = "es") =>
+    api.get("/api/etf/cards", { params: { tickers: tickers.join(","), lang } }),
+  compare: (tickers: string[], lang: string = "es") =>
+    api.get("/api/etf/compare", { params: { tickers: tickers.join(","), lang }, timeout: 20000 }),
+};
+
 
 export const watchlistExtApi = {
   batchPrices: (tickers: string[]) =>
