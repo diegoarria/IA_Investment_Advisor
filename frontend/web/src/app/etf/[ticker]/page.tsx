@@ -41,7 +41,7 @@ import { GlowCard, PillarSection, Eyebrow, RaisedTile } from "@/components/subva
 const GOLD = "#00e887";
 import { etfApi } from "@/lib/api";
 import {
-  selectPrimaryObservation, anchorForInsight, describeSectorConcentration,
+  selectPrimaryObservation, anchorForInsight, primaryObservationIntro, describeSectorConcentration,
   describeGeographyNote, describeHoldingsCaveat, describeHoldingsUnavailableNote,
   type Insight,
 } from "@/lib/etfDetailCopy";
@@ -81,6 +81,7 @@ type EtfOverview = {
   };
   insights: Insight[];
   horizon_note: string;
+  horizon_note_extended: string;
 };
 
 function fmtUsd(n: number | null, na: string): string {
@@ -158,6 +159,7 @@ export default function EtfDetailPage() {
   const na = t("etf.detail.notAvailable");
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [horizonExpanded, setHorizonExpanded] = useState(false);
   const [data, setData] = useState<EtfOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ status: number; message: string } | null>(null);
@@ -282,7 +284,7 @@ export default function EtfDetailPage() {
             {primaryObservation && (
               <GlowCard tint={GOLD}>
                 <p className="text-[11px] font-black uppercase tracking-wide mb-1.5" style={{ color: GOLD }}>{t("etf.detail.understand.title")}</p>
-                <p className="text-[15px] font-bold leading-snug" style={{ color: "var(--text)" }}>{primaryObservation.text}</p>
+                <p className="text-[15px] font-bold leading-snug" style={{ color: "var(--text)" }}>{primaryObservationIntro(primaryObservation, lang)}</p>
                 {primaryAnchor && (
                   <a href={`#${primaryAnchor}`} className="flex items-center gap-1 mt-2 text-[12.5px] font-semibold" style={{ color: GOLD }}>
                     {t("etf.detail.understand.seeData")}<ArrowRight className="w-3.5 h-3.5" />
@@ -422,6 +424,16 @@ export default function EtfDetailPage() {
             <GlowCard>
               <PillarSection title={t("etf.detail.horizon.title")} icon={<Clock className="w-4 h-4" style={{ color: GOLD }} />} iconColor={GOLD}>
                 <p className="text-[13px] leading-relaxed" style={{ color: "var(--text)" }}>{data.horizon_note}</p>
+                {horizonExpanded && (
+                  <p className="text-[13px] leading-relaxed mt-2" style={{ color: "var(--text)" }}>{data.horizon_note_extended}</p>
+                )}
+                <button
+                  onClick={() => setHorizonExpanded((v) => !v)}
+                  className="mt-2 text-[12.5px] font-semibold"
+                  style={{ color: GOLD }}
+                >
+                  {horizonExpanded ? t("etf.detail.horizon.seeLess") : t("etf.detail.horizon.seeMore")}
+                </button>
               </PillarSection>
             </GlowCard>
 

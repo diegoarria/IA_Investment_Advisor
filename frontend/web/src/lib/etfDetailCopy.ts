@@ -30,6 +30,29 @@ export function anchorForInsight(insight: Insight): string | null {
   return ANCHOR_BY_CATEGORY[insight.category] ?? null;
 }
 
+// Diego, 2026-11 (ajustes finales): la observación principal repetía el
+// mismo porcentaje que la sección a la que apunta (p.ej. "Tecnología
+// representa el 40.5%" arriba, y "Tecnología concentra el 40.5%..." abajo
+// en Composición). Esta función reemplaza el texto de insights[].text en
+// la tarjeta principal por una frase genérica — sin ningún número — que
+// solo explica QUÉ tipo de observación es y por qué importa; el dato real
+// vive exclusivamente en la sección anclada. Nunca repite insights[].text.
+const PRIMARY_INTRO_BY_CATEGORY_ES: Record<string, string> = {
+  sector_concentration: "Aunque este ETF contiene varias posiciones, su peso no está repartido de forma uniforme entre sectores — algunos pesan mucho más que otros.",
+  geographic_exposure: "La exposición geográfica de este fondo tampoco está repartida de forma uniforme entre países.",
+  cost: "El costo anual de un fondo reduce tu retorno neto con el tiempo, incluso cuando el porcentaje parece pequeño.",
+};
+const PRIMARY_INTRO_BY_CATEGORY_EN: Record<string, string> = {
+  sector_concentration: "Even though this ETF holds many positions, its weight isn't spread evenly across sectors — some carry much more weight than others.",
+  geographic_exposure: "This fund's geographic exposure isn't spread evenly across countries either.",
+  cost: "A fund's annual cost reduces your net return over time, even when the percentage looks small.",
+};
+
+export function primaryObservationIntro(insight: Insight, lang: "es" | "en" = "es"): string {
+  const table = lang === "es" ? PRIMARY_INTRO_BY_CATEGORY_ES : PRIMARY_INTRO_BY_CATEGORY_EN;
+  return table[insight.category] ?? insight.text;
+}
+
 // Frase de concentración sectorial para la sección "Composición" —
 // deliberadamente distinta de insights.py's `_sector_observation` (que
 // ya se muestra arriba como la observación principal, cuando aplica).

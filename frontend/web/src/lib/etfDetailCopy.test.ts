@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  selectPrimaryObservation, anchorForInsight, describeSectorConcentration,
+  selectPrimaryObservation, anchorForInsight, primaryObservationIntro, describeSectorConcentration,
   describeGeographyNote, describeHoldingsCaveat, describeHoldingsUnavailableNote, type Insight,
 } from "./etfDetailCopy";
 
@@ -62,6 +62,38 @@ describe("describeSectorConcentration", () => {
   it("supports English wording", () => {
     const text = describeSectorConcentration({ top1_name: "Technology", top1_weight_pct: 32.4, top3_weight_pct: 58.1, bucket_count: 11 }, "en");
     expect(text).toBe("The Technology sector makes up 32.4% of the fund (the top 3 sectors add up to 58.1%).");
+  });
+});
+
+describe("primaryObservationIntro", () => {
+  // Diego, 2026-11 (ajustes finales): la tarjeta principal repetía el
+  // mismo porcentaje que la sección a la que apunta abajo. Esta función
+  // nunca debe repetir el texto real de insights[].text ni inventar un
+  // número — es puramente explicativa, el dato real vive en la sección.
+  it("replaces the backend's data-bound sector_concentration text with a number-free explanation", () => {
+    const real = insight("sector_concentration"); // text: "texto real de sector_concentration"
+    const text = primaryObservationIntro(real, "es");
+    expect(text).not.toBe(real.text);
+    expect(text).not.toMatch(/\d/);
+  });
+
+  it("has a distinct, number-free sentence for geographic_exposure and cost too", () => {
+    const geo = primaryObservationIntro(insight("geographic_exposure"), "es");
+    const cost = primaryObservationIntro(insight("cost"), "es");
+    expect(geo).not.toMatch(/\d/);
+    expect(cost).not.toMatch(/\d/);
+    expect(geo).not.toBe(cost);
+  });
+
+  it("falls back to the insight's own text for an unrecognized category, never fabricating generic copy", () => {
+    const unknown = insight("unknown_future_category");
+    expect(primaryObservationIntro(unknown, "es")).toBe(unknown.text);
+  });
+
+  it("supports English wording", () => {
+    const text = primaryObservationIntro(insight("cost"), "en");
+    expect(text).toMatch(/cost/i);
+    expect(text).not.toMatch(/\d/);
   });
 });
 

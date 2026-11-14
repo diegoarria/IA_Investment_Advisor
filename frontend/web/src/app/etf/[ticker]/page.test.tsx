@@ -62,6 +62,7 @@ function baseOverview(overrides: Record<string, unknown> = {}) {
       { category: "cost", text: "Cobra 0.03% al año.", supporting_data: {} },
     ],
     horizon_note: "Nota educativa estática sobre horizonte de inversión.",
+    horizon_note_extended: "Detalle adicional sobre horizonte de inversión.",
     ...overrides,
   };
 }
@@ -96,16 +97,18 @@ describe("EtfDetailPage — identidad y navegación", () => {
 });
 
 describe("EtfDetailPage — observación principal, sin duplicaciones", () => {
-  it("shows exactly one primary observation, anchored, and never repeats its exact text inside the section it links to", async () => {
+  it("shows a number-free primary intro, anchored, never insights[0]'s raw backend text, and never a percentage it repeats in Composición", async () => {
     getOverviewMock.mockResolvedValue({ data: baseOverview() });
     render(<EtfDetailPage />);
-    await waitFor(() => expect(screen.getByText("El sector Tecnología representa el 32.4% del fondo.")).toBeInTheDocument());
-    // Only insights[0]'s exact text appears once; insights[1]/[2]'s exact
-    // backend sentences are never rendered anywhere (their content lives
-    // in each section's own, differently-worded copy instead).
+    // The generic, number-free intro — not insights[0].text verbatim.
+    await waitFor(() => expect(screen.getByText(/su peso no está repartido de forma uniforme entre sectores/)).toBeInTheDocument());
+    expect(screen.queryByText("El sector Tecnología representa el 32.4% del fondo.")).not.toBeInTheDocument();
+    // insights[1]/[2]'s exact backend sentences are never rendered anywhere either.
     expect(screen.queryByText("Casi toda la exposición está en Estados Unidos (99.1%).")).not.toBeInTheDocument();
     expect(screen.queryByText("Cobra 0.03% al año.")).not.toBeInTheDocument();
-    // The sector section's own sentence is worded differently from insights[0].text.
+    // The underlying number only ever shows up in Composición, the
+    // section the primary card anchors to — never in the primary card
+    // itself (asserted above via the number-free intro text).
     expect(screen.getByText(/El sector Tecnología concentra el 32\.4%/)).toBeInTheDocument();
   });
 
@@ -147,7 +150,8 @@ describe("EtfDetailPage — casos de datos incompletos (bonos, oro, faltantes)",
       }),
     });
     render(<EtfDetailPage />);
-    await waitFor(() => expect(screen.getByText("La mayor parte está en Estados Unidos (85%).")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/exposición geográfica.*tampoco está repartida de forma uniforme/)).toBeInTheDocument());
+    expect(screen.queryByText("La mayor parte está en Estados Unidos (85%).")).not.toBeInTheDocument();
     expect(screen.queryByText(/concentra el/)).not.toBeInTheDocument();
   });
 

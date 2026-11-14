@@ -217,7 +217,7 @@ def get_etf_overview(ticker: str, use_cache: bool = True, lang: str = "es") -> d
     editorial one-liner (editorial_descriptions.py) over FMP's raw English
     paragraph, honestly None when this ticker isn't curated."""
     from app.services.etf.editorial_descriptions import get_editorial_description
-    from app.services.etf.insights import build_insights, get_horizon_note
+    from app.services.etf.insights import build_insights, get_horizon_note, get_horizon_note_extended
     from app.services.etf.translations import translate_country, translate_sector
 
     ticker = (ticker or "").strip().upper()
@@ -317,4 +317,5 @@ def get_etf_overview(ticker: str, use_cache: bool = True, lang: str = "es") -> d
     }
     overview["insights"] = build_insights(overview, lang)
     overview["horizon_note"] = get_horizon_note(lang)
+    overview["horizon_note_extended"] = get_horizon_note_extended(lang)
     return overview

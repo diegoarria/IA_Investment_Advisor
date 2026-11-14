@@ -131,15 +131,21 @@ def build_insights(overview: dict, lang: str = "es") -> list[dict]:
     return [c for c in candidates if c is not None][:3]
 
 
-_HORIZON_NOTE_ES = (
-    "El horizonte de tiempo con el que investigues un ETF puede cambiar lo que importa de él. "
+_HORIZON_NOTE_SHORT_ES = (
+    "Tu horizonte de inversión influye en cómo interpretas las fluctuaciones de este fondo. "
+    "Es importante entender qué contiene, cuánto cobra y cómo podrían afectarte los cambios en su valor."
+)
+_HORIZON_NOTE_SHORT_EN = (
+    "Your investment horizon shapes how you interpret this fund's fluctuations. "
+    "It's worth understanding what it holds, what it charges, and how changes in its value could affect you."
+)
+_HORIZON_NOTE_EXTENDED_ES = (
     "A más corto plazo, la volatilidad del precio (cuánto sube y baja en periodos cortos) pesa más. "
     "A más largo plazo, suele importar más entender en qué invierte el fondo y cuánto cobra. "
     "Tu propia tolerancia a ver pérdidas temporales en el valor de tu inversión también es parte de esa decisión. "
     "Nuvos no recomienda un horizonte específico para este ni ningún otro ETF — esto es solo una guía para que tú lo evalúes con tu propio contexto."
 )
-_HORIZON_NOTE_EN = (
-    "The time horizon you research an ETF with can change what matters most about it. "
+_HORIZON_NOTE_EXTENDED_EN = (
     "Over shorter periods, price volatility (how much it moves up and down) matters more. "
     "Over longer periods, what the fund invests in and what it charges tends to matter more. "
     "Your own tolerance for seeing temporary losses in your investment's value is also part of that decision. "
@@ -151,5 +157,14 @@ def get_horizon_note(lang: str = "es") -> str:
     """Static educational text — deliberately NOT a function of the
     specific ETF's category/data. Diego, 2026-11: 'No asignes horizontes
     específicos según la categoría del ETF' — this is the same text for
-    every ETF, on purpose."""
-    return _HORIZON_NOTE_ES if lang == "es" else _HORIZON_NOTE_EN
+    every ETF, on purpose. Diego, 2026-11 (ficha v2 ajustes): shortened to
+    2 sentences so it reads at a glance — the rest of the same guidance
+    moved to get_horizon_note_extended(), shown behind a "ver más" in the
+    frontend rather than dropped."""
+    return _HORIZON_NOTE_SHORT_ES if lang == "es" else _HORIZON_NOTE_SHORT_EN
+
+
+def get_horizon_note_extended(lang: str = "es") -> str:
+    """The rest of get_horizon_note()'s guidance — same no-recommendation
+    discipline, just not shown by default."""
+    return _HORIZON_NOTE_EXTENDED_ES if lang == "es" else _HORIZON_NOTE_EXTENDED_EN

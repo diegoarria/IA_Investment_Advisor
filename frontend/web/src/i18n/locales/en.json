@@ -5221,8 +5221,8 @@
         "ytd": "YTD",
         "oneYear": "1 year",
         "fiveYear": "5 years",
-        "maxFullHistory": "Max. (since inception)",
-        "maxCapped": "Max. (last {{years}} years)",
+        "maxFullHistory": "Return since inception",
+        "maxCapped": "Return over {{years}} years",
         "priceOnlyDisclaimer": "These are price-only changes — they don't include any dividends the fund paid out in each period. Real total return would differ.",
         "recentDividends": "Recent dividends",
         "currentYield": " · current yield {{pct}}"
@@ -5260,7 +5260,9 @@
         }
       },
       "horizon": {
-        "title": "What should I consider about my investment horizon?"
+        "title": "What should I consider about my investment horizon?",
+        "seeMore": "See more",
+        "seeLess": "See less"
       },
       "noDescription": "We don't have a simplified, validated English description for this fund yet."
     },

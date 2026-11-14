@@ -5221,8 +5221,8 @@
         "ytd": "YTD",
         "oneYear": "1 año",
         "fiveYear": "5 años",
-        "maxFullHistory": "Máx. (desde el inicio)",
-        "maxCapped": "Máx. (últimos {{years}} años)",
+        "maxFullHistory": "Rendimiento desde el inicio",
+        "maxCapped": "Rendimiento en {{years}} años",
         "priceOnlyDisclaimer": "Estas variaciones son solo del precio — no incluyen los dividendos que el fondo haya repartido en cada periodo. El rendimiento total real sería distinto.",
         "recentDividends": "Dividendos recientes",
         "currentYield": " · yield actual {{pct}}"
@@ -5260,7 +5260,9 @@
         }
       },
       "horizon": {
-        "title": "¿Qué debería considerar sobre mi horizonte de inversión?"
+        "title": "¿Qué debería considerar sobre mi horizonte de inversión?",
+        "seeMore": "Ver más",
+        "seeLess": "Ver menos"
       },
       "noDescription": "No tenemos todavía una descripción simplificada y validada para este fondo en español."
     },
