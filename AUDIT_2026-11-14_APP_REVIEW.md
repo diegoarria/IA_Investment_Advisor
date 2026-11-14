@@ -160,8 +160,53 @@ Inspeccionados individualmente, no solo contados. Los dos tipos de error que POD
 | Manejo de datos faltantes / `insufficient_data` | **PASS (ya verificado y testeado en sesiones previas)** | 23 referencias en el motor de valuación, cubierto por 5+ archivos de test (`test_company_diagnostic_under_review.py`, `test_degraded_diagnostic.py`, etc.) |
 | Consistencia frontend/backend en clasificación de instrumentos | **PASS parcial, con la corrección de arriba** | El frontend no reimplementa `is_etf` (correcto, evita que se desincronice) — confía por completo en el backend, y ahora SÍ muestra el motivo real cuando el backend lo rechaza. |
 
-## Pendiente (no cubierto aún en este pase)
+## 6. Earnings, ETFs, Watchlist, Screener, Seguridad transversal (verificación puntual)
 
-Todo lo demás del documento de auditoría del usuario (pantallas de Inicio, Radar completo matemáticamente, Arthur, Patrimonio, Portafolio, Distribución, Watchlist, Screener Semanal, Productos/Planes, Perfil más allá de eliminar cuenta, Aprendizaje, Earnings GAAP/non-GAAP a fondo, ETFs explorador, navegación transversal, UI/iPad, rendimiento, seguridad a fondo, backend/datos a fondo, resiliencia) **no se ha auditado todavía** en este pase. No se declara PASS en ninguno de esos puntos sin evidencia — quedan como **BLOCKED/pendiente**, no como aprobados.
+| Elemento | Resultado | Evidencia |
+|---|---|---|
+| Earnings: mezcla GAAP/non-GAAP | **N/A** | `earnings.py` nunca introduce una segunda cifra "adjusted"/non-GAAP junto a la reportada — solo usa `actual` vs `estimate` del mismo proveedor por período exacto (ver hallazgo de sesión anterior sobre matching de fechas). No hay dos fuentes que mezclar, el riesgo no existe en el código actual. |
+| Earnings: IA no inventa explicaciones | **PASS** | `_search_earnings_context`: grounded en búsqueda web real (Perplexity) con citations reales mostradas como "Fuentes"; documentado explícitamente que un timeout/falla devuelve texto vacío, nunca fabrica cifra/cita. |
+| ETFs explorador: nunca usa el motor DCF corporativo | **PASS** | `app/services/etf/` es un paquete separado por diseño — su propio docstring dice explícitamente que está aislado del pipeline de valuación (`app/services/valuation/`). |
+| Watchlist: duplicados + aislamiento entre usuarios | **PASS (ya verificado y corregido en sesiones previas, 2026-09-15/10-03 según memoria)** | `user_id` siempre de sesión; constraint único a nivel de Postgres (23505) maneja duplicados en la base, no solo en la app. |
+| Screener Semanal: resultados obsoletos mostrados como nuevos | **PASS (ya verificado/corregido en sesión previa, 2026-09-27 según memoria)** | Cache semanal con TTL de 7 días por usuario, reconstruido explícitamente cada semana. |
+| Seguridad transversal: ningún endpoint acepta `user_id` del cliente | **PASS** | Grep de todo `app/api/routes/*.py`: cero coincidencias de `user_id` viniendo de `Body`/`Query`/dict del request — siempre `Depends(get_current_user_id)` o `Depends(get_current_user)`. |
+
+---
+
+## 7. Reporte final — estado real por área (no inflar nada)
+
+| Área | Estado | Nota |
+|---|---|---|
+| Notificaciones push (4.5.4) | **PASS unitario / BLOCKED e2e** | Lógica corregida y probada (6 tests); falta validación física en iPad/iPhone con permiso realmente denegado. |
+| Eliminación de cuenta (5.1.1v) | **PASS unitario + PASS integración real** | Mocks (4 tests) + integración real contra Supabase local (2 tests) prueban la ventana huérfana real y su recuperación por reintento. Falta solo la grabación física. |
+| RevenueCat / IAP (2.1b, 3.1.1) | **PASS parcial / BLOCKED en lo comercial** | Restore Purchases visible y conectado en ambas pantallas; timeouts duros confirmados; backend es fuente de verdad. Mapeo Product ID↔RevenueCat↔Entitlement y cualquier compra/restauración real: BLOCKED (dashboard + Sandbox, fuera de este entorno). |
+| Arthur / costo de IA | **PASS** | Reintentos acotados (2 + 1 fallback, timeouts duros), sin duplicados desde la UI, rate limits activos. Calidad de las respuestas (inventar cifras/fuentes): BLOCKED, necesita evaluación humana/LLM-judge, no cubierto. |
+| Portafolio / Patrimonio | **PASS** | Aislamiento entre usuarios (sin IDOR), divisiones guardadas contra cero/NaN. |
+| Nuvos Radar | **PASS, con 1 bug real encontrado y corregido** | ETFs nunca entran al DCF; BRK.B ahora con test; divisas y datos faltantes ya cubiertos. El mensaje de error al buscar un ETF se descartaba — corregido en web y mobile. |
+| Earnings | **PASS / N-A** | Sin riesgo de mezcla GAAP/non-GAAP (no existe esa segunda fuente); narrativa de IA grounded en fuentes reales. |
+| ETFs (explorador) | **PASS** | Paquete aislado del motor de valuación por diseño. |
+| Watchlist / Screener Semanal | **PASS (verificado en sesiones previas)** | No re-auditado hoy desde cero — se registra la procedencia de la verificación, no un nuevo PASS fabricado. |
+| TypeScript (mobile) | **FAIL documentado, sin riesgo de runtime** | 13 errores, el `tsc` no pasa, cada uno con causa raíz verificada — ninguno oculto con casts. |
+| Backend test suite | **PASS — 2492/2492, 0 fallos, 0 omitidos** (418.06s) | Evidencia completa, corrida de principio a fin tras todos los cambios de hoy. |
+| Frontend (mobile + web) test suites | **PASS — 140/140 (mobile) + 287/287 (web)** | Sin regresiones tras todos los cambios de hoy. |
+| Inicio, Aprendizaje, UI/iPad físico, navegación profunda (deep links), resiliencia offline/red lenta, seguridad a fondo (SQL/prompt injection, rate limiting exhaustivo), Productos/Planes a fondo | **NO AUDITADO en este pase** | No se declara PASS, FAIL ni BLOCKED — simplemente no se llegó a esto todavía. Pendiente de una próxima sesión. |
+
+### Decisión de release: **NO-GO** (todavía)
+
+No por tener P0/P1 abiertos conocidos — no los hay, de lo auditado hoy — sino porque quedan áreas genuinamente no auditadas (Aprendizaje, UI/iPad físico, navegación profunda, resiliencia, seguridad a fondo) y, sobre los 3 motivos de rechazo de Apple, ninguno tiene su evidencia end-to-end/física completa todavía. Reenviar a Apple antes de esa evidencia sería repetir el patrón de "funciona en teoría" que ya causó 2 rechazos.
+
+## Lista explícita de pruebas manuales necesarias antes del próximo envío a Apple
+
+1. **Notificaciones**: en un iPhone y un iPad físicos, denegar el permiso desde el diálogo nativo de iOS (no desde el rationale propio) y navegar TODA la app — Home, Radar, Portafolio, Watchlist, Chat, Perfil, Productos — confirmando que nada se bloquea y el aviso no reaparece.
+2. **Eliminación de cuenta** (grabación requerida por Apple): login con cuenta de prueba real → Sidebar → "Eliminar mi cuenta" → escribir mal la palabra (botón sigue gris) → escribir "ELIMINAR" correctamente → confirmar → verificar logout automático → intentar iniciar sesión de nuevo con el mismo correo (debe fallar). Repetir entrando por Perfil en vez de Sidebar.
+3. **RevenueCat — compra real**: con un Sandbox tester de Apple, comprar Premium mensual, Premium anual, Duo mensual, Duo anual — confirmar que cada uno activa el entitlement correcto y el backend lo refleja (`GET /billing/status`).
+4. **RevenueCat — restaurar**: desinstalar y reinstalar la app (o cambiar de dispositivo) con una cuenta Sandbox que ya compró, tocar "Restaurar compras" en PricingModal Y en PaywallModal — confirmar que el tier se restaura en ambas pantallas.
+5. **RevenueCat — cancelación/expiración**: cancelar una suscripción Sandbox y confirmar que el usuario conserva acceso hasta el fin del período (`CANCELLATION`), y que pierde acceso real al expirar (`EXPIRATION`) — vía los logs del webhook en Railway.
+6. **iPad físico (dispositivo de revisión de Apple)**: recorrer TODA la app en un iPad Air 11" o similar — layouts, modales, teclado, safe areas — nada de esto se verificó en este pase.
+7. **Product IDs**: confirmar en el dashboard de RevenueCat que los 4 packages (premium_monthly, premium_annual/premium_anual, duo_monthly, duo_annual) apuntan exactamente a `com.nuvosai.app.premium.monthly.sub`, `.premium.anual.sub`, `.duo.mensual.sub`, `.duo.anual.sub`.
+
+## Pendiente (no cubierto, próximas sesiones)
+
+Inicio (pantalla), Aprendizaje (catálogo completo), ETFs explorador (UI de comparación a fondo), Productos/Planes (UI completa), Perfil (resto de configuraciones), navegación profunda (deep links, universal links), UI/iPad simulado, rendimiento (memory leaks, re-renders), seguridad a fondo (SQL/prompt injection, abuso de IA), resiliencia (offline, red lenta, token expirado a mitad de sesión), backend/datos a fondo (contratos, migraciones pendientes, zonas horarias). No se declara PASS en ninguno de estos — quedan genuinamente sin auditar.
 
 Este documento se irá actualizando en las próximas sesiones de auditoría.
