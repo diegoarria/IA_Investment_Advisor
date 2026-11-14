@@ -658,8 +658,22 @@ async def delete_account(user_id: str = Depends(get_current_user_id)):
         fresh_db = get_fresh_supabase()
         await asyncio.to_thread(lambda: fresh_db.auth.admin.delete_user(user_id))
     except Exception as e:
-        logger.error("delete_account: failed to delete auth user %s (data already fully cleared): %s", user_id, e)
-        raise HTTPException(status_code=500, detail="No se pudo eliminar la cuenta.")
+        # Audit 2026-11-14 (point 2, concurrency): confirmed live against
+        # local Supabase that a second delete on an already-gone user
+        # raises gotrue.errors.AuthApiError with code="user_not_found" —
+        # this happens for real whenever this request races
+        # reconcile_pending_account_deletions (worker.py, every 15 min) or
+        # a duplicate request from the same user (two devices, a retried
+        # tap). In that exact race, the account genuinely IS deleted — by
+        # the other caller — so returning an error here would be a false
+        # negative: the data is gone (the RPC above already ran) and the
+        # auth identity is gone too, just not by THIS request. Never make
+        # the user think deletion failed when it actually succeeded.
+        if getattr(e, "code", None) == "user_not_found":
+            logger.info("delete_account: auth user %s was already deleted by a concurrent call — treating as success", user_id)
+        else:
+            logger.error("delete_account: failed to delete auth user %s (data already fully cleared): %s", user_id, e)
+            raise HTTPException(status_code=500, detail="No se pudo eliminar la cuenta.")
 
     return {"message": "Cuenta eliminada"}
 
@@ -700,16 +714,29 @@ async def reconcile_pending_account_deletions(grace_minutes: int = 15) -> dict:
         uid = row["user_id"]
         try:
             await run_query(db.rpc("delete_user_data", {"p_user_id": uid}))
-            fresh_db = get_fresh_supabase()
-            await asyncio.to_thread(lambda u=uid: fresh_db.auth.admin.delete_user(u))
-            reconciled += 1
-            logger.warning(
-                "reconcile_pending_account_deletions: completed a stuck deletion for %s (requested_at=%s)",
-                uid, row.get("requested_at"),
-            )
         except Exception as e:
             failed += 1
-            logger.error("reconcile_pending_account_deletions: still stuck for %s: %s", uid, e)
+            logger.error("reconcile_pending_account_deletions: data wipe still failing for %s: %s", uid, e)
+            continue
+        try:
+            fresh_db = get_fresh_supabase()
+            await asyncio.to_thread(lambda u=uid: fresh_db.auth.admin.delete_user(u))
+        except Exception as e:
+            # Same race as delete_account's own admin.delete_user call: a
+            # concurrent delete_account request (the user retrying from
+            # the app right as this job runs) may have already finished
+            # deleting this exact user — not a real failure, the end
+            # state is identical to this job having done it itself.
+            if getattr(e, "code", None) != "user_not_found":
+                failed += 1
+                logger.error("reconcile_pending_account_deletions: still stuck for %s: %s", uid, e)
+                continue
+            logger.info("reconcile_pending_account_deletions: %s was already deleted by a concurrent call", uid)
+        reconciled += 1
+        logger.warning(
+            "reconcile_pending_account_deletions: completed a stuck deletion for %s (requested_at=%s)",
+            uid, row.get("requested_at"),
+        )
     return {"reconciled": reconciled, "failed": failed}
 
 

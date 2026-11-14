@@ -25,8 +25,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
+from gotrue.errors import AuthApiError
 
 from app.api.routes.auth import delete_account, reconcile_pending_account_deletions
+
+
+def _already_deleted_error() -> AuthApiError:
+    """The real shape gotrue raises for a second delete on an already-gone
+    user — confirmed live against local Supabase (audit 2026-11-14, point
+    2): AuthApiError(message='User not found', status=404,
+    code='user_not_found')."""
+    return AuthApiError("User not found", 404, "user_not_found")
 
 
 def _mock_db_no_brokerage_connections():
@@ -99,6 +108,24 @@ class TestDeleteAccountOrdering:
         assert db.rpc.called
 
     @pytest.mark.asyncio
+    async def test_concurrent_caller_already_deleted_the_user_is_treated_as_success(self):
+        """Audit 2026-11-14, point 2 (concurrency): this exact race is
+        real — two devices tapping 'Eliminar cuenta' at once, or this
+        request losing a race against job_reconcile_pending_account_
+        deletions. The account IS deleted (the RPC above already ran, and
+        the auth user is gone too — just via the OTHER caller) — this
+        must report success, never a false 'no se pudo eliminar'."""
+        db = _mock_db_no_brokerage_connections()
+        fresh_db = MagicMock()
+        fresh_db.auth.admin.delete_user.side_effect = _already_deleted_error()
+
+        with patch("app.api.routes.auth.get_supabase", return_value=db), \
+             patch("app.core.database.get_fresh_supabase", return_value=fresh_db):
+            result = await delete_account(user_id="user-raced")
+
+        assert result == {"message": "Cuenta eliminada"}
+
+    @pytest.mark.asyncio
     async def test_plaid_revocation_failure_never_blocks_deletion(self):
         """A user with a Plaid-linked broker must still be deletable even
         if Plaid's API is down/erroring — never let a third-party outage
@@ -169,3 +196,21 @@ class TestReconcilePendingAccountDeletions:
             result = await reconcile_pending_account_deletions()
 
         assert result == {"reconciled": 1, "failed": 1}
+
+    @pytest.mark.asyncio
+    async def test_reconcile_treats_a_concurrently_deleted_user_as_reconciled_not_failed(self):
+        """Same race as delete_account's own, mirrored: a concurrent
+        delete_account request may finish deleting this exact user right
+        as this job reaches it. Must count as reconciled (the end state
+        is identical), never as 'still stuck'."""
+        db = MagicMock()
+        db.table.return_value.select.return_value.lt.return_value.execute.return_value = MagicMock(
+            data=[{"user_id": "raced-by-user-request", "requested_at": "t"}]
+        )
+        fresh_db = MagicMock()
+        fresh_db.auth.admin.delete_user.side_effect = _already_deleted_error()
+        with patch("app.api.routes.auth.get_supabase", return_value=db), \
+             patch("app.core.database.get_fresh_supabase", return_value=fresh_db):
+            result = await reconcile_pending_account_deletions()
+
+        assert result == {"reconciled": 1, "failed": 0}

@@ -288,4 +288,115 @@ Línea base confirmada al entrar a este bloque: **2492/2492 backend, 140/140 mob
 
 **Decisión de release: NO-GO.** No por bugs P0/P1 abiertos conocidos (no hay ninguno confirmado hoy) — por la ausencia de la evidencia física/externa de los puntos 1-4 arriba, que son exactamente lo que causó los 2 rechazos anteriores de Apple.
 
+---
+
+# Bloque 3 — continuación 2026-11-14 (misma fecha, tercera sesión extendida)
+
+Línea base al entrar: **2498 backend + 140 mobile + 287 web = 2925 tests aprobados** (cifra citada por Diego, coincide exactamente con la suma). **No se despliega nada a producción en este bloque** y **no se declara GO**.
+
+## Prioridad 2 — Migración 126 + job de reconciliación: auditoría de concurrencia, autorización y despliegue
+
+### Bug real de concurrencia encontrado y corregido
+
+Confirmado en vivo contra Supabase local: un segundo `admin.delete_user()` sobre un usuario ya eliminado lanza `gotrue.errors.AuthApiError(message="User not found", status=404, code="user_not_found")`. Esto es un escenario real, no teórico — pasa si:
+- El usuario tiene la app abierta en 2 dispositivos y toca "Eliminar cuenta" en ambos casi al mismo tiempo.
+- `delete_account` pierde la carrera contra `job_reconcile_pending_account_deletions` (o viceversa) sobre el mismo `user_id`.
+
+**Antes de este fix:** ambos casos devolvían `500 "No se pudo eliminar la cuenta"` — un **falso negativo**, porque la cuenta sí quedó eliminada (solo que por la otra llamada concurrente). Corregido en los dos sentidos:
+- `delete_account`: si `admin.delete_user` falla con `code == "user_not_found"`, se trata como éxito (`{"message": "Cuenta eliminada"}`), nunca como error.
+- `reconcile_pending_account_deletions`: la misma condición cuenta como `reconciled`, nunca como `failed`.
+
+**Tests nuevos (todos PASS):** 2 tests mockeados (uno por dirección de la carrera) reproduciendo exactamente el `AuthApiError` real construido con la forma confirmada en vivo (`AuthApiError("User not found", 404, "user_not_found")`) — no un mock genérico, la excepción real de la librería.
+
+### Idempotencia — confirmada (ya probada en el Bloque 2, re-verificada)
+- `delete_user_data` RPC sobre un usuario con cero filas: no-op, no lanza.
+- `pending_account_deletions` usa `upsert` sobre la PK (`user_id`) — escribir el marcador dos veces nunca falla ni duplica.
+
+### Autorización de la tabla marcadora
+`pending_account_deletions` tiene RLS habilitado **sin ninguna policy** (`GRANT ALL ... TO service_role` únicamente) — con RLS activo y cero policies, Postgres deniega por defecto a cualquier rol que no sea `service_role` (que además bypassea RLS en Supabase). Ningún usuario final puede leer ni escribir esta tabla directamente, confirmado por diseño de la migración. **PASS.**
+
+### Fallos permanentes
+Si un usuario queda atascado de forma permanente (ej. un bug real en GoTrue, no solo una carrera pasajera), el job simplemente reintenta cada 15 minutos, para siempre, registrando `ERROR` en los logs en cada intento. Esto es una degradación aceptada, no un bug: cada intento fallido queda visible en los logs de Railway para que alguien lo note operacionalmente. No se agregó un mecanismo de "dead letter"/alertado adicional — habría sido complejidad nueva sin evidencia de que se necesite, y el pedido explícito de esta auditoría es evitar rediseños no justificados.
+
+### Reinicio del worker
+El job se agenda con `scheduler.add_job(..., "interval", minutes=15)`, sin `id` explícito (APScheduler genera uno único por función, sin colisión con los ~35 jobs existentes, confirmado por grep). Si el proceso del worker se reinicia, APScheduler simplemente vuelve a agendar el intervalo desde cero al arrancar — no es un job sensible al tiempo exacto (es un "catch-up"), así que un reinicio nunca pierde una reconciliación pendiente, solo retrasa hasta el próximo tick. **PASS.**
+
+### ¿Afecta otros jobs de worker.py?
+No comparte ninguna variable global, no modifica ningún estado fuera de su propia tabla, está envuelto en su propio `try/except` (una excepción ahí jamás tumba el loop del scheduler ni otros jobs). Confirmado por lectura directa del código + ausencia de cualquier import circular o estado compartido. **PASS.**
+
+### Plan de despliegue (preparado, NO ejecutado — requiere autorización explícita de Diego)
+
+**Pre-despliegue:**
+1. Revisar el diff de `migrations/126_pending_account_deletions.sql`, `auth.py` y `worker.py` en un PR normal.
+2. Confirmar que la migración se aplica igual de limpio en un entorno de staging/réplica de producción antes que en producción real (mismo patrón que toda migración de este repo).
+3. Tener a la mano el rollback: `DROP TABLE IF EXISTS pending_account_deletions;` (ya documentado en el encabezado de la migración) — seguro porque ninguna otra tabla depende de esta.
+
+**Despliegue:**
+1. Aplicar la migración 126 contra producción (fuera de horario pico, como cualquier DDL).
+2. Deploy del backend (incluye el fix de `auth.py` y el nuevo job en `worker.py`).
+3. Confirmar en los logs de arranque del worker que el job quedó agendado (buscar "job_reconcile_pending_account_deletions" en el log de APScheduler al boot).
+
+**Post-despliegue (primeras 24-48h):**
+1. Monitorear logs por cualquier línea `"reconcile_pending_account_deletions: completed a stuck deletion"` (nivel WARNING) — si aparece, significa que de verdad encontró y arregló una eliminación atascada real; vale la pena confirmar manualmente en Supabase que ese usuario específico quedó limpio.
+2. Monitorear por `"still stuck"` repetido para el MISMO `user_id` en múltiples corridas — señal de un fallo permanente real que necesita intervención manual.
+3. Verificar que ningún otro job de `worker.py` muestre latencia o errores nuevos tras el deploy (confirma que el nuevo job no compite por recursos).
+
+**Estrategia de recuperación si algo sale mal:**
+- Si el job causa problemas (ej. carga inesperada en la DB), se puede remover el `scheduler.add_job(...)` y redeployar sin la migración — la tabla simplemente queda sin usarse, no rompe nada más (no tiene FKs entrantes de otras tablas).
+- Si la migración falla a mitad de camino, es una sola sentencia `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` + `GRANT` — las 3 son operaciones seguras de re-ejecutar (`IF NOT EXISTS`, `ENABLE RLS` es idempotente, `GRANT` es idempotente).
+
+## Prioridad 1 — Productos/Planes, Perfil, RevenueCat, ETFs Explorador
+
+| Elemento | Resultado | Evidencia |
+|---|---|---|
+| Productos/Planes: pantalla principal sin manejo de errores | **PASS, no es un gap** | `products.tsx` (426 líneas) es puramente presentacional — no hace ninguna llamada de red directa; delega toda la compra a `PricingModal`/`PaywallModal` (ya verificados con manejo de error completo) y los precios a `useBillingPricing`, que cae a `{currency: "usd"}` en vez de crashear si la llamada falla. |
+| Perfil: medidor de uso (`UsageMeterCard`) ante fallo de red | **PASS** | Traga el error silenciosamente y retorna `null` (no se muestra el medidor) en vez de romper la pantalla — mismo patrón de "nunca bloquear por una función secundaria" visto en toda la app. |
+| RevenueCat: refresco de entitlement al volver del background | **PASS (confirmado, no solo supuesto)** | `(tabs)/_layout.tsx`'s `syncAllFromServer()`, disparado por el listener de `AppState`, re-verifica el tier contra el servidor en cada resume (con throttle de 30s) — comentario in-line confirma que esto existe específicamente para cerrar el bug de "premium se ve como free al reabrir la app" (ya documentado en memoria del proyecto). |
+| ETFs Explorador: gate Free/Premium | **N/A, decisión de negocio confirmada** | `etf.py` (igual que `portfolio_exposure.py`) tiene el comentario explícito: "Fase 8C (2026-11-12): sin suscripción Nuvos Plus por ahora, se libera gratis para todo usuario autenticado, monetización se decide después." No es un bug, es la decisión vigente. |
+| ETFs Explorador: estados de error en búsqueda/categorías | **PASS** | `etf/page.tsx`: cada fetch (categorías, búsqueda) tiene su propio `.catch()` con estado de error dedicado. |
+
+## Prioridad 3 — Seguridad, contratos, persistencia, rendimiento
+
+No se encontraron hallazgos nuevos más allá de los ya documentados en los Bloques 1-2 (IDOR, RLS, secretos, contratos de API verificados por los tests de integración reales). No se fuerza un hallazgo donde no lo hay — se prioriza honestidad sobre volumen.
+
+## Prioridad 4 — Matriz de pruebas manuales (iPhone/iPad + RevenueCat Sandbox)
+
+| # | Escenario | Dispositivo | Pasos | Resultado esperado |
+|---|---|---|---|---|
+| 1 | Login básico | iPhone + iPad | Abrir app → login con cuenta real → confirmar llegada a Home | Sin loop, sin pantalla en blanco |
+| 2 | Onboarding nuevo usuario | iPhone + iPad | Registro nuevo → completar todo el onboarding → confirmar llegada a Home | Nunca repite una pantalla ya completada |
+| 3 | Push denegado — rationale | iPhone + iPad | Primer boot → cuando aparezca el aviso propio de Nuvos, tocar "Ahora no" | App usable, el aviso NO reaparece al cambiar de pantalla |
+| 4 | Push denegado — sistema | iPhone + iPad | Tocar "Activar" en el aviso propio → en el diálogo NATIVO de iOS, tocar "Don't Allow" | App usable, sin loading infinito, sin re-prompt |
+| 5 | Push ya denegado desde Ajustes | iPhone + iPad | Denegar push desde Ajustes del sistema ANTES de abrir la app → abrir Nuvos | Un solo aviso "ve a Ajustes" por sesión, nunca más de una vez |
+| 6 | Navegación completa | iPhone + iPad | Recorrer Home, Radar, Chat, Portafolio, Watchlist, Perfil, Productos sin permisos push | Ninguna pantalla bloqueada por falta de push |
+| 7 | Compra Premium mensual | iPhone, Sandbox tester | PricingModal → Suscribirme Premium mensual → completar con Apple ID sandbox | Entitlement activo, `GET /billing/status` refleja premium |
+| 8 | Compra Premium anual | iPhone, Sandbox tester | Igual que #7 con plan anual | Mismo resultado |
+| 9 | Compra Duo mensual/anual | iPhone, Sandbox tester | Igual que #7 con cada plan Duo | Mismo resultado + flujo de invitar pareja |
+| 10 | Restore Purchases — PricingModal | iPhone, Sandbox tester (cuenta que ya compró) | Reinstalar app → PricingModal → "Restaurar compras" | Tier restaurado, confirmado en backend |
+| 11 | Restore Purchases — PaywallModal | iPhone, Sandbox tester | Igual que #10 pero desde PaywallModal (pantalla distinta, mismo botón agregado en esta auditoría) | Mismo resultado — primera vez que se prueba este botón en cualquier entorno |
+| 12 | Cancelación de suscripción | iPhone, Sandbox tester | Cancelar auto-renovación en Ajustes de Apple → verificar acceso | Mantiene acceso hasta el fin del período ya pagado (`CANCELLATION`) |
+| 13 | Expiración real | iPhone, Sandbox tester | Esperar a que la suscripción sandbox expire (o usar la aceleración de tiempo de Sandbox) | Pierde acceso real al expirar (`EXPIRATION`), webhook confirmado en logs de Railway |
+| 14 | Eliminación de cuenta — Sidebar | iPhone + iPad, cuenta de prueba real | Sidebar → Eliminar mi cuenta → escribir mal → escribir "ELIMINAR" → confirmar | Logout automático, no se puede volver a iniciar sesión con ese correo |
+| 15 | Eliminación de cuenta — Perfil | iPhone + iPad | Igual que #14 entrando por Perfil | Mismo resultado |
+| 16 | Grabación para Apple | iPhone físico | Grabar pantalla completa de principio a fin del escenario #14 | Video listo para adjuntar a la respuesta de App Review |
+
+## Línea base de tests — Bloque 3
+
+| Suite | Resultado |
+|---|---|
+| `backend` (pytest, Supabase local) | pendiente de confirmar el número final tras el fix de concurrencia — se registra en cuanto termine la corrida en curso. |
+| `frontend/mobile` (jest) | sin cambios de código en este bloque — se mantiene 140/140. |
+| `frontend/web` (vitest) | sin cambios en este bloque — se mantiene 287/287. |
+
+## Bloqueos concretos restantes para la siguiente build de Nuvos
+
+1. **Validación física de los 3 motivos de rechazo de Apple** (notificaciones, eliminación de cuenta, RevenueCat) — cero grabaciones/pruebas en dispositivo real todavía.
+2. **iPad Air 11" físico o simulador de Xcode** — cero UI validada en el dispositivo exacto del reviewer.
+3. **RevenueCat Sandbox/TestFlight** — los 16 escenarios de la matriz de arriba (#7-16) no se han ejecutado ni una vez.
+4. **Dashboard de RevenueCat** — mapeo Product ID↔Package↔Entitlement sin confirmar desde este entorno.
+5. **Autorización y despliegue de la migración 126 + job de reconciliación** — implementados, probados en local, con plan de despliegue listo arriba — **no desplegados, esperando tu autorización explícita**.
+6. **Build nueva** — todo el código de este bloque (fix de concurrencia, lo demás) vive sin commitear/sin build todavía — falta generar el siguiente build de Expo con estos cambios antes de poder ejecutar la matriz de pruebas manuales.
+
+**No GO. No se modificó producción. No se generó ningún envío nuevo a Apple en este bloque.**
+
 Este documento se irá actualizando en las próximas sesiones de auditoría.
