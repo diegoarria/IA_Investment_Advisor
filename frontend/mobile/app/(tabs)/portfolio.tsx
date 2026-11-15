@@ -15,15 +15,14 @@ import Svg, { Path, Defs, Stop, LinearGradient, Circle, Line as SvgLine } from "
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { marketApi, screenerWeeklyApi } from "../../src/lib/api";
+import { marketApi } from "../../src/lib/api";
 import { useCashDividends, type CashHolding } from "../../src/lib/cashDividendsStore";
 import { useFxRate } from "../../src/lib/useFxRate";
 import { posthog } from "../../src/config/posthog";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
-import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
-import PremiumToolCard from "../../src/components/PremiumToolCard";
 import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
+import { captureFirstPortfolioViewed } from "../../src/lib/onboardingAnalytics";
 import { isNYSEOpen, readPriceCache, writePriceCache, needsPriceRefresh, type PriceCache } from "../../src/lib/marketHours";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
@@ -31,6 +30,8 @@ import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore"
 import ExplainButton from "../../src/components/ExplainButton";
 import PaywallModal from "../../src/components/PaywallModal";
 import MobileBrokerConnectModal from "../../src/components/MobileBrokerConnectModal";
+import PortfolioDistribution from "../../src/components/PortfolioDistribution";
+import BeforeAfterSimulator from "../../src/components/BeforeAfterSimulator";
 
 const FREE_POSITION_LIMIT = 10;
 
@@ -987,6 +988,15 @@ export default function PortfolioScreen() {
   useEffect(() => {
     AsyncStorage.getItem("nuvos_demo_done").then((v) => { if (!v) setDemoMode(true); });
   }, []);
+
+  // "First value" for Ruta Portafolio: a real account (not demoMode's
+  // unauthenticated seed positions) with at least one real position.
+  useEffect(() => {
+    if (!demoMode && positions.length > 0 && !!useAppStore.getState().profile) {
+      captureFirstPortfolioViewed();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoMode, positions.length]);
   const dismissDemo = async (choice: "has_portfolio" | "has_cash" | "wants_to_learn") => {
     await AsyncStorage.setItem("nuvos_demo_done", "1");
     setDemoMode(false);
@@ -1016,23 +1026,23 @@ export default function PortfolioScreen() {
   const isPremiumAccess = hasPremiumAccess(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
-  // Oportunidades teaser — 100% Premium (Diego's Aug 16 spec, §5). Real,
-  // never-hardcoded count of undervalued candidates found this week; the
-  // backend returns this instead of the tickers/content for Free.
-  const [opportunitiesTeaserCount, setOpportunitiesTeaserCount] = useState<number | null>(null);
+  // Fase 9A agregó "distribucion"; Fase 9B agrega "antes_de_invertir" —
+  // "portafolio" conserva su contenido exacto (Posiciones), ahora con la
+  // etiqueta visual "Posiciones" para alinear con la arquitectura
+  // Posiciones | Distribución | Antes de invertir que ya existe en la
+  // web. "herramientas" se eliminó (Diego, 2026-11-14): Screener Semanal
+  // y Subvaluadas ya viven en su propio tab (Oportunidades), Earnings se
+  // alcanza por notificación, y Explorar ETFs pasó a su propio botón en
+  // el Sidebar.
+  const [activeSection, setActiveSection] = useState<"portafolio" | "distribucion" | "antes_de_invertir">("portafolio");
+  // "Antes de invertir" se monta una sola vez, la primera vez que el
+  // usuario la abre, y nunca se desmonta después — mismo patrón que la
+  // web (BeforeAfterSimulator) para conservar el escenario hipotético en
+  // curso al cambiar de sección.
+  const [simulatorOpened, setSimulatorOpened] = useState(false);
   useEffect(() => {
-    if (isPremiumAccess) return;
-    screenerWeeklyApi.getUndervalued(undefined, 10)
-      .then((res: { data: { is_premium: boolean; teaser_count?: number } }) => {
-        if (!res.data?.is_premium) {
-          const count = res.data?.teaser_count ?? 0;
-          setOpportunitiesTeaserCount(count);
-          posthog.capture("opportunities_teaser_viewed", { count });
-        }
-      })
-      .catch(() => setOpportunitiesTeaserCount(0));
-  }, [isPremiumAccess]);
-  const [activeSection, setActiveSection] = useState<"portafolio" | "herramientas">("portafolio");
+    if (activeSection === "antes_de_invertir") setSimulatorOpened(true);
+  }, [activeSection]);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
@@ -2313,116 +2323,55 @@ export default function PortfolioScreen() {
           </View>
         </Modal>
 
-        {/* ── TAB SWITCHER ── */}
+        {/* ── TAB SWITCHER ──
+            Fase 9B §1/§6: 4 secciones ahora caben en el mismo selector
+            sin saturarlo — la etiqueta de texto solo se muestra en la
+            sección ACTIVA (el ícono solo identifica a las demás, con su
+            propio accessibilityLabel para lectores de pantalla), en vez
+            de 4 etiquetas completas compitiendo por el mismo ancho. */}
         <View style={[s.subTabBar, { backgroundColor: colors.bg }]}>
           <View style={[s.subTabInner, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <TouchableOpacity
-              style={[s.subTab, activeSection === "portafolio" && s.subTabActive]}
-              onPress={() => setActiveSection("portafolio")}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={activeSection === "portafolio" ? "briefcase" : "briefcase-outline"}
-                size={15}
-                color={activeSection === "portafolio" ? "#04211a" : colors.textMuted}
-              />
-              <Text style={[s.subTabText, { color: activeSection === "portafolio" ? "#04211a" : colors.textMuted }]}>
-                {t("portfolio.tabs.myPortfolio")}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.subTab, activeSection === "herramientas" && s.subTabActive]}
-              onPress={() => setActiveSection("herramientas")}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={activeSection === "herramientas" ? "sparkles" : "sparkles-outline"}
-                size={15}
-                color={activeSection === "herramientas" ? "#04211a" : colors.textMuted}
-              />
-              <Text style={[s.subTabText, { color: activeSection === "herramientas" ? "#04211a" : colors.textMuted }]}>
-                {t("portfolio.tabs.tools")}
-              </Text>
-            </TouchableOpacity>
+            {([
+              { key: "portafolio" as const, icon: "briefcase" as const, iconOutline: "briefcase-outline" as const, label: t("portfolio.tabs.myPortfolio") },
+              { key: "distribucion" as const, icon: "pie-chart" as const, iconOutline: "pie-chart-outline" as const, label: t("portfolio.tabs.distribution") },
+              { key: "antes_de_invertir" as const, icon: "trending-up" as const, iconOutline: "trending-up-outline" as const, label: t("portfolio.tabs.beforeInvesting") },
+            ] satisfies { key: typeof activeSection; icon: keyof typeof Ionicons.glyphMap; iconOutline: keyof typeof Ionicons.glyphMap; label: string }[]).map((opt) => {
+              const active = activeSection === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[s.subTab, active && s.subTabActive]}
+                  onPress={() => setActiveSection(opt.key)}
+                  activeOpacity={0.8}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={opt.label}
+                >
+                  <Ionicons
+                    name={active ? opt.icon : opt.iconOutline}
+                    size={15}
+                    color={active ? "#04211a" : colors.textMuted}
+                  />
+                  {active && (
+                    <Text style={[s.subTabText, { color: "#04211a" }]} numberOfLines={1}>
+                      {opt.label}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
-        {activeSection === "herramientas" && (
-          <View style={{ gap: 12, paddingBottom: 32 }}>
-            {/* Section header */}
-            <View style={{ paddingHorizontal: 2, paddingBottom: 4 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(0,168,94,0.15)", alignItems: "center", justifyContent: "center" }}>
-                  <Ionicons name="sparkles" size={18} color={"#00d47e"} />
-                </View>
-                <View>
-                  <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text, letterSpacing: -0.4 }}>{t("portfolio.premiumTools.title")}</Text>
-                  <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{t("portfolio.premiumTools.subtitle")}</Text>
-                </View>
-              </View>
-            </View>
+        {activeSection === "distribucion" && (
+          <View style={{ paddingBottom: 32 }}>
+            <PortfolioDistribution portfolioId={activePortfolioId} />
+          </View>
+        )}
 
-            {/* ── SCREENER SEMANAL ── */}
-            {isPremiumAccess
-              ? <MobileWeeklyScreener isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
-              : <PremiumToolCard
-                  title={t("portfolio.premiumTools.weeklyScreener.title")}
-                  tagline={t("portfolio.premiumTools.weeklyScreener.tagline")}
-                  description={
-                    opportunitiesTeaserCount === null
-                      ? t("portfolio.premiumTools.weeklyScreener.description")
-                      : t("portfolio.premiumTools.weeklyScreener.teaser", { count: opportunitiesTeaserCount })
-                  }
-                  icon="search-outline"
-                  color="#8b5cf6"
-                  benefits={[
-                    { icon: "🎯", text: t("portfolio.premiumTools.weeklyScreener.benefits.0") },
-                    { icon: "⚡", text: t("portfolio.premiumTools.weeklyScreener.benefits.1") },
-                    { icon: "🚫", text: t("portfolio.premiumTools.weeklyScreener.benefits.2") },
-                    { icon: "🔄", text: t("portfolio.premiumTools.weeklyScreener.benefits.3") },
-                  ]}
-                  onUnlock={() => setPaywallOpen(true)}
-                />
-            }
-
-            {/* Acciones Subvaluadas (DCF) — todas las candidatas reales con
-                margen de seguridad positivo, mismo motor que Arthur. */}
-            <TouchableOpacity
-              onPress={() => router.push("/subvaluadas")}
-              activeOpacity={0.85}
-              style={{ borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden", marginTop: 12 }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, backgroundColor: colors.card }}>
-                <View style={{ width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#00a85e" }}>
-                  <Ionicons name="bookmark-outline" size={24} color="#fff" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text }}>Acciones Subvaluadas (DCF)</Text>
-                  <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>Todas las candidatas reales con margen de seguridad positivo</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-              </View>
-            </TouchableOpacity>
-
-            {/* Análisis de Earnings — desglose por segmento + rating real,
-                grounded en Finnhub/FMP + búsqueda web en vivo. */}
-            <TouchableOpacity
-              onPress={() => router.push("/earnings" as any)}
-              activeOpacity={0.85}
-              style={{ borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden", marginTop: 12 }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, backgroundColor: colors.card }}>
-                <View style={{ width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#3b82f6" }}>
-                  <Ionicons name="bar-chart-outline" size={24} color="#fff" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text }}>{t("earnings.title")}</Text>
-                  <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{t("earnings.premiumGate.desc")}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-              </View>
-            </TouchableOpacity>
-
+        {simulatorOpened && (
+          <View style={{ paddingBottom: 32, display: activeSection === "antes_de_invertir" ? "flex" : "none" }}>
+            <BeforeAfterSimulator portfolioId={activePortfolioId} currency={portfolioCurrency} />
           </View>
         )}
 

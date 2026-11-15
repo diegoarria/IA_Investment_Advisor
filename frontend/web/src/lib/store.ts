@@ -340,6 +340,29 @@ export const useAuthStore = create<AuthState>()(
         // un-namespaced "guest" bucket (see userStorage below) — clear the
         // flag so a real account logged into next doesn't inherit it.
         try { localStorage.removeItem("nuvos_guest"); } catch {}
+        // Stage D analytics audit: identifyUser() (onboardingAnalytics.ts)
+        // calls posthog.identify() on login/register, but nothing ever
+        // called the reverse on logout — PostHog's own distinct_id (and
+        // whatever person it's linked to) survived across accounts on a
+        // shared device/browser, so the next person signing in on this
+        // same tab could get merged into the PREVIOUS user's identified
+        // profile instead of starting a clean one. reset() starts a fresh
+        // anonymous distinct_id.
+        try {
+          const posthog = (await import("posthog-js")).default;
+          posthog.reset();
+        } catch {}
+        // Same reasoning, for our own dedupe flags: Diego caught that a
+        // permanent per-browser key alone is the wrong sole source for
+        // "did THIS person activate" — a second real account on the same
+        // device would have its genuine first activation silently
+        // swallowed by the first account's already-set flags. Clearing
+        // them on logout scopes them to "per account on this device"
+        // instead of "forever, for whoever uses this browser next."
+        try {
+          const { resetOnboardingAnalyticsForLogout } = await import("./onboardingAnalytics");
+          resetOnboardingAnalyticsForLogout();
+        } catch {}
         // Let the next login (even in this same tab) re-apply the user's
         // preferred start screen once — see home/page.tsx's one-shot guard.
         try { sessionStorage.removeItem("nuvos_start_screen_redirected"); } catch {}

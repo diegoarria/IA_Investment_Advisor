@@ -46,6 +46,14 @@ describe("getPlainReviewReason", () => {
     );
   });
 
+  it("matches the BRK.B/BRK.A conglomerate-ROE flag (audit 2026-11-13)", () => {
+    const raw =
+      "Valoración en revisión metodológica. En Berkshire Hathaway, las fluctuaciones contables de su cartera de inversiones pueden distorsionar el ROE histórico y afectar la estimación de valor.";
+    const result = getPlainReviewReason(raw, t);
+    expect(result.matched).toBe(true);
+    expect(result.plain).toBe("companyDiagnostic.underReview.reasonConglomerateRoe");
+  });
+
   it("never fabricates an explanation for an unrecognized reason", () => {
     const raw = "some future backend reason text we've never seen before";
     expect(getPlainReviewReason(raw, t)).toEqual({ plain: "", matched: false });

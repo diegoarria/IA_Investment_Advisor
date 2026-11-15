@@ -45,6 +45,7 @@
       },
       "academy": "Learning",
       "undervalued": "Nuvos Radar",
+      "etfExplorer": "Explore ETFs",
       "notifications": "Notifications",
       "profile": "Profile",
       "products": "Products",
@@ -72,7 +73,8 @@
       "navLocked": "Locked",
       "coachingTitle": "1:1 session with an expert from our team",
       "coachingSub": "Personalized guidance · 45 min",
-      "logout": "Log out"
+      "logout": "Log out",
+      "deleteAccount": "Delete my account"
     },
     "year": "year",
     "close": "Close"
@@ -371,10 +373,13 @@
     "genericSaveError": "Couldn't save. Please try again.",
     "deleteAccountTitle": "Delete account",
     "deleteAccountMsg": "This action is permanent. All your data, portfolio, history and subscription will be deleted. This cannot be undone.",
-    "deleteAccountConfirm": "Delete my account",
-    "deleteAccountSureTitle": "Are you sure?",
-    "deleteAccountSureMsg": "Your account and all your data will be permanently deleted.",
+    "deleteAccountConfirmWord": "DELETE",
+    "deleteAccountTypeInstruction": "Type {{word}} to delete this account",
     "deleteAccountYes": "Yes, delete",
+    "deleteAccountDeleting": "Deleting...",
+    "deleteAccountError": "Could not delete your account. Check your connection and try again.",
+    "deleteAccountSubscriptionNote": "Deleting your account erases your Nuvos data, but does NOT automatically cancel an active Apple subscription. If you have Premium or Duo, cancel it separately to stop being charged.",
+    "deleteAccountManageSubscription": "Manage my Apple subscription →",
     "goal": {
       "sectionLabel": "MY FINANCIAL GOAL"
     },
@@ -1701,23 +1706,101 @@
     },
     "paywallReason": "More than 10 positions requires Premium",
     "tabs": {
-      "myPortfolio": "My Portfolio",
-      "tools": "Tools"
+      "myPortfolio": "Positions",
+      "distribution": "Distribución",
+      "beforeInvesting": "Before investing"
     },
-    "premiumTools": {
-      "title": "Premium Tools",
-      "subtitle": "Advanced analysis of your portfolio",
-      "weeklyScreener": {
-        "title": "Weekly Screener",
-        "tagline": "5 personalized opportunities every Sunday",
-        "description": "Every Sunday the AI scans the market and selects 5 opportunities that match your risk profile, your mentor's philosophy, and the gaps in your portfolio.",
-        "teaser": "This week Nuvos found {{count}} companies that could be undervalued. Activate Premium to discover which ones.",
-        "benefits": [
-          "Filtered by your risk profile and mentor",
-          "Concrete catalyst and risk for every pick",
-          "Never suggests what you already own or saw in recent weeks",
-          "Updates automatically every Sunday"
-        ]
+    "distribution": {
+      "na": "n/a",
+      "loading": "Analyzing your portfolio…",
+      "error": {
+        "notFound": "We couldn't find this portfolio.",
+        "sessionExpired": "Your session expired. Sign in again.",
+        "generic": "We couldn't compute your portfolio's distribution right now."
+      },
+      "summary": {
+        "emptyPortfolio": "Add positions to see your distribution.",
+        "positionsCount": "{{count}} positions",
+        "unverifiableNote": "{{count}} position(s) couldn't be verified — this may limit what we show in sectors and geography.",
+        "actionUnderstand": "Understand my distribution"
+      },
+      "nav": {
+        "backToSummary": "Summary"
+      },
+      "dimensionSelector": {
+        "positions": "Positions",
+        "sectors": "Sectors",
+        "geography": "Geography"
+      },
+      "positions": {
+        "equityLabel": "Stocks",
+        "etfLabel": "ETFs",
+        "compositionNote": "Of every $100 of your portfolio's verified value, approximately ${{etf}} is in ETFs and ${{equity}} in individual stocks.",
+        "unknownAssetNote": "{{amount}} of your portfolio (at cost) couldn't be classified as a stock or ETF.",
+        "allPositionsTitle": "All your positions"
+      },
+      "unverifiable": {
+        "badge": "Not verifiable",
+        "title": "We couldn't verify these positions",
+        "reason": {
+          "no_price": "we couldn't find a current market price",
+          "currency_unknown": "we couldn't confirm what currency it trades in",
+          "fx_conversion_failed": "we couldn't convert its currency",
+          "unclassified_asset": "we couldn't classify this ticker"
+        }
+      },
+      "sectors": {
+        "empty": "There isn't enough sector data yet.",
+        "coverageNote": "Sector coverage: {{pct}}",
+        "nonEquityStyleNote": "{{amount}} is in funds (gold, silver, bonds, etc.) with no applicable sector category — not applicable, not missing data.",
+        "unclassifiedNote": "{{amount}} of your portfolio doesn't have a reliable sector classification.",
+        "seeAllSectors": "See all sectors in detail",
+        "contributorsTitle": "Where does your exposure to {{sector}} come from?",
+        "contributorsClarification": "These figures are percentage points of your portfolio's total verified value, not independent percentages of each investment.",
+        "contributorsUnavailable": "We don't have a breakdown of which positions generate this exposure right now.",
+        "verifiedUniverseNote": "This analysis covers the {{pct}} of your portfolio's value we could verify — not necessarily your complete holdings.",
+        "noDominantSector": "We didn't find a sector with enough weight to highlight — your exposure is spread across several sectors."
+      },
+      "geography": {
+        "etfUnderlying": "Underlying assets of your ETFs",
+        "equityDomicile": "Domicile of your individual stocks",
+        "empty": "Not enough data yet.",
+        "nonApplicableNote": "{{amount}} is in funds backed by physical assets (gold, silver, etc.) with no underlying country — not applicable, not missing data.",
+        "methodologyNote": "A company's domicile and the real distribution of assets inside an ETF are two different ways of measuring geography — shown separately, never combined into one figure. This figure describes where your companies are domiciled, not necessarily where they generate all their revenue.",
+        "whatThisMeansToggle": "What this means"
+      },
+      "simulate": {
+        "title": "Before investing",
+        "subtitle": "Pick a hypothetical investment and an amount to see how your distribution would change — this is not a purchase order.",
+        "searchPlaceholder": "Search by ticker",
+        "run": "Simulate",
+        "resultIntro": "If you added {{amount}} to:",
+        "positionWeightTitle": "Your investment's weight",
+        "valueBefore": "Value before",
+        "valueAfter": "Value after",
+        "valueIncreaseNote": "The value increases because of the {{amount}} added in this simulation, not because of a projected return.",
+        "otherChanges": "Other changes",
+        "disclaimer": "These observations are generated with fixed rules over the real before/after data — never by artificial intelligence, risk scores, or buy/sell recommendations.",
+        "noBeforeVerified": "We couldn't verify any real position before this simulation — the \"before\" state starts from zero.",
+        "error": {
+          "invalid": "We couldn't simulate this investment.",
+          "generic": "We couldn't generate the simulation right now."
+        },
+        "perspective": {
+          "distribution": "Sectors",
+          "exposure": "Geography",
+          "history": "History"
+        },
+        "history": {
+          "unavailable": "There isn't enough real history for this comparison.",
+          "actual": "Current composition",
+          "hypothetical": "Hypothetical composition",
+          "volatility": "Volatility",
+          "maxDrawdown": "Max drawdown",
+          "partialWindow": "partial window — not every instrument has full history",
+          "warnings": "Some data has warnings — see the web for full detail.",
+          "errorGeneric": "We couldn't generate the historical comparison right now."
+        }
       }
     },
     "screenshot": {
@@ -2533,6 +2616,15 @@
     "forgot": "Forgot?",
     "forgotPasswordTitle": "Forgot your password?",
     "genericError": "Something went wrong. Try again.",
+    "welcomeTitle": "Understand what you're investing in",
+    "welcomeSubtitle": "Make sense of companies, ETFs and your portfolio without spending hours analyzing information.",
+    "welcomeCtaStart": "Start for free",
+    "welcomeCtaLogin": "I already have an account",
+    "welcomeCtaExplore": "Explore without signing up",
+    "goalTitle": "What would you like to understand first?",
+    "goalOptionPortfolio": "Understand my portfolio",
+    "goalOptionCompany": "Analyze a company",
+    "goalOptionEtf": "Explore ETFs",
     "hasAccount": "Already have an account? ",
     "invalidCredentials": "Invalid credentials",
     "login": "Log in",
@@ -2947,6 +3039,12 @@
       "messageWithGoal": "**Decide better.** That's what Nuvos is for — to help you understand your money, discover good opportunities, and choose where to put it, with clarity and confidence.\n\nWelcome, **{{name}}**! 🎉 I see your goal is **{{goal}}** — let's work together to get you there.\n\nAs we talk, I'll get to know you better: your experience, your financial situation, your questions. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**",
       "messageNoGoal": "**Decide better.** That's what Nuvos is for — to help you understand your money, discover good opportunities, and choose where to put it, with clarity and confidence.\n\nWelcome, **{{name}}**! 🎉 As we talk, I'll get to know you better: your experience, your financial situation, your goals. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**"
     }
+  },
+  "onboardingQuick": {
+    "title": "Before you continue",
+    "subtitle": "Just the minimum to activate your account — we'll get to know the rest as we talk.",
+    "continueButton": "Continue",
+    "savingButton": "Saving..."
   },
   "streakMilestoneModal": {
     "daysStreak": "{{days}} day streak",
@@ -3623,7 +3721,7 @@
     }
   },
   "paywallModal": {
-    "heroFeature1": "Chat with Arthur with no limits",
+    "heroFeature1": "Chat with Arthur up to 80 times a day",
     "heroFeature2": "We explain why your money is moving, so it never catches you off guard",
     "heroFeature3": "Every month we tell you if you beat the market or not",
     "heroFeature4": "5 investment ideas picked for you every week",
@@ -3638,13 +3736,16 @@
     "coachingCta": "Prefer a 1:1 guide with an expert from our team?"
   },
   "welcomePremiumCard": {
-    "title": "Welcome to Nuvos, {{name}}!",
-    "subtitle": "We activated your Premium trial — no card, no commitment.",
+    "title": "Welcome to Nuvos! Your first month of Premium is included",
+    "subtitle": "Explore Nuvos' tools for 30 days, no credit card required.",
     "trialLabel": "30 days of Premium, free",
     "trialEndsPrefix": "Your trial ends on",
     "featuresLabel": "With Premium you get",
     "continue": "Continue",
-    "noCardRequired": "No card required to start"
+    "ctaCompany": "Keep analyzing",
+    "ctaEtf": "Explore ETFs",
+    "ctaPortfolio": "Understand my portfolio",
+    "noCardRequired": "No credit card required"
   },
   "phonePromptCard": {
     "title": "One last thing",
@@ -3793,7 +3894,6 @@
       "academy": "Learning",
       "chat": "Arthur",
       "home": "Home",
-      "investors": "Investors",
       "learn": "Learn",
       "notifications": "Notifications",
       "oportunidades": "Nuvos Radar",
@@ -4326,5 +4426,155 @@
     "nothingBody": "I didn't see positions or trades in that file. Try a screenshot of your portfolio or of the trade confirmation.",
     "errorTitle": "Couldn't read the file",
     "errorBody": "Please try again in a moment."
+  },
+  "etf": {
+    "detail": {
+      "back": "Back",
+      "loading": "Loading {{ticker}}…",
+      "etfBadge": "ETF",
+      "error": {
+        "notEtf": "{{ticker}} doesn't classify as an ETF.",
+        "invalidTicker": "'{{ticker}}' doesn't look like a valid ticker symbol.",
+        "generic": "We couldn't load this ETF's data right now. Try again in a few seconds."
+      },
+      "summary": {
+        "manager": "Manager",
+        "exchange": "Exchange",
+        "since": "Since"
+      },
+      "invests": {
+        "title": "What does it invest in?",
+        "holdingsCount": "Holds {{count}} distinct positions. ",
+        "description": "Real reported distribution by sector and country (does not include the detail of each individual position).",
+        "bySector": "By sector",
+        "byCountry": "By country",
+        "others": "Other ({{count}}) — see all",
+        "seeLess": "See less"
+      },
+      "costs": {
+        "title": "How much does it cost?",
+        "expenseRatio": "Annual fee (expense ratio)",
+        "aum": "Assets under management (AUM)",
+        "explanationIntro": "The expense ratio is what the fund charges every year, automatically, on the money you have invested — it's not something you pay separately.",
+        "example": " For every $10,000 invested, this is approximately ${{amount}} per year.",
+        "disclaimer": " This doesn't include your broker's fees or other investing costs.",
+        "suspicious": "This number looks unusually high — we show it exactly as the source reports it, but it's worth double-checking.",
+        "tier": {
+          "muy_bajo": "Very low",
+          "bajo": "Low",
+          "moderado": "Moderate",
+          "alto": "High"
+        }
+      },
+      "performance": {
+        "title": "How has it performed?",
+        "currentPrice": "Current price",
+        "ytd": "YTD",
+        "oneYear": "1 year",
+        "fiveYear": "5 years",
+        "maxFullHistory": "Return since inception",
+        "maxCapped": "Return over {{years}} years",
+        "priceOnlyDisclaimer": "These are price-only changes — they don't include any dividends the fund paid out in each period. Real total return would differ.",
+        "recentDividends": "Recent dividends",
+        "currentYield": " · current yield {{pct}}"
+      },
+      "risks": {
+        "title": "Risks to consider",
+        "disclaimer": "Nuvos doesn't assign a risk rating to this ETF or any other — these are real concentration figures, not an opinion. Past performance shown above doesn't guarantee future results.",
+        "limitedHistory": "This fund doesn't have a full year of price history yet — be careful drawing conclusions from its past performance."
+      },
+      "footer": {
+        "source": "Source: Financial Modeling Prep",
+        "structuralUpdated": "Structural data updated {{date}}",
+        "priceUpdated": "Price updated {{date}}",
+        "missingFields": " · Some data wasn't available in this request ({{fields}})"
+      },
+      "notAvailable": "Not available",
+      "metrics": {
+        "expenseRatio": "Annual fee",
+        "holdingsCount": "Positions",
+        "dominantSector": "Dominant sector",
+        "dominantCountry": "Dominant country",
+        "aum": "Assets under management"
+      },
+      "understand": {
+        "title": "What you should understand",
+        "empty": "There isn't enough data yet to generate observations about this fund.",
+        "seeData": "See the data behind this",
+        "disclaimer": "These observations are generated with fixed rules over real data — never with AI, and never as a recommendation."
+      },
+      "horizon": {
+        "title": "What should I consider about my investment horizon?",
+        "seeMore": "See more",
+        "seeLess": "See less"
+      },
+      "noDescription": "We don't have a simplified, validated English description for this fund yet.",
+      "ctaFromDetail": "Compare with another ETF"
+    },
+    "explorer": {
+      "title": "Explore ETFs",
+      "subtitle": "Find exchange-traded funds by name, ticker, or category.",
+      "searchPlaceholder": "Search by name or ticker (e.g. Vanguard, Technology, VOO)",
+      "searchEmpty": "We couldn't find any ETFs matching \"{{query}}\".",
+      "searchError": "We couldn't search right now. Try again.",
+      "categoriesTitle": "Categories",
+      "categoriesEducationalNote": "These categories are curated groupings for exploring, not a formal GICS sector classification.",
+      "categoriesError": "We couldn't load categories right now.",
+      "categories": {
+        "mercado_amplio": "Broad market",
+        "tecnologia": "Technology",
+        "salud": "Health and biotech",
+        "mercados_internacionales": "International markets",
+        "financiero_y_energia": "Financial and energy",
+        "consumo_e_industria": "Consumer and industrial"
+      },
+      "resultsTitle": "Results",
+      "cardUnavailable": "We couldn't load this ETF's data right now.",
+      "expenseRatioLabel": "Annual fee",
+      "discoveryTitle": "Start by getting to know these funds",
+      "discoveryNote": "These are educational examples of different kinds of exposure — not a recommendation, and not necessarily the best options available.",
+      "categoryCuratedNote": "A curated selection of well-known examples — not an exhaustive list of every ETF in this category.",
+      "backToCategories": "Back to categories",
+      "loadMore": "Load more",
+      "dominantSectorLabel": "Dominant sector",
+      "compareCta": "Compare"
+    },
+    "compare": {
+      "title": "Compare ETFs",
+      "subtitle": "Compare 2 to 3 ETFs with real data — no recommendations, just concrete differences.",
+      "selectorLabel": "ETFs to compare",
+      "selectorPlaceholder": "Search by name or ticker to add",
+      "selectedCount": "{{count}}/3 selected",
+      "remove": "Remove {{ticker}} from the comparison",
+      "minRequired": "Select at least 2 ETFs to compare.",
+      "maxReached": "You've already selected the maximum of 3 ETFs.",
+      "alreadyAdded": "{{ticker}} is already in the comparison.",
+      "compareButton": "Compare",
+      "error": "We couldn't generate the comparison right now. Try again.",
+      "notReadyTitle": "Incomplete comparison",
+      "notReadyBody": "We couldn't load at least two valid ETFs, so we're not showing a comparison. Check the ETFs you selected.",
+      "unavailableReason": {
+        "not_etf": "{{ticker}} doesn't classify as an ETF.",
+        "unavailable": "We couldn't get {{ticker}}'s data right now."
+      },
+      "sectors": {
+        "title": "Sector distribution",
+        "empty": "There's no sector data available to compare."
+      },
+      "countries": {
+        "title": "Geographic distribution",
+        "empty": "There's no geographic data available to compare."
+      },
+      "performance": {
+        "title": "Historical performance"
+      },
+      "understand": {
+        "title": "What you should understand about this comparison",
+        "empty": "There aren't enough clear differences between these ETFs to generate observations yet.",
+        "disclaimer": "These observations are generated with fixed rules over real data — never by artificial intelligence, and never as a recommendation."
+      },
+      "viewFicha": "View full profile",
+      "ctaFromDetail": "Compare with another ETF"
+    }
   }
 }

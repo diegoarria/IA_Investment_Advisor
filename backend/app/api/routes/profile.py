@@ -17,6 +17,32 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/profile", tags=["profile"])
 
+# Stage F: prepared, OFF by default (settings.enforce_onboarding_eligibility) —
+# see create_profile's new-profile branch for where this is actually used.
+# Not a migration, not a schema change: purely request-time validation.
+#
+# _CURRENT_TERMS_VERSION is deliberately NOT any of the 3 strings already
+# live in the wild today ("2026-06" from the old web/mobile wizards,
+# "2026-11-quick"/"2026-11-quick-mobile" from the new minimal onboarding
+# screens) — turning this flag on starts strict from a version none of the
+# current clients have ever sent, forcing an explicit client update before
+# any real signup could pass, rather than silently grandfathering in
+# whatever string happened to already be hardcoded somewhere.
+_CURRENT_TERMS_VERSION = "2026-11-eligibility-v1"
+_MIN_AGE_YEARS = 18
+_MAX_AGE_YEARS = 120
+
+
+def _is_valid_adult_birth_date(birth_date: str | None) -> bool:
+    if not birth_date:
+        return False
+    try:
+        dt = datetime.strptime(birth_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return False
+    age_days = (datetime.now(timezone.utc) - dt).days
+    return (_MIN_AGE_YEARS * 365.25) <= age_days <= (_MAX_AGE_YEARS * 365.25)
+
 
 def _to_user_profile(row: dict) -> UserProfile:
     """Builds the response `UserProfile`, coercing known DB/model gaps
@@ -190,6 +216,33 @@ async def create_profile(
             if not result.data:
                 raise HTTPException(status_code=503, detail="No se pudo guardar tu perfil. Intenta de nuevo en unos segundos.")
     else:
+        # Stage F: age/consent enforcement for brand-new profiles only —
+        # OFF by default (settings.enforce_onboarding_eligibility), never
+        # applied to the update branch above, so an existing account can
+        # never be retroactively blocked. When on: the client's birth_date
+        # must parse to a real 18-120 age (client-side JS validation is
+        # not trusted as the only gate), and terms_version must match
+        # _CURRENT_TERMS_VERSION exactly — not just be non-empty — because
+        # accepting any version string as proof of accepting the CURRENT
+        # terms has no explicit policy behind it. terms_accepted_at is
+        # always set to the SERVER's own clock below, never trusted from
+        # the client — a client-sent timestamp is not sufficient evidence
+        # of when consent actually happened.
+        if settings.enforce_onboarding_eligibility:
+            if not _is_valid_adult_birth_date(db_data.get("birth_date")):
+                raise HTTPException(status_code=400, detail="Se requiere una fecha de nacimiento válida (18+ años) para crear tu cuenta.")
+            if db_data.get("terms_version") != _CURRENT_TERMS_VERSION:
+                raise HTTPException(status_code=400, detail="Debes aceptar la versión vigente de los Términos y el Aviso de Privacidad.")
+            db_data["terms_accepted_at"] = now
+        # name is now optional (UserProfileCreate) — the new minimal
+        # /onboarding/quick screen never sends it. A NULL name would still
+        # break the UserProfile response model (name: str, required) and
+        # the welcome-email build below already guards against a missing
+        # name the same way — make the fallback explicit here, once, for
+        # the actual DB row, instead of relying on two separate `.get(...,
+        # "Inversor")` call sites to happen to agree.
+        if not db_data.get("name"):
+            db_data["name"] = "Investor" if data.language == "en" else "Inversor"
         # Start the Premium trial the instant the profile row is created
         # (onboarding completion) instead of waiting for the client to
         # happen to call GET /billing/status afterwards. Previously the

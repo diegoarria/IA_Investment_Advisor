@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "strict": true,
+    "types": ["jest"],
     "paths": {
       "@/*": ["./*"]
     }

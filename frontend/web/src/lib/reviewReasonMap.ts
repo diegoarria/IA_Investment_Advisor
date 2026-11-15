@@ -9,6 +9,12 @@
 //   B) f"intrinsic/price ratio {ratio}x fuera del rango esperado
 //      ({LOW}x-{HIGH}x) — requiere revisión manual antes de publicarse como
 //      válida" (CHTR/PLTR/TSLA/Ford's current case/etc.)
+//   C) "Valoración en revisión metodológica. En Berkshire Hathaway, las
+//      fluctuaciones contables..." — the narrow BRK.B/BRK.A conglomerate-ROE
+//      flag (audit 2026-11-13, company_valuation_service._CONGLOMERATE_ROE_
+//      REVIEW_TICKERS). Already plain-language at the source, so this
+//      pattern exists only to route it to its own translated copy instead
+//      of the generic fallback below.
 // Anything that doesn't match either pattern gets the neutral fallback
 // (companyDiagnostic.underReview.reasonFallback) instead of a fabricated
 // explanation — never guess at an unrecognized reason.
@@ -22,6 +28,7 @@ export interface PlainReviewReason {
 
 const MIXED_REGIME_RE = /mixed-regime|mixed regime|unreliable.*anchor/i;
 const PRICE_GAP_RE = /intrinsic\/price ratio\s+([\d.]+)x\s+fuera del rango esperado/i;
+const CONGLOMERATE_ROE_RE = /Berkshire Hathaway.*fluctuaciones contables/i;
 
 export function getPlainReviewReason(
   raw: string | null | undefined,
@@ -31,6 +38,10 @@ export function getPlainReviewReason(
 
   if (MIXED_REGIME_RE.test(raw)) {
     return { matched: true, plain: t("companyDiagnostic.underReview.reasonMixedRegime") };
+  }
+
+  if (CONGLOMERATE_ROE_RE.test(raw)) {
+    return { matched: true, plain: t("companyDiagnostic.underReview.reasonConglomerateRoe") };
   }
 
   const gapMatch = raw.match(PRICE_GAP_RE);

@@ -1,6 +1,7 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 
 export const BASE_URL =
@@ -520,6 +521,13 @@ export const screenerWeeklyApi = {
     api.get("/api/market/screener/weekly-opportunities", { params: { lang }, timeout: timeoutMs }),
   quickAnalysis: (query: string, lang?: string, isDefaultView?: boolean) =>
     api.get("/api/market/screener/quick-analysis", { params: { query, lang, is_default_view: isDefaultView }, timeout: 25000 }),
+  // Stage E (onboarding 2.0 mobile parity, 2026-11): the no-auth counterpart
+  // already existed server-side for web (3 real searches/week for a true
+  // guest, same engine, same data) — mobile just never had a client method
+  // for it, so Ruta Empresa here always required an account even though
+  // the public contract was already there. See getStableGuestId below.
+  quickAnalysisPublic: (query: string, guestId: string, lang?: string, isDefaultView?: boolean) =>
+    api.get("/api/market/screener/quick-analysis/public", { params: { query, guest_id: guestId, lang, is_default_view: isDefaultView }, timeout: 25000 }),
   nifDashboard: (query: string, lang?: string) =>
     api.get("/api/market/screener/nif-dashboard", { params: { query, lang }, timeout: 25000 }),
   // 100s (bumped from 75s, 2026-10-19 — same fix as web's api.ts: AAPL
@@ -537,6 +545,38 @@ export const simulateApi = {
     scenarioParams: Record<string, unknown>,
     portfolio: unknown[]
   ) => api.post("/api/simulate", { scenario_type: scenarioType, scenario_params: scenarioParams, portfolio }),
+};
+
+// Fase 9A: Distribución en mobile — el mismo backend y contrato que la
+// web (frontend/web/src/lib/api.ts's portfolioExposureApi), sin motor
+// financiero nuevo. Solo lectura. "Antes de invertir"/Historia
+// deliberadamente no incluidos todavía (fuera del alcance de esta fase).
+export const portfolioExposureApi = {
+  get: (portfolioId: string = "default") => api.get(`/api/portfolio-exposure/${portfolioId}`, { timeout: 25000 }),
+  getPulse: (portfolioId: string = "default", snapshotType: "month_end" | "on_demand" = "month_end") =>
+    api.get(`/api/portfolio-exposure/${portfolioId}/pulse`, { params: { snapshot_type: snapshotType }, timeout: 20000 }),
+  // Fase 9B: "Antes de invertir" — estrictamente de solo lectura, nunca
+  // escribe en el portafolio real. Monto en el body, nunca en la URL
+  // (mismo motivo que la web: no dejarlo en logs/historial del navegador).
+  simulate: (portfolioId: string, ticker: string, amount: number) =>
+    api.post(`/api/portfolio-exposure/${portfolioId}/simulate`, { ticker, amount }, { timeout: 25000 }),
+  simulateHistory: (portfolioId: string, ticker: string, amount: number, period: "1y" | "3y" | "5y") =>
+    api.post(`/api/portfolio-exposure/${portfolioId}/simulate-history`, { ticker, amount, period }, { timeout: 30000 }),
+};
+
+// Fase 9C §3: Explorador y Comparador de ETFs en mobile — mismos 5
+// endpoints y mismo contrato que la web (frontend/web/src/lib/api.ts
+// líneas 887-893), sin cálculo financiero nuevo. Solo lectura, sin
+// gate de admin/premium (igual que el backend desde Fase 8C).
+export const etfApi = {
+  getOverview: (ticker: string, lang: string = "es") =>
+    api.get(`/api/etf/${encodeURIComponent(ticker)}`, { params: { lang }, timeout: 20000 }),
+  search: (q: string, limit = 20) => api.get("/api/etf/search", { params: { q, limit } }),
+  getCategories: () => api.get("/api/etf/categories"),
+  getCards: (tickers: string[], lang: string = "es") =>
+    api.get("/api/etf/cards", { params: { tickers: tickers.join(","), lang } }),
+  compare: (tickers: string[], lang: string = "es") =>
+    api.get("/api/etf/compare", { params: { tickers: tickers.join(","), lang }, timeout: 20000 }),
 };
 
 
@@ -669,5 +709,28 @@ export const researchEngineApi = {
   reviewThesis: (ticker: string, lang?: string) =>
     api.post(`/api/research-engine/company/${ticker}/thesis/review`, {}, { params: { lang }, timeout: 30000 }),
 };
+
+// Stable, anonymous per-device id — mirrors web's getGuestId() (localStorage
+// UUID). NOT the same as MOBILE_CHAT_GUEST_ID above (a fresh random value
+// per module load, fine for that feature's lenient per-session quota) —
+// this one is persisted across app restarts because it backs a real
+// weekly counter (Radar's 3 free guest searches/week) that must survive
+// closing and reopening the app.
+const GUEST_ID_KEY = "nuvos_guest_id";
+let _cachedGuestId: string | null = null;
+export async function getStableGuestId(): Promise<string> {
+  if (_cachedGuestId) return _cachedGuestId;
+  try {
+    let id = await AsyncStorage.getItem(GUEST_ID_KEY);
+    if (!id) {
+      id = `g-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      await AsyncStorage.setItem(GUEST_ID_KEY, id);
+    }
+    _cachedGuestId = id;
+    return id;
+  } catch {
+    return `g-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
 
 export default api;

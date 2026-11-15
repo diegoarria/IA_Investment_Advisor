@@ -836,7 +836,7 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
     # value as `valid` even though the persisted/backfill path already
     # knew to flag it `under_review`. One shared rule, never two.
     from app.services.company_valuation_service import _anomaly_review_reason, _dual_track_assumptions
-    _review_reason = _anomaly_review_reason(scenarios, dcf)
+    _review_reason = _anomaly_review_reason(scenarios, dcf, ticker=ticker)
     valuation = {
         "conservative": scenarios["bear"],
         "baseFairValue": scenarios["base"],

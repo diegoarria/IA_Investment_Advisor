@@ -17,6 +17,7 @@ import { useCashDividends, type CashHolding } from "@/lib/cashDividendsStore";
 import { useAuthStore, useSubscriptionStore, useProfileStore, useBalanceVisibilityStore, hasPremiumAccess } from "@/lib/store";
 import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
+import { captureFirstPortfolioViewed, captureBrokerConnectionStarted, captureBrokerConnectionCompleted } from "@/lib/onboardingAnalytics";
 import { useFxRate } from "@/lib/useFxRate";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
@@ -974,6 +975,7 @@ export default function PortfolioPage() {
   useEffect(() => { screenshotCurrencyRef.current = screenshotCurrency; }, [screenshotCurrency]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [brokerModalOpen, setBrokerModalOpen] = useState(false);
+  useEffect(() => { if (brokerModalOpen) captureBrokerConnectionStarted("unknown"); }, [brokerModalOpen]);
   // Mobile's "Conectar broker" sends users here (?connect=1) — Plaid Link is web-only.
   useEffect(() => {
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("connect") === "1") {
@@ -1200,6 +1202,16 @@ export default function PortfolioPage() {
     loadFromServer().finally(() => setServerLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, userId]);
+
+  // "First value" for Ruta Portafolio: real server data has finished
+  // loading (not the unauthenticated-guest demo positions set by
+  // dismissDemo above) and there's at least one real position to show in
+  // Distribución.
+  useEffect(() => {
+    if (isAuthenticated && !demoMode && !serverLoading && positions.length > 0) {
+      captureFirstPortfolioViewed();
+    }
+  }, [isAuthenticated, demoMode, serverLoading, positions.length]);
 
   // Retry automático si hay cambios locales sin confirmar (syncStatus error o pendingSync)
   useEffect(() => {
@@ -4327,6 +4339,7 @@ export default function PortfolioPage() {
         <BrokerConnectModal
           onClose={() => setBrokerModalOpen(false)}
           onPositionsImported={(brokerPositions) => {
+            captureBrokerConnectionCompleted("unknown");
             brokerPositions.forEach((p) => {
               if (p.shares > 0) {
                 addPosition({

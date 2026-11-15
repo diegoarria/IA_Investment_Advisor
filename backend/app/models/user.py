@@ -6,7 +6,16 @@ _E164_RE = re.compile(r"^\+[1-9]\d{6,14}$")
 
 
 class UserProfileCreate(BaseModel):
-    name: str
+    # Stage C (onboarding 2.0, 2026-11): the new minimal /onboarding/quick
+    # screen (frontend/web/src/app/onboarding/quick/page.tsx) never collects
+    # name at all — it's deferred to later, optional personalization — and
+    # never sent `name` in its POST /profile payload. With `name: str`
+    # required here (no default), every submission through that screen
+    # 422'd before create_profile's body ever ran. Made optional to match
+    # that already-shipped product decision; create_profile fills in a
+    # generic placeholder server-side when it's missing, the same pattern
+    # already used for the welcome email's name_val fallback.
+    name: Optional[str] = None
     # Shortened onboarding (2026) only collects name + birth_date up front —
     # risk_tolerance/quiz_answers used to be required (computed from a risk
     # quiz that no longer exists at signup); now optional, and the DB column

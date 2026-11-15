@@ -9,8 +9,24 @@ import { auth, profile as profileApi } from "@/lib/api";
 import { applyPendingReferralIfAny } from "@/lib/referral";
 import { consumeReturnTo } from "@/lib/returnTo";
 import { getSupabaseClient } from "@/lib/supabase";
-import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode } from "@/lib/store";
-import { Eye, EyeOff, ArrowRight, User, Send } from "lucide-react";
+import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode, isGuestUser } from "@/lib/store";
+import { Eye, EyeOff, ArrowRight, User, Send, PieChart, Search, ListChecks } from "lucide-react";
+import {
+  captureOnboardingStarted,
+  captureOnboardingGoalSelected,
+  captureSignupStarted,
+  captureSignupCompleted,
+  identifyUser,
+  saveOnboardingGoal,
+  readOnboardingGoal,
+  type OnboardingGoal,
+} from "@/lib/onboardingAnalytics";
+
+// Stage D: shown at most once, ever, per browser — a visitor who's already
+// seen the Bienvenida screen (whatever they did next) never sees it again,
+// same "no pantalla obligatoria cada vez que se abre Nuvos" rule the goal
+// screen already follows.
+const WELCOME_SEEN_KEY = "nuvos_seen_welcome";
 
 function getPillars(t: TFunction) {
   return [
@@ -59,9 +75,24 @@ function HomeContent() {
   // AppSidebar's guest CTA links to /?auth=1&mode=register for "Crear
   // cuenta" — was already a no-op before (this page never read a `mode`
   // param at all), now made real.
-  const [mode, setMode]             = useState<"login" | "register" | "forgot">(
-    () => (searchParams.get("mode") === "register" ? "register" : "login")
+  // "goal" = the new Personalización step (one question: ¿qué quieres
+  // entender primero?) shown before the email/password form for anyone
+  // heading toward registration. Existing links to ?mode=register (e.g.
+  // AppSidebar's guest CTA) now land on "goal" first instead of skipping
+  // straight to the form — registration itself is unchanged.
+  // Skip straight to "register" instead of re-asking "goal" when a goal is
+  // already saved (e.g. a guest who explored Empresa/ETF via the Radar
+  // public route and is now coming back to create an account) — Stage C:
+  // never lose the intention the user already gave us.
+  // "welcome" = Stage D's Bienvenida screen (title + 3 actions, no form) —
+  // shown only to a truly first-ever, unknown visitor (see the ?auth=1
+  // catch-block below); every other entry point (?auth=1 explicitly,
+  // ?mode=register, a returning guest) is unaffected and starts at its
+  // existing mode exactly as before.
+  const [mode, setMode]             = useState<"login" | "register" | "forgot" | "goal" | "welcome">(
+    () => (searchParams.get("mode") === "register" ? (readOnboardingGoal() ? "register" : "goal") : "login")
   );
+  const [goal, setGoal] = useState<OnboardingGoal | null>(() => readOnboardingGoal());
   const [email, setEmail]           = useState("");
   const [password, setPassword]     = useState("");
   const [showPass, setShowPass]     = useState(false);
@@ -167,7 +198,9 @@ function HomeContent() {
         if (status === 404) {
           // Valid session (the auth dependency already rejects an invalid
           // one with 401 before this can even 404), just no profile row yet.
-          router.replace("/onboarding");
+          // Stage C: the minimal screen (birth date + legal consent only),
+          // not the old 6-step wizard — see /onboarding/quick.
+          router.replace("/onboarding/quick");
           return;
         }
         // No valid session (or profileApi itself failed) — send straight
@@ -180,12 +213,57 @@ function HomeContent() {
         // no portfolio, no positions, nothing personal to already feel like
         // the real product.
         if (!wantsAuthForm) {
-          enterGuestMode().finally(() => router.replace("/chat"));
+          // Stage D: a truly first-ever, unknown visitor (never seen the
+          // Bienvenida screen, never explored as a guest before) sees it
+          // once instead of silently dropping straight into guest chat.
+          // Anyone who's already been through it — or already explored as
+          // a guest via any other entry point — keeps the exact prior
+          // behavior (auto guest → /chat, no screen in the way at all).
+          let alreadySeenWelcome = false;
+          try {
+            alreadySeenWelcome = localStorage.getItem(WELCOME_SEEN_KEY) === "1" || isGuestUser();
+          } catch { /* Safari private mode — treat as never seen, harmless either way */ }
+          if (alreadySeenWelcome) {
+            enterGuestMode().finally(() => router.replace("/chat"));
+            return;
+          }
+          try { localStorage.setItem(WELCOME_SEEN_KEY, "1"); } catch { /* cosmetic only */ }
+          setMode("welcome");
+          setChecking(false);
           return;
         }
         setChecking(false);
       });
   }, []);
+
+  useEffect(() => {
+    // Either entry point counts as "started" — a direct ?mode=register
+    // link that skips Bienvenida (e.g. AppSidebar's CTA) still reaches
+    // Personalización, so it must still register as onboarding_started.
+    // captureOnboardingStarted dedupes per browser session on its own, so
+    // reaching both "welcome" then "goal" in the same visit never double-fires.
+    if (mode === "welcome" || mode === "goal") captureOnboardingStarted();
+    if (mode === "register") captureSignupStarted();
+  }, [mode]);
+
+  const handleGoalSelect = (selected: OnboardingGoal) => {
+    setGoal(selected);
+    saveOnboardingGoal(selected);
+    captureOnboardingGoalSelected(selected);
+    setError("");
+    if (selected === "company") {
+      // Ruta Empresa ya es pública hoy: /subvaluadas atiende invitados vía
+      // su propio endpoint público (3 búsquedas/semana, mismo dato real,
+      // sin cuenta). No forzar registro para ver algo que ya es público.
+      enterGuestMode().finally(() => router.push("/subvaluadas"));
+      return;
+    }
+    // ETF y Portafolio sí requieren cuenta hoy: /etf no tiene ninguna ruta
+    // pública en el backend (todas exigen get_current_user — confirmado en
+    // la auditoría, no es una decisión de este cambio), y Portafolio
+    // siempre la requiere por tratarse de datos personales.
+    setMode("register");
+  };
 
   useEffect(() => {
     if (forgotStep !== "code") return;
@@ -275,8 +353,10 @@ function HomeContent() {
         ? await auth.login(email, password)
         : await auth.register(email, password, language);
       setAuth(res.data.access_token, res.data.user_id);
+      identifyUser(res.data.user_id);
       if (mode === "register") {
         applyPendingReferralIfAny();
+        captureSignupCompleted("email");
       }
       try {
         const p = await profileApi.get();
@@ -298,7 +378,7 @@ function HomeContent() {
         // send a fresh signup to a profile-less /home with no way back into
         // onboarding from the UI.
         const noProfileYet = err?.response?.status === 404 || mode === "register";
-        window.location.href = noProfileYet ? "/onboarding" : "/home";
+        window.location.href = noProfileYet ? "/onboarding/quick" : "/home";
       }
     } catch (err: unknown) {
       setError(extractErrorMsg(err) || t("landing.checkCredentials"));
@@ -563,7 +643,35 @@ function HomeContent() {
           <div className="glass rounded-3xl p-7 animate-fade-in-up"
                style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
 
-            {mode === "forgot" ? (
+            {mode === "welcome" ? (
+              /* ── BIENVENIDA (Stage D) — título + 3 acciones, sin formulario ── */
+              <div className="py-2">
+                <h1 className="text-2xl font-black tracking-tight mb-2"
+                    style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {t("landing.welcomeTitle")}
+                </h1>
+                <p className="text-sm mb-7" style={{ color: "var(--muted)" }}>
+                  {t("landing.welcomeSubtitle")}
+                </p>
+                <div className="space-y-2.5">
+                  <button type="button" onClick={() => setMode("goal")}
+                          className="btn-primary w-full flex items-center justify-center gap-2">
+                    {t("landing.welcomeCtaStart")} <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <button type="button" onClick={() => setMode("login")}
+                          className="w-full py-3 rounded-2xl text-sm font-bold transition-opacity hover:opacity-80"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--border)", color: "var(--text)" }}>
+                    {t("landing.welcomeCtaLogin")}
+                  </button>
+                  <button type="button"
+                          onClick={() => enterGuestMode().finally(() => router.push("/chat"))}
+                          className="w-full py-2.5 rounded-2xl text-xs font-semibold text-center transition-opacity hover:opacity-80"
+                          style={{ color: "var(--muted)" }}>
+                    {t("landing.welcomeCtaExplore")}
+                  </button>
+                </div>
+              </div>
+            ) : mode === "forgot" ? (
               /* ── FORGOT PASSWORD ── */
               forgotDone ? (
                 <div className="text-center py-4 space-y-4">
@@ -678,6 +786,34 @@ function HomeContent() {
                   </form>
                 </>
               )
+            ) : mode === "goal" ? (
+              /* ── PERSONALIZACIÓN (una sola pregunta antes del registro) ── */
+              <>
+                <button onClick={() => { setMode("login"); setError(""); }}
+                        className="flex items-center gap-2 text-sm mb-6 transition-opacity hover:opacity-70"
+                        style={{ color: "var(--muted)" }}>{t("landing.goalBack")}</button>
+                <h2 className="text-xl font-black tracking-tight mb-5"
+                    style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {t("landing.goalTitle")}
+                </h2>
+                <div className="space-y-3">
+                  {([
+                    { key: "portfolio" as const, label: t("landing.goalOptionPortfolio"), Icon: PieChart },
+                    { key: "company" as const, label: t("landing.goalOptionCompany"), Icon: Search },
+                    { key: "etf" as const, label: t("landing.goalOptionEtf"), Icon: ListChecks },
+                  ]).map(({ key, label, Icon }) => (
+                    <button key={key} type="button" onClick={() => handleGoalSelect(key)}
+                            className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all hover:opacity-90"
+                            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)" }}>
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                           style={{ background: "rgba(0,168,94,0.12)" }}>
+                        <Icon className="w-4.5 h-4.5" style={{ color: "var(--accent-l)" }} />
+                      </div>
+                      <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
             ) : (
               /* ── LOGIN / REGISTER ── */
               <>
@@ -767,7 +903,7 @@ function HomeContent() {
                 <p className="text-center text-sm mt-5" style={{ color: "var(--muted)" }}>
                   {mode === "login" ? (
                     <>{t("landing.newHere")}{" "}
-                      <button onClick={() => { setMode("register"); setError(""); }}
+                      <button onClick={() => { setMode("goal"); setError(""); }}
                               className="font-bold transition-opacity hover:opacity-80"
                               style={{ color: "var(--accent-l)" }}>
                         {t("landing.createFreeAccount")}
@@ -787,8 +923,9 @@ function HomeContent() {
             )}
           </div>
 
-          {/* Low-friction entry points */}
-          {mode !== "forgot" && (
+          {/* Low-friction entry points — not on "welcome", which already has
+              its own explore/login actions right above (no duplicates). */}
+          {mode !== "forgot" && mode !== "welcome" && (
             <div className="grid grid-cols-2 gap-2 mt-3">
               <button onClick={() => { localStorage.setItem("nuvos_ob", "1"); setEmail("demo@nuvosai.app"); setPassword("demo1234"); setMode("login"); }}
                       className="text-xs py-2.5 rounded-xl text-center transition-all hover:opacity-80"

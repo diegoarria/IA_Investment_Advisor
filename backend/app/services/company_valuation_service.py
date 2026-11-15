@@ -495,7 +495,7 @@ def scenarios_from_fetched_data(ticker: str, data: dict) -> dict:
         logger.info("scenarios_from_fetched_data(%s): earnings-period lookup failed: %s", ticker, e)
         financial_report_period = None
 
-    review_reason = _anomaly_review_reason(scenarios, dcf)
+    review_reason = _anomaly_review_reason(scenarios, dcf, ticker=ticker)
     validation_status = "under_review" if review_reason else "valid"
 
     return {
@@ -554,11 +554,34 @@ def scenarios_from_fetched_data(ticker: str, data: dict) -> dict:
 _REVIEW_GAP_RATIO_LOW = 0.20   # intrinsic < 20% of price
 _REVIEW_GAP_RATIO_HIGH = 5.0   # intrinsic > 5x price
 
+# BRK.B audit, 2026-11-13: the Residual Income engine's target ROE blends
+# historical GAAP ROE with a quality-factor view. For BRK.B that blend's
+# quality weight renormalizes from its nominal 20% to an effective 40%
+# (wall_street_value_pct/industry_value_pct both None for this ticker — see
+# assumptions_engine.py's weighted_mean), amplifying a historical ROE already
+# distorted by unrealized gains/losses on Berkshire's equity portfolio
+# (ASU 2016-01). Independent cross-checks (normalized-ROE Residual Income,
+# sum-of-parts, reconstructed multiples) all land well below the engine's
+# $755.92 output. This is a narrow, explicit flag — NOT a general rule based
+# on the correlation-based distortion detector explored in that audit (not
+# validated on enough tickers yet to automate). Ticker keys use the
+# normalize_ticker_symbol canonical form (dots -> hyphens, uppercase).
+_CONGLOMERATE_ROE_REVIEW_TICKERS = {"BRK-B", "BRK-A"}
 
-def _anomaly_review_reason(scenarios: dict, dcf: dict) -> Optional[str]:
+_CONGLOMERATE_ROE_REVIEW_REASON = (
+    "Valoración en revisión metodológica. En Berkshire Hathaway, las "
+    "fluctuaciones contables de su cartera de inversiones pueden distorsionar "
+    "el ROE histórico y afectar la estimación de valor."
+)
+
+
+def _anomaly_review_reason(scenarios: dict, dcf: dict, ticker: str | None = None) -> Optional[str]:
     """None when the valuation is trustworthy; otherwise a human-readable
     reason to store in error_detail and surface as validation_status=
     'under_review' instead of 'valid'."""
+    if ticker and normalize_ticker_symbol(ticker) in _CONGLOMERATE_ROE_REVIEW_TICKERS:
+        return _CONGLOMERATE_ROE_REVIEW_REASON
+
     if dcf.get("operating_margin_anchor_reliable") is False:
         return dcf.get("operating_margin_anchor_warning") or (
             "operating_margin_anchor computed from a thin mixed-regime trend — unreliable 10-year anchor"

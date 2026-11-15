@@ -15,6 +15,11 @@ import Constants, { ExecutionEnvironment } from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authApi, profileApi, syncApi, referralApi } from "../src/lib/api";
 import { posthog } from "../src/config/posthog";
+import {
+  captureOnboardingStarted, captureOnboardingGoalSelected, captureSignupStarted, captureSignupCompleted,
+  saveOnboardingGoal, readOnboardingGoal, checkOnboardingActivation,
+  type OnboardingGoal,
+} from "../src/lib/onboardingAnalytics";
 import { useAppStore } from "../src/lib/profileStore";
 import type { UserProfile } from "../src/lib/profileStore";
 import { usePortfolioStore } from "../src/lib/portfolioStore";
@@ -30,6 +35,11 @@ import { useTranslation } from "react-i18next";
 const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 const HOME_SCREEN_KEY = "nuvos_home_screen";
+// Stage E (onboarding 2.0 mobile parity, 2026-11): shown at most once,
+// ever, per device — mirrors web's WELCOME_SEEN_KEY. Mobile used to open
+// directly in the login form with no Bienvenida/value-proposition screen
+// at all.
+const WELCOME_SEEN_KEY = "nuvos_seen_welcome";
 // Persists whatever the user has typed into the referral-code field so an
 // app kill/background mid-signup (very common — the field sits below the
 // password field, easy to fill in, switch apps to copy a code from a chat,
@@ -80,7 +90,12 @@ export default function AuthScreen() {
   const { language, setLanguage } = useLanguage();
   const setProfile = useAppStore((s) => s.setProfile);
 
-  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
+  // "welcome" = Bienvenida, "goal" = Personalización (Stage E). Starts as
+  // "login" (today's behavior) — the cold-boot effect below flips it to
+  // "welcome" for a truly first-ever, unknown device, and leaves it alone
+  // otherwise (already authenticated, or already saw it before).
+  const [mode, setMode] = useState<"welcome" | "goal" | "login" | "register" | "forgot">("login");
+  const [goal, setGoalState] = useState<OnboardingGoal | null>(() => readOnboardingGoal());
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -121,6 +136,18 @@ export default function AuthScreen() {
         const token = await SecureStore.getItemAsync("access_token");
         if (!token) {
           await _checkBiometricAvailability();
+          // Stage E: a truly first-ever, unknown device (never seen
+          // Bienvenida before) sees it once instead of opening straight
+          // into the login form. Any returning device — whether they
+          // registered, logged in, or just explored as a guest before —
+          // keeps the exact prior behavior (straight to login).
+          try {
+            const seenWelcome = await AsyncStorage.getItem(WELCOME_SEEN_KEY);
+            if (!seenWelcome) {
+              await AsyncStorage.setItem(WELCOME_SEEN_KEY, "1");
+              setMode("welcome");
+            }
+          } catch { /* best-effort — defaults to the existing login screen */ }
           setChecking(false);
           return;
         }
@@ -212,7 +239,7 @@ export default function AuthScreen() {
             return;
           }
           const hasLocalProfile = !!useAppStore.getState().profile?.name;
-          router.replace(status === 404 && !hasLocalProfile ? "/onboarding" : await getStartRoute() as any);
+          router.replace(status === 404 && !hasLocalProfile ? "/onboarding/quick" : await getStartRoute() as any);
         }
       } catch {
         // Promise.allSettled above never rejects, so only a genuine
@@ -291,6 +318,10 @@ export default function AuthScreen() {
           $set: { name: p.name, risk_tolerance: p.risk_tolerance as string, knowledge_level: (p.knowledge_level as string) ?? null },
           $set_once: { first_seen: new Date().toISOString() },
         });
+        // Catches the "guest did something useful, THEN registered" order
+        // — the first-value side of onboarding_activated may have already
+        // fired while this person had no account yet.
+        checkOnboardingActivation();
       }
       if (syncRes.status === "fulfilled") {
         const d = syncRes.value.data;
@@ -319,13 +350,13 @@ export default function AuthScreen() {
       } else {
         const status = (profileRes as PromiseRejectedResult).reason?.response?.status;
         const isNewUser = status === 404 && !hasLocalProfile;
-        router.replace(isNewUser ? "/onboarding" : await getStartRoute() as any);
+        router.replace(isNewUser ? "/onboarding/quick" : await getStartRoute() as any);
       }
     } catch (err: any) {
       const hasLocalProfile = !!useAppStore.getState().profile?.name;
       const status = err?.response?.status;
       const isNewUser = status === 404 && !hasLocalProfile;
-      router.replace(isNewUser ? "/onboarding" : await getStartRoute() as any);
+      router.replace(isNewUser ? "/onboarding/quick" : await getStartRoute() as any);
     }
   };
 
@@ -393,6 +424,33 @@ export default function AuthScreen() {
     }
   };
 
+  // Either entry point counts as "started" — captureOnboardingStarted
+  // dedupes per app-open on its own, so passing through both "welcome"
+  // then "goal" in the same visit never double-fires.
+  useEffect(() => {
+    if (mode === "welcome" || mode === "goal") captureOnboardingStarted();
+    if (mode === "register") captureSignupStarted();
+  }, [mode]);
+
+  const handleGoalSelect = (selected: OnboardingGoal) => {
+    setGoalState(selected);
+    saveOnboardingGoal(selected);
+    captureOnboardingGoalSelected(selected);
+    if (selected === "company") {
+      // Ruta Empresa: Radar's quick-analysis endpoint already has a public,
+      // no-auth counterpart server-side (same as web) — no account needed
+      // to see a real result. See src/lib/api.ts's quickAnalysisPublic and
+      // app/subvaluadas/index.tsx's guest branch.
+      router.push("/(tabs)/oportunidades" as any);
+      return;
+    }
+    // ETF and Portafolio both still require an account today: ETF because
+    // neither the backend nor this branch's mobile app has a guest/public
+    // path for it (confirmed in code — not a platform decision made here),
+    // Portafolio because it's personal data by design.
+    setMode("register");
+  };
+
   const handleSubmit = async () => {
     if (!email.trim() || !password) return;
     setLoading(true);
@@ -403,6 +461,7 @@ export default function AuthScreen() {
       await afterAuth(res.data.access_token, res.data.refresh_token, res.data.user_id);
       if (mode === "register") {
         posthog.capture("user_signed_up", { method: "email", has_referral_code: !!refCode.trim() });
+        captureSignupCompleted("email");
         const code = refCode.trim().toUpperCase();
         if (code) {
           referralApi.applyCode(code)
@@ -570,8 +629,55 @@ export default function AuthScreen() {
               </View>
             )}
 
-            {/* ── Forgot password flow ── */}
-            {mode === "forgot" ? (
+            {/* ── Bienvenida (Stage E) — título + 3 acciones, sin formulario ── */}
+            {mode === "welcome" ? (
+              <View>
+                <Text style={[S.sectionTitle, { fontSize: 22, marginBottom: 8 }]}>{t("index.welcomeTitle")}</Text>
+                <Text style={[S.sectionSub, { marginBottom: 28 }]}>{t("index.welcomeSubtitle")}</Text>
+                <GradientButton onPress={() => setMode("goal")}>
+                  <Text style={S.submitText}>{t("index.welcomeCtaStart")}</Text>
+                </GradientButton>
+                <TouchableOpacity
+                  onPress={() => setMode("login")}
+                  style={{ marginTop: 12, paddingVertical: 14, borderRadius: 16, alignItems: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>{t("index.welcomeCtaLogin")}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.replace("/(tabs)/home")}
+                  style={S.guestBtn}
+                  activeOpacity={0.6}
+                >
+                  <Text style={S.guestText}>{t("index.welcomeCtaExplore")}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : mode === "goal" ? (
+              /* ── Personalización (Stage E) — una sola pregunta ── */
+              <View>
+                <Text style={[S.sectionTitle, { fontSize: 20, marginBottom: 20 }]}>{t("index.goalTitle")}</Text>
+                {([
+                  { key: "portfolio" as const, label: t("index.goalOptionPortfolio"), icon: "pie-chart-outline" as const },
+                  { key: "company" as const, label: t("index.goalOptionCompany"), icon: "search-outline" as const },
+                  { key: "etf" as const, label: t("index.goalOptionEtf"), icon: "list-outline" as const },
+                ]).map(({ key, label, icon }) => (
+                  <TouchableOpacity
+                    key={key}
+                    onPress={() => handleGoalSelect(key)}
+                    style={{
+                      flexDirection: "row", alignItems: "center", gap: 12, padding: 16, marginBottom: 10,
+                      borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,168,94,0.12)" }}>
+                      <Ionicons name={icon} size={18} color={colors.accentLight} />
+                    </View>
+                    <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700", flex: 1 }}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : /* ── Forgot password flow ── */
+            mode === "forgot" ? (
               <View>
                 {forgotDone ? (
                   <View style={{ alignItems: "center", paddingVertical: 32 }}>
@@ -770,7 +876,7 @@ export default function AuthScreen() {
                 </GradientButton>
 
                 <TouchableOpacity
-                  onPress={() => setMode(mode === "login" ? "register" : "login")}
+                  onPress={() => setMode(mode === "login" ? (readOnboardingGoal() ? "register" : "goal") : "login")}
                   style={{ marginTop: 22, alignItems: "center" }}
                 >
                   <Text style={{ color: colors.textMuted, fontSize: 14, textAlign: "center" }}>

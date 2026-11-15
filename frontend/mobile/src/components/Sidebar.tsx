@@ -16,6 +16,9 @@ import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
 import { getUserLevel, useUserLevel, isAtLeast, getLevelLabel, LEVEL_COLOR } from "../lib/userLevel";
 import { rcLogOut } from "../lib/revenuecat";
+import { useDeleteAccountModal } from "../lib/deleteAccountModal";
+import { posthog } from "../config/posthog";
+import { resetOnboardingAnalytics } from "../lib/onboardingAnalytics";
 
 const ARTHUR_PHOTO = require("../../assets/images/mentors/arthur.jpg");
 
@@ -204,9 +207,10 @@ const MAIN_NAV = [
 ];
 
 const SECONDARY_NAV = [
-  { icon: "person-outline", labelKey: "common.nav.profile", path: "/profile", minLevel: "basico" as const },
-  { icon: "school-outline", labelKey: "common.nav.academy",  path: "/academy",  minLevel: "basico" as const },
-  { icon: "bag-outline",    labelKey: "common.nav.products", path: "/products", minLevel: "basico" as const },
+  { icon: "person-outline",     labelKey: "common.nav.profile",     path: "/profile", minLevel: "basico" as const },
+  { icon: "school-outline",     labelKey: "common.nav.academy",     path: "/academy",  minLevel: "basico" as const },
+  { icon: "pie-chart-outline",  labelKey: "common.nav.etfExplorer", path: "/etf",      minLevel: "basico" as const },
+  { icon: "bag-outline",        labelKey: "common.nav.products",    path: "/products", minLevel: "basico" as const },
 ];
 
 function NavItems({
@@ -413,6 +417,13 @@ function useLogout() {
     // Do NOT clear portfolio or watchlist — data belongs to the user and must
     // survive logout. Server sync on next login will restore the correct state.
     useChatStore.getState().createSession();
+    // Stage E parity audit: this logout path (sidebar) never called
+    // posthog.reset(), unlike app/(tabs)/profile.tsx's handleLogout — a
+    // shared device logging out here and a different person logging in
+    // right after would get merged into the previous person's identified
+    // PostHog profile. Same fix as that other path.
+    posthog.reset();
+    resetOnboardingAnalytics();
     logout();
     router.replace("/");
     SecureStore.deleteItemAsync("access_token").catch(() => {});
@@ -511,6 +522,11 @@ function WebSidebar() {
             <TouchableOpacity style={styles.navItem} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={20} color="#ef4444" />
               <Text style={[styles.navLabel, { color: "#ef4444" }]}>{t("common.sidebar.logout")}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.navItem} onPress={() => useDeleteAccountModal.getState().open()}>
+              <Ionicons name="trash-outline" size={20} color={colors.textDim} />
+              <Text style={[styles.navLabel, { color: colors.textDim }]}>{t("common.sidebar.deleteAccount")}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -617,6 +633,11 @@ function MobileSidebar() {
           <TouchableOpacity style={styles.navItem} onPress={() => { closeSidebar(); handleLogout(); }}>
             <Ionicons name="log-out-outline" size={20} color="#ef4444" />
             <Text style={[styles.navLabel, { color: "#ef4444" }]}>Cerrar sesión</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.navItem} onPress={() => { closeSidebar(); useDeleteAccountModal.getState().open(); }}>
+            <Ionicons name="trash-outline" size={20} color={colors.textDim} />
+            <Text style={[styles.navLabel, { color: colors.textDim }]}>{t("common.sidebar.deleteAccount")}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

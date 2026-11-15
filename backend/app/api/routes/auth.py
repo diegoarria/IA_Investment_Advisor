@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Response, Header, Cookie
 from app.core.config import settings
@@ -591,6 +591,22 @@ _USER_DATA_TABLES = [
 async def delete_account(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
 
+    # Crash marker (migration 126) — written before any destructive work
+    # starts. If this request dies between the RPC below and the final
+    # admin.delete_user() call (process crash, deploy restart, network
+    # drop), job_reconcile_pending_account_deletions (worker.py) finds this
+    # row after a grace window and finishes the deletion on its own — the
+    # user never has to notice their first attempt only half-completed. A
+    # fully successful run never needs to delete this row explicitly: it
+    # dies for free via ON DELETE CASCADE the instant admin.delete_user
+    # succeeds below. Best-effort: if even THIS insert fails, fall through
+    # to the old behavior (manual retry) rather than blocking deletion on
+    # the safety net itself.
+    try:
+        await run_query(db.table("pending_account_deletions").upsert({"user_id": user_id}))
+    except Exception as e:
+        logger.warning("delete_account: failed to write crash marker for %s (continuing without it): %s", user_id, e)
+
     # Revoke every Plaid Item at Plaid first (docs/SECURITY_POLICY.md §10) —
     # otherwise the access token stays valid at Plaid and Plaid keeps
     # billing the connected account monthly after the user is gone.
@@ -642,10 +658,86 @@ async def delete_account(user_id: str = Depends(get_current_user_id)):
         fresh_db = get_fresh_supabase()
         await asyncio.to_thread(lambda: fresh_db.auth.admin.delete_user(user_id))
     except Exception as e:
-        logger.error("delete_account: failed to delete auth user %s (data already fully cleared): %s", user_id, e)
-        raise HTTPException(status_code=500, detail="No se pudo eliminar la cuenta.")
+        # Audit 2026-11-14 (point 2, concurrency): confirmed live against
+        # local Supabase that a second delete on an already-gone user
+        # raises gotrue.errors.AuthApiError with code="user_not_found" —
+        # this happens for real whenever this request races
+        # reconcile_pending_account_deletions (worker.py, every 15 min) or
+        # a duplicate request from the same user (two devices, a retried
+        # tap). In that exact race, the account genuinely IS deleted — by
+        # the other caller — so returning an error here would be a false
+        # negative: the data is gone (the RPC above already ran) and the
+        # auth identity is gone too, just not by THIS request. Never make
+        # the user think deletion failed when it actually succeeded.
+        if getattr(e, "code", None) == "user_not_found":
+            logger.info("delete_account: auth user %s was already deleted by a concurrent call — treating as success", user_id)
+        else:
+            logger.error("delete_account: failed to delete auth user %s (data already fully cleared): %s", user_id, e)
+            raise HTTPException(status_code=500, detail="No se pudo eliminar la cuenta.")
 
     return {"message": "Cuenta eliminada"}
+
+
+async def reconcile_pending_account_deletions(grace_minutes: int = 15) -> dict:
+    """Finishes any account deletion that died between delete_account's
+    atomic data-wipe RPC and its final admin.delete_user() call — see
+    migration 126's docstring and the crash marker written at the top of
+    delete_account above. Called periodically by worker.py so a user whose
+    first attempt only half-completed never has to notice or manually
+    retry.
+
+    Safe to call repeatedly or concurrently: delete_user_data is a no-op
+    on a user with zero remaining rows (proven in
+    tests/test_delete_account_integration.py), and a marker whose auth
+    user is already gone (a fully successful run that just hasn't hit its
+    CASCADE yet, or a race with another reconciliation pass) simply logs
+    and moves on to the next row — never raises out of the loop over one
+    already-done row.
+
+    `grace_minutes` exists so a deletion that's still genuinely in-flight
+    (the request hasn't failed, it's just not finished yet) is never
+    double-run by this job while the original request is still working."""
+    db = get_supabase()
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=grace_minutes)).isoformat()
+    try:
+        stale = await run_query(
+            db.table("pending_account_deletions").select("user_id, requested_at").lt("requested_at", cutoff)
+        )
+    except Exception as e:
+        logger.error("reconcile_pending_account_deletions: failed to list stale markers: %s", e)
+        return {"reconciled": 0, "failed": 0}
+
+    from app.core.database import get_fresh_supabase
+    reconciled = 0
+    failed = 0
+    for row in stale.data or []:
+        uid = row["user_id"]
+        try:
+            await run_query(db.rpc("delete_user_data", {"p_user_id": uid}))
+        except Exception as e:
+            failed += 1
+            logger.error("reconcile_pending_account_deletions: data wipe still failing for %s: %s", uid, e)
+            continue
+        try:
+            fresh_db = get_fresh_supabase()
+            await asyncio.to_thread(lambda u=uid: fresh_db.auth.admin.delete_user(u))
+        except Exception as e:
+            # Same race as delete_account's own admin.delete_user call: a
+            # concurrent delete_account request (the user retrying from
+            # the app right as this job runs) may have already finished
+            # deleting this exact user — not a real failure, the end
+            # state is identical to this job having done it itself.
+            if getattr(e, "code", None) != "user_not_found":
+                failed += 1
+                logger.error("reconcile_pending_account_deletions: still stuck for %s: %s", uid, e)
+                continue
+            logger.info("reconcile_pending_account_deletions: %s was already deleted by a concurrent call", uid)
+        reconciled += 1
+        logger.warning(
+            "reconcile_pending_account_deletions: completed a stuck deletion for %s (requested_at=%s)",
+            uid, row.get("requested_at"),
+        )
+    return {"reconciled": reconciled, "failed": failed}
 
 
 @router.get("/export-data")

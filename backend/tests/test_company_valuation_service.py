@@ -464,6 +464,27 @@ class TestAnomalyReviewGuard:
         scenarios = {"base": 100.0, "current_price": 110.0}
         assert cvs._anomaly_review_reason(scenarios, dcf) is None
 
+    def test_brk_b_flagged_for_review_regardless_of_ticker_spelling(self):
+        # 2026-11-13 BRK.B audit: the Residual Income engine's blended ROE
+        # produces a value (~$755.92) well above every independent
+        # cross-check for this specific ticker — flagged explicitly, not
+        # via the general ratio heuristic above (a gap this large would
+        # ALSO trip test_extreme_high_ratio_triggers_review, but the
+        # explicit ticker flag must fire even for a gap that wouldn't).
+        dcf = {"operating_margin_anchor_reliable": True}
+        scenarios = {"base": 500.0, "current_price": 480.0}  # ~1.04x — normal gap, would NOT otherwise flag
+        for spelling in ("BRK.B", "BRK-B", "brk.b", "BRK.A", "BRK-A"):
+            reason = cvs._anomaly_review_reason(scenarios, dcf, ticker=spelling)
+            assert reason is not None and "Berkshire" in reason, f"{spelling} must be flagged for review"
+
+    def test_brk_b_flag_is_narrow_never_touches_unrelated_tickers(self):
+        # Must never become an accidental blanket rule — a normal-gap,
+        # non-Berkshire ticker is unaffected by adding the `ticker` kwarg.
+        dcf = {"operating_margin_anchor_reliable": True}
+        scenarios = {"base": 301.06, "current_price": 320.0}
+        assert cvs._anomaly_review_reason(scenarios, dcf, ticker="AAPL") is None
+        assert cvs._anomaly_review_reason(scenarios, dcf, ticker=None) is None
+
     def test_persist_valuation_writes_under_review_status(self, monkeypatch):
         db = _FakeDB()
         monkeypatch.setattr(cvs, "get_supabase", lambda: db)

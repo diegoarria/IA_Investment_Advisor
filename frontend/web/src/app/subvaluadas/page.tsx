@@ -29,6 +29,7 @@ import { resolveValuationPanelMode } from "@/lib/valuationPanelMode";
 import { screenerApi, watchlist, market } from "@/lib/api";
 import { clearTombstone } from "@/lib/watchlistTombstones";
 import { useSubscriptionStore, useThemeStore, useAuthStore, useWatchlistStore, isGuestUser, getGuestId, hasPremiumAccess } from "@/lib/store";
+import { captureFirstRadarCompleted } from "@/lib/onboardingAnalytics";
 
 // Whether to call the no-auth /public routes instead of the authenticated
 // ones. isGuestUser() alone isn't enough — that flag is only ever set by
@@ -398,6 +399,10 @@ function SubvaluadasPageInner() {
         if (cancelled) return;
         setData(res.data);
         setError(null);
+        // "First value" for Ruta Empresa: an explicit search (not the
+        // AAPL default view) that came back as a real, visible result
+        // (not blurred by the free weekly-search limit).
+        if (searchTriggered && !res.data.locked) captureFirstRadarCompleted();
         try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch { /* ignore */ }
       } catch (err: unknown) {
         const status = (err as { response?: { status?: number } })?.response?.status;
@@ -414,7 +419,15 @@ function SubvaluadasPageInner() {
           posthog.capture("dcf_limit_reached", { ticker });
           return;
         }
-        setError(typeof rawDetail === "string" ? rawDetail : t("subvaluadas.search.error"));
+        // is_etf (422) and a few other structured errors carry a specific,
+        // already-translated `message` (e.g. "SPY es un ETF... búscalo en
+        // el Explorador de ETFs") instead of a plain string `detail` — this
+        // used to be silently discarded in favor of the generic fallback,
+        // same bug class the 429 branch above already guards against.
+        const objectMessage = typeof rawDetail === "object" && rawDetail !== null
+          ? (rawDetail as { message?: string }).message
+          : undefined;
+        setError(typeof rawDetail === "string" ? rawDetail : objectMessage || t("subvaluadas.search.error"));
       }
     };
 

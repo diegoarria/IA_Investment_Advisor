@@ -25,11 +25,13 @@ import { LanguageProvider } from "../src/lib/LanguageContext";
 import Sidebar from "../src/components/Sidebar";
 import { useSubscriptionStore, hasPremiumAccess } from "../src/lib/subscriptionStore";
 import PaywallModal from "../src/components/PaywallModal";
+import DeleteAccountModal from "../src/components/DeleteAccountModal";
 import WelcomeCard from "../src/components/WelcomeCard";
 import PhoneNumberPromptCard from "../src/components/PhoneNumberPromptCard";
 import * as Notifications from "expo-notifications";
 import { configureRevenueCat } from "../src/lib/revenuecat";
 import { usePaywallModalGuard } from "../src/lib/paywallModalGuard";
+import { decidePushPromptAction } from "../src/lib/pushPermissionPrompt";
 
 // Module-level, not inside a component — must run exactly once, before any
 // screen can call rcLogIn()/purchasePlan(), and must survive RootLayout
@@ -120,6 +122,14 @@ function AppStack() {
   const params = useGlobalSearchParams();
   const previousPathname = useRef<string | undefined>(undefined);
   const startTrialIfNeeded = useSubscriptionStore((s) => s.startTrialIfNeeded);
+  // Apple rejection (Guideline 4.5.4, 2026-11-14): registerPushToken() ran on
+  // every pathname change, so its rationale/settings Alert re-appeared on
+  // every single screen navigation until the user gave in and granted the
+  // permission — indistinguishable, from the outside, from the app
+  // requiring push to function. Notifications must only ever be asked for
+  // once per app session; a user who wants to enable them later already has
+  // a manual path via Profile > Notifications.
+  const pushPromptShownRef = useRef(false);
 
   useEffect(() => {
     if (previousPathname.current !== pathname) {
@@ -132,6 +142,9 @@ function AppStack() {
     const inApp = !HIDE_SIDEBAR_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
     if (inApp) {
       startTrialIfNeeded();
+      // registerPushToken() itself decides whether to actually show
+      // anything (decidePushPromptAction) and flips pushPromptShownRef —
+      // called every navigation, but a no-op after the first ask.
       registerPushToken();
     }
   }, [pathname]);
@@ -211,39 +224,46 @@ function AppStack() {
       const { status: existing } = await Notifications.getPermissionsAsync();
       let finalStatus = existing;
 
-      if (existing !== "granted") {
-        if (existing === "undetermined") {
-          // Show rationale before triggering the system dialog
-          await new Promise<void>((resolve) => {
-            Alert.alert(
-              "Mantente informado",
-              "Activa las notificaciones para recibir alertas de tus posiciones, oportunidades de mercado y mensajes de tu mentor.",
-              [
-                { text: "Ahora no", style: "cancel", onPress: () => resolve() },
-                {
-                  text: "Activar",
-                  onPress: async () => {
-                    const { status } = await Notifications.requestPermissionsAsync();
-                    finalStatus = status;
-                    resolve();
-                  },
-                },
-              ]
-            );
-          });
-        } else {
-          // The OS won't show its permission dialog again once denied —
-          // the only way back is the device Settings app.
+      // decidePushPromptAction is the single source of truth for whether to
+      // show anything at all — see pushPermissionPrompt.ts for why this is
+      // a separate, unit-tested module (Guideline 4.5.4 rejection root
+      // cause: this used to run unconditionally on every navigation).
+      const action = decidePushPromptAction(existing, pushPromptShownRef.current);
+      pushPromptShownRef.current = true;
+
+      if (action === "show_rationale") {
+        // Show rationale before triggering the system dialog
+        await new Promise<void>((resolve) => {
           Alert.alert(
-            "Notificaciones desactivadas",
-            "Activa las notificaciones para Nuvos desde los ajustes de tu teléfono para recibir alertas de tus posiciones y del mercado.",
+            "Mantente informado",
+            "Activa las notificaciones para recibir alertas de tus posiciones, oportunidades de mercado y mensajes de tu mentor.",
             [
-              { text: "Ahora no", style: "cancel" },
-              { text: "Abrir ajustes", onPress: () => Linking.openSettings() },
+              { text: "Ahora no", style: "cancel", onPress: () => resolve() },
+              {
+                text: "Activar",
+                onPress: async () => {
+                  const { status } = await Notifications.requestPermissionsAsync();
+                  finalStatus = status;
+                  resolve();
+                },
+              },
             ]
           );
-          return;
-        }
+        });
+      } else if (action === "show_settings_hint") {
+        // The OS won't show its permission dialog again once denied —
+        // the only way back is the device Settings app.
+        Alert.alert(
+          "Notificaciones desactivadas",
+          "Activa las notificaciones para Nuvos desde los ajustes de tu teléfono para recibir alertas de tus posiciones y del mercado.",
+          [
+            { text: "Ahora no", style: "cancel" },
+            { text: "Abrir ajustes", onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      } else if (action === "skip") {
+        return;
       }
 
       if (finalStatus !== "granted") {
@@ -286,6 +306,12 @@ function AppStack() {
       <Stack.Screen name="stock/[ticker]" options={{ headerShown: false }} />
       <Stack.Screen name="earnings" options={{ headerShown: false }} />
       <Stack.Screen name="subvaluadas" options={{ headerShown: false }} />
+      {/* Fase 9C's Explorador de ETFs — had its own nested _layout.tsx
+          (headerShown: false for index/[ticker]/compare) but was never
+          registered here, unlike every sibling top-level route, so the
+          outer stack's default header would show above it. Completing the
+          Ruta ETF wiring (onboarding Stage E), not a new screen. */}
+      <Stack.Screen name="etf" options={{ headerShown: false }} />
       <Stack.Screen name="morning-brief" options={{ headerShown: false }} />
       {/* Own header with a real back button (RitualHeader) — the default one showed raw route names. */}
       <Stack.Screen name="weekly-ritual" options={{ headerShown: false }} />
@@ -325,6 +351,7 @@ function AppStack() {
         <View style={{ flex: 1, overflow: "hidden" }}>
           {stackScreens}
         </View>
+        <DeleteAccountModal />
       </View>
     );
   }
@@ -339,6 +366,7 @@ function AppStack() {
       {stackScreens}
       {showSidebar && <Sidebar />}
       <TrialExpiredModal />
+      <DeleteAccountModal />
       <WelcomeCard />
       {/* Never over login/onboarding: those routes hide the sidebar, and a stale
           persisted profile without a phone made this modal (+ number pad) cover the
