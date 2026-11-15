@@ -986,6 +986,10 @@
       "limitTitle": "You've used all 3 free searches this week",
       "limitDesc": "Come back next week, or go Premium for unlimited searches."
     },
+    "guestBanner": {
+      "text": "You're viewing this as a guest. Create an account to save it.",
+      "cta": "Create account"
+    },
     "emptyState": "No weekly screener data yet — check back later.",
     "sectorAll": "All",
     "dcf": {
@@ -2625,6 +2629,12 @@
     "goalOptionPortfolio": "Understand my portfolio",
     "goalOptionCompany": "Analyze a company",
     "goalOptionEtf": "Explore ETFs",
+    "registerHeadingGeneric": "Start today. It's free.",
+    "registerSubtitleGeneric": "No credit card required.",
+    "registerHeadingEtf": "Create your account to explore ETFs",
+    "registerSubtitleEtf": "We need a free account to show you real ETF fiches.",
+    "registerHeadingPortfolio": "Create your account to see your portfolio",
+    "registerSubtitlePortfolio": "Your financial data is private — only you can see it, never without an account.",
     "hasAccount": "Already have an account? ",
     "invalidCredentials": "Invalid credentials",
     "login": "Log in",
@@ -4516,6 +4526,9 @@
     "explorer": {
       "title": "Explore ETFs",
       "subtitle": "Find exchange-traded funds by name, ticker, or category.",
+      "guestTitle": "Create your account to explore ETFs",
+      "guestSubtitle": "We need a free account to show you real ETF fiches, with holdings, costs and risks.",
+      "guestCta": "Create a free account",
       "searchPlaceholder": "Search by name or ticker (e.g. Vanguard, Technology, VOO)",
       "searchEmpty": "We couldn't find any ETFs matching \"{{query}}\".",
       "searchError": "We couldn't search right now. Try again.",

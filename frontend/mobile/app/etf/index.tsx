@@ -13,6 +13,8 @@ import { etfApi } from "../../src/lib/api";
 import { createRequestGuard } from "../../src/lib/requestGuard";
 import { ticketsToFetch, hasMoreToLoad, visibleSlice } from "../../src/lib/etfCardBatching";
 import EtfCard, { EtfCardSkeleton, type EtfCardData } from "../../src/components/EtfCard";
+import { useAppStore } from "../../src/lib/profileStore";
+import { saveOnboardingGoal } from "../../src/lib/onboardingAnalytics";
 
 const DEBOUNCE_MS = 350;
 const PAGE_SIZE = 6;
@@ -34,6 +36,13 @@ export default function EtfExplorerScreen() {
   const { t, i18n } = useTranslation();
   const { colors } = useTheme();
   const st = useMemo(() => styles(colors), [colors]);
+  // Every /api/etf/* route requires a real session (no guest/public
+  // counterpart exists, confirmed in backend) — without this guard a
+  // guest landing here saw the screen quietly 401 into a generic error,
+  // same gap web had. profile presence is the same sync auth proxy
+  // app/index.tsx already uses (no synchronous SecureStore read exists).
+  const profile = useAppStore((s) => s.profile);
+  const isGuest = !profile;
 
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ symbol: string; name?: string }[] | null>(null);
@@ -57,15 +66,17 @@ export default function EtfExplorerScreen() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (isGuest) { setCategoriesLoading(false); return; }
     setCategoriesLoading(true);
     setCategoriesError(false);
     etfApi.getCategories()
       .then((res) => setCategories(res.data?.categories ?? []))
       .catch(() => setCategoriesError(true))
       .finally(() => setCategoriesLoading(false));
-  }, []);
+  }, [isGuest]);
 
   useEffect(() => {
+    if (isGuest) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const q = query.trim();
     if (!q) { setSearchResults(null); setSearchError(false); return; }
@@ -78,7 +89,7 @@ export default function EtfExplorerScreen() {
         .finally(() => setSearching(false));
     }, DEBOUNCE_MS);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query]);
+  }, [query, isGuest]);
 
   // La lista "activa" de tickers por mostrar, según la vista actual.
   const activeTickers: string[] | null = query.trim()
@@ -122,6 +133,40 @@ export default function EtfExplorerScreen() {
 
   const visibleTickers = visibleSlice(activeTickers, visibleCount);
   const canLoadMore = hasMoreToLoad(activeTickers, visibleCount);
+
+  if (isGuest) {
+    return (
+      <SafeAreaView style={st.container}>
+        <View style={st.header}>
+          <TouchableOpacity onPress={() => router.back()} style={st.backBtn}>
+            <Ionicons name="chevron-back" size={22} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={st.headerTitle}>{t("etf.explorer.title")}</Text>
+          <View style={{ width: 36 }} />
+        </View>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <View style={{
+            width: 56, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center",
+            backgroundColor: `${GOLD}1a`, borderWidth: 1, borderColor: `${GOLD}40`, marginBottom: 20,
+          }}>
+            <Ionicons name="pie-chart-outline" size={26} color={GOLD} />
+          </View>
+          <Text style={{ fontSize: 19, fontWeight: "900", color: colors.text, textAlign: "center", marginBottom: 8 }}>
+            {t("etf.explorer.guestTitle")}
+          </Text>
+          <Text style={{ fontSize: 13.5, color: colors.textSub, textAlign: "center", lineHeight: 19, marginBottom: 24 }}>
+            {t("etf.explorer.guestSubtitle")}
+          </Text>
+          <TouchableOpacity
+            onPress={() => { saveOnboardingGoal("etf"); router.push("/"); }}
+            style={{ backgroundColor: GOLD, paddingVertical: 14, paddingHorizontal: 28, borderRadius: 16 }}
+          >
+            <Text style={{ color: "#000", fontWeight: "900", fontSize: 14.5 }}>{t("etf.explorer.guestCta")}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={st.container}>

@@ -814,6 +814,25 @@ export default function AuthScreen() {
             ) : (
               /* ── Email / password form ── */
               <View>
+                {/* Diego: tapping ETF or Portafolio in Personalización
+                    dropped straight into this box with zero heading at
+                    all — "no te dice nada, solo te muestra la caja".
+                    Contextual to the saved goal in register mode, same
+                    fix web got. */}
+                {mode === "register" && (
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={S.sectionTitle}>
+                      {goal === "etf" ? t("index.registerHeadingEtf") :
+                       goal === "portfolio" ? t("index.registerHeadingPortfolio") :
+                       t("index.registerHeadingGeneric")}
+                    </Text>
+                    <Text style={S.sectionSub}>
+                      {goal === "etf" ? t("index.registerSubtitleEtf") :
+                       goal === "portfolio" ? t("index.registerSubtitlePortfolio") :
+                       t("index.registerSubtitleGeneric")}
+                    </Text>
+                  </View>
+                )}
                 <View style={S.inputGroup}>
                   <Text style={S.inputLabel}>{t("index.emailLabel")}</Text>
                   <TextInput

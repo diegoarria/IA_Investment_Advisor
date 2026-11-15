@@ -12,7 +12,7 @@ import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscripti
 import { useTheme } from "../../src/lib/ThemeContext";
 import { screenerWeeklyApi, watchlistServerApi, marketApi, getStableGuestId } from "../../src/lib/api";
 import { useAppStore } from "../../src/lib/profileStore";
-import { captureFirstRadarCompleted } from "../../src/lib/onboardingAnalytics";
+import { captureFirstRadarCompleted, saveOnboardingGoal } from "../../src/lib/onboardingAnalytics";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
 import ExplainButton from "../../src/components/ExplainButton";
@@ -81,6 +81,7 @@ export default function SubvaluadasScreen() {
   const params = useLocalSearchParams<{ ticker?: string }>();
   const { isDark } = useTheme();
   const viColors = useViColors(isDark);
+  const profile = useAppStore((s) => s.profile);
 
   const [paywallOpen, setPaywallOpen] = useState(false);
 
@@ -247,6 +248,15 @@ export default function SubvaluadasScreen() {
 
   const handleFollow = async () => {
     if (!data || watchlisted) return;
+    // A guest's "Guardar" used to call watchlistServerApi.add() straight
+    // into a 401 that the catch block below swallowed as if it were the
+    // idempotent "already following" case — the button silently did
+    // nothing, same gap web had. Now it's an explicit prompt instead.
+    if (!useAppStore.getState().profile) {
+      saveOnboardingGoal("company");
+      router.push("/");
+      return;
+    }
     try { await watchlistServerApi.add(data.ticker, data.company_name || undefined); setWatchlisted(true); } catch { /* idempotent */ }
   };
   const handleAnalyze = () => router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1` as any);
@@ -325,7 +335,17 @@ export default function SubvaluadasScreen() {
       )}
       </View>
 
-      {!isPremium && (
+      {!profile ? (
+        <TouchableOpacity onPress={() => { saveOnboardingGoal("company"); router.push("/"); }}
+          activeOpacity={0.85}
+          style={{ flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 16, marginBottom: 12, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, backgroundColor: "rgba(212,162,76,0.08)", borderWidth: 1, borderColor: "rgba(212,162,76,0.25)" }}>
+          <View style={{ width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(212,162,76,0.16)" }}>
+            <Ionicons name="lock-closed" size={14} color={GOLD} />
+          </View>
+          <Text style={{ fontSize: 12, lineHeight: 17, color: viColors.textSub, flex: 1 }}>{t("subvaluadas.guestBanner.text")}</Text>
+          <Text style={{ fontSize: 12, fontWeight: "800", color: GOLD }}>{t("subvaluadas.guestBanner.cta")}</Text>
+        </TouchableOpacity>
+      ) : !isPremium && (
         <TouchableOpacity onPress={() => setPaywallOpen(true)}
           activeOpacity={0.85}
           style={{ flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 16, marginBottom: 12, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, backgroundColor: "rgba(212,162,76,0.08)", borderWidth: 1, borderColor: "rgba(212,162,76,0.25)" }}>
