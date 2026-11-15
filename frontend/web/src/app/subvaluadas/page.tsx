@@ -29,7 +29,7 @@ import { resolveValuationPanelMode } from "@/lib/valuationPanelMode";
 import { screenerApi, watchlist, market } from "@/lib/api";
 import { clearTombstone } from "@/lib/watchlistTombstones";
 import { useSubscriptionStore, useThemeStore, useAuthStore, useWatchlistStore, isGuestUser, getGuestId, hasPremiumAccess } from "@/lib/store";
-import { captureFirstRadarCompleted } from "@/lib/onboardingAnalytics";
+import { captureFirstRadarCompleted, saveOnboardingGoal } from "@/lib/onboardingAnalytics";
 
 // Whether to call the no-auth /public routes instead of the authenticated
 // ones. isGuestUser() alone isn't enough — that flag is only ever set by
@@ -595,6 +595,15 @@ function SubvaluadasPageInner() {
 
   const handleFollow = async () => {
     if (!data || watchlisted) return;
+    // A guest's "Guardar en mi lista" used to call watchlist.add() straight
+    // into a 401 with zero handling (the catch block below only ever
+    // checked 409/403) — the button just silently did nothing, with no
+    // explanation. Now it's an explicit prompt instead of a dead click.
+    if (shouldUsePublicApi()) {
+      saveOnboardingGoal("company");
+      router.push("/?auth=1&mode=register");
+      return;
+    }
     try {
       clearTombstone(useAuthStore.getState().userId, data.ticker);
       await watchlist.add(data.ticker, data.company_name || undefined);
@@ -629,7 +638,22 @@ function SubvaluadasPageInner() {
                  style={{ background: "linear-gradient(rgba(212,162,76,0.22), rgba(212,162,76,0.06) 50%, rgba(212,162,76,0))" }} />
             <div className="relative max-w-[1000px] mx-auto px-6 py-8 md:px-10">
 
-              {!isPremium && (
+              {shouldUsePublicApi() ? (
+                // Explicit, inviting state for a guest — instead of nothing
+                // saying they're logged out until "Guardar en mi lista"
+                // quietly did nothing (see handleFollow's own comment).
+                <div className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3 mb-4"
+                     style={{ background: "rgba(212,162,76,0.08)", border: "1px solid rgba(212,162,76,0.25)" }}>
+                  <div className="w-[30px] h-[30px] rounded-[10px] flex items-center justify-center shrink-0" style={{ background: "rgba(212,162,76,0.16)" }}>
+                    <Lock className="w-3.5 h-3.5" style={{ color: GOLD }} />
+                  </div>
+                  <span className="flex-1 text-[12.5px] leading-[17px]" style={{ color: "var(--sub)" }}>{t("subvaluadas.guestBanner.text")}</span>
+                  <button onClick={() => { saveOnboardingGoal("company"); router.push("/?auth=1&mode=register"); }}
+                          className="text-[12px] font-bold shrink-0" style={{ color: GOLD }}>
+                    {t("subvaluadas.guestBanner.cta")}
+                  </button>
+                </div>
+              ) : !isPremium && (
                 <div className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3 mb-4"
                      style={{ background: "rgba(212,162,76,0.08)", border: "1px solid rgba(212,162,76,0.25)" }}>
                   <div className="w-[30px] h-[30px] rounded-[10px] flex items-center justify-center shrink-0" style={{ background: "rgba(212,162,76,0.16)" }}>

@@ -978,6 +978,10 @@
       "limitTitle": "You've used all 3 free searches this week",
       "limitDesc": "Come back next week, or go Premium for unlimited searches."
     },
+    "guestBanner": {
+      "text": "You're viewing this as a guest. Create an account to save it.",
+      "cta": "Create account"
+    },
     "emptyState": "No weekly screener data yet — check back later.",
     "sectorAll": "All",
     "sectors": {
@@ -4595,6 +4599,10 @@
     "sendCode": "Send code",
     "smsOption": "💬 SMS",
     "startFreeWithGoogle": "Start free with Google",
+    "registerHeadingEtf": "Create your account to explore ETFs",
+    "registerSubtitleEtf": "We need a free account to show you real ETF fiches.",
+    "registerHeadingPortfolio": "Create your account to see your portfolio",
+    "registerSubtitlePortfolio": "Your financial data is private — only you can see it, never without an account.",
     "startTodayFree": "Start today. It's free.",
     "stats": {
       "activeInvestors": "active investors",
@@ -5314,6 +5322,9 @@
       "heroEyebrow": "INVEST WITH UNDERSTANDING",
       "heroTitle": "Find ETFs you want to understand",
       "heroSubtitle": "Explore real exchange-traded funds, understand what they invest in and what makes them different — no recommendations, just clear information.",
+      "guestTitle": "Create your account to explore ETFs",
+      "guestSubtitle": "We need a free account to show you real ETF fiches, with holdings, costs and risks.",
+      "guestCta": "Create a free account",
       "cardUnavailable": "We couldn't load this ETF's data right now.",
       "expenseRatioLabel": "Annual fee",
       "expenseRatioExplainer": "What the fund charges every year, automatically, on the money you have invested in it.",

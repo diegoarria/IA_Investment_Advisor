@@ -22,7 +22,8 @@ const GOLD = "#00e887";
 import { EtfCard, EtfCardSkeleton } from "@/components/etf/EtfCard";
 import { useEnrichedCards } from "@/components/etf/useEnrichedCards";
 import { etfApi } from "@/lib/api";
-import { captureFirstEtfViewed } from "@/lib/onboardingAnalytics";
+import { captureFirstEtfViewed, saveOnboardingGoal } from "@/lib/onboardingAnalytics";
+import { useAuthStore } from "@/lib/store";
 
 type SearchResult = { symbol: string; name: string };
 type Category = { key: string; label: string; etfs: { ticker: string; label: string }[] };
@@ -78,6 +79,14 @@ export default function EtfExplorerPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Every /api/etf/* route requires a real session (confirmed in backend —
+  // there's no guest/public counterpart, unlike Radar's quick-analysis).
+  // Before this guard, a guest landing here (e.g. the sidebar's "Explorar
+  // ETFs" link, always visible regardless of auth) saw this screen quietly
+  // 401 into a generic "no se pudieron cargar las categorías" error —
+  // indistinguishable from an actual outage. Now it's an explicit,
+  // friendly invitation to create an account instead.
+  const { isAuthenticated, authRestoring } = useAuthStore();
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
@@ -92,13 +101,16 @@ export default function EtfExplorerPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (authRestoring) return;
+    if (!isAuthenticated) { setCategoriesLoading(false); return; }
     etfApi.getCategories()
       .then((res) => setCategories(res.data?.categories ?? []))
       .catch(() => setCategoriesError(true))
       .finally(() => setCategoriesLoading(false));
-  }, []);
+  }, [authRestoring, isAuthenticated]);
 
   useEffect(() => {
+    if (authRestoring || !isAuthenticated) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const q = query.trim();
     if (!q) {
@@ -115,10 +127,46 @@ export default function EtfExplorerPage() {
         .finally(() => setSearching(false));
     }, DEBOUNCE_MS);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query]);
+  }, [query, authRestoring, isAuthenticated]);
 
   const showingSearch = query.trim().length > 0;
   const searchTickers = (results ?? []).map((r) => r.symbol);
+
+  if (authRestoring) {
+    return (
+      <div className="flex h-screen items-center justify-center" style={{ background: "var(--bg)" }}>
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: GOLD }} />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
+        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center max-w-[360px]">
+            <div className="w-14 h-14 rounded-2xl mx-auto mb-5 flex items-center justify-center"
+                 style={{ background: `${GOLD}1a`, border: `1px solid ${GOLD}40` }}>
+              <Scale className="w-6 h-6" style={{ color: GOLD }} />
+            </div>
+            <h1 className="text-xl font-black tracking-tight mb-2" style={{ color: "var(--text)" }}>
+              {t("etf.explorer.guestTitle")}
+            </h1>
+            <p className="text-sm mb-6" style={{ color: "var(--sub)" }}>
+              {t("etf.explorer.guestSubtitle")}
+            </p>
+            <button
+              onClick={() => { saveOnboardingGoal("etf"); router.push("/?auth=1&mode=register"); }}
+              className="btn-primary w-full"
+            >
+              {t("etf.explorer.guestCta")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>

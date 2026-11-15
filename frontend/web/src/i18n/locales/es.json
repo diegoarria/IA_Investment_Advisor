@@ -978,6 +978,10 @@
       "limitTitle": "Ya usaste tus 3 búsquedas de esta semana",
       "limitDesc": "Vuelve la próxima semana, o activa Premium para búsquedas ilimitadas."
     },
+    "guestBanner": {
+      "text": "Estás viendo esto como invitado. Crea una cuenta para guardarlo.",
+      "cta": "Crear cuenta"
+    },
     "emptyState": "Todavía no hay datos del screener semanal — vuelve más tarde.",
     "sectorAll": "Todos",
     "sectors": {
@@ -4595,6 +4599,10 @@
     "sendCode": "Enviar código",
     "smsOption": "💬 SMS",
     "startFreeWithGoogle": "Empezar gratis con Google",
+    "registerHeadingEtf": "Crea tu cuenta para explorar ETFs",
+    "registerSubtitleEtf": "Necesitamos una cuenta gratuita para mostrarte fichas reales de ETFs.",
+    "registerHeadingPortfolio": "Crea tu cuenta para ver tu portafolio",
+    "registerSubtitlePortfolio": "Tus datos financieros son privados — solo tú puedes verlos, nunca sin cuenta.",
     "startTodayFree": "Empieza hoy. Es gratis.",
     "stats": {
       "activeInvestors": "inversores activos",
@@ -5314,6 +5322,9 @@
       "heroEyebrow": "INVIERTE CON CONOCIMIENTO",
       "heroTitle": "Encuentra ETFs que quieras entender",
       "heroSubtitle": "Explora fondos cotizados reales, entiende en qué invierten y qué los hace diferentes — sin recomendaciones, solo información clara.",
+      "guestTitle": "Crea tu cuenta para explorar ETFs",
+      "guestSubtitle": "Necesitamos una cuenta gratuita para mostrarte fichas reales de ETFs, con composición, costos y riesgos.",
+      "guestCta": "Crear cuenta gratis",
       "cardUnavailable": "No pudimos cargar los datos de este ETF en este momento.",
       "expenseRatioLabel": "Comisión anual",
       "expenseRatioExplainer": "Lo que el fondo cobra cada año, automáticamente, sobre el dinero que tienes invertido en él.",

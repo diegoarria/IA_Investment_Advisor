@@ -817,14 +817,23 @@ function HomeContent() {
             ) : (
               /* ── LOGIN / REGISTER ── */
               <>
-                {/* Form heading */}
+                {/* Form heading — contextual to the chosen goal in register
+                    mode, instead of a generic "Empieza hoy" with no
+                    explanation of why an account is needed right now
+                    (Diego: "no te dice nada, solo te muestra la caja"). */}
                 <div className="mb-6">
                   <h2 className="text-xl font-black tracking-tight mb-1"
                       style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    {mode === "login" ? t("landing.welcomeBack") : t("landing.startTodayFree")}
+                    {mode === "login" ? t("landing.welcomeBack") :
+                     goal === "etf" ? t("landing.registerHeadingEtf") :
+                     goal === "portfolio" ? t("landing.registerHeadingPortfolio") :
+                     t("landing.startTodayFree")}
                   </h2>
                   <p className="text-sm" style={{ color: "var(--muted)" }}>
-                    {mode === "login" ? t("landing.accessYourMentor") : t("landing.noCreditCard")}
+                    {mode === "login" ? t("landing.accessYourMentor") :
+                     goal === "etf" ? t("landing.registerSubtitleEtf") :
+                     goal === "portfolio" ? t("landing.registerSubtitlePortfolio") :
+                     t("landing.noCreditCard")}
                   </p>
                 </div>
 
