@@ -3043,6 +3043,8 @@
   "onboardingQuick": {
     "title": "Before you continue",
     "subtitle": "Just the minimum to activate your account — we'll get to know the rest as we talk.",
+    "nameLabel": "What should we call you?",
+    "namePlaceholder": "Your name (optional)",
     "continueButton": "Continue",
     "savingButton": "Saving..."
   },

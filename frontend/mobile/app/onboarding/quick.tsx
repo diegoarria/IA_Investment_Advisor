@@ -40,6 +40,7 @@ export default function OnboardingQuickScreen() {
   const { language } = useLanguage();
   const setProfile = useAppStore((s) => s.setProfile);
 
+  const [name, setName] = useState("");
   const [day, setDay] = useState("");
   const [month, setMonth] = useState("");
   const [year, setYear] = useState("");
@@ -72,6 +73,7 @@ export default function OnboardingQuickScreen() {
     setLoading(true); setError("");
 
     const payload = {
+      ...(name.trim() ? { name: name.trim() } : {}),
       birth_date: birthDateStr,
       mentor: null,
       language,
@@ -99,7 +101,7 @@ export default function OnboardingQuickScreen() {
       useSubscriptionStore.getState().fetchStatus().catch(() => {});
 
       const genericName = language === "en" ? "Investor" : "Inversor";
-      const welcomeMsg = t("onboarding.welcome.messageNoGoal", { name: genericName });
+      const welcomeMsg = t("onboarding.welcome.messageNoGoal", { name: name.trim() || genericName });
       const chat = useChatStore.getState();
       chat.createSession();
       chat.setMessages([{ role: "assistant", content: welcomeMsg, timestamp: Date.now() }]);
@@ -126,11 +128,28 @@ export default function OnboardingQuickScreen() {
     <View style={S.screen}>
       <SafeAreaView style={{ flex: 1 }}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-          <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <Text style={S.title}>{t("onboardingQuick.title")}</Text>
             <Text style={S.subtitle}>{t("onboardingQuick.subtitle")}</Text>
 
             <View style={{ marginTop: 24 }}>
+              <Text style={S.label}>{t("onboardingQuick.nameLabel")}</Text>
+              <TextInput
+                style={S.input}
+                value={name}
+                onChangeText={setName}
+                placeholder={t("onboardingQuick.namePlaceholder")}
+                placeholderTextColor="#374151"
+                autoCapitalize="words"
+              />
+            </View>
+
+            <View style={{ marginTop: 20 }}>
               <Text style={S.label}>{t("onboarding.step0.birthDate")}</Text>
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <TextInput

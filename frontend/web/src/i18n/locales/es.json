@@ -5027,6 +5027,8 @@
   "onboardingQuick": {
     "title": "Antes de continuar",
     "subtitle": "Solo lo mínimo para activar tu cuenta — todo lo demás lo iremos conociendo conforme platiquemos.",
+    "nameLabel": "¿Cómo quieres que te llamemos?",
+    "namePlaceholder": "Tu nombre (opcional)",
     "birthDateLabel": "Fecha de nacimiento",
     "birthDateHint": "Para confirmar que eres mayor de edad.",
     "continueButton": "Continuar",

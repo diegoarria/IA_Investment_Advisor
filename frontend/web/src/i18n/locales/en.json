@@ -5027,6 +5027,8 @@
   "onboardingQuick": {
     "title": "Before you continue",
     "subtitle": "Just the minimum to activate your account — we'll get to know the rest as we talk.",
+    "nameLabel": "What should we call you?",
+    "namePlaceholder": "Your name (optional)",
     "birthDateLabel": "Date of birth",
     "birthDateHint": "To confirm you're an adult.",
     "continueButton": "Continue",

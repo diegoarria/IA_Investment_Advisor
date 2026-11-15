@@ -37,6 +37,7 @@ export default function OnboardingQuickPage() {
 
   const MONTHS = t("onboarding.months", { returnObjects: true }) as string[];
 
+  const [name, setName] = useState("");
   const [day, setDay] = useState("");
   const [month, setMonth] = useState("");
   const [year, setYear] = useState("");
@@ -86,6 +87,7 @@ export default function OnboardingQuickPage() {
     setLoading(true); setError("");
 
     const payload = {
+      ...(name.trim() ? { name: name.trim() } : {}),
       birth_date: birthDateStr,
       terms_accepted_at: new Date().toISOString(),
       terms_version: TERMS_VERSION,
@@ -115,7 +117,7 @@ export default function OnboardingQuickPage() {
 
       const goal = readOnboardingGoal();
       const genericName = language === "en" ? "Investor" : "Inversor";
-      const _welcomeMsg = t("onboarding.welcome.messageNoGoal", { name: genericName });
+      const _welcomeMsg = t("onboarding.welcome.messageNoGoal", { name: name.trim() || genericName });
       const _chat = useChatStore.getState();
       _chat.createSession();
       _chat.addMessage({ role: "assistant", content: _welcomeMsg });
@@ -140,14 +142,28 @@ export default function OnboardingQuickPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-5" style={{ background: "var(--bg)" }}>
-      <div className="glass w-full max-w-[460px] rounded-3xl p-7" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+    <div className="h-screen overflow-y-auto flex items-start justify-center p-5 py-10" style={{ background: "var(--bg)" }}>
+      <div className="glass w-full max-w-[460px] rounded-3xl p-7 my-auto" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
         <h1 className="text-xl font-black tracking-tight mb-1" style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
           {t("onboardingQuick.title")}
         </h1>
         <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>{t("onboardingQuick.subtitle")}</p>
 
         <div className="space-y-5">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              {t("onboardingQuick.nameLabel")}
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("onboardingQuick.namePlaceholder")}
+              className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
+              style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+            />
+          </div>
+
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
               {t("onboardingQuick.birthDateLabel")}
