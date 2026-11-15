@@ -5,11 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { auth, profile as profileApi } from "@/lib/api";
+import { auth, profile as profileApi, screenerApi, etfApi } from "@/lib/api";
 import { applyPendingReferralIfAny } from "@/lib/referral";
 import { consumeReturnTo } from "@/lib/returnTo";
 import { getSupabaseClient } from "@/lib/supabase";
-import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode, isGuestUser } from "@/lib/store";
+import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode, isGuestUser, getGuestId } from "@/lib/store";
 import { Eye, EyeOff, ArrowRight, User, Send, PieChart, Search, ListChecks } from "lucide-react";
 import {
   captureOnboardingStarted,
@@ -89,10 +89,24 @@ function HomeContent() {
   // catch-block below); every other entry point (?auth=1 explicitly,
   // ?mode=register, a returning guest) is unaffected and starts at its
   // existing mode exactly as before.
-  const [mode, setMode]             = useState<"login" | "register" | "forgot" | "goal" | "welcome">(
+  const [mode, setMode]             = useState<"login" | "register" | "forgot" | "goal" | "welcome" | "preview">(
     () => (searchParams.get("mode") === "register" ? (readOnboardingGoal() ? "register" : "goal") : "login")
   );
   const [goal, setGoal] = useState<OnboardingGoal | null>(() => readOnboardingGoal());
+  // Onboarding preview (Empresa/ETF) — a real, curated example shown
+  // inline during onboarding, never via enterGuestMode()/the real Explorer.
+  const PREVIEW_COMPANY_TICKER = "AAPL"; // the free default view — real data, no weekly-limit impact
+  const PREVIEW_ETF_TICKERS = ["VOO", "QQQ", "VXUS"] as const;
+  const [previewEtfIndex, setPreviewEtfIndex] = useState(0);
+  const [previewCompany, setPreviewCompany] = useState<{
+    ticker: string; company_name: string | null; price: number | null; margin_of_safety_pct: number | null; summary: string;
+  } | null>(null);
+  const [previewEtf, setPreviewEtf] = useState<{
+    ticker: string; name: string | null; expense_ratio_pct: number | null;
+    top_sector_name: string | null; top_sector_pct: number | null; horizon_note: string; insight: string | null;
+  } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
   const [email, setEmail]           = useState("");
   const [password, setPassword]     = useState("");
   const [showPass, setShowPass]     = useState(false);
@@ -246,23 +260,62 @@ function HomeContent() {
     if (mode === "register") captureSignupStarted();
   }, [mode]);
 
+  // Onboarding preview fetch — real data, fixed curated ticker(s), no
+  // guest session created. The weekly VI-search counter isn't touched
+  // (AAPL's default view is exempt server-side, same as the real Radar
+  // screen); the ETF endpoint is a dedicated no-auth preview route, not
+  // the general-purpose one.
+  useEffect(() => {
+    if (mode !== "preview" || !goal) return;
+    setPreviewError(false);
+    if (goal === "company" && !previewCompany) {
+      setPreviewLoading(true);
+      screenerApi.quickAnalysisPublic(PREVIEW_COMPANY_TICKER, getGuestId(), language, true)
+        .then((res) => setPreviewCompany({
+          ticker: res.data.ticker, company_name: res.data.company_name,
+          price: res.data.price, margin_of_safety_pct: res.data.margin_of_safety_pct,
+          summary: res.data.summary,
+        }))
+        .catch(() => setPreviewError(true))
+        .finally(() => setPreviewLoading(false));
+    } else if (goal === "etf") {
+      const ticker = PREVIEW_ETF_TICKERS[previewEtfIndex];
+      setPreviewLoading(true);
+      etfApi.preview(ticker, language)
+        .then((res) => {
+          const d = res.data;
+          setPreviewEtf({
+            ticker: d.ticker, name: d.identification?.name ?? null,
+            expense_ratio_pct: d.costs?.expense_ratio_pct ?? null,
+            top_sector_name: d.diversification?.by_sector?.top1_name ?? null,
+            top_sector_pct: d.diversification?.by_sector?.top1_weight_pct ?? null,
+            horizon_note: d.horizon_note, insight: d.insights?.[0]?.text ?? null,
+          });
+        })
+        .catch(() => setPreviewError(true))
+        .finally(() => setPreviewLoading(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, goal, previewEtfIndex]);
+
   const handleGoalSelect = (selected: OnboardingGoal) => {
     setGoal(selected);
     saveOnboardingGoal(selected);
     captureOnboardingGoalSelected(selected);
     setError("");
-    if (selected === "company") {
-      // Ruta Empresa ya es pública hoy: /subvaluadas atiende invitados vía
-      // su propio endpoint público (3 búsquedas/semana, mismo dato real,
-      // sin cuenta). No forzar registro para ver algo que ya es público.
-      enterGuestMode().finally(() => router.push("/subvaluadas"));
+    if (selected === "portfolio") {
+      // Portafolio siempre requiere cuenta — datos personales, no hay
+      // vista previa honesta que mostrar sin ellos.
+      setMode("register");
       return;
     }
-    // ETF y Portafolio sí requieren cuenta hoy: /etf no tiene ninguna ruta
-    // pública en el backend (todas exigen get_current_user — confirmado en
-    // la auditoría, no es una decisión de este cambio), y Portafolio
-    // siempre la requiere por tratarse de datos personales.
-    setMode("register");
+    // Empresa y ETF: Diego, 2026-11-15 — "mostrar valor de lo que viene
+    // dentro... pero sin meterlo como guest, sino como parte del
+    // onboarding". Antes, Empresa entraba a modo invitado real
+    // (enterGuestMode + /subvaluadas) y ETF iba directo a registro sin
+    // mostrar nada. Ahora ambos muestran un ejemplo real curado — aquí
+    // mismo, dentro del onboarding — antes de pedir la cuenta.
+    setMode("preview");
   };
 
   useEffect(() => {
@@ -814,6 +867,82 @@ function HomeContent() {
                   ))}
                 </div>
               </>
+            ) : mode === "preview" ? (
+              /* ── VISTA PREVIA (Empresa/ETF) — ejemplo real curado dentro
+                  del onboarding, nunca modo invitado real ── */
+              <>
+                <button onClick={() => { setMode("goal"); setError(""); }}
+                        className="flex items-center gap-2 text-sm mb-5 transition-opacity hover:opacity-70"
+                        style={{ color: "var(--muted)" }}>{t("landing.goalBack")}</button>
+
+                {previewLoading && !previewCompany && !previewEtf ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="w-7 h-7 border-2 border-white/10 border-t-green-400 rounded-full" style={{ animation: "spin 0.7s linear infinite" }} />
+                  </div>
+                ) : previewError && !previewCompany && !previewEtf ? (
+                  <div className="py-8">
+                    <p className="text-sm mb-5" style={{ color: "var(--muted)" }}>{t("landing.previewError")}</p>
+                    <button onClick={() => setMode("register")} className="btn-primary w-full">{t("landing.previewContinue")}</button>
+                  </div>
+                ) : goal === "company" && previewCompany ? (
+                  <>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--muted)" }}>
+                      {t("landing.previewCompanyEyebrow")}
+                    </p>
+                    <div className="rounded-2xl p-5 mb-5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)" }}>
+                      <div className="flex items-baseline justify-between gap-2 mb-1">
+                        <span className="text-lg font-black" style={{ color: "var(--text)" }}>{previewCompany.ticker}</span>
+                        {previewCompany.price != null && (
+                          <span className="text-sm font-bold" style={{ color: "var(--text)" }}>${previewCompany.price.toFixed(2)}</span>
+                        )}
+                      </div>
+                      <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>{previewCompany.company_name}</p>
+                      {previewCompany.margin_of_safety_pct != null && (
+                        <p className="text-xs font-bold mb-3" style={{ color: previewCompany.margin_of_safety_pct > 0 ? "#34d399" : "#f87171" }}>
+                          {previewCompany.margin_of_safety_pct > 0
+                            ? t("landing.previewUndervalued", { pct: Math.abs(previewCompany.margin_of_safety_pct).toFixed(0) })
+                            : t("landing.previewOvervalued", { pct: Math.abs(previewCompany.margin_of_safety_pct).toFixed(0) })}
+                        </p>
+                      )}
+                      <p className="text-[13px] leading-relaxed" style={{ color: "var(--sub)" }}>{previewCompany.summary}</p>
+                    </div>
+                    <button onClick={() => setMode("register")} className="btn-primary w-full">{t("landing.previewCtaCompany")}</button>
+                  </>
+                ) : goal === "etf" && previewEtf ? (
+                  <>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--muted)" }}>
+                      {t("landing.previewEtfEyebrow")}
+                    </p>
+                    <div className="rounded-2xl p-5 mb-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)" }}>
+                      <div className="flex items-baseline justify-between gap-2 mb-1">
+                        <span className="text-lg font-black" style={{ color: "var(--text)" }}>{previewEtf.ticker}</span>
+                        {previewEtf.expense_ratio_pct != null && (
+                          <span className="text-xs font-bold" style={{ color: "var(--text)" }}>{t("landing.previewExpenseRatio", { pct: previewEtf.expense_ratio_pct.toFixed(2) })}</span>
+                        )}
+                      </div>
+                      <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>{previewEtf.name}</p>
+                      {previewEtf.top_sector_name && previewEtf.top_sector_pct != null && (
+                        <p className="text-[13px] mb-2" style={{ color: "var(--sub)" }}>
+                          {t("landing.previewTopSector", { sector: previewEtf.top_sector_name, pct: previewEtf.top_sector_pct.toFixed(0) })}
+                        </p>
+                      )}
+                      {previewEtf.insight && (
+                        <p className="text-[13px] leading-relaxed" style={{ color: "var(--sub)" }}>{previewEtf.insight}</p>
+                      )}
+                    </div>
+                    <button onClick={() => { setPreviewLoading(false); setPreviewEtf(null); setPreviewEtfIndex((i) => (i + 1) % PREVIEW_ETF_TICKERS.length); }}
+                            className="w-full py-2.5 mb-3 rounded-xl text-xs font-semibold text-center transition-opacity hover:opacity-80"
+                            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                      {t("landing.previewSeeAnother")}
+                    </button>
+                    <button onClick={() => setMode("register")} className="btn-primary w-full">{t("landing.previewCtaEtf")}</button>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="w-7 h-7 border-2 border-white/10 border-t-green-400 rounded-full" style={{ animation: "spin 0.7s linear infinite" }} />
+                  </div>
+                )}
+              </>
             ) : (
               /* ── LOGIN / REGISTER ── */
               <>
@@ -934,7 +1063,7 @@ function HomeContent() {
 
           {/* Low-friction entry points — not on "welcome", which already has
               its own explore/login actions right above (no duplicates). */}
-          {mode !== "forgot" && mode !== "welcome" && (
+          {mode !== "forgot" && mode !== "welcome" && mode !== "preview" && (
             <div className="grid grid-cols-2 gap-2 mt-3">
               <button onClick={() => { localStorage.setItem("nuvos_ob", "1"); setEmail("demo@nuvosai.app"); setPassword("demo1234"); setMode("login"); }}
                       className="text-xs py-2.5 rounded-xl text-center transition-all hover:opacity-80"

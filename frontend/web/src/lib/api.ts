@@ -885,6 +885,10 @@ export const benchmarkApi = {
 // Nuvos ETF Fase 2A — admin-gated (backend returns 403 for non-admin
 // accounts), not linked from main navigation yet.
 export const etfApi = {
+  // Onboarding 2.0 preview (2026-11-15) — no-auth, restricted to a fixed
+  // small whitelist server-side (VOO/QQQ/VXUS). Real data, just not a
+  // general-purpose public lookup like getOverview below.
+  preview: (ticker: string, lang: string = "es") => api.get("/api/etf/preview", { params: { ticker, lang }, timeout: 20000 }),
   getOverview: (ticker: string, lang: string = "es") => api.get(`/api/etf/${ticker}`, { params: { lang }, timeout: 20000 }),
   search: (q: string, limit = 20) => api.get("/api/etf/search", { params: { q, limit } }),
   getCategories: () => api.get("/api/etf/categories"),

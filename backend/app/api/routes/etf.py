@@ -25,6 +25,15 @@ router = APIRouter(prefix="/etf", tags=["etf"])
 
 _TICKER_RE = re.compile(r"^[A-Z]{1,6}(\.[A-Z]{1,3})?$")
 
+# Onboarding 2.0 (2026-11-15, Diego): "mostrar valor de lo que viene dentro
+# con Explorar ETFs... antes de crearte una cuenta... pero sin meterlo como
+# guest, sino como parte del onboarding" — a real preview inside the
+# Personalización flow, not the full guest-mode Explorer. A fixed, tiny
+# whitelist (not every ticker, unlike the real /{ticker} route) keeps this
+# genuinely a curated preview rather than a backdoor around the auth
+# requirement every other /api/etf/* route has.
+_PREVIEW_TICKERS = ("VOO", "QQQ", "VXUS")
+
 
 @router.get("/categories")
 @limiter.limit("20/minute")
@@ -124,10 +133,38 @@ async def compare_etf_route(request: Request, tickers: str = "", lang: str = "es
     return result
 
 
-# Must come AFTER /categories, /search and /compare — a literal path segment always
-# matches before this catch-all {ticker} path parameter in FastAPI's
-# routing, but keeping declaration order correct here too avoids ever
-# depending on that implementation detail.
+@router.get("/preview")
+@limiter.limit("30/minute")
+async def get_etf_preview(request: Request, ticker: str = "VOO", lang: str = "es"):
+    """No-auth counterpart of GET /{ticker}, restricted to _PREVIEW_TICKERS —
+    real data from the same engine, just for a fixed small set, so a
+    first-time visitor can see one genuine ETF ficha inside onboarding
+    before being asked to create an account. Not a general-purpose public
+    ETF lookup: unlike /{ticker}, an unlisted symbol here is a 400, not a
+    503/real-data attempt."""
+    ticker = (ticker or "").strip().upper()
+    if ticker not in _PREVIEW_TICKERS:
+        raise HTTPException(status_code=400, detail=f"'{ticker}' no está disponible en la vista previa.")
+
+    import asyncio
+    try:
+        overview = await asyncio.to_thread(get_etf_overview, ticker, True, lang)
+    except NotAnETFError:
+        raise HTTPException(status_code=503, detail=f"No pudimos obtener los datos de {ticker} en este momento. Intenta de nuevo en unos segundos.")
+    except Exception:
+        logger.exception("etf route: get_etf_preview(%s) raised unexpectedly", ticker)
+        raise HTTPException(status_code=503, detail=f"No pudimos obtener los datos de {ticker} en este momento. Intenta de nuevo en unos segundos.")
+
+    if len(overview["data_quality"]["missing_fields"]) >= 7:
+        raise HTTPException(status_code=503, detail=f"No pudimos obtener los datos de {ticker} en este momento. Intenta de nuevo en unos segundos.")
+
+    return overview
+
+
+# Must come AFTER /categories, /search, /compare and /preview — a literal
+# path segment always matches before this catch-all {ticker} path
+# parameter in FastAPI's routing, but keeping declaration order correct
+# here too avoids ever depending on that implementation detail.
 @router.get("/{ticker}")
 @limiter.limit("20/minute")
 async def get_etf(request: Request, ticker: str, lang: str = "es", user: dict = Depends(get_current_user)):
