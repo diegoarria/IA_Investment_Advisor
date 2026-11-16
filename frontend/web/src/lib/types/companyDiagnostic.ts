@@ -298,6 +298,29 @@ export interface CompanyDiagnosticData {
     netMargin: string;
     operatingCashFlow: string;
   };
+  // Radar 2.0 Fase 2 ("Entender las finanzas"), 2026-11-15 — real per-year
+  // arrays, oldest->newest, same length, index-aligned (company_diagnostic_
+  // service._company_diagnostic_result's own comment has the full
+  // provenance). `operatingCashFlow`/`capex` are the raw real reported
+  // figures (NOT netted); `fcfReported` is OCF-|capex| as actually
+  // reported; `fcfNormalized` is Nuvos's own maintenance/growth-capex
+  // adjustment — keep these two visually and textually distinct, never
+  // show `fcfNormalized` as if it were the real reported figure.
+  // `totalDebt`/`netCash` are single latest-period real values, not series.
+  // Null/absent when this ticker has too few years of real statements.
+  financialTrends?: {
+    years: string[];
+    revenue: (number | null)[];
+    netIncome: (number | null)[];
+    operatingMargin: (number | null)[];
+    netMargin: (number | null)[];
+    operatingCashFlow: (number | null)[];
+    capex: (number | null)[];
+    fcfReported: (number | null)[];
+    fcfNormalized: (number | null)[];
+    totalDebt: number | null;
+    netCash: number | null;
+  } | null;
   // Methodology audit round 3 (see /Users/diegoarria/.claude/plans/cosmic-
   // munching-crown.md) — true when buybacks compressed Stockholders Equity
   // enough that ROIC's denominator switched to operating invested capital

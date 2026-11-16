@@ -53,6 +53,18 @@ const _LOCAL_DRAFT_TICKERS: Record<string, () => Promise<{ default: QualitativeC
   MCD: () => import("@/lib/previewContent/mcd.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
 };
 
+// Diego, 2026-11-15 ("resumas todo lo que contienen las 6 fases"): the new
+// journey-teaser grid on Resumen reuses Fase 3/4's own real research
+// fixtures for 2 of its 6 tiles — same loader pattern, same GOOGL-only
+// availability as those phases themselves (never a fabricated teaser for
+// any other ticker).
+const _LOCAL_LEADERSHIP_TICKERS: Record<string, () => Promise<{ default: unknown }>> = {
+  GOOGL: () => import("@/lib/previewContent/leadership/googl.json"),
+};
+const _LOCAL_INDUSTRY_TICKERS: Record<string, () => Promise<{ default: unknown }>> = {
+  GOOGL: () => import("@/lib/previewContent/industry/googl.json"),
+};
+
 export default function ResumenPreviewPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker: rawTicker } = use(params);
   const ticker = rawTicker.toUpperCase();
@@ -61,6 +73,8 @@ export default function ResumenPreviewPage({ params }: { params: Promise<{ ticke
   const [error, setError] = useState<string | null>(null);
   const [editorial, setEditorial] = useState<QualitativeContentDraft | null>(null);
   const [editorialSource, setEditorialSource] = useState<"local-draft" | "public" | null>(null);
+  const [leadership, setLeadership] = useState<unknown | null>(null);
+  const [industry, setIndustry] = useState<unknown | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +82,8 @@ export default function ResumenPreviewPage({ params }: { params: Promise<{ ticke
     setError(null);
     setEditorial(null);
     setEditorialSource(null);
+    setLeadership(null);
+    setIndustry(null);
 
     screenerApi
       .companyDiagnosticPublic(ticker, "dev-preview-local", i18n.language)
@@ -115,6 +131,28 @@ export default function ResumenPreviewPage({ params }: { params: Promise<{ ticke
         });
     }
 
+    const leadershipLoader = _LOCAL_LEADERSHIP_TICKERS[ticker];
+    if (leadershipLoader) {
+      leadershipLoader()
+        .then((mod) => {
+          if (!cancelled) setLeadership(mod.default);
+        })
+        .catch(() => {
+          /* No leadership research yet for this ticker — the teaser tile falls back to its generic copy. */
+        });
+    }
+
+    const industryLoader = _LOCAL_INDUSTRY_TICKERS[ticker];
+    if (industryLoader) {
+      industryLoader()
+        .then((mod) => {
+          if (!cancelled) setIndustry(mod.default);
+        })
+        .catch(() => {
+          /* No industry research yet for this ticker — the teaser tile falls back to its generic copy. */
+        });
+    }
+
     return () => {
       cancelled = true;
     };
@@ -133,7 +171,14 @@ export default function ResumenPreviewPage({ params }: { params: Promise<{ ticke
           <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--muted)" }} />
         </div>
       )}
-      {data && isFullDiagnostic(data) && <ResumenPreview data={data} editorial={editorial} />}
+      {data && isFullDiagnostic(data) && (
+        <ResumenPreview
+          data={data}
+          editorial={editorial}
+          leadership={leadership as Parameters<typeof ResumenPreview>[0]["leadership"]}
+          industry={industry as Parameters<typeof ResumenPreview>[0]["industry"]}
+        />
+      )}
       {data && !isFullDiagnostic(data) && <DegradedTickerCard data={data} ticker={ticker} />}
     </div>
   );

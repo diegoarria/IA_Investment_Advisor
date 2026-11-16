@@ -79,8 +79,12 @@
 // number, better-labeled.
 
 import { useState, type ReactNode } from "react";
-import { TrendingUp, TrendingDown, Minus, AlertTriangle, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
-import { GlowCard, RingGauge, IconSquare, GOLD } from "@/components/subvaluadas/radarUi";
+import { useRouter } from "next/navigation";
+import {
+  TrendingUp, TrendingDown, Minus, AlertTriangle, ChevronDown, ChevronUp, ExternalLink,
+  Package, UserCircle, Swords, Target, Search,
+} from "lucide-react";
+import { IconSquare, GOLD } from "@/components/subvaluadas/radarUi";
 import { fmtPrice } from "@/lib/types/stock";
 import { _valuationStatus, _VERDICT_COLOR } from "@/components/subvaluadas/shared";
 import type { FullCompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
@@ -225,6 +229,266 @@ export function parseSources(raw: string): { label: string; url: string | null }
     });
 }
 
+// Minimal real-field shapes for the journey-teaser grid below — only the
+// fields actually read for a one-line teaser, never the full fixture
+// shape (that stays owned by each phase's own file). Optional/nullable
+// throughout: every non-GOOGL ticker (and GOOGL itself before these load)
+// legitimately has neither of these yet.
+interface LeadershipTeaserData { ceo?: { name?: string } }
+interface IndustryTeaserData { competitors?: { segment?: string; rivals?: string[] }[] }
+
+/** $ formatting consistent with every other phase file's own local copy of
+ * this exact helper (Fase 2/3/4) — never a new convention. */
+function fmtMoneyTeaser(value: number | null | undefined): string {
+  if (value == null) return "";
+  const abs = Math.abs(value);
+  if (abs >= 1e9) return `$${(abs / 1e9).toLocaleString("en-US", { maximumFractionDigits: 1 })}B`;
+  return `$${Math.round(abs / 1e6).toLocaleString("en-US")}M`;
+}
+
+/** Diego, 2026-11-15 ("resumas todo lo que contienen las 6 fases... buen
+ * diseño gráfico... sin mucho texto"): a compact, clickable 6-tile teaser
+ * grid. Round 2 ("lo de abajo quitarlo y meterlo dentro de lo nuevo"):
+ * each tile now absorbs the real content that used to live in its own
+ * separate card further down the page (business opener + revenue split +
+ * top moat for "negocio"; price/scenarios/Score Nuvos for "valuación"; a
+ * 2nd risk headline for "riesgos") — "un poco más extenso pero resumido",
+ * never the full depth each phase's own screen already shows. Every line
+ * is derived from the SAME real data/editorial content each phase itself
+ * already displays for this ticker — never a new fact, never fabricated
+ * for a ticker that lacks the real source. Icons reuse each phase's own
+ * established choice for visual continuity with the phases themselves.
+ *
+ * Score Nuvos placement: folded into the "Valuación" tile rather than
+ * given its own 7th tile or a separate card — it's the one piece that
+ * doesn't map to a single phase (it blends quality/trust/value/simplicity
+ * across 4 axes), but its "value" axis is specifically the margin-of-
+ * safety-vs-price dimension, the closest real conceptual home among the
+ * 6 phases. Same real `data.score`/`data.badges` fields, never recomputed. */
+function JourneyTeaserGrid({
+  data, editorial, leadership, industry, status, topRisks, deferredRiskCount, opener,
+}: {
+  data: FullCompanyDiagnosticData;
+  editorial: QualitativeContentDraft | null;
+  leadership: LeadershipTeaserData | null;
+  industry: IndustryTeaserData | null;
+  status: ReturnType<typeof _valuationStatus>;
+  topRisks: { risk: QualitativeRisk; index: number }[];
+  deferredRiskCount: number;
+  opener: string;
+}) {
+  const sortedRevenue = [...data.revenueBreakdown].sort((a, b) => b.percentage - a.percentage);
+  const topRevenue = sortedRevenue[0];
+  const ft = data.financialTrends;
+  const firstYear = ft?.years?.[0];
+  const lastIdx = ft ? ft.years.length - 1 : -1;
+  const lastYear = ft?.years?.[lastIdx];
+  const firstRevenue = ft?.revenue?.[0];
+  const lastRevenue = ft?.revenue?.[lastIdx];
+  const hasRevenueTrend = ft && firstYear && lastYear && firstYear !== lastYear && firstRevenue != null && lastRevenue != null;
+  const topCompetitorRow = industry?.competitors?.[industry.competitors.length - 1] ?? industry?.competitors?.[0];
+  const topMoat = editorial && editorial.moat.length > 0 ? editorial.moat[0] : null;
+  const risk1 = topRisks[0]?.risk ?? null;
+  const risk2 = topRisks[1]?.risk ?? null;
+  const { conservative, baseFairValue, optimistic, currentPrice, validationStatus } = data.valuation;
+  const diffColor = status ? _VERDICT_COLOR[status.verdict] : "var(--sub)";
+  const DiffIcon = status?.verdict === "undervalued" ? TrendingUp : status?.verdict === "overvalued" ? TrendingDown : Minus;
+
+  const tiles: { key: string; label: string; href: string; icon: ReactNode; body: ReactNode }[] = [
+    {
+      key: "negocio",
+      label: "Entender el negocio",
+      href: `/subvaluadas/resumen-preview/${data.ticker}/entender-negocio`,
+      icon: <Package className="w-4 h-4" style={{ color: GOLD }} />,
+      body: (
+        <>
+          <p className="text-[15.5px] leading-4" style={{ color: "var(--sub)" }}>
+            {topRevenue ? `Lo más importante: ${topRevenue.category} (${topRevenue.percentage.toFixed(0)}% de sus ingresos)` : "Qué vende y cómo gana dinero."}
+          </p>
+          {opener && <p className="text-[14px] leading-4 mt-1.5" style={{ color: "var(--sub)" }}>{headlineFrom(opener, 95)}</p>}
+          {sortedRevenue.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {sortedRevenue.slice(0, 2).map((row) => (
+                <div key={row.category}>
+                  <div className="flex justify-between text-[11px]">
+                    <span style={{ color: "var(--sub)" }}>{row.category}</span>
+                    <span className="font-bold" style={{ color: "var(--text)" }}>{row.percentage.toFixed(0)}%</span>
+                  </div>
+                  <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(127,127,127,0.14)" }}>
+                    <div className="h-full rounded-full" style={{ width: `${row.percentage}%`, background: GOLD }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {topMoat && (
+            <p className="text-[14px] leading-4 mt-2" style={{ color: "var(--sub)" }}>
+              <strong style={{ color: "var(--text)" }}>Ventaja:</strong> {headlineFrom(topMoat.explanation, 70)}
+            </p>
+          )}
+        </>
+      ),
+    },
+    {
+      key: "finanzas",
+      label: "Entender las finanzas",
+      href: `/subvaluadas/resumen-preview/${data.ticker}/entender-finanzas`,
+      icon: <TrendingUp className="w-4 h-4" style={{ color: "#5B9BD5" }} />,
+      body: (
+        <>
+          <p className="text-[15.5px] leading-5" style={{ color: "var(--sub)" }}>
+            {hasRevenueTrend
+              ? `Ingresos de ${fmtMoneyTeaser(firstRevenue)} (${firstYear}) a ${fmtMoneyTeaser(lastRevenue)} (${lastYear})`
+              : "Si está vendiendo más, ganando dinero y generando efectivo."}
+          </p>
+          {hasRevenueTrend && firstRevenue != null && lastRevenue != null && (
+            <div className="mt-2 flex items-end gap-1.5" style={{ height: 28 }}>
+              {[firstRevenue, lastRevenue].map((v, i) => {
+                const max = Math.max(firstRevenue, lastRevenue) || 1;
+                const h = Math.max(6, Math.round((Math.max(v, 0) / max) * 28));
+                return (
+                  <div key={i} className="flex-1 flex flex-col justify-end">
+                    <div className="rounded-sm" style={{ height: h, background: i === 1 ? GOLD : "rgba(212,162,76,0.35)" }} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {(() => {
+            const lastReal = (arr?: (number | null)[]) => {
+              if (!arr) return null;
+              for (let i = arr.length - 1; i >= 0; i--) {
+                if (arr[i] != null) return arr[i] as number;
+              }
+              return null;
+            };
+            const lastNetMargin = lastReal(ft?.netMargin);
+            const lastFcf = lastReal(ft?.fcfReported);
+            if (lastNetMargin == null && lastFcf == null) return null;
+            return (
+              <p className="text-[14px] leading-5 mt-2" style={{ color: "var(--sub)" }}>
+                {lastNetMargin != null && (
+                  <>De cada $100 que vende, conserva <strong style={{ color: "var(--text)" }}>${lastNetMargin.toFixed(0)}</strong> como ganancia. </>
+                )}
+                {lastFcf != null && (
+                  <>Efectivo libre reportado: <strong style={{ color: "var(--text)" }}>{fmtMoneyTeaser(lastFcf)}</strong>.</>
+                )}
+              </p>
+            );
+          })()}
+        </>
+      ),
+    },
+    {
+      key: "lideres",
+      label: "Conocer a sus líderes",
+      href: `/subvaluadas/resumen-preview/${data.ticker}/conocer-liderazgo`,
+      icon: <UserCircle className="w-4 h-4" style={{ color: "#8C97AD" }} />,
+      body: (
+        <p className="text-[15.5px] leading-4" style={{ color: "var(--sub)" }}>
+          {leadership?.ceo?.name ? `${leadership.ceo.name} dirige la empresa y sus decisiones de capital.` : "Quién dirige la empresa y qué hace con el dinero."}
+        </p>
+      ),
+    },
+    {
+      key: "industria",
+      label: "Entender la industria",
+      href: `/subvaluadas/resumen-preview/${data.ticker}/entender-industria`,
+      icon: <Swords className="w-4 h-4" style={{ color: "#C97B63" }} />,
+      body: (
+        <p className="text-[15.5px] leading-4" style={{ color: "var(--sub)" }}>
+          {topCompetitorRow?.rivals?.length
+            ? `Compite con ${topCompetitorRow.rivals.slice(0, 2).join(" y ")} en ${(topCompetitorRow.segment ?? "su mercado").toLowerCase()}.`
+            : "Contra quién compite y qué podría cambiar su mercado."}
+        </p>
+      ),
+    },
+    {
+      key: "valuacion",
+      label: "Valuación",
+      href: `/subvaluadas/resumen-preview/${data.ticker}/entender-valuacion`,
+      icon: <Target className="w-4 h-4" style={{ color: GOLD }} />,
+      body: (
+        <>
+          <div className="flex items-baseline justify-between">
+            <span className="text-[11.5px]" style={{ color: "var(--sub)" }}>Precio actual</span>
+            <span className="text-[15px] font-black tabular-nums" style={{ color: "var(--text)" }}>
+              {currentPrice != null ? fmtPrice(currentPrice) : "N/D"}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-1 text-center mt-1.5">
+            {([["Cons.", conservative], ["Base", baseFairValue], ["Optim.", optimistic]] as const).map(([label, value], i) => (
+              <div key={label}>
+                <p className="text-[9.5px] uppercase tracking-wide" style={{ color: "var(--sub)" }}>{label}</p>
+                <p className="text-[14px] font-black tabular-nums" style={{ color: i === 1 ? GOLD : "var(--text)" }}>{value != null ? fmtPrice(value) : "N/D"}</p>
+              </div>
+            ))}
+          </div>
+          {status && (
+            <div className="flex items-center justify-center gap-1 mt-1.5">
+              <DiffIcon className="w-3 h-3" style={{ color: diffColor }} />
+              <span className="text-[14px] font-bold" style={{ color: diffColor }}>
+                {status.pct.toFixed(0)}% {status.verdict === "overvalued" ? "sobre" : status.verdict === "undervalued" ? "bajo" : "cerca de"} el valor estimado
+              </span>
+            </div>
+          )}
+          <div className="flex items-center justify-between mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+            <span className="text-[11.5px]" style={{ color: "var(--sub)" }}>Score Nuvos</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[15px] font-black tabular-nums" style={{ color: "var(--text)" }}>{data.score}</span>
+              {data.badges[0] && <Pill label={data.badges[0]} color={GOLD} />}
+            </div>
+          </div>
+          {validationStatus === "under_review" && (
+            <p className="text-[11px] leading-3.5 mt-1.5" style={{ color: "#ef4444" }}>
+              Valoración en revisión — números reales, aún sin validar.
+            </p>
+          )}
+        </>
+      ),
+    },
+    {
+      key: "riesgos",
+      label: "Riesgos",
+      href: `/subvaluadas/resumen-preview/${data.ticker}/riesgos-a-vigilar`,
+      icon: <AlertTriangle className="w-4 h-4" style={{ color: "#f59e0b" }} />,
+      body: (
+        <>
+          <p className="text-[15.5px] leading-4" style={{ color: "var(--sub)" }}>
+            {risk1 ? headlineFrom(risk1.explanation, 70) : "Qué podría salir mal y qué vigilar."}
+          </p>
+          {risk2 && <p className="text-[14px] leading-4 mt-1.5" style={{ color: "var(--sub)" }}>{headlineFrom(risk2.explanation, 70)}</p>}
+          {deferredRiskCount > 0 && (
+            <p className="text-[11.5px] mt-1.5" style={{ color: "var(--sub)" }}>+{deferredRiskCount} más en la pestaña completa</p>
+          )}
+        </>
+      ),
+    },
+  ];
+
+  return (
+    <div className="mb-5">
+      <SectionTitle>El recorrido guiado de Nuvos Radar</SectionTitle>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+        {tiles.map((t) => (
+          <a
+            key={t.key}
+            href={t.href}
+            className="rounded-2xl p-3.5 flex flex-col gap-2 transition-colors hover:brightness-110"
+            style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
+          >
+            <div className="flex items-center gap-2">
+              <IconSquare size={30} color={GOLD}>{t.icon}</IconSquare>
+              <span className="text-[14.5px] font-extrabold" style={{ color: "var(--text)" }}>{t.label}</span>
+            </div>
+            <div>{t.body}</div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function Pill({ label, color }: { label: string; color: string }) {
   return (
     <span
@@ -289,83 +553,109 @@ export function ExpandRow({ headline, eyebrow, eyebrowColor, children, defaultOp
   );
 }
 
-// 4-tab navigation placeholder, integrated into the header. Only Resumen is
-// interactive today; the other 3 reuse this same visual slot instead of
-// floating disabled buttons at the page bottom. Disabled tabs are exempt
-// from WCAG's contrast requirement (1.4.3 excludes inactive UI components)
-// — left at --dim deliberately, since a disabled control isn't meant to be
-// read closely, only recognized as present-but-unavailable.
-// Exported (round 6 — Valuación tab) so the Valuación screen can render the
-// same nav slot with "valuacion" active, instead of forking a second copy.
+// Nav bar integrated into the header. Diego, 2026-11-15 ("las 7 fases
+// reemplazan estos botones"): replaced the old 4-tab Resumen/Valuación/
+// Riesgos/Mi-tesis bar with direct access to the 7 guided-journey phases —
+// the full Valuación/Riesgos/Mi-tesis tabs still exist and still work,
+// they're just reached from inside the phases ("profundizar" links) instead
+// of a top-level button here. `active` keeps its old prop type/call sites
+// untouched (Resumen/Valuación/Riesgos/Mi-tesis all still pass "resumen"/
+// "valuacion"/"riesgos"/"tesis" unmodified) — none of those match a phase
+// key, so no pill highlights on those 4 screens, which is correct: none of
+// them *is* one of the 7 phases. Horizontal scroll on narrow screens
+// (flex-nowrap + overflow-x-auto) instead of cramming 7 pills into one row.
+// Exported (round 6 — Valuación tab) so other screens can render the same
+// nav slot instead of forking a second copy.
 export function TabNav({ active, ticker }: { active: "resumen" | "valuacion" | "riesgos" | "tesis"; ticker: string }) {
-  const tabs: { key: typeof active; label: string; href: string | null }[] = [
-    { key: "resumen", label: "Resumen", href: `/subvaluadas/resumen-preview/${ticker}` },
-    { key: "valuacion", label: "Valuación", href: `/subvaluadas/resumen-preview/${ticker}/valuacion` },
-    { key: "riesgos", label: "Riesgos", href: `/subvaluadas/resumen-preview/${ticker}/riesgos` },
-    { key: "tesis", label: "Mi tesis", href: `/subvaluadas/resumen-preview/${ticker}/mi-tesis` },
+  void active; // kept for call-site compatibility; see note above
+  const phases: { key: string; label: string; href: string }[] = [
+    { key: "negocio", label: "Entender el negocio", href: `/subvaluadas/resumen-preview/${ticker}/entender-negocio` },
+    { key: "finanzas", label: "Entender las finanzas", href: `/subvaluadas/resumen-preview/${ticker}/entender-finanzas` },
+    { key: "lideres", label: "Conocer a sus líderes", href: `/subvaluadas/resumen-preview/${ticker}/conocer-liderazgo` },
+    { key: "industria", label: "Entender la industria", href: `/subvaluadas/resumen-preview/${ticker}/entender-industria` },
+    { key: "valuacion", label: "Valuación", href: `/subvaluadas/resumen-preview/${ticker}/entender-valuacion` },
+    { key: "riesgos", label: "Riesgos", href: `/subvaluadas/resumen-preview/${ticker}/riesgos-a-vigilar` },
+    { key: "tesis", label: "Mi tesis", href: `/subvaluadas/resumen-preview/${ticker}/construir-tesis` },
   ];
   return (
-    <div className="flex gap-1 p-1 rounded-xl w-full sm:w-auto" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-      {tabs.map((t) => {
-        const isActive = t.key === active;
-        const isBuilt = t.href !== null;
-        const content = (
+    <div
+      className="flex gap-1 p-1 rounded-xl w-full overflow-x-auto"
+      style={{ background: "var(--raised)", border: "1px solid var(--border)", scrollbarWidth: "none" }}
+    >
+      {phases.map((p) => (
+        <a key={p.key} href={p.href} className="shrink-0">
           <span
-            className="flex-1 sm:flex-none px-3.5 py-2 rounded-lg text-[12.5px] font-extrabold transition-colors flex items-center justify-center min-h-[40px]"
-            style={isActive ? { background: GOLD, color: "#1a1206" } : { color: isBuilt ? "var(--sub)" : "var(--dim)" }}
+            className="px-3.5 py-2 rounded-lg text-[12.5px] font-extrabold transition-colors flex items-center justify-center min-h-[40px] whitespace-nowrap"
+            style={{ color: "var(--sub)" }}
           >
-            {t.label}
+            {p.label}
           </span>
-        );
-        if (isActive || !isBuilt) {
-          return (
-            <button
-              key={t.key}
-              disabled={!isActive}
-              className="flex-1 sm:flex-none disabled:cursor-not-allowed"
-              title={isActive ? undefined : isBuilt ? undefined : "Todavía no construido en este prototipo"}
-            >
-              {content}
-            </button>
-          );
-        }
-        return (
-          <a key={t.key} href={t.href!} className="flex-1 sm:flex-none">
-            {content}
-          </a>
-        );
-      })}
+        </a>
+      ))}
     </div>
   );
 }
 
-// "Calidad del negocio" pillar breakdown — deliberately excludes the
-// "value" pillar (the one axis that *is* about price attractiveness).
-// Showing quality/trust/simplicity here, and nowhere mixing in "value" or
-// the backend's composite scoreLabel string, is what actually keeps this
-// card answering only "how sound is the business on its own merits" rather
-// than quietly re-introducing a cheap/expensive verdict through the back
-// door.
-function PillarMini({ label, value }: { label: string; value: number }) {
+// Diego, 2026-11-16: "una barra de búsqueda arriba para buscar más
+// empresas" — "arriba a la izquierda". The real app's own ticker-search
+// endpoint (`/api/market/search`, `screenerApi.searchTickers`) requires a
+// real logged-in session (`get_current_user_id`, no guest fallback) —
+// wrong fit for this public/no-login preview tree, where every other
+// screen deliberately works without auth. Rather than calling an endpoint
+// that would 401 for a guest, or fabricating a fake ticker list for
+// autocomplete, this is a simple direct-entry box: type a real ticker,
+// press Enter, navigate straight to its real Resumen preview. No ticker
+// data invented — it just jumps to `/subvaluadas/resumen-preview/{TICKER}`,
+// the same real route every other screen already uses; that page itself
+// honestly shows real data or an honest empty state depending on what
+// exists for that ticker, exactly as it already does today.
+function TickerSearchBar() {
+  const router = useRouter();
+  const [value, setValue] = useState("");
+
+  const go = () => {
+    const ticker = value.trim().toUpperCase();
+    if (!ticker) return;
+    router.push(`/subvaluadas/resumen-preview/${encodeURIComponent(ticker)}`);
+  };
+
   return (
-    <div className="min-w-0">
-      <div className="flex justify-between text-[10px] mb-1">
-        <span style={{ color: "var(--sub)" }}>{label}</span>
-        <span className="font-bold tabular-nums" style={{ color: "var(--text)" }}>{Math.round(value)}</span>
-      </div>
-      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(127,127,127,0.14)" }}>
-        <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: GOLD }} />
-      </div>
-    </div>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        go();
+      }}
+      className="flex items-center gap-2 rounded-full pl-3 pr-1.5 py-1.5 mb-4 w-fit"
+      style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
+    >
+      <Search className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--sub)" }} />
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Buscar otra empresa o ticker…"
+        className="text-[12.5px] bg-transparent outline-none w-44 sm:w-56"
+        style={{ color: "var(--text)" }}
+      />
+      <button
+        type="submit"
+        className="text-[11px] font-bold rounded-full px-3 py-1 shrink-0"
+        style={{ background: "rgba(212,162,76,0.15)", color: GOLD }}
+      >
+        Ir
+      </button>
+    </form>
   );
 }
 
-export function ResumenPreview({ data, editorial }: { data: FullCompanyDiagnosticData; editorial: QualitativeContentDraft | null }) {
-  const { conservative, baseFairValue, optimistic, currentPrice } = data.valuation;
+export function ResumenPreview({ data, editorial, leadership = null, industry = null }: {
+  data: FullCompanyDiagnosticData;
+  editorial: QualitativeContentDraft | null;
+  leadership?: LeadershipTeaserData | null;
+  industry?: IndustryTeaserData | null;
+}) {
+  const { baseFairValue, currentPrice } = data.valuation;
   const status = _valuationStatus(baseFairValue, currentPrice);
-  const diffColor = status ? _VERDICT_COLOR[status.verdict] : "var(--sub)";
-  const DiffIcon = status?.verdict === "undervalued" ? TrendingUp : status?.verdict === "overvalued" ? TrendingDown : Minus;
-  const { opener, detail } = editorial ? splitBusinessSummary(editorial.business_model_summary) : { opener: "", detail: null };
+  const { opener } = editorial ? splitBusinessSummary(editorial.business_model_summary) : { opener: "" };
   const { shown: topRisks, deferredCount } = editorial ? risksForSummary(editorial.risks) : { shown: [], deferredCount: 0 };
 
   return (
@@ -378,6 +668,8 @@ export function ResumenPreview({ data, editorial }: { data: FullCompanyDiagnosti
           Vista previa interna — contenido editorial en borrador ({editorial?.review_status ?? "sin contenido"}), no visible para usuarios reales.
         </div>
       )}
+
+      <TickerSearchBar />
 
       {/* ── Encabezado: nombre, ticker, sector, precio y navegación ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -396,228 +688,21 @@ export function ResumenPreview({ data, editorial }: { data: FullCompanyDiagnosti
         <TabNav active="resumen" ticker={data.ticker} />
       </div>
 
-      {/* ── Dos columnas explícitas (cada una UN solo item de grid, con su
-          propio flex interno) — evita que la altura de una tarjeta en una
-          columna fuerce espacio vacío en la otra. Una sola columna en
-          móvil (el orden del DOM ya es el correcto de arriba a abajo). ── */}
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
-        {/* Columna principal (~66%) */}
-        <div className="flex flex-col gap-5 lg:flex-[2] min-w-0">
-          {/* Qué hace la empresa — 1-2 oraciones, sin cifras */}
-          <div className="px-1">
-            {opener ? (
-              <p className="text-[16px] leading-[24px] font-medium" style={{ color: "var(--text)" }}>{opener}</p>
-            ) : (
-              <p className="text-[13px] italic" style={{ color: "var(--sub)" }}>No disponible — sin contenido editorial publicado para esta empresa todavía.</p>
-            )}
-          </div>
-
-          {/* Cómo gana dinero — gráfico siempre visible, cifras duras colapsadas */}
-          <GlowCard>
-            <SectionTitle>Cómo gana dinero</SectionTitle>
-            {data.revenueBreakdown.length > 0 ? (
-              <div className="space-y-2">
-                {data.revenueBreakdown.map((row) => (
-                  <div key={row.category}>
-                    <div className="flex justify-between text-[12.5px] mb-1">
-                      <span style={{ color: "var(--sub)" }}>{row.category}</span>
-                      <span className="font-bold" style={{ color: "var(--text)" }}>{row.percentage.toFixed(1)}%</span>
-                    </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(127,127,127,0.14)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${row.percentage}%`, background: GOLD }} />
-                    </div>
-                  </div>
-                ))}
-                <p className="text-[10.5px] mt-1" style={{ color: "var(--sub)" }}>
-                  Clasificación propia de Nuvos — no es idéntica a los segmentos exactos del reporte oficial de la empresa.
-                </p>
-              </div>
-            ) : (
-              <p className="text-[12.5px] italic" style={{ color: "var(--sub)" }}>No disponible.</p>
-            )}
-
-            {detail && (
-              <ExpandRow headline="Ver resultados financieros recientes (por período, con fuente)" eyebrow="Detalle">
-                <p className="text-[12px] leading-5 whitespace-pre-line" style={{ color: "var(--sub)" }}>{detail}</p>
-              </ExpandRow>
-            )}
-          </GlowCard>
-
-          {/* Ventajas competitivas — títulos específicos, detalle al expandir */}
-          <GlowCard>
-            <SectionTitle>Ventajas competitivas</SectionTitle>
-            {editorial && editorial.moat.length > 0 ? (
-              <div className="-mt-3">
-                {editorial.moat.map((m, i) => (
-                  <ExpandRow
-                    key={i}
-                    headline={headlineFrom(m.explanation)}
-                    eyebrow={`${_MOAT_TYPE_LABEL[m.type] ?? m.type} · ${_CONFIDENCE_LABEL[m.confidence]}`}
-                    eyebrowColor={_CONFIDENCE_COLOR[m.confidence]}
-                  >
-                    <p className="text-[12.5px] leading-5 mb-2" style={{ color: "var(--sub)" }}>{m.explanation}</p>
-                    <p className="text-[11.5px] leading-4 mb-1" style={{ color: "var(--sub)" }}><strong style={{ color: "var(--text)" }}>Evidencia:</strong> {m.evidence}</p>
-                    {m.weakening_factors && (
-                      <p className="text-[11.5px] leading-4" style={{ color: "var(--sub)" }}><strong style={{ color: "var(--text)" }}>Podría debilitarse por:</strong> {m.weakening_factors}</p>
-                    )}
-                    <SourceLinks raw={m.source_name} />
-                  </ExpandRow>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[12.5px] italic" style={{ color: "var(--sub)" }}>Explicación cualitativa no disponible todavía para esta empresa.</p>
-            )}
-            {data.moatPoints.length > 0 && (
-              <ExpandRow headline="Ver evidencia cuantitativa (ROIC, márgenes vs. industria)" eyebrow="Métricas">
-                <ul className="space-y-1">
-                  {data.moatPoints.map((p, i) => <li key={i} className="text-[12px] leading-4" style={{ color: "var(--sub)" }}>• {p}</li>)}
-                </ul>
-              </ExpandRow>
-            )}
-          </GlowCard>
-
-          {/* Riesgos principales — solo los 3 más relevantes, resto en Riesgos */}
-          <GlowCard>
-            <SectionTitle>Riesgos principales</SectionTitle>
-            {editorial && topRisks.length > 0 ? (
-              <div className="-mt-3">
-                {topRisks.map(({ risk: r, index: i }) => (
-                  <ExpandRow
-                    key={i}
-                    headline={headlineFrom(r.explanation)}
-                    eyebrow={_RISK_CATEGORY_LABEL[r.category] ?? r.category}
-                    eyebrowColor="var(--sub)"
-                  >
-                    <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                      <Pill label={_FACT_TYPE_LABEL[r.fact_type]} color={_FACT_TYPE_COLOR[r.fact_type]} />
-                      <Pill label={_CONFIDENCE_LABEL[r.confidence]} color={_CONFIDENCE_COLOR[r.confidence]} />
-                    </div>
-                    <p className="text-[12.5px] leading-5 mb-2" style={{ color: "var(--sub)" }}>{r.explanation}</p>
-                    <p className="text-[11.5px] leading-4 mb-1" style={{ color: "var(--sub)" }}><strong style={{ color: "var(--text)" }}>Por qué importa:</strong> {r.watch_indicator}</p>
-                    {r.uncertainty && (
-                      <p className="text-[11.5px] leading-4" style={{ color: "var(--sub)" }}><strong style={{ color: "var(--text)" }}>Incertidumbre:</strong> {r.uncertainty}</p>
-                    )}
-                    <SourceLinks raw={r.source_name} />
-                  </ExpandRow>
-                ))}
-              </div>
-            ) : (
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
-                <p className="text-[12.5px] italic" style={{ color: "var(--sub)" }}>Riesgos cualitativos no disponibles todavía.</p>
-              </div>
-            )}
-            {deferredCount > 0 && (
-              <div className="pt-3 mt-1" style={{ borderTop: "1px solid var(--border)" }}>
-                <button className="w-full rounded-xl py-2.5 text-[12px] font-extrabold min-h-[44px]" style={{ background: "var(--raised)", color: "var(--sub)" }} disabled>
-                  Ver {deferredCount} riesgo{deferredCount > 1 ? "s" : ""} adicional{deferredCount > 1 ? "es" : ""} en Riesgos →
-                </button>
-              </div>
-            )}
-          </GlowCard>
-        </div>
-
-        {/* Columna de señales (~34%) */}
-        <div className="flex flex-col gap-5 lg:flex-1 min-w-0">
-          {/* Score Nuvos — real composite score (quality+trust+value+simplicity,
-              equally weighted, see company_diagnostic_service.py's
-              overall_score = sum(pillar_scores)/4). Diego, round 5
-              ("universalizar"): confirmed this single number DOES blend in
-              the `value` pillar (margin-of-safety-derived) at 25% weight —
-              titling it "Calidad del negocio" would misrepresent what it
-              measures, even with the breakdown below limited to the 3
-              business-merit pillars. Title/explanation now name the real
-              blend honestly instead; the breakdown still surfaces only
-              quality/trust/simplicity as sub-indicators of business merit
-              specifically (the price/value dimension lives in its own
-              "Precio vs. valor estimado" card below, not duplicated here). */}
-          <GlowCard tint={GOLD}>
-            <SectionTitle>Score Nuvos</SectionTitle>
-            <p className="text-[11px] mb-3.5 leading-4" style={{ color: "var(--sub)" }}>
-              Combina cuatro ejes en un solo número: rentabilidad y ventaja competitiva, solidez financiera, margen de seguridad frente al precio actual, y simplicidad del caso de inversión — no es exclusivamente una medida de calidad del negocio ni una recomendación.
-            </p>
-            <div className="flex items-center gap-4 mb-3.5">
-              <RingGauge score={data.score} size={68} stroke={7}>
-                <span className="text-lg font-black tabular-nums" style={{ color: "var(--text)" }}>{data.score}</span>
-              </RingGauge>
-              <div className="min-w-0 flex flex-wrap gap-1.5">
-                {data.badges.map((b) => <Pill key={b} label={b} color={GOLD} />)}
-              </div>
-            </div>
-            {data.pillarScores && (
-              <>
-                <p className="text-[9.5px] uppercase tracking-wide mb-2 pt-3" style={{ color: "var(--sub)", borderTop: "1px solid var(--border)" }}>
-                  Ejes de calidad del negocio (el margen de seguridad frente al precio se muestra abajo, por separado)
-                </p>
-                <div className="grid grid-cols-3 gap-2.5">
-                  <PillarMini label="Calidad" value={data.pillarScores.quality} />
-                  <PillarMini label="Confianza" value={data.pillarScores.trust} />
-                  <PillarMini label="Simplicidad" value={data.pillarScores.simplicity} />
-                </div>
-              </>
-            )}
-          </GlowCard>
-
-          {/* Precio vs. valor — eje 2, presentación neutral, sin veredicto dominante */}
-          <GlowCard>
-            <SectionTitle>Precio vs. valor estimado</SectionTitle>
-            <p className="text-[11px] mb-3.5 leading-4" style={{ color: "var(--sub)" }}>
-              Si el precio de hoy es atractivo frente a lo que cree nuestro modelo que vale el negocio.
-            </p>
-            <div className="flex items-baseline justify-between mb-3">
-              <span className="text-[11px]" style={{ color: "var(--sub)" }}>Precio actual</span>
-              <span className="text-[18px] font-black tabular-nums" style={{ color: "var(--text)" }}>
-                {currentPrice != null ? fmtPrice(currentPrice) : "No disponible"}
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-center mb-2 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
-              {([
-                ["Conservador", conservative, false],
-                ["Base", baseFairValue, true],
-                ["Optimista", optimistic, false],
-              ] as const).map(([label, value, isBase]) => (
-                <div key={label}>
-                  <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--sub)" }}>{label}</p>
-                  <p className="text-[14px] font-black tabular-nums" style={{ color: isBase ? GOLD : "var(--text)" }}>{value != null ? fmtPrice(value) : "N/D"}</p>
-                </div>
-              ))}
-            </div>
-            {status && (
-              <div className="flex items-center justify-center gap-1 mt-1.5 mb-3">
-                <DiffIcon className="w-3 h-3" style={{ color: diffColor }} />
-                <span className="text-[11px] font-bold" style={{ color: diffColor }}>
-                  {status.verdict === "overvalued" ? "-" : status.verdict === "undervalued" ? "+" : "±"}
-                  {status.pct.toFixed(0)}% vs. escenario base
-                </span>
-              </div>
-            )}
-            <p className="text-[10px] leading-4" style={{ color: "var(--sub)" }}>
-              Estimaciones de nuestro modelo, sujetas a los supuestos del cálculo —{" "}
-              {data.valuationAsOf
-                ? `cotización correspondiente al ${data.valuationAsOf}.`
-                : "el precio corresponde a una cotización en vivo, con fecha verificable en la fuente de mercado."}
-            </p>
-            <button className="w-full mt-3.5 rounded-xl py-2.5 text-[11.5px] font-extrabold min-h-[44px]" style={{ background: "var(--raised)", color: "var(--sub)" }} disabled>
-              Ver Valuación completa →
-            </button>
-          </GlowCard>
-
-          {data.valuation.validationStatus === "under_review" && (
-            <div className="rounded-[14px] px-3.5 py-3" style={{ background: "rgba(239,68,68,0.08)", borderLeft: "3px solid #ef4444" }}>
-              <p className="text-[10px] font-extrabold uppercase mb-1" style={{ color: "#ef4444" }}>Valoración en revisión</p>
-              <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>
-                Estos números son reales y trazables, pero todavía no deben leerse como una conclusión validada.
-              </p>
-            </div>
-          )}
-          <button className="w-full rounded-xl py-2.5 text-[12.5px] font-extrabold min-h-[44px]" style={{ background: "var(--raised)", color: "var(--sub)" }} disabled>
-            Ver todos los Riesgos →
-          </button>
-          <p className="text-[10.5px] text-center" style={{ color: "var(--sub)" }}>
-            Las pestañas Valuación / Riesgos / Mi tesis aún reutilizan las pantallas existentes — este prototipo cubre solo Resumen.
-          </p>
-        </div>
-      </div>
+      {/* Diego, 2026-11-15 ("resumas todo lo que contienen las 6 fases...
+          buen diseño gráfico... sin mucho texto"): reemplaza el banner de
+          un solo enlace por una grilla compacta de las 6 fases (hasta
+          Riesgos — Mi tesis, Fase 7, queda fuera de este resumen a
+          propósito), cada una con su propio dato real como adelanto. */}
+      <JourneyTeaserGrid
+        data={data}
+        editorial={editorial}
+        leadership={leadership}
+        industry={industry}
+        status={status}
+        topRisks={topRisks}
+        deferredRiskCount={deferredCount}
+        opener={opener}
+      />
     </div>
   );
 }

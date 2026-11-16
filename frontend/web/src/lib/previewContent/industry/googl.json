@@ -1,0 +1,82 @@
+{
+  "ticker": "GOOGL",
+  "competitors": [
+    {
+      "segment": "Búsqueda y publicidad",
+      "rivals": ["Microsoft (Bing)", "Amazon (publicidad)", "Meta (publicidad)"],
+      "note": "Microsoft compite directamente por el tráfico de búsqueda con Bing; Amazon y Meta no compiten por el buscador, pero sí por los mismos dólares de presupuesto publicitario de las marcas.",
+      "source_name": "Cobertura especializada de analistas de mercado sobre competidores de Alphabet por línea de negocio (no se pudo extraer el texto literal de la sección 'Competition' del 10-K de Alphabet FY2025 — el PDF no es legible como texto plano con las herramientas disponibles; esta lista refleja consenso de múltiples fuentes secundarias de la industria, no una cita directa del propio 10-K)",
+      "confidence": "media"
+    },
+    {
+      "segment": "Video y entretenimiento digital",
+      "rivals": ["Netflix", "TikTok", "Meta (Instagram/Facebook video)"],
+      "note": "YouTube compite tanto por tiempo de atención de los usuarios como, indirectamente, por los mismos presupuestos publicitarios de video que estas plataformas.",
+      "source_name": "Cobertura especializada de analistas de mercado (misma limitación de fuente que la fila anterior)",
+      "confidence": "media"
+    },
+    {
+      "segment": "Servicios de nube (infraestructura)",
+      "rivals": ["Amazon Web Services", "Microsoft Azure"],
+      "note": "Estos son, con amplio consenso de la industria, los otros dos proveedores de infraestructura en la nube de mayor tamaño junto con Google Cloud.",
+      "source_name": "Synergy Research Group, cifras de ingresos trimestrales de los 3 proveedores citadas en el contenido editorial de Riesgos (Q3 2026): https://www.marketbeat.com/earnings/reports/2026-10-28-alphabet-inc-stock-1/",
+      "confidence": "alta"
+    }
+  ],
+  "market_growth": {
+    "cloud": {
+      "finding": "El mercado de infraestructura en la nube sigue creciendo con fuerza — el gasto mundial del sector creció de forma acelerada en 2026, no solo los ingresos de Google Cloud en particular.",
+      "figure_note": "Varias fuentes secundarias (no se pudo confirmar directamente contra la publicación original de Synergy Research, cuyo sitio devolvió error al intentar acceder) coinciden en que el mercado de infraestructura en la nube alcanzó aproximadamente $168 mil millones en el tercer trimestre de 2026, un crecimiento interanual de ~55%. Esto es crecimiento del MERCADO completo, no la participación específica de ningún proveedor.",
+      "source_document_date": "2026-10-29",
+      "source_accessed_at": "2026-11-15",
+      "confidence": "media"
+    },
+    "advertising": {
+      "finding": "El gasto publicitario digital mundial también sigue creciendo, aunque las estimaciones de distintas firmas de analistas varían considerablemente según cómo definen 'gasto publicitario'.",
+      "figure_note": "No se pudo acceder directamente a los reportes originales de eMarketer/WARC/Magna (bloqueados para acceso automatizado) — las cifras disponibles de fuentes secundarias van de ~$1.06 a ~$1.42 billones de dólares para 2026 a nivel global, con crecimientos estimados entre +7% y +13%, según la firma. Esta dispersión es real y no se puede resolver con una sola cifra confiable.",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-15",
+      "confidence": "baja"
+    },
+    "distinction_note": "Que el mercado completo de un sector crezca no es lo mismo que Alphabet esté ganando una porción más grande de ese mercado — ambas cosas pueden ser ciertas, o solo una de ellas."
+  },
+  "competitive_strength": [
+    {
+      "rival": "AWS y Microsoft Azure (nube)",
+      "evidence": "En el tercer trimestre de 2026, Google Cloud creció sus ingresos +103% interanual a $30.7 mil millones — más rápido en términos porcentuales que AWS (+39%, $46.0 mil millones) y Azure (+48%, $33.2 mil millones) — pero sigue siendo el tercero en tamaño absoluto de los tres.",
+      "caveat": "Una cuota de mercado específica para este trimestre no está confirmada de forma independiente; la cifra más sólida disponible (Synergy Research, segundo trimestre de 2026) ubica a Google Cloud en 15%, frente a AWS 28% y Azure 20%.",
+      "source_name": "Mismas fuentes ya verificadas en el contenido editorial de Riesgos: https://www.marketbeat.com/earnings/reports/2026-10-28-alphabet-inc-stock-1/",
+      "confidence": "media"
+    },
+    {
+      "rival": "Microsoft Bing (búsqueda)",
+      "evidence": "Google mantiene acuerdos de distribución exclusiva como buscador predeterminado en Safari (Apple) y en la mayoría de dispositivos Android, lo que le da un volumen de búsquedas muy superior al de Bing sin tener que 'ganar' cada usuario de nuevo cada día.",
+      "caveat": "Estos mismos acuerdos de distribución son objeto de litigios antimonopolio activos (fallo de responsabilidad en 2024, remedios en diciembre de 2025) que podrían limitar su alcance futuro — ya documentado en la pestaña Riesgos.",
+      "source_name": "10-K de Alphabet FY2025 (SEC EDGAR, accession 0001652044-26-000018) y fallo de remedios ya citados en el contenido editorial de moat/riesgos de GOOGL",
+      "confidence": "alta"
+    }
+  ],
+  "industry_shifts": [
+    {
+      "change": "Adopción creciente de asistentes de inteligencia artificial conversacional como forma alternativa de buscar información.",
+      "what_it_means": "Una parte de las búsquedas que antes se resolvían con una consulta tradicional en Google podría, con el tiempo, resolverse directamente dentro de un asistente de IA conversacional.",
+      "effect_on_googl": "En el tercer trimestre de 2026, el segmento 'Search & other' creció 12% interanual pero quedó por debajo de la expectativa de los analistas — la primera vez en casi 4 años que esto ocurre. No hay una cifra oficial de Alphabet que atribuya explícitamente ese incumplimiento a la IA conversacional; podría deberse a otros factores.",
+      "is_prediction": true,
+      "source_name": "CNBC, cobertura de resultados Q3 2026: https://www.cnbc.com/2026/10/28/alphabet-googl-earnings-q3-2026.html",
+      "confidence": "media"
+    },
+    {
+      "change": "Litigios antimonopolio con sentencia firme en EE.UU. (búsqueda y tecnología publicitaria).",
+      "what_it_means": "Los reguladores ya determinaron que Alphabet mantuvo ilegalmente un monopolio en dos áreas distintas: búsqueda general y tecnología publicitaria (adtech).",
+      "effect_on_googl": "El fallo de remedios de diciembre de 2025 prohíbe ciertos contratos exclusivos y obliga a compartir información de búsqueda con competidores; el caso sigue en apelación. Esto es un hecho ya ocurrido, no una hipótesis futura.",
+      "is_prediction": false,
+      "source_name": "Mismas fuentes ya verificadas en el contenido editorial de Riesgos (fallos de responsabilidad 2024/2025, remedios 2025)",
+      "confidence": "alta"
+    }
+  ],
+  "watch": [
+    "Si Google Cloud sigue cerrando la brecha de tamaño frente a AWS y Azure, o si su crecimiento se desacelera.",
+    "Si el crecimiento de 'Search & other' se recupera por encima de la expectativa de analistas en los próximos trimestres, o si el incumplimiento del Q3 2026 se repite.",
+    "Cualquier cambio regulatorio adicional (apelaciones, nuevos remedios) que afecte los acuerdos de distribución de búsqueda."
+  ]
+}

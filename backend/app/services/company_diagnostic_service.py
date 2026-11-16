@@ -734,6 +734,30 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
         "netMargin": _fmt_pct((data.get("net_margin_trend") or [None])[-1] if data.get("net_margin_trend") else None, lang),
         "operatingCashFlow": _fmt_money((data.get("fcf_trend") or [None])[-1] if data.get("fcf_trend") else None, lang),
     }
+    # Radar 2.0 Fase 2 ("Entender las finanzas"), 2026-11-15: real per-year
+    # arrays (oldest->newest, same index convention as every *_trend field
+    # on `data`) — additive, new field, nothing existing reads it. Reuses
+    # trends already computed by get_fundamental_analysis for its own DCF
+    # math; no new provider call, no financial-engine change. `None` (never
+    # a fabricated/padded series) when the underlying trend is genuinely
+    # empty for this ticker (e.g. too few years of real statements).
+    financial_trends = (
+        {
+            "years": data.get("years") or [],
+            "revenue": data.get("revenue_trend") or [],
+            "netIncome": data.get("net_income_trend") or [],
+            "operatingMargin": data.get("operating_margin_trend") or [],
+            "netMargin": data.get("net_margin_trend") or [],
+            "operatingCashFlow": data.get("ocf_trend") or [],
+            "capex": data.get("capex_trend") or [],
+            "fcfReported": data.get("fcf_trend") or [],
+            "fcfNormalized": data.get("fcf_normalized_trend") or [],
+            "totalDebt": data.get("total_debt"),
+            "netCash": data.get("net_cash"),
+        }
+        if data.get("revenue_trend")
+        else None
+    )
     # Methodology audit round 3 (see /Users/diegoarria/.claude/plans/
     # cosmic-munching-crown.md) — True when at least one year's ROIC used
     # the operating-invested-capital fallback (buyback-compressed equity
@@ -957,6 +981,7 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
         "competitorComparison": competitor_comparison,
         "sectorComparison": sector_comparison,
         "financialHealth": financial_health,
+        "financialTrends": financial_trends,
         "roicAdjustedForBuybacks": roic_adjusted_for_buybacks,
         "valuation": valuation,
         # Real, computed caution note — e.g. the REIT FFO/AFFO gap, or the

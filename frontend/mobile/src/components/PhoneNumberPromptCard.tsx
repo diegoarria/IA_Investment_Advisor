@@ -42,7 +42,6 @@ export default function PhoneNumberPromptCard() {
   // number on file, no skip; anyone who has one (saved on ANY device — it is
   // stored on the account) is never asked.
   const visible = hasFetchedStatus && !!profile && !profile.phone_number && !welcomeCardShowing;
-  if (!visible) return null;
 
   const digits = localNumber.replace(/\D/g, "");
   const dialDigits = dialCode.replace(/\D/g, "").length;

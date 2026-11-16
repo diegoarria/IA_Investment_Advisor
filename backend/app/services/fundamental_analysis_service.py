@@ -1004,6 +1004,15 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
 
     # ── Per-year trends: revenue, FCF, net income, margins, ROIC/ROE/ROA ──
     revenue_trend, fcf_trend, net_income_trend = [], [], []
+    # Radar 2.0 Fase 2 ("Entender las finanzas"), 2026-11-15: the raw real
+    # reported Operating Cash Flow and CapEx, kept SEPARATE from the already-
+    # netted `fcf_trend` above — needed so Fase 2's "efectivo de operaciones
+    # -> inversiones de capital -> efectivo restante" visual can show the two
+    # real reported inputs, not just their pre-computed difference. Purely
+    # additive: same two local values already computed below, just also
+    # appended here instead of discarded after computing fcf_i.
+    ocf_trend: list[Optional[float]] = []
+    capex_trend: list[Optional[float]] = []
     # FCF normalized for maintenance-vs-growth CapEx (methodology audit,
     # see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md).
     # `fcf_trend` above is kept as-is ("FCF Reported") — this is the
@@ -1051,6 +1060,8 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         capex = _num(cf.get("Capital Expenditure"))
         fcf_i = ocf - abs(capex) if ocf is not None and capex is not None else None
         fcf_trend.append(fcf_i)
+        ocf_trend.append(ocf)
+        capex_trend.append(abs(capex) if capex is not None else None)
 
         # Maintenance-vs-growth CapEx split (methodology audit — see
         # /Users/diegoarria/.claude/plans/cosmic-munching-crown.md).
@@ -3322,6 +3333,15 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         "revenue_trend": revenue_trend,
         "net_income_trend": net_income_trend,
         "fcf_trend": fcf_trend,
+        # Radar 2.0 Fase 2, 2026-11-15: real reported OCF/CapEx (separate
+        # from the already-netted fcf_trend above) for the "genera efectivo"
+        # visual, plus Nuvos's own FCF-normalized series — exposed here only
+        # so the frontend can keep the two clearly separate (reported vs.
+        # Nuvos's own maintenance/growth-capex adjustment), never conflate
+        # them. Additive; nothing existing reads these three new keys.
+        "ocf_trend": ocf_trend,
+        "capex_trend": capex_trend,
+        "fcf_normalized_trend": fcf_normalized_trend,
         "owner_earnings_trend": owner_earnings_trend,
         "gross_margin_trend": gross_margin_trend,
         "operating_margin_trend": operating_margin_trend,
