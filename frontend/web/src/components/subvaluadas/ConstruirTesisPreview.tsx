@@ -46,16 +46,18 @@
 // answer itself is the user's own subjective judgment, never pre-selected
 // or hinted from Nuvos's own verdict.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   HelpCircle, Lightbulb, AlertTriangle, DollarSign, Compass, Clock,
-  ArrowLeft, ArrowRight, Pencil, ClipboardList,
+  ArrowLeft, ArrowRight, Pencil, ClipboardList, Save, Check, Loader2, LogIn,
 } from "lucide-react";
 import { GlowCard, IconSquare, GOLD } from "@/components/subvaluadas/radarUi";
 import { fmtPrice } from "@/lib/types/stock";
 import type { QualitativeContentDraft } from "@/components/subvaluadas/ResumenPreview";
 import { PhaseJumpMenu, JourneyBottomNav } from "@/components/subvaluadas/JourneyNav";
 import type { FullCompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
+import { radarThesisApi } from "@/lib/api";
+import { useAuthStore } from "@/lib/store";
 
 // Misma extracción por puntuación real que Fases 1 y 6 ya usan (duplicada
 // localmente, nunca importada entre archivos de fase) — nunca el párrafo
@@ -153,6 +155,56 @@ export function ConstruirTesisPreview({
 }: { data: FullCompanyDiagnosticData; editorial: QualitativeContentDraft | null }) {
   const [step, setStep] = useState(0); // 0-5 = preguntas, 6 = resumen
   const [a, setA] = useState<ThesisAnswers>(EMPTY_ANSWERS);
+
+  // Guardado privado real (migración 127, backend/app/api/routes/
+  // radar_thesis.py) — Diego, 2026-11-17: "guardar las respuestas exactas
+  // del usuario... no alterar respuestas al recuperarlas". `savedAnswers`
+  // es la última versión confirmada por el servidor; compararla contra
+  // `a` es lo único que decide si hay cambios sin guardar, nunca un flag
+  // manual que se pueda desincronizar.
+  const userId = useAuthStore((s) => s.userId);
+  const [savedAnswers, setSavedAnswers] = useState<ThesisAnswers | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "loading" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) { setSavedAnswers(null); setSaveState("idle"); return; }
+    let cancelled = false;
+    setSaveState("loading");
+    radarThesisApi.get(data.ticker)
+      .then((res) => {
+        if (cancelled) return;
+        const row = res.data;
+        if (row?.exists && row.answers) {
+          const loaded: ThesisAnswers = { ...EMPTY_ANSWERS, ...row.answers };
+          setSavedAnswers(loaded);
+          setA(loaded); // precarga real — nunca inventa respuestas, solo recupera lo que el propio usuario guardó
+        } else {
+          setSavedAnswers(null);
+        }
+        setSaveState("idle");
+      })
+      .catch(() => { if (!cancelled) setSaveState("idle"); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, data.ticker]);
+
+  const hasUnsavedChanges = userId != null && JSON.stringify(a) !== JSON.stringify(savedAnswers ?? EMPTY_ANSWERS);
+
+  async function handleSave() {
+    if (!userId) return;
+    setSaveState("saving");
+    setSaveError(null);
+    try {
+      const res = await radarThesisApi.save(data.ticker, a);
+      const row = res.data;
+      setSavedAnswers({ ...EMPTY_ANSWERS, ...(row?.answers ?? a) });
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+      setSaveError("No se pudo guardar. Revisa tu conexión e inténtalo de nuevo — tus respuestas siguen aquí, no se perdieron.");
+    }
+  }
 
   const risks = editorial?.risks ?? [];
   const riskOptions = risks.map((r) => ({ headline: headlineOf(r.explanation), category: r.category }));
@@ -329,8 +381,38 @@ export function ConstruirTesisPreview({
           </div>
           <p className="mt-5 text-[12.5px] leading-5" style={{ color: "var(--sub)" }}>
             Esto refleja únicamente lo que elegiste — no es una recomendación de Nuvos ni una evaluación de si tu decisión es buena o mala.
-            Tus respuestas solo existen en esta sesión del navegador: se pierden si recargas la página. El guardado permanente en tu cuenta todavía no está disponible.
           </p>
+
+          <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+            {!userId && (
+              <div className="rounded-xl px-3.5 py-3 flex items-center gap-2.5" style={{ background: "rgba(127,127,127,0.05)", border: "1px solid var(--border)" }}>
+                <LogIn className="w-4 h-4 shrink-0" style={{ color: "var(--sub)" }} />
+                <p className="text-[13px] leading-5" style={{ color: "var(--sub)" }}>
+                  Necesitas iniciar sesión para guardar tu tesis de forma privada. Tus respuestas de ahora no se pierden mientras sigas en esta pantalla.
+                </p>
+              </div>
+            )}
+            {userId && (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--sub)" }}>
+                  {saveState === "loading" && <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando tu tesis guardada…</>}
+                  {saveState === "saving" && <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Guardando…</>}
+                  {saveState === "saved" && !hasUnsavedChanges && <><Check className="w-3.5 h-3.5" style={{ color: "#4ade80" }} /> Guardado</>}
+                  {hasUnsavedChanges && saveState !== "saving" && <>Tienes cambios sin guardar</>}
+                  {saveState === "error" && saveError}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saveState === "saving" || !hasUnsavedChanges}
+                  className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-[14px] font-bold disabled:opacity-40"
+                  style={{ background: GOLD, color: "#1A1A1A" }}
+                >
+                  <Save className="w-4 h-4" /> Guardar mi tesis
+                </button>
+              </div>
+            )}
+          </div>
         </Nivel1Block>
       )}
 

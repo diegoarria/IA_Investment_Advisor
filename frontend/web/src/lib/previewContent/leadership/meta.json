@@ -1,0 +1,48 @@
+{
+  "ticker": "META",
+  "ceo": {
+    "name": "Mark Zuckerberg",
+    "role_explanation": "Mark Zuckerberg es cofundador y CEO de Meta Platforms desde la fundación de la empresa (como Facebook) en 2004, y coordina sus decisiones más importantes, incluida la gran apuesta de largo plazo en Reality Labs.",
+    "since": "2004 (fundación de la empresa, entonces Facebook)",
+    "source_name": "Hecho ampliamente documentado y público",
+    "source_document_date": null,
+    "source_accessed_at": "2026-11-17",
+    "confidence": "alta"
+  },
+  "capital_allocation": {
+    "fiscal_year": "2025 (año calendario)",
+    "buybacks": 26260000000,
+    "dividends_paid": 5320000000,
+    "capex_approx": 72200000000,
+    "capex_guidance_2026": "$115,000 - $135,000 millones",
+    "note": "Meta combina recompras grandes y un dividendo (iniciado en 2024, relativamente reciente) con una inversión de capital masiva y creciente en infraestructura de IA — las 2 prioridades (devolver capital y reinvertir agresivamente) conviven en el mismo año.",
+    "source_name": "Comunicado de resultados Q4/año completo 2025 de Meta: https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Fourth-Quarter-and-Full-Year-2025-Results/",
+    "source_document_date": "2026-01-29",
+    "source_accessed_at": "2026-11-17",
+    "confidence": "media"
+  },
+  "decisions": [
+    {
+      "decision": "Mantener y expandir fuertemente el capex para infraestructura de inteligencia artificial durante 2025, con una guía aún más alta para 2026 ($115,000-$135,000 millones).",
+      "outcome": "El capex de 2025 (~$72,200 millones) representó un aumento de aproximadamente 84% interanual — el resultado de esta inversión en términos de retorno financiero todavía no está confirmado, ya que la guía de 2026 implica un salto adicional muy grande.",
+      "uncertainty": "No se verificó cómo esta inversión se traduce en crecimiento de ingresos publicitarios específicamente atribuible a mejoras de IA, ni cuándo (si acaso) Reality Labs podría acercarse a la rentabilidad.",
+      "source_name": "Comunicado de resultados FY2025 de Meta",
+      "source_document_date": "2026-01-29",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    }
+  ],
+  "incentive_alignment": {
+    "note": "Compensación oficial reportada de Mark Zuckerberg en 2025 (proxy FY2025, Form DEF 14A): $25,125,904 — su salario base es de $1 a petición propia, y casi toda la cifra corresponde a costos de seguridad personal (~$8.5M en seguridad de residencias/viajes, ~$14M de asignación anual de seguridad antes de impuestos, ~$2.5M en uso de aeronave personal). Sin bono en efectivo ni premios en acciones nuevos en 2025 — su compensación real viene de su participación accionaria preexistente, no de un paquete anual. La razón de pago CEO-a-empleado-mediano reportada fue 65 a 1 (empleado mediano: $388,200). Participación accionaria: mantiene control de voto concentrado vía estructura de doble clase de acciones (hecho ampliamente conocido), pero no se verificó un porcentaje exacto y actualizado en esta ronda.",
+    "compensation_verified": true,
+    "compensation_amount_usd": 25125904,
+    "compensation_period": "Año calendario 2025",
+    "source_name": "Meta Platforms Form DEF 14A (proxy FY2025), SEC EDGAR: https://www.sec.gov/Archives/edgar/data/1326801/000162828026025532/meta-20260416.htm",
+    "source_document_date": "2026-04-16",
+    "source_accessed_at": "2026-11-17"
+  },
+  "watch": [
+    "Si la pérdida operativa de Reality Labs se reduce o sigue creciendo.",
+    "Si el capex de IA guiado para 2026 ($115-135 mil millones) se ejecuta como se anunció y qué efecto tiene sobre el margen operativo consolidado."
+  ]
+}

@@ -50,16 +50,25 @@ const BLOCK_BLUE = "#5B9BD5";
 const BLOCK_GREEN = "#6FAE7D";
 const BLOCK_STEEL = "#8B93B0";
 
-// Same real-classification keywords the backend's own
-// fundamental_analysis_service._is_financial_sector uses — applied here to
-// the same real `sector` string every screen already shows, so this gate
-// never needs a new backend flag and can never drift out of sync silently
-// (if the backend's own list changes, this one should be updated to match).
-const _FINANCIAL_SECTOR_KEYS = ["financial services", "bank", "insurance"];
-function isFinancialSector(sector: string | null | undefined): boolean {
-  if (!sector) return false;
-  const s = sector.toLowerCase();
-  return _FINANCIAL_SECTOR_KEYS.some((k) => s.includes(k));
+// Cohorte 2, 2026-11-17 — real bug found auditing Visa/Mastercard: the old
+// version of this gate matched on the coarse `sector` string alone
+// ("Financial Services" includes "financial services"), which caught Visa
+// and Mastercard too — real payment NETWORKS (toll-road economics, no
+// deposits, no loan-loss provisioning, genuinely normal capex/FCF like any
+// other company), not deposit-taking lenders like JPM. The backend's own
+// real valuation engine already solves this correctly — it only applies the
+// financial-sector ROE model when `_is_financial_sector(sector) AND NOT
+// _is_asset_light_financial_industry(...)` (fundamental_analysis_service.py)
+// — and only in THAT case does it ever populate `sectorModelNote` with
+// `sector_type: "financial"`. Confirmed live: JPM/NU both get a real
+// sectorModelNote; Visa/Mastercard get `sectorModelNote: null` and a normal
+// `scenarioBreakdown` (eps/fair_pe), exactly like any standard company. So
+// `sectorModelNote` is already the backend's own authoritative answer to
+// "does THIS company get the bank-specific treatment" — reusing it here
+// means this gate can never drift out of sync with the real engine again,
+// unlike the old string-matching copy of logic that lived only in this file.
+function isFinancialSector(sectorModelNote: { sector_type: string } | null | undefined): boolean {
+  return sectorModelNote?.sector_type === "financial";
 }
 
 /** $ formatting consistent with the rest of this session's work (M/B
@@ -207,7 +216,7 @@ function NotApplicableForSector({ reason }: { reason: string }) {
 
 export function EntenderFinanzasPreview({ data }: { data: FullCompanyDiagnosticData }) {
   const ft = data.financialTrends;
-  const isBank = isFinancialSector(data.sector);
+  const isBank = isFinancialSector(data.sectorModelNote);
 
   if (!ft || ft.years.length === 0) {
     return (
@@ -233,8 +242,8 @@ export function EntenderFinanzasPreview({ data }: { data: FullCompanyDiagnosticD
   const sellingMoreIdea =
     latestRevenue && firstRevenue != null && firstRevenue > 0
       ? latestRevenue.value > firstRevenue
-        ? `${data.companyName} vendió más en ${latestRevenue.year} que en ${ft.years[0]} — un crecimiento real de ${(((latestRevenue.value - firstRevenue) / firstRevenue) * 100).toFixed(0)}% en ese período.`
-        : `${data.companyName} vendió menos en ${latestRevenue.year} que en ${ft.years[0]}.`
+        ? `${data.companyName} vendió más en el año fiscal ${latestRevenue.year} que en el ${ft.years[0]} — un crecimiento real de ${(((latestRevenue.value - firstRevenue) / firstRevenue) * 100).toFixed(0)}% en ese período.`
+        : `${data.companyName} vendió menos en el año fiscal ${latestRevenue.year} que en el ${ft.years[0]}.`
       : "No hay suficiente histórico real para comparar.";
 
   // E. Up to 3 rule-based observations — never AI-generated, never a new
@@ -306,7 +315,7 @@ export function EntenderFinanzasPreview({ data }: { data: FullCompanyDiagnosticD
               <div className="space-y-2">
                 <p className="text-[14.5px] leading-5" style={{ color: "var(--sub)" }}>
                   Los ingresos son todo el dinero real que entra por vender productos o servicios, antes de restar
-                  ningún costo. Cifras anuales reales, {ft.years[0]}–{ft.years[ft.years.length - 1]}, en dólares.
+                  ningún costo. Cifras anuales reales por año fiscal, {ft.years[0]}–{ft.years[ft.years.length - 1]}, en dólares.
                 </p>
                 <p className="text-[12px]" style={{ color: "var(--sub)" }}>
                   Fuente: estados financieros anuales reportados (FMP), sección de ingresos del estado de resultados.

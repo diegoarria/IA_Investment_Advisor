@@ -1,0 +1,64 @@
+{
+  "ticker": "NVDA",
+  "competitors": [
+    {
+      "segment": "GPUs y aceleradores de IA para centros de datos",
+      "rivals": ["AMD", "Intel"],
+      "note": "AMD es el rival de chips comerciales más citado (su línea Instinct, y acuerdos de varios gigawatts con Meta y OpenAI); Intel tiene presencia mínima hasta ahora (su GPU Crescent Island no empezaba a enviarse hasta la segunda mitad de 2026, según fuentes consultadas).",
+      "source_name": "Múltiples fuentes de análisis de la industria de chips de IA (ninguna es un filing oficial — cifras de mercado de IA no auditadas)",
+      "confidence": "media"
+    },
+    {
+      "segment": "Silicio propio de los grandes proveedores de nube (hyperscalers)",
+      "rivals": ["Google (TPU)", "Amazon (Trainium/Inferentia)"],
+      "note": "Google y Amazon diseñan sus propios chips de IA para uso interno, lo que reduce — aunque no elimina — su dependencia de comprarle GPUs a NVIDIA. Esto es un competidor distinto a AMD/Intel: no vende chips a terceros, compite reduciendo compras.",
+      "source_name": "Múltiples fuentes de análisis de la industria de chips de IA",
+      "confidence": "media"
+    }
+  ],
+  "market_growth": {
+    "findings": [
+      {
+        "label": "Aceleradores de IA para centros de datos",
+        "finding": "El mercado de aceleradores de IA para centros de datos sigue creciendo con fuerza, y NVIDIA sigue siendo, con amplio margen, el proveedor dominante, aunque varias fuentes coinciden en que su participación viene bajando lentamente frente a AMD y el silicio propio de los hyperscalers.",
+        "figure_note": "Las estimaciones de cuota de mercado de NVIDIA van de ~70% a ~85% según la fuente — ninguna proviene de una tabla de mercado auditada; todas son estimaciones de analistas/blogs especializados, con metodologías distintas entre sí.",
+        "source_document_date": "2026",
+        "source_accessed_at": "2026-11-16",
+        "confidence": "baja"
+      }
+    ],
+    "distinction_note": "Una fuente consultada señala un matiz importante: la cuota de mercado medida en INGRESOS favorece a NVIDIA porque sus chips se venden con un margen alto a terceros, mientras que un TPU de Google o un Trainium de Amazon es un costo interno para esas empresas, no una venta — comparar ambas cosas directamente por ingresos puede ser engañoso."
+  },
+  "competitive_strength": [
+    {
+      "rival": "AMD",
+      "evidence": "AMD firmó acuerdos de varios gigawatts con Meta y OpenAI en 2025/2026, un indicador real de que está ganando clientes grandes, aunque su ingreso estimado de GPUs Instinct ($7,000-8,000 millones en 2025) sigue siendo una fracción pequeña frente al de NVIDIA (ingresos de centro de datos reportados en decenas de miles de millones por trimestre).",
+      "caveat": "Las cifras de ingresos de AMD en este segmento específico son estimaciones de analistas, no un desglose oficial separado en los filings de AMD.",
+      "source_name": "Múltiples fuentes de análisis de la industria (no auditadas)",
+      "confidence": "media"
+    }
+  ],
+  "industry_shifts": [
+    {
+      "change": "Los grandes proveedores de nube (Google, Amazon, y en menor medida Microsoft/Meta) siguen invirtiendo en diseñar su propio silicio de IA en vez de depender solo de NVIDIA.",
+      "what_it_means": "Con el tiempo, una porción del gasto en cómputo de IA que hoy va a comprar GPUs de NVIDIA podría, en cambio, quedarse 'internalizada' dentro de esas empresas.",
+      "effect_on_company": "Esta investigación no encontró una cifra oficial de NVIDIA que cuantifique este efecto en sus propios ingresos — es una tendencia observada en la industria, no un dato confirmado por NVIDIA mismo.",
+      "is_prediction": true,
+      "source_name": "Múltiples fuentes de análisis de la industria",
+      "confidence": "media"
+    },
+    {
+      "change": "Aumento masivo del retorno de capital de NVIDIA (dividendo 25x, recompras ampliadas en $80,000M) coincide con una desaceleración reportada en algunas estimaciones de su cuota de mercado.",
+      "what_it_means": "Que NVIDIA pueda devolver tanto capital sugiere que, incluso con más competencia, su negocio sigue generando efectivo de sobra en el corto plazo.",
+      "effect_on_company": "No hay un dato que diga si este ritmo de retorno de capital es sostenible si la demanda de GPUs de IA se desacelera de forma más marcada — es una observación, no una proyección confirmada.",
+      "is_prediction": true,
+      "source_name": "Ver ficha de liderazgo de NVDA (10-K/10-Q, SEC EDGAR)",
+      "confidence": "media"
+    }
+  ],
+  "watch": [
+    "Si la cuota de mercado de NVIDIA en aceleradores de IA sigue bajando frente a AMD y el silicio propio de los hyperscalers.",
+    "El ritmo real de adopción de TPU (Google) y Trainium (Amazon) como sustitutos parciales de GPUs de NVIDIA.",
+    "Si el nuevo nivel de dividendo y recompras de NVIDIA se mantiene si la demanda de GPUs de IA se desacelera."
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "ticker": "MCD",
+  "ceo": {
+    "name": "Chris Kempczinski",
+    "role_explanation": "Chris Kempczinski dirige McDonald's y coordina sus decisiones sobre expansión de restaurantes, relación con franquiciados y asignación de capital.",
+    "since": "noviembre de 2019",
+    "source_name": "10-K de McDonald's FY2025 (SEC EDGAR): https://www.sec.gov/Archives/edgar/data/63908/000006390826000035/mcd-20251231.htm",
+    "source_document_date": "2026",
+    "source_accessed_at": "2026-11-16",
+    "confidence": "alta"
+  },
+  "capital_allocation": {
+    "fiscal_year": "2025",
+    "total_returned_to_shareholders": 7100000000,
+    "buybacks": 2000000000,
+    "buybacks_shares": 6700000,
+    "buyback_authorization_total": 15000000000,
+    "buyback_authorization_date": "finales de 2024",
+    "buyback_authorization_expiration": "sin fecha de expiración",
+    "dividends_paid": 5100000000,
+    "dividend_annual_per_share": 7.44,
+    "dividend_per_share_quarterly": "$1.86 trimestral equivalente ($7.44 anuales, +5% interanual)",
+    "dividend_increase_pct": 5,
+    "sector_note": "El capex de McDonald's (principalmente apertura/remodelación de restaurantes) ya está detallado en 'Entender las finanzas' — aquí el foco es su decisión de retorno de capital: devolvió aproximadamente $7,100 millones a accionistas en 2025, mayormente vía dividendos ($5,100M) más que recompras ($2,000M) — un patrón distinto al de NVIDIA o Alphabet, donde las recompras suelen dominar.",
+    "note": "McDonald's prioriza el dividendo regular (subido 5% en 2025) sobre un ritmo agresivo de recompras, incluso con una autorización de $15,000M disponible y sin fecha de expiración.",
+    "source_name": "10-K de McDonald's FY2025 (SEC EDGAR)",
+    "source_document_date": "2026",
+    "source_accessed_at": "2026-11-16",
+    "confidence": "alta"
+  },
+  "decisions": [
+    {
+      "decision": "Priorizar el dividendo (subido 5% a $7.44 anuales por acción) sobre recompras agresivas — de los $7,100M devueltos en 2025, el 72% fue vía dividendos y solo 28% vía recompras.",
+      "outcome": "McDonald's completó su autorización de recompra de $15,000 millones (de finales de 2024) usando solo $2,000M en todo 2025 — un ritmo lento frente al tamaño total de la autorización, sin fecha límite para completarla.",
+      "uncertainty": "No hay en las fuentes consultadas una explicación oficial de por qué el ritmo de recompra fue tan bajo frente a la autorización disponible — podría ser una elección deliberada de priorizar el dividendo, o reflejar otras prioridades de capital no detalladas aquí.",
+      "source_name": "10-K de McDonald's FY2025 (SEC EDGAR)",
+      "source_document_date": "2026",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "media"
+    }
+  ],
+  "incentive_alignment": {
+    "last_confirmed_total_compensation": {
+      "fiscal_year": "2025",
+      "amount_usd": 20574525,
+      "amount_prior_year_usd": 18195263,
+      "note": "Cifra reportada por el proxy 2026 según resúmenes de terceros (no se verificó línea por línea contra el propio DEF 14A) — un aumento frente a los $18.2M del año anterior. Aproximadamente $16M corresponde a adjudicaciones de acciones/opciones.",
+      "source_name": "Resumen de terceros sobre el proxy 2026 de McDonald's (DEF 14A): https://www.sec.gov/Archives/edgar/data/63908/000155837025004544/mcd-20250520xdef14a.htm",
+      "source_document_date": "2026",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "media",
+      "verification_gap": "Esta cifra proviene de un resumen de terceros del proxy, no de una lectura directa de la tabla resumen de compensación del DEF 14A original — tratar como aproximada hasta verificación directa."
+    },
+    "pay_ratio_note": "Una fuente secundaria reporta una proporción CEO-a-empleado-mediano de 1,082 a 1 — no verificado contra el documento original.",
+    "incentive_structure_note": "Los incentivos anuales en efectivo están ligados a crecimiento del ingreso operativo, crecimiento de ventas del sistema (incluyendo franquicias) y aperturas de nuevos restaurantes — según un resumen de terceros, no verificado línea por línea.",
+    "compensation_2025_verified": false,
+    "direct_ownership_note": "No se pudo confirmar en esta investigación la tenencia accionaria directa de Kempczinski — queda pendiente de verificación."
+  },
+  "watch": [
+    "Si McDonald's acelera el ritmo de recompras bajo su autorización de $15,000M (usó solo $2,000M en 2025).",
+    "Si el crecimiento de ventas del sistema (incluyendo franquiciados) se mantiene al ritmo que justificaría los incentivos ejecutivos ligados a esa métrica.",
+    "La próxima actualización del dividendo (histórico aumento anual) frente al ritmo de crecimiento del negocio."
+  ]
+}

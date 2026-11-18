@@ -1,0 +1,56 @@
+{
+  "ticker": "AMZN",
+  "competitors": [
+    {
+      "segment": "Nube (AWS)",
+      "rivals": [
+        "Microsoft (Azure)",
+        "Google (Google Cloud)"
+      ],
+      "note": "AWS es el líder actual del mercado de infraestructura en la nube por ingresos, aunque Azure y Google Cloud crecen a tasas comparables o superiores en términos porcentuales.",
+      "source_name": "Cobertura comparada de resultados trimestrales de los 3 proveedores principales de nube",
+      "confidence": "media"
+    },
+    {
+      "segment": "Comercio minorista",
+      "rivals": [
+        "Walmart",
+        "Shopify (plataforma para otros minoristas)"
+      ],
+      "note": "Walmart es el competidor tradicional más directo en volumen de ventas minoristas en Estados Unidos; Shopify compite de forma distinta, como plataforma que otros minoristas usan para vender en línea.",
+      "source_name": "Cobertura general del mercado de comercio electrónico en EE.UU.",
+      "confidence": "media"
+    }
+  ],
+  "market_growth": {
+    "cloud": {
+      "finding": "El mercado de infraestructura en la nube sigue creciendo con fuerza a nivel global, impulsado por la demanda de cómputo para inteligencia artificial.",
+      "figure_note": "No se verificó en esta ronda una cifra específica y actualizada del tamaño total del mercado de nube para 2026 — se reutiliza el contexto cualitativo general ya confirmado en otros expedientes de este Radar, sin una cifra numérica nueva verificada específicamente para Amazon.",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "baja"
+    }
+  },
+  "competitive_strength": [
+    {
+      "vs": "Azure y Google Cloud",
+      "note": "AWS mantiene el liderazgo en ingresos absolutos de infraestructura en la nube, con un crecimiento real de 20% interanual en 2025 — aunque esta tasa es menor en términos porcentuales que la reportada por Azure en el mismo período, lo que sugiere que los competidores podrían estar ganando terreno relativo, sin que esto se traduzca todavía en una pérdida de la posición de liderazgo de AWS.",
+      "source_name": "Cobertura comparada de resultados trimestrales de los 3 proveedores de nube",
+      "confidence": "media"
+    }
+  ],
+  "industry_shifts": [
+    {
+      "change": "La demanda de cómputo para inteligencia artificial se ha convertido en el principal motor de inversión de capital para los proveedores de nube, incluyendo AWS.",
+      "what_it_means": "Los proveedores de nube están invirtiendo sumas extraordinariamente altas en infraestructura especializada para IA, lo que presiona los márgenes de corto plazo mientras se construye esa capacidad.",
+      "effect_on_company": "Amazon anunció un plan de capex de ~$200,000 millones para 2026, principalmente dirigido a AWS — el resultado de esta apuesta en términos de crecimiento de ingresos futuro todavía no está resuelto.",
+      "fact_type": "interpretacion",
+      "confidence": "media",
+      "is_prediction": true
+    }
+  ],
+  "watch": [
+    "Evolución comparada del crecimiento de AWS frente a Azure y Google Cloud en los próximos trimestres.",
+    "Si el plan de capex de $200,000 millones para 2026 se traduce en crecimiento de ingresos proporcional de AWS."
+  ]
+}

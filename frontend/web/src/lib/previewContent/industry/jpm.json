@@ -1,0 +1,65 @@
+{
+  "ticker": "JPM",
+  "competitors": [
+    {
+      "segment": "Banca tradicional (consumo y comercial)",
+      "rivals": ["Bank of America", "Wells Fargo", "Citigroup", "Capital One", "PNC Bank"],
+      "note": "Estos son los competidores bancarios que el propio 10-K de JPMorgan Chase nombra explícitamente como su competencia directa en banca tradicional.",
+      "source_name": "10-K de JPMorgan Chase FY2024/2025 (SEC EDGAR, sección de competencia): https://www.sec.gov/Archives/edgar/data/19617/000001961725000270/jpm-20241231.htm",
+      "confidence": "alta"
+    },
+    {
+      "segment": "Banca de inversión y mercados de capital",
+      "rivals": ["Goldman Sachs", "Bank of America", "Citigroup"],
+      "note": "Estos son los rivales más comparables en banca de inversión y trading, aunque esta lista proviene de un perfil de analistas de terceros, no de una cita literal del 10-K.",
+      "source_name": "Perfil de analistas sobre competidores de JPMorgan (fuente secundaria)",
+      "confidence": "media"
+    },
+    {
+      "segment": "Fintech y banca digital",
+      "rivals": ["Chime", "Dave", "Klarna", "Robinhood", "Stripe"],
+      "note": "El propio 10-K de JPMorgan reconoce explícitamente que ahora compite también contra empresas de tecnología financiera, no solo contra otros bancos tradicionales.",
+      "source_name": "10-K de JPMorgan Chase (sección de competencia, menciona explícitamente a fintechs)",
+      "confidence": "media"
+    }
+  ],
+  "market_growth": {
+    "note": "No se encontró en esta investigación una cifra confiable y fechada de cuota de mercado de depósitos o de ingresos bancarios específica para JPMorgan frente a sus pares en 2026 — los datos disponibles de agregadores de terceros (CSIMarket) mezclan bancos con empresas no bancarias en su grupo de comparación, por lo que no se presentan aquí como una cuota de mercado bancaria limpia.",
+    "source_document_date": null,
+    "source_accessed_at": "2026-11-16",
+    "confidence": "baja",
+    "distinction_note": "Que JPMorgan sea la institución financiera más grande por activos no es lo mismo que esté ganando cuota de mercado frente a sus pares — esta investigación no encontró una cifra confiable que distinga ambas cosas para 2026."
+  },
+  "competitive_strength": [
+    {
+      "rival": "Wells Fargo, HSBC (escala global)",
+      "evidence": "Un ranking de noviembre de 2026 ('Finance Quantum Index') ubicó a JPMorgan Chase en el primer lugar entre 64 instituciones financieras, con HSBC y Wells Fargo empatados en segundo lugar.",
+      "caveat": "Este ranking específico mide adopción de tecnología cuántica, no rentabilidad ni cuota de mercado bancaria general — es un indicador parcial, no una medida integral de fortaleza competitiva.",
+      "source_name": "The Quantum Insider, noviembre 2026: https://thequantuminsider.com/2026/11/16/jpmorgan-chase-tops-the-2026-finance-quantum-index-hsbc-wells-fargo-share-second-place/",
+      "confidence": "media"
+    }
+  ],
+  "industry_shifts": [
+    {
+      "change": "Las empresas de tecnología financiera (fintech) ganan terreno en pagos y banca digital para consumidores.",
+      "what_it_means": "Bancos grandes como JPMorgan ahora compiten directamente contra empresas como Chime, Klarna o Stripe por clientes que antes solo tenían como opción a un banco tradicional.",
+      "effect_on_company": "El propio 10-K de JPMorgan reconoce esta competencia como un factor de riesgo — no hay en esta investigación una cifra de cuánto negocio específico le ha quitado la fintech a JPMorgan hasta ahora.",
+      "is_prediction": true,
+      "source_name": "10-K de JPMorgan Chase (sección de competencia)",
+      "confidence": "media"
+    },
+    {
+      "change": "Posible endurecimiento regulatorio de capital bancario.",
+      "what_it_means": "Nuevos requisitos de capital podrían limitar cuánto dividendo/recompra puede devolver JPMorgan a sus accionistas.",
+      "effect_on_company": "No verificado en esta investigación si hay un cambio regulatorio específico ya aprobado para 2026/2027 — se presenta como un factor a vigilar, no como un hecho confirmado.",
+      "is_prediction": true,
+      "source_name": "No verificado — pendiente",
+      "confidence": "baja"
+    }
+  ],
+  "watch": [
+    "Si la competencia de fintechs (Chime, Klarna, Stripe, etc.) sigue creciendo en pagos y banca digital.",
+    "Cambios en los requisitos de capital regulatorio que puedan afectar la política de dividendos/recompras de JPMorgan.",
+    "El retorno sobre capital tangible común (ROTCE) de JPMorgan frente a sus pares bancarios en próximos trimestres."
+  ]
+}

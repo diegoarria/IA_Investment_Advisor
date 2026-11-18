@@ -1,0 +1,59 @@
+{
+  "ticker": "JPM",
+  "ceo": {
+    "name": "Jamie Dimon",
+    "role_explanation": "Jamie Dimon dirige JPMorgan Chase como presidente ejecutivo y director general desde hace más de dos décadas, y coordina sus decisiones sobre capital, riesgo y estrategia.",
+    "since": "2006 (CEO) / también Chairman",
+    "source_name": "Carta a accionistas del reporte anual 2025 de JPMorgan Chase: https://www.jpmorganchase.com/ir/annual-report/2025/ar-ceo-letters ; Proxy statement 2026 (DEF 14A): https://www.sec.gov/Archives/edgar/data/19617/000001961725000321/jpm-20250405.htm",
+    "source_document_date": "2026",
+    "source_accessed_at": "2026-11-16",
+    "confidence": "alta"
+  },
+  "capital_allocation": {
+    "fiscal_year": "2025",
+    "dividend_per_share_q1_2025": 1.25,
+    "dividend_per_share_increase_q1_2025": 1.40,
+    "dividend_per_share_increase_q3_2025": 1.50,
+    "dividend_per_share_quarterly": "$1.50 (desde el tercer trimestre de 2025; subió de $1.25 a $1.40 y luego a $1.50 durante el año)",
+    "return_on_tangible_common_equity_2025_pct": 20,
+    "sector_note": "JPMorgan define 'capital devuelto a accionistas comunes' como dividendos comunes más recompras netas — la propia carta de Dimon indica que buscan recomprar lo suficiente para NO aumentar su exceso de capital, no maximizar recompras. A diferencia de una empresa industrial, JPMorgan no reporta 'capex' tradicional ni flujo de caja libre como una empresa operativa — su asignación de capital se mide principalmente en dividendos y recompras frente a su capital regulatorio, ligado a su rentabilidad sobre capital tangible (20% en 2025).",
+    "note": "JPMorgan subió su dividendo trimestral dos veces en 2025 mientras mantiene una política de recompras deliberadamente limitada — no busca maximizarlas, solo evitar que su exceso de capital crezca.",
+    "source_name": "Carta a accionistas, reporte anual 2025 de JPMorgan Chase: https://www.jpmorganchase.com/ir/annual-report/2025/ar-ceo-letters",
+    "source_document_date": "2026",
+    "source_accessed_at": "2026-11-16",
+    "confidence": "media",
+    "verification_gap": "No se pudo confirmar contra el 10-K o 10-Q directo el monto exacto de dividendos pagados y recompras realizadas en dólares para el año fiscal 2025 completo — esta investigación solo confirmó las tasas de dividendo por acción y la definición de política de capital, citadas de la carta a accionistas."
+  },
+  "decisions": [
+    {
+      "decision": "Subir el dividendo trimestral dos veces en 2025 (de $1.25 a $1.40 en el primer trimestre, y a $1.50 en el tercero) mientras mantiene una política de recompras limitada a no aumentar su exceso de capital.",
+      "outcome": "El retorno sobre capital tangible común (ROTCE) fue de 20% en 2025, una cifra que la propia carta de Dimon presenta como sólida.",
+      "uncertainty": "No existe en las fuentes consultadas una comparación directa del ROTCE de JPMorgan contra el de sus pares bancarios en el mismo período, así que no se puede afirmar si 20% es relativamente alto o bajo frente a la competencia sin ese dato adicional.",
+      "source_name": "Carta a accionistas, reporte anual 2025 de JPMorgan Chase",
+      "source_document_date": "2026",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "media"
+    }
+  ],
+  "incentive_alignment": {
+    "last_confirmed_total_compensation": {
+      "fiscal_year": "2025",
+      "amount_usd": 43000000,
+      "base_salary_usd": 1500000,
+      "note": "Compensación total de Dimon para 2025, ~10.3% más que los $39M de 2024 — confirmada por Bloomberg y por el propio proxy statement 2026 (DEF 14A), que reporta el mismo total de $43.0M.",
+      "source_name": "Bloomberg: https://www.bloomberg.com/news/articles/2026-01-22/jpmorgan-boosts-ceo-dimon-s-pay-10-3-to-43-million-for-2025 ; JPMorgan Chase Proxy Statement 2026 (DEF 14A, SEC)",
+      "source_document_date": "2026-01-22",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "alta"
+    },
+    "pay_structure_note": "La mayor parte de la compensación de Dimon (~88% de la parte variable, según una fuente secundaria sobre el proxy, no verificada línea por línea contra el propio documento) está en unidades de acciones por desempeño (PSU) ligadas al retorno sobre capital tangible común, no en efectivo garantizado.",
+    "compensation_2025_verified": true,
+    "direct_ownership": null,
+    "direct_ownership_note": "No se pudo confirmar en esta investigación la tenencia accionaria directa de Dimon vía un Formulario 4 específico — queda pendiente de verificación."
+  },
+  "watch": [
+    "Si JPMorgan mantiene su política de recompras limitadas a no aumentar el exceso de capital, o la amplía.",
+    "La evolución del retorno sobre capital tangible común (ROTCE) trimestre a trimestre frente al 20% de 2025.",
+    "Cambios regulatorios de capital (requisitos de capital bancario) que puedan afectar cuánto capital puede devolver a accionistas."
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "ticker": "AMZN",
+  "ceo": {
+    "name": "Andy Jassy",
+    "role_explanation": "Andy Jassy dirige Amazon desde julio de 2021, cuando sucedió a Jeff Bezos (quien sigue como presidente ejecutivo). Jassy fue previamente el fundador y director de AWS, el segmento más rentable de la compañía.",
+    "since": "Julio de 2021",
+    "source_name": "Hecho ampliamente documentado y público sobre la transición de liderazgo de Amazon en 2021",
+    "source_document_date": "2021-07",
+    "source_accessed_at": "2026-11-17",
+    "confidence": "alta"
+  },
+  "capital_allocation": {
+    "fiscal_year": "2025 (año calendario)",
+    "capex_plan_2026": "Amazon anunció un plan de capex de aproximadamente $200,000 millones para 2026, dirigido principalmente a AWS.",
+    "dividend_note": "No se confirmó en esta ronda de investigación si Amazon paga actualmente un dividendo regular — históricamente no lo ha hecho, pero esto debe verificarse contra una fuente primaria reciente antes de presentarse como hecho definitivo.",
+    "note": "A diferencia de Microsoft, la prioridad histórica de asignación de capital de Amazon ha sido la reinversión agresiva en el negocio (logística, AWS, y ahora infraestructura de IA) por encima de devolver capital a los accionistas.",
+    "source_name": "Cobertura financiera del plan de capex 2026 de Amazon",
+    "source_document_date": "2026",
+    "source_accessed_at": "2026-11-17",
+    "confidence": "media"
+  },
+  "decisions": [
+    {
+      "decision": "Expandir fuertemente la inversión en AWS durante 2025, con un plan de capex aún mayor anunciado para 2026 (~$200,000 millones).",
+      "outcome": "AWS reportó ingresos de $128,700 millones en 2025 (+20% interanual), pero su margen operativo bajó frente al año anterior (de ~37.0% a una cifra reportada más baja, según fuentes secundarias) — atribuido al aumento de la depreciación por la nueva infraestructura.",
+      "uncertainty": "No se verificó contra el 10-K directamente la cifra exacta de margen operativo de AWS para 2025 — las fuentes secundarias disponibles no coinciden completamente entre sí.",
+      "source_name": "Cobertura financiera de resultados FY2025 de Amazon (no verificado directamente contra el 10-K)",
+      "source_document_date": "2026-02",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    }
+  ],
+  "incentive_alignment": {
+    "note": "Compensación oficial reportada de Andy Jassy en 2025 (proxy de abril 2026): aproximadamente $2.1 millones — salario base $365,000 (sin cambios), sin bono, y el resto (~$1.7M) en gastos de seguridad y viajes de negocio. Esta cifra NO incluye $43 millones en acciones que vistieron ('vested') durante 2025 de premios otorgados en años anteriores, ni $242 millones en acciones restringidas aún no vestidas al cierre de 2025 — la cifra oficial de compensación anual es deliberadamente baja porque su paga real viene de concesiones de acciones de varios años atrás, no de un salario o bono anual. Tenencia accionaria directa: no verificada con cifra exacta en esta ronda.",
+    "compensation_verified": true,
+    "compensation_amount_usd": 2100000,
+    "compensation_period": "Año calendario 2025 (cifra oficial de la tabla de compensación del proxy; excluye acciones vestidas de concesiones anteriores)",
+    "source_name": "Proxy statement de Amazon, abril de 2026 (vía cobertura secundaria convergente — no se abrió el documento SEC directamente)",
+    "source_document_date": "2026-04",
+    "source_accessed_at": "2026-11-17"
+  },
+  "watch": [
+    "Si el margen operativo de AWS se estabiliza o sigue comprimiéndose a medida que avanza el plan de capex de $200,000 millones para 2026.",
+    "Confirmación directa contra una fuente primaria de si Amazon ha iniciado o no un dividendo regular."
+  ]
+}

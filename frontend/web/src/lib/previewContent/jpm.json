@@ -8,50 +8,60 @@
     {
       "type": "regulatory",
       "explanation": "JPMorgan es uno de los bancos considerados 'sistémicamente importantes a nivel global' (G-SIB), lo que significa que opera bajo requisitos de capital más estrictos que un banco pequeño o regional. Paradójicamente, esa misma escala le da acceso a financiamiento más barato y la capacidad de absorber los altos costos de cumplimiento regulatorio mejor que un banco más pequeño — la regulación termina protegiendo a los jugadores grandes ya establecidos frente a nuevos competidores, porque es muy costoso para un banco nuevo alcanzar esa escala.",
-      "evidence": "La designación G-SIB de JPMorgan es pública (la publica el Financial Stability Board). Sus calificaciones crediticias, consistentemente superiores a las de bancos regionales más pequeños, también son públicas (agencias como Moody's y S&P).",
+      "evidence": "La designación G-SIB de JPMorgan es pública (la publica el Financial Stability Board). En su 10-Q del tercer trimestre de 2026 (período cerrado el 30 de septiembre de 2026, presentado el 3 de noviembre de 2026), JPMorgan reportó activos totales superiores a $5 billones y un ingreso neto de $15.3 mil millones en el trimestre — una escala muy por encima de cualquier banco regional.",
       "weakening_factors": "Un cambio regulatorio que reduzca específicamente esta ventaja de escala (poco probable en el corto plazo dado el consenso regulatorio post-2008). Una crisis de reputación o legal que eleve el costo de capital relativo de JPMorgan frente a sus pares.",
-      "source_name": "Lista pública de G-SIB del Financial Stability Board; calificaciones crediticias públicas de agencias como Moody's/S&P",
-      "source_document_date": null,
-      "source_accessed_at": null,
+      "source_name": "Lista pública de G-SIB del Financial Stability Board; 10-Q de JPMorgan Chase Q3 2026 (SEC EDGAR, accession 0001628280-26-069523, período 2026-09-30): https://www.sec.gov/Archives/edgar/data/19617/000162828026069523/0001628280-26-069523-index.htm ; cifras del trimestre (activos >$5B, ingreso neto $15.3B) vía cobertura de la llamada de resultados, no re-verificadas línea por línea contra el propio 10-Q: https://www.earningsanatomy.com/blogs/jpmorgan-chase-q3-2026-earnings-analysis-5-trillion-assets",
+      "source_document_date": "2026-09-30",
+      "source_accessed_at": "2026-11-16",
       "confidence": "alta"
+    },
+    {
+      "type": "scale",
+      "explanation": "El negocio de intermediación bancaria depende de captar depósitos baratos y abundantes para poder prestar a tasas más altas. Un banco del tamaño de JPMorgan tiene acceso a una base de depósitos mucho más grande y diversificada (clientes minoristas, empresas, gobiernos) que un banco pequeño, lo que le da más estabilidad de financiamiento y más capacidad de prestar sin depender de un solo segmento de clientes.",
+      "evidence": "Según cobertura de la llamada de resultados del tercer trimestre de 2026, los depósitos de JPMorgan crecieron aproximadamente 4% interanual, y el ingreso neto por intereses (net interest income) fue de $27.1 mil millones en el trimestre (+13% interanual), impulsado por mayores saldos de depósitos y préstamos mayoristas. Estas cifras provienen de resúmenes de la llamada de resultados, no fueron re-verificadas directamente contra el texto del 10-Q.",
+      "weakening_factors": "Una fuga de depósitos hacia fondos del mercado monetario u otras alternativas si las tasas que paga JPMorgan por sus depósitos dejan de ser competitivas. Competencia de bancos digitales/fintech por depósitos de clientes minoristas.",
+      "source_name": "Transcripción y cobertura de la llamada de resultados Q3 2026: https://www.fool.com/earnings/call-transcripts/2026/10/13/jpmorgan-chase-jpm-q3-2026-earnings-call-transcript/ ; 10-Q Q3 2026 (SEC EDGAR, no re-verificado línea por línea para esta cifra específica): https://www.sec.gov/Archives/edgar/data/19617/000162828026069523/0001628280-26-069523-index.htm",
+      "source_document_date": "2026-09-30",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "media"
     }
   ],
   "risks": [
     {
       "category": "rentabilidad",
       "fact_type": "hecho",
-      "explanation": "JPMorgan está expuesto al riesgo de crédito en su cartera de préstamos: si la economía se deteriora, más prestatarios dejan de pagar, lo que afecta directamente su rentabilidad.",
-      "evidence": "El tamaño y composición de la cartera de crédito de JPMorgan se divulga públicamente en sus reportes trimestrales.",
-      "watch_indicator": "Tasas de morosidad (delinquency rates) reportadas trimestralmente por el propio banco.",
-      "uncertainty": "El momento y la severidad de un eventual deterioro macroeconómico no son predecibles con precisión.",
-      "source_name": "Reportes trimestrales públicos de JPMorgan Chase (10-Q/10-K)",
-      "source_document_date": null,
-      "source_accessed_at": null,
+      "explanation": "JPMorgan está expuesto al riesgo de crédito en su cartera de préstamos: si la economía se deteriora, más prestatarios dejan de pagar, lo que afecta directamente su rentabilidad. En el tercer trimestre de 2026, el banco registró castigos netos (net charge-offs) totales de $2.2 mil millones, dentro de un costo de crédito de $2.7 mil millones que incluyó una acumulación neta de reservas de $539 millones — es decir, el banco no solo registró pérdidas ya ocurridas, sino que además apartó más capital anticipando pérdidas futuras.",
+      "evidence": "Resuelto: no es una discrepancia, son dos métricas reales distintas del mismo suplemento de resultados. La tasa de castigos netos de la cartera de tarjetas de crédito (Card Services) fue 2.91% en el trimestre, bajando desde 3.15% un año antes, con guía de la administración de ~3.2% para el año completo. La tasa de castigos netos total a nivel de toda la firma, en la misma tabla del suplemento, fue 1.35% — una cifra mucho menor porque mezcla la cartera de tarjetas (más riesgosa) con el resto del libro de préstamos (hipotecas, banca comercial, etc., con tasas de impago mucho más bajas). La cifra de 0.59% que se había citado en una ronda anterior como 'tasa firma completa' no aparece en la tabla real del suplemento de resultados y se descarta como incorrecta.",
+      "watch_indicator": "Tasas de morosidad y castigos netos (delinquency/net charge-off rates) reportadas trimestralmente por el propio banco, especialmente en la cartera de tarjetas de crédito.",
+      "uncertainty": "El momento y la severidad de un eventual deterioro macroeconómico no son predecibles con precisión. La cifra de 1.35% (tasa firmwide) proviene de un resumen de prensa que cita la tabla del suplemento de resultados, no de una lectura directa línea por línea del PDF primario (el archivo es demasiado grande para extraer texto con las herramientas disponibles) — se mantiene con confianza alta porque dos fuentes independientes citan la misma tabla con los mismos valores, pero no es una verificación character-by-character del documento original.",
+      "source_name": "Suplemento financiero del comunicado de resultados Q3 2026 de JPMorgan Chase (tabla de tasas de castigo neto, Card Services 2.91% / Total firma 1.35%): https://www.jpmorganchase.com/content/dam/jpmc/jpmorgan-chase-and-co/investor-relations/documents/quarterly-earnings/2026/3rd-quarter/c89c7479-82df-4c9f-a7be-957956430abd.pdf ; cobertura que cita la misma tabla: https://www.fool.com/earnings/call-transcripts/2026/10/13/jpmorgan-chase-jpm-q3-2026-earnings-call-transcript/",
+      "source_document_date": "2026-09-30",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "alta"
+    },
+    {
+      "category": "deuda_liquidez",
+      "fact_type": "hecho",
+      "explanation": "Los bancos como JPMorgan están obligados a mantener un nivel mínimo de capital de alta calidad (capital común de nivel 1, o CET1 por sus siglas en inglés) frente a sus activos ponderados por riesgo, como colchón regulatorio contra pérdidas inesperadas. Al cierre del tercer trimestre de 2026, la razón CET1 de JPMorgan Chase & Co. bajó frente al cierre del año anterior.",
+      "evidence": "Resuelto directamente contra la tabla real de capital regulatorio del propio 10-Q (XBRL, 'Regulatory Capital - Risk-Based Capital Metrics'): la razón CET1 estandarizada de JPMorgan Chase & Co. (la matriz, que es la entidad que cotiza como JPM) fue 14.00% al 30-sep-2026, bajando desde 14.60% al 31-dic-2025. Bajo el enfoque avanzado también fue 14.00% (vs. 14.10% al cierre de 2025) — es decir, ambos enfoques convergen en 14.0% este trimestre. La cifra de 13.9% citada en una ronda anterior no coincide con ninguna de las cifras reales de la tabla y se descarta. Nota aparte: el banco subsidiario (JPMorgan Chase Bank, N.A., una entidad legal distinta de la matriz que cotiza) reporta un CET1 estandarizado más alto, 14.20% — la cifra relevante para un accionista de JPM es la de la matriz (14.00%), no la del banco subsidiario.",
+      "watch_indicator": "La razón CET1 reportada en los próximos trimestres y cualquier cambio en el mínimo regulatorio aplicable a JPMorgan (por ejemplo, por cambios en las reglas de Basilea III endgame).",
+      "uncertainty": "Ninguna sobre la cifra en sí (verificada directamente contra la tabla XBRL del 10-Q); la incertidumbre real es sobre hacia dónde se mueve este colchón en trimestres futuros, lo cual depende de decisiones de negocio y regulatorias no predecibles hoy.",
+      "source_name": "10-Q de JPMorgan Chase Q3 2026, tabla 'Regulatory Capital - Risk-Based Capital Metrics' (SEC EDGAR, accession 0001628280-26-069523, verificado directamente vía XBRL): https://www.sec.gov/Archives/edgar/data/19617/000162828026069523/R158.htm",
+      "source_document_date": "2026-09-30",
+      "source_accessed_at": "2026-11-16",
       "confidence": "alta"
     },
     {
       "category": "rentabilidad",
       "fact_type": "interpretacion",
-      "explanation": "Un entorno prolongado de tasas de interés bajas comprimiría el margen de intermediación de JPMorgan (la diferencia entre lo que cobra por préstamos y lo que paga por depósitos), reduciendo su rentabilidad en ese segmento del negocio.",
-      "evidence": "Esta es una consecuencia bien entendida de la mecánica conocida del negocio bancario tradicional, no un hecho ya materializado en este momento específico.",
-      "watch_indicator": "Decisiones de política monetaria de la Reserva Federal y el margen de interés neto (net interest margin) reportado por JPMorgan.",
+      "explanation": "Un entorno prolongado de tasas de interés bajas comprimiría el margen de intermediación de JPMorgan (la diferencia entre lo que cobra por préstamos y lo que paga por depósitos), reduciendo su rentabilidad en ese segmento del negocio. Por ahora, el ingreso neto por intereses viene creciendo (+13% interanual en el tercer trimestre de 2026, hasta $27.1 mil millones), por lo que este riesgo es una sensibilidad hacia el futuro, no un deterioro ya observado.",
+      "evidence": "Esta es una consecuencia bien entendida de la mecánica conocida del negocio bancario tradicional. La cifra de crecimiento actual del ingreso neto por intereses proviene de cobertura de la llamada de resultados, no re-verificada directamente contra el texto completo del 10-Q.",
+      "watch_indicator": "Decisiones de política monetaria de la Reserva Federal y el margen de interés neto (net interest margin) reportado por JPMorgan en los próximos trimestres; la guía de la propia administración para el cuarto trimestre de 2026 (aproximadamente $28 mil millones de ingreso neto por intereses, según cobertura de la llamada de resultados).",
       "uncertainty": "Depende de decisiones de política monetaria futuras que no están bajo el control de la empresa ni son predecibles con certeza.",
-      "source_name": "Interpretación propia basada en la mecánica conocida de la intermediación bancaria",
-      "source_document_date": null,
-      "source_accessed_at": null,
+      "source_name": "Cobertura de la llamada de resultados Q3 2026: https://www.fool.com/earnings/call-transcripts/2026/10/13/jpmorgan-chase-jpm-q3-2026-earnings-call-transcript/",
+      "source_document_date": "2026-09-30",
+      "source_accessed_at": "2026-11-16",
       "confidence": "media"
-    },
-    {
-      "category": "riesgo_sectorial",
-      "fact_type": "escenario_hipotetico",
-      "explanation": "Una crisis de confianza sistémica en el sector bancario (similar al estrés que sufrieron varios bancos regionales en 2023) podría afectar la percepción del mercado sobre JPMorgan, incluso si sus fundamentales específicos son distintos a los de los bancos que originaron esa crisis.",
-      "evidence": "Existe un precedente histórico real (2023) de que una crisis de confianza puede propagarse entre bancos con perfiles de riesgo muy distintos — pero esto no significa que vaya a repetirse, es un escenario especulativo basado en ese precedente.",
-      "watch_indicator": "Señales de estrés en otros bancos del sistema financiero que pudieran generar contagio de percepción, no necesariamente de fundamentales.",
-      "uncertainty": "Es un escenario hipotético, no una predicción — no hay evidencia de que esté ocurriendo actualmente.",
-      "source_name": "Interpretación propia basada en el precedente de 2023 (estrés de bancos regionales en EE.UU.)",
-      "source_document_date": null,
-      "source_accessed_at": null,
-      "confidence": "baja"
     }
   ]
 }

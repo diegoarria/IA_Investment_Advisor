@@ -62,19 +62,26 @@ interface LeadershipContent {
   };
   capital_allocation: {
     fiscal_year: string;
-    operating_cash_flow: number;
-    capex: number;
-    capex_prior_year: number;
-    fcf_reported_ttm: number;
-    buybacks: number;
-    buybacks_prior_year: number;
-    dividends_paid: number;
-    dividends_paid_prior_year: number;
-    dividend_per_share_quarterly: string;
-    long_term_debt_current: number;
-    long_term_debt_prior: number;
-    debt_direction: string;
-    acquisition_note: string;
+    // Only the fields a sector genuinely has are required (fiscal_year/
+    // note/source_name); everything else is optional so a bank (JPM) is
+    // never forced into an industrial capex/debt-reduction frame it
+    // doesn't fit — Diego, 2026-11-16: "No forzar métricas de empresas
+    // industriales sobre JPMorgan." When `capex` is absent, the render
+    // shows `sector_note`'s own framing instead of the 4-box flow.
+    operating_cash_flow?: number;
+    capex?: number;
+    capex_prior_year?: number;
+    fcf_reported_ttm?: number;
+    buybacks?: number;
+    buybacks_prior_year?: number;
+    dividends_paid?: number;
+    dividends_paid_prior_year?: number;
+    dividend_per_share_quarterly?: string;
+    long_term_debt_current?: number;
+    long_term_debt_prior?: number;
+    debt_direction?: string;
+    acquisition_note?: string;
+    sector_note?: string;
     note: string;
     source_name: string;
   };
@@ -93,9 +100,14 @@ interface LeadershipContent {
       source_name: string;
     };
     compensation_2025_verified: boolean;
-    compensation_2025_note: string;
-    psu_award: { description: string; source_name: string };
-    direct_ownership: { shares_class_c: number; shares_class_a: number; total_shares_outstanding_approx: number; ownership_pct_approx: number; note: string; source_name: string };
+    compensation_2025_note?: string;
+    pay_ratio?: { ceo_to_median_employee: string; median_employee_pay_usd: number; source_name: string };
+    pay_structure_note?: string;
+    psu_award?: { description: string; source_name: string };
+    // null/absent when direct ownership genuinely couldn't be confirmed
+    // this round — never a fabricated placeholder percentage.
+    direct_ownership: { shares_class_c: number; shares_class_a: number; total_shares_outstanding_approx: number; ownership_pct_approx: number; note: string; source_name: string } | null;
+    direct_ownership_note?: string;
   };
   watch: string[];
 }
@@ -227,9 +239,13 @@ export function ConocerLiderazgoPreview({
   }
 
   const ca = leadership.capital_allocation;
-  const capexGrowthPct = ((ca.capex - ca.capex_prior_year) / ca.capex_prior_year) * 100;
-  const buybacksDirection = ca.buybacks > ca.buybacks_prior_year ? "subieron" : "bajaron";
-  const ownershipShares = leadership.incentive_alignment.direct_ownership.shares_class_c + leadership.incentive_alignment.direct_ownership.shares_class_a;
+  const hasCapexFlow = ca.capex != null && ca.buybacks != null && ca.dividends_paid != null;
+  const capexGrowthPct =
+    ca.capex != null && ca.capex_prior_year ? ((ca.capex - ca.capex_prior_year) / ca.capex_prior_year) * 100 : null;
+  const buybacksDirection =
+    ca.buybacks != null && ca.buybacks_prior_year != null ? (ca.buybacks > ca.buybacks_prior_year ? "subieron" : "bajaron") : null;
+  const ownership = leadership.incentive_alignment.direct_ownership;
+  const ownershipShares = ownership ? ownership.shares_class_c + ownership.shares_class_a : null;
 
   return (
     <div className="max-w-[760px] mx-auto pb-10">
@@ -282,35 +298,59 @@ export function ConocerLiderazgoPreview({
             }
           />
 
-          {/* B. ¿Qué hace con el dinero que gana? */}
+          {/* B. ¿Qué hace con el dinero que gana? — the 4-box capex/
+             buyback/dividend/debt flow only applies to a company with
+             conventional capex; a bank (JPM) gets its own real framing
+             via `sector_note` instead of a forced industrial metric. */}
           <Nivel1Block
             icon={<Wallet className="w-4 h-4" style={{ color: BLOCK_BLUE }} />}
             iconColor={BLOCK_BLUE}
             title="¿Qué hace con el dinero que gana?"
-            idea={`En el año fiscal ${ca.fiscal_year}, reinvirtió en el negocio, recompró acciones y pagó dividendos — pero su deuda de largo plazo ${ca.debt_direction}, no bajó.`}
+            idea={
+              hasCapexFlow
+                ? `En el año fiscal ${ca.fiscal_year}, reinvirtió en el negocio, recompró acciones y pagó dividendos${ca.debt_direction ? ` — pero su deuda de largo plazo ${ca.debt_direction}, no bajó` : ""}.`
+                : ca.sector_note ?? "Esta empresa asigna su capital de forma distinta a una empresa industrial — ver detalle."
+            }
             visual={
-              <CapitalAllocationFlow
-                items={[
-                  { label: "Reinvertir en el negocio (capex)", value: fmtMoney(ca.capex), real: true },
-                  { label: "Recomprar acciones", value: fmtMoney(ca.buybacks), real: true },
-                  { label: "Pagar dividendos", value: fmtMoney(ca.dividends_paid), real: true },
-                  { label: "Reducir deuda", value: "No este período", real: false },
-                ]}
-              />
+              hasCapexFlow ? (
+                <CapitalAllocationFlow
+                  items={[
+                    { label: "Reinvertir en el negocio (capex)", value: fmtMoney(ca.capex), real: true },
+                    { label: "Recomprar acciones", value: fmtMoney(ca.buybacks), real: true },
+                    { label: "Pagar dividendos", value: fmtMoney(ca.dividends_paid), real: true },
+                    { label: "Reducir deuda", value: "No este período", real: false },
+                  ]}
+                />
+              ) : undefined
             }
             expand={
               <div className="space-y-2">
-                <p className="text-[14.5px] leading-5" style={{ color: "var(--sub)" }}>
-                  Capex real: {fmtMoney(ca.capex)} en {ca.fiscal_year} (vs. {fmtMoney(ca.capex_prior_year)} el año
-                  anterior, +{capexGrowthPct.toFixed(0)}%). Recompras: {fmtMoney(ca.buybacks)} (vs.{" "}
-                  {fmtMoney(ca.buybacks_prior_year)} el año anterior — {buybacksDirection}). Dividendos pagados en
-                  efectivo: {fmtMoney(ca.dividends_paid)} (vs. {fmtMoney(ca.dividends_paid_prior_year)}). Dividendo
-                  trimestral declarado: {ca.dividend_per_share_quarterly}.
-                </p>
-                <p className="text-[14.5px] leading-5" style={{ color: "var(--sub)" }}>
-                  Deuda de largo plazo: pasó de {fmtMoney(ca.long_term_debt_prior)} a {fmtMoney(ca.long_term_debt_current)}{" "}
-                  en el mismo año — {ca.acquisition_note}
-                </p>
+                {hasCapexFlow && (
+                  <>
+                    <p className="text-[14.5px] leading-5" style={{ color: "var(--sub)" }}>
+                      Capex real: {fmtMoney(ca.capex)} en {ca.fiscal_year}
+                      {ca.capex_prior_year != null && capexGrowthPct != null && (
+                        <> (vs. {fmtMoney(ca.capex_prior_year)} el año anterior, {capexGrowthPct >= 0 ? "+" : ""}{capexGrowthPct.toFixed(0)}%)</>
+                      )}
+                      . Recompras: {fmtMoney(ca.buybacks)}
+                      {ca.buybacks_prior_year != null && buybacksDirection && (
+                        <> (vs. {fmtMoney(ca.buybacks_prior_year)} el año anterior — {buybacksDirection})</>
+                      )}
+                      . Dividendos pagados: {fmtMoney(ca.dividends_paid)}
+                      {ca.dividends_paid_prior_year != null && <> (vs. {fmtMoney(ca.dividends_paid_prior_year)})</>}
+                      {ca.dividend_per_share_quarterly && <>. Dividendo trimestral: {ca.dividend_per_share_quarterly}</>}.
+                    </p>
+                    {(ca.long_term_debt_current != null || ca.acquisition_note) && (
+                      <p className="text-[14.5px] leading-5" style={{ color: "var(--sub)" }}>
+                        {ca.long_term_debt_prior != null && ca.long_term_debt_current != null && (
+                          <>Deuda de largo plazo: pasó de {fmtMoney(ca.long_term_debt_prior)} a {fmtMoney(ca.long_term_debt_current)} en el mismo año
+                            {ca.acquisition_note ? ` — ${ca.acquisition_note}` : "."}</>
+                        )}
+                        {ca.long_term_debt_current == null && ca.acquisition_note}
+                      </p>
+                    )}
+                  </>
+                )}
                 <p className="text-[13px] leading-5" style={{ color: "var(--sub)" }}>{ca.note}</p>
                 <SourceLinks raw={ca.source_name} />
               </div>
@@ -345,17 +385,26 @@ export function ConocerLiderazgoPreview({
             />
           )}
 
-          {/* D. ¿Sus intereses se parecen a los de los accionistas? */}
+          {/* D. ¿Sus intereses se parecen a los de los accionistas? — the
+             ownership box only renders when a real Form 4 figure was
+             confirmed; everything here degrades honestly otherwise rather
+             than crashing on a null `direct_ownership`. */}
           <Nivel1Block
             icon={<Scale className="w-4 h-4" style={{ color: BLOCK_STEEL }} />}
             iconColor={BLOCK_STEEL}
             title="¿Sus intereses se parecen a los de los accionistas?"
-            idea="Una parte real de su compensación depende de qué tan bien le vaya a la acción frente a sus pares — pero su tenencia directa de acciones es pequeña."
+            idea={
+              ownership
+                ? "Una parte real de su compensación depende de qué tan bien le vaya a la acción frente a sus pares — pero su tenencia directa de acciones es pequeña."
+                : "Una parte real de su compensación depende de qué tan bien le vaya a la acción frente a sus pares — su tenencia directa de acciones no pudo confirmarse en esta investigación."
+            }
             visual={
-              <OwnershipBox
-                pct={leadership.incentive_alignment.direct_ownership.ownership_pct_approx}
-                note={`${ownershipShares.toLocaleString("en-US")} acciones directas (Form 4, SEC) — no basta por sí sola para concluir alineación.`}
-              />
+              ownership && ownershipShares != null ? (
+                <OwnershipBox
+                  pct={ownership.ownership_pct_approx}
+                  note={`${ownershipShares.toLocaleString("en-US")} acciones directas (Form 4, SEC) — no basta por sí sola para concluir alineación.`}
+                />
+              ) : undefined
             }
             expand={
               <div className="space-y-2">
@@ -364,20 +413,32 @@ export function ConocerLiderazgoPreview({
                   en {leadership.incentive_alignment.last_confirmed_total_compensation.fiscal_year} (salario base{" "}
                   {fmtMoney(leadership.incentive_alignment.last_confirmed_total_compensation.base_salary_usd)}).
                 </p>
-                {!leadership.incentive_alignment.compensation_2025_verified && (
+                {!leadership.incentive_alignment.compensation_2025_verified && leadership.incentive_alignment.compensation_2025_note && (
                   <p className="text-[13px] leading-5 italic" style={{ color: "var(--sub)" }}>
                     {leadership.incentive_alignment.compensation_2025_note}
                   </p>
                 )}
-                <p className="text-[14.5px] leading-5" style={{ color: "var(--sub)" }}>
-                  {leadership.incentive_alignment.psu_award.description}
-                </p>
+                {leadership.incentive_alignment.pay_structure_note && (
+                  <p className="text-[14.5px] leading-5" style={{ color: "var(--sub)" }}>
+                    {leadership.incentive_alignment.pay_structure_note}
+                  </p>
+                )}
+                {leadership.incentive_alignment.psu_award && (
+                  <p className="text-[14.5px] leading-5" style={{ color: "var(--sub)" }}>
+                    {leadership.incentive_alignment.psu_award.description}
+                  </p>
+                )}
+                {leadership.incentive_alignment.pay_ratio && (
+                  <p className="text-[13px] leading-5" style={{ color: "var(--sub)" }}>
+                    Proporción CEO-empleado mediano: {leadership.incentive_alignment.pay_ratio.ceo_to_median_employee}.
+                  </p>
+                )}
                 <p className="text-[13px] leading-5" style={{ color: "var(--sub)" }}>
-                  {leadership.incentive_alignment.direct_ownership.note}
+                  {ownership ? ownership.note : leadership.incentive_alignment.direct_ownership_note}
                 </p>
                 <SourceLinks raw={leadership.incentive_alignment.last_confirmed_total_compensation.source_name} />
-                <SourceLinks raw={leadership.incentive_alignment.psu_award.source_name} />
-                <SourceLinks raw={leadership.incentive_alignment.direct_ownership.source_name} />
+                {leadership.incentive_alignment.psu_award && <SourceLinks raw={leadership.incentive_alignment.psu_award.source_name} />}
+                {ownership && <SourceLinks raw={ownership.source_name} />}
               </div>
             }
           />

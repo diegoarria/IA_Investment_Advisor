@@ -1,0 +1,65 @@
+{
+  "ticker": "MSFT",
+  "competitors": [
+    {
+      "segment": "Nube (Azure)",
+      "rivals": [
+        "Amazon (AWS)",
+        "Google (Google Cloud)"
+      ],
+      "note": "AWS es el líder actual del mercado de infraestructura en la nube por ingresos; Azure es el segundo proveedor; Google Cloud es el tercero. Los tres crecen a tasas altas, lo que indica que el mercado total sigue expandiéndose, no necesariamente que uno le esté quitando participación a otro.",
+      "source_name": "Cobertura comparada de resultados trimestrales de los 3 proveedores principales de nube",
+      "confidence": "media"
+    },
+    {
+      "segment": "Productividad empresarial (Office/Microsoft 365)",
+      "rivals": [
+        "Google (Workspace)"
+      ],
+      "note": "Google Workspace es la alternativa directa más conocida a Microsoft 365, aunque Microsoft mantiene una posición dominante establecida en el mercado empresarial.",
+      "source_name": "Cobertura general del mercado de software de productividad empresarial",
+      "confidence": "media"
+    },
+    {
+      "segment": "Videojuegos (Xbox)",
+      "rivals": [
+        "Sony (PlayStation)",
+        "Nintendo"
+      ],
+      "note": "Microsoft compite en consolas y, cada vez más, en servicios de suscripción de videojuegos (Game Pass).",
+      "source_name": "Cobertura general del mercado de consolas de videojuegos",
+      "confidence": "media"
+    }
+  ],
+  "market_growth": {
+    "cloud": {
+      "finding": "El mercado de infraestructura en la nube sigue creciendo con fuerza a nivel global, impulsado por la demanda de cómputo para inteligencia artificial — esto beneficia a los 3 proveedores principales simultáneamente, no solo a Microsoft.",
+      "figure_note": "No se investigó en esta ronda una cifra específica y verificada del tamaño total del mercado de nube para 2026 — se reutiliza el contexto cualitativo general ya confirmado para GOOGL (mercado de nube en fuerte crecimiento), sin una cifra numérica nueva verificada específicamente para este expediente.",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "baja"
+    }
+  },
+  "competitive_strength": [
+    {
+      "vs": "AWS y Google Cloud",
+      "note": "Azure creció 34% interanual en el año fiscal 2025, una tasa de crecimiento real y documentada que sugiere que Microsoft sigue ganando terreno relevante en el mercado de nube, aunque sin una cifra oficial de cuota de mercado comparable entre los 3 proveedores.",
+      "source_name": "Microsoft Investor Relations, FY2025 Q4 performance",
+      "confidence": "media"
+    }
+  ],
+  "industry_shifts": [
+    {
+      "change": "La demanda de cómputo para entrenar e implementar modelos de inteligencia artificial se ha convertido en el principal motor de crecimiento e inversión de capital para los 3 proveedores de nube.",
+      "what_it_means": "Los proveedores de nube están invirtiendo sumas de capital extraordinariamente altas en centros de datos e infraestructura especializada para IA.",
+      "effect_on_company": "Microsoft está apostando fuertemente a esta tendencia a través de su asociación con OpenAI y la integración de Copilot en sus productos — el resultado de esta apuesta (si el crecimiento de ingresos justifica el capex) todavía no está completamente resuelto.",
+      "fact_type": "interpretacion",
+      "confidence": "media",
+      "is_prediction": true
+    }
+  ],
+  "watch": [
+    "Evolución comparada del crecimiento de Azure frente a AWS y Google Cloud en los próximos trimestres.",
+    "Si el capex de infraestructura de IA se traduce en crecimiento de ingresos proporcional."
+  ]
+}

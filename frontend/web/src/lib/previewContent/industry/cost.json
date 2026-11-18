@@ -1,0 +1,49 @@
+{
+  "ticker": "COST",
+  "competitors": [
+    {
+      "segment": "Clubes de membresía al por mayor (EE.UU.)",
+      "rivals": ["Sam's Club (Walmart)", "BJ's Wholesale Club"],
+      "note": "Son los únicos dos competidores directos de escala comparable en el modelo de membresía al por mayor en EE.UU. — Sam's Club es el más grande de los dos rivales; BJ's es el más pequeño pero con mayor variedad de productos.",
+      "source_name": "Análisis de mercado de clubes de membresía (fuentes secundarias, no filings directos): https://www.mmcginvest.com/post/costco-vs-sam-s-club-in-2026-a-comparative-analysis-of-the-u-s-warehouse-club-market",
+      "confidence": "media"
+    }
+  ],
+  "market_growth": {
+    "findings": [
+      {
+        "label": "Clubes de membresía al por mayor (EE.UU.)",
+        "finding": "El mercado de clubes de membresía en EE.UU. sigue siendo dominado ampliamente por Costco, con Sam's Club como el retador más cercano en escala.",
+        "figure_note": "Una estimación de 2026 ubica la cuota de mercado en ~63.7% Costco, ~29.2% Sam's Club, ~7.0% BJ's (por ventas); otra métrica de tráfico de visitas en tienda (julio 2025) da a Costco ~54.3% de las visitas combinadas. Ambas son estimaciones de fuentes secundarias (MMCG Invest, Placer.ai), no cifras oficiales de ninguna de las 3 empresas.",
+        "source_document_date": "2026",
+        "source_accessed_at": "2026-11-16",
+        "confidence": "media"
+      }
+    ],
+    "distinction_note": "Que Costco mantenga o pierda cuota de mercado es una pregunta distinta de si el mercado completo de clubes de membresía está creciendo — esta investigación no encontró una cifra confiable y fechada del tamaño total del mercado en dólares."
+  },
+  "competitive_strength": [
+    {
+      "rival": "Sam's Club",
+      "evidence": "Sam's Club reportó $90.2 mil millones en ventas netas en su año fiscal 2025 con ~600 clubes, frente a la escala mayor de Costco (ingresos muy superiores y más clubes). Costco mantiene el liderazgo en todas las métricas de escala consultadas.",
+      "caveat": "Una comparación de precios de 2026 (150 artículos, fuente de análisis de membresías, no primaria) sugiere que Sam's Club es más barato en 68% de los artículos comparados — si esto es cierto de forma sostenida, podría presionar la propuesta de valor de Costco en precio, aunque no en escala.",
+      "source_name": "Reportes de ventas de Sam's Club (Walmart) y análisis comparativo de precios 2026",
+      "confidence": "media"
+    }
+  ],
+  "industry_shifts": [
+    {
+      "change": "Consolidación del comercio minorista físico hacia formatos de membresía/descuento por volumen, mientras el comercio electrónico general sigue creciendo.",
+      "what_it_means": "El modelo de Costco (margen bajo + cuota de membresía) depende de mantener altas tasas de renovación de membresía y tráfico físico constante, incluso cuando más compras se mueven a comercio electrónico.",
+      "effect_on_company": "No se encontró en esta investigación un dato reciente y confiable de la tasa de renovación de membresía de Costco para 2025/2026 — dato pendiente de verificación.",
+      "is_prediction": true,
+      "source_name": "No verificado — pendiente",
+      "confidence": "baja"
+    }
+  ],
+  "watch": [
+    "Si Sam's Club sigue cerrando la brecha de escala frente a Costco.",
+    "La evolución del capex de Costco ($6,000–6,500M de guía 2026) y si se traduce en más aperturas de clubes.",
+    "La tasa de renovación de membresía de Costco (no verificada en esta investigación, históricamente ha sido un indicador clave para la empresa)."
+  ]
+}

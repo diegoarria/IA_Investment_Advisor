@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, decisions, watchlist, financials, brokerage, belvo, notification_settings, price_alerts, actions, upsells, wrapped, monthly_report, push, feedback, profile_financial, library, voice_call, benchmark, admin, research_engine, investment_graph, explain, cash_holdings, dividends, checklist, weekly_rituals, morning_brief, smart_alerts, logo, telemetry, imports, etf, portfolio_exposure, qualitative_content
+from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, decisions, watchlist, financials, brokerage, belvo, notification_settings, price_alerts, actions, upsells, wrapped, monthly_report, push, feedback, profile_financial, library, voice_call, benchmark, admin, research_engine, investment_graph, explain, cash_holdings, dividends, checklist, weekly_rituals, morning_brief, smart_alerts, logo, telemetry, imports, etf, portfolio_exposure, qualitative_content, radar_thesis
 from app.core.limiter import rate_limit_exceeded_handler
 
 _is_dev = settings.environment == "development"
@@ -144,6 +144,7 @@ app.include_router(research_engine.router,   prefix="/api")
 app.include_router(etf.router,               prefix="/api")
 app.include_router(portfolio_exposure.router, prefix="/api")
 app.include_router(qualitative_content.router, prefix="/api")
+app.include_router(radar_thesis.router, prefix="/api")
 app.include_router(checklist.router,         prefix="/api")
 app.include_router(weekly_rituals.router,    prefix="/api")
 app.include_router(morning_brief.router,     prefix="/api")

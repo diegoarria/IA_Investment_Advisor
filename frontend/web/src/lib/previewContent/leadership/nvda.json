@@ -1,0 +1,66 @@
+{
+  "ticker": "NVDA",
+  "ceo": {
+    "name": "Jensen Huang",
+    "role_explanation": "Jensen Huang cofundó NVIDIA y la dirige como CEO desde su fundación en 1993 — coordina las decisiones sobre producto, capacidad de manufactura y asignación de capital.",
+    "since": "1993 (cofundador y CEO)",
+    "source_name": "10-K de NVIDIA FY2026 (SEC EDGAR): https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm",
+    "source_document_date": "2026",
+    "source_accessed_at": "2026-11-16",
+    "confidence": "alta",
+    "note": "Esta investigación encontró reportes no corroborados (noviembre 2026) sobre un posible cambio de CEO que no pudieron confirmarse contra una fuente primaria confiable — no se incluyen aquí hasta que puedan verificarse contra un filing real de SEC EDGAR."
+  },
+  "capital_allocation": {
+    "fiscal_year": "2026 (terminado 25-ene-2026)",
+    "buybacks": 40400000000,
+    "buybacks_shares": 282000000,
+    "buyback_authorization_added_aug_2025": 60000000000,
+    "buyback_authorization_remaining_jan_2026": 58500000000,
+    "buyback_authorization_added_may_2026": 80000000000,
+    "dividends_paid": 974000000,
+    "dividend_per_share_quarterly": "$0.25 (desde el 18-may-2026; antes $0.01 — un aumento de 25x)",
+    "dividend_increase_date": "18 de mayo de 2026",
+    "dividends_paid_h1_fy2027": 6300000000,
+    "dividends_paid_h1_fy2026_prior_year": 488000000,
+    "buybacks_h1_fy2027": 39000000000,
+    "sector_note": "NVIDIA ya tiene su capex (principalmente de su propia operación, no de centros de datos propios) detallado en la pestaña 'Entender las finanzas' — aquí el foco es su decisión de retorno de capital: multiplicó por 25 su dividendo trimestral por acción (de $0.01 a $0.25) en mayo de 2026, además de ampliar su autorización de recompras en $80,000 millones adicionales.",
+    "note": "Una señal clara de que, incluso con el gasto que requiere escalar su negocio de GPUs de IA, NVIDIA genera suficiente efectivo para devolver mucho más capital a los accionistas que antes.",
+    "source_name": "10-K de NVIDIA FY2026 y 10-Q de abril/julio 2026 (SEC EDGAR): https://www.sec.gov/Archives/edgar/data/1045810/000104581026000052/nvda-20260426.htm ; https://www.sec.gov/Archives/edgar/data/1045810/000104581026000075/nvda-20260726.htm",
+    "source_document_date": "2026",
+    "source_accessed_at": "2026-11-16",
+    "confidence": "alta"
+  },
+  "decisions": [
+    {
+      "decision": "Multiplicar por 25 el dividendo trimestral por acción (de $0.01 a $0.25) y ampliar la autorización de recompras en $80,000 millones adicionales, en mayo de 2026.",
+      "outcome": "Los dividendos pagados en el primer semestre del año fiscal 2027 ($6,300 millones) son más de 12 veces los del mismo período del año anterior ($488 millones) — un cambio real y verificable en la política de retorno de capital.",
+      "uncertainty": "No hay en las fuentes consultadas una explicación oficial de NVIDIA sobre por qué decidieron este aumento específico en ese momento, ni una proyección de si el nuevo nivel de dividendo es sostenible si la demanda de GPUs de IA se desacelera.",
+      "source_name": "10-Q de NVIDIA, abril y julio 2026 (SEC EDGAR)",
+      "source_document_date": "2026",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "alta"
+    }
+  ],
+  "incentive_alignment": {
+    "last_confirmed_total_compensation": {
+      "fiscal_year": "2025",
+      "amount_usd": 49866251,
+      "base_salary_usd": 1486199,
+      "stock_awards_usd": 38811306,
+      "non_equity_incentive_usd": 6000000,
+      "note": "Compensación total real del año fiscal 2025 según la tabla resumen de compensación del propio filing ARS (reporte anual) de NVIDIA — un 46% más que el año fiscal anterior. El salario base de Huang subió 49% en 2025, su primer aumento de salario base en una década.",
+      "source_name": "NVIDIA Form ARS FY2025 (SEC EDGAR): https://www.sec.gov/Archives/edgar/data/1045810/000104581025000098/finalforfiling-2025xannual.pdf ; CNBC: https://www.cnbc.com/2025/05/01/nvidia-ceo-jensen-huang-gets-first-salary-raise-in-a-decade.html",
+      "source_document_date": "2025",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "alta"
+    },
+    "compensation_actually_paid_note": "Existe una medida separada exigida por la SEC llamada 'compensación realmente pagada' (que refleja movimientos del precio de la acción, no solo lo otorgado) de $344.2 millones para el mismo año — esta cifra no es comparable directamente con el total de $49.9M de la tabla resumen, son dos métricas distintas.",
+    "compensation_2025_verified": true,
+    "direct_ownership_note": "Huang es cofundador y mantiene una participación accionaria sustancial ampliamente reportada, pero esta investigación no confirmó una cifra exacta y actual de acciones en circulación vía un Formulario 4 específico — queda pendiente de verificación precisa."
+  },
+  "watch": [
+    "Si el nuevo nivel de dividendo ($0.25/acción trimestral) se mantiene si la demanda de GPUs de IA se desacelera.",
+    "El ritmo de ejecución de las nuevas autorizaciones de recompra ($58,500M + $80,000M adicionales desde mayo de 2026).",
+    "Cualquier cambio confirmado en el liderazgo ejecutivo de NVIDIA — hay reportes no verificados circulando que esta investigación no pudo confirmar contra una fuente primaria."
+  ]
+}

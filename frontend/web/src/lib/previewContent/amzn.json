@@ -1,0 +1,67 @@
+{
+  "ticker": "AMZN",
+  "review_status": "draft",
+  "is_current": false,
+  "updated_by": "ai_draft:claude-sonnet-5",
+  "business_model_summary": "Amazon gana dinero de tres formas principales, reportadas como segmentos separados: venta minorista en Norteamérica, venta minorista internacional, y Amazon Web Services (AWS) — su negocio de cómputo en la nube. Aunque la venta minorista genera la mayor parte de los ingresos totales, AWS es consistentemente el segmento más rentable, con márgenes operativos mucho más altos que el retail. En el año 2025 (año calendario, Amazon no usa un año fiscal distinto), las ventas netas totales crecieron 12% a $716,900 millones, con una utilidad neta de $77,700 millones.",
+  "moat": [
+    {
+      "type": "scale",
+      "explanation": "AWS es el proveedor líder de infraestructura en la nube por ingresos — su escala le permite ofrecer un catálogo de servicios más amplio y mantener acuerdos de larga duración con grandes clientes empresariales, lo que crea costos reales de cambio de proveedor para esos clientes.",
+      "evidence": "Los ingresos de AWS crecieron 20% interanual en 2025, alcanzando $128,700 millones, con un margen operativo reportado de aproximadamente 35.4% — sustancialmente más alto que el margen del negocio minorista.",
+      "weakening_factors": "Amazon anunció un plan de capex de $200,000 millones para 2026, principalmente destinado a AWS, lo que presiona el margen de corto plazo y el flujo de caja mientras se construye esa infraestructura.",
+      "source_name": "Comunicado de resultados Q4/año completo 2025 de Amazon (5-feb-2026); cifras de AWS vía cobertura secundaria, no verificadas directamente contra el 10-K",
+      "source_document_date": "2026-02-05",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    },
+    {
+      "type": "network_effect",
+      "explanation": "La red de centros de distribución y logística de Amazon, combinada con la membresía Prime, crea un círculo que se refuerza a sí mismo: más miembros Prime generan más volumen de pedidos, lo que justifica más inversión en infraestructura logística, lo que a su vez hace la entrega más rápida y atractiva para nuevos miembros.",
+      "evidence": "Amazon mantiene presencia dominante en comercio electrónico en Estados Unidos, sostenida por una red logística propia construida durante más de una década.",
+      "weakening_factors": "El negocio minorista en sí mantiene márgenes estructuralmente bajos — la rentabilidad de la compañía depende en gran medida de AWS y, en menor medida, del negocio publicitario, no del comercio electrónico por sí solo.",
+      "source_name": "Interpretación propia basada en la estructura de segmentos reportada por Amazon (Norteamérica/Internacional/AWS)",
+      "source_document_date": "2026-02-05",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    }
+  ],
+  "risks": [
+    {
+      "category": "rentabilidad",
+      "fact_type": "hecho",
+      "explanation": "Amazon anunció un plan de inversión de capital (capex) de aproximadamente $200,000 millones para 2026, dirigido principalmente a AWS, lo que la propia cobertura financiera describe como una presión real sobre el margen y el flujo de caja de corto plazo.",
+      "evidence": "El anuncio del plan de capex de $200,000 millones para 2026 generó una caída real del 11% en la acción de Amazon tras el anuncio, según cobertura financiera de ese momento.",
+      "watch_indicator": "Si el crecimiento de ingresos de AWS en 2026 acompaña el ritmo de esta inversión, y cómo evoluciona el margen operativo consolidado de la compañía durante el año.",
+      "uncertainty": "No se verificó el detalle completo del plan de capex contra una fuente primaria (comunicado oficial o 10-K) en esta ronda — se basa en cobertura financiera secundaria del anuncio.",
+      "source_name": "Comunicado de resultados Q4/año completo 2025 de Amazon (5-feb-2026): guía de capex 2026 de ~$200,000 millones comunicada en la llamada de resultados — vía cobertura secundaria convergente (Futurum Group, MarketBeat, Global Data Center Hub), no verificada directamente contra el documento SEC",
+      "source_document_date": "2026-02-05",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    },
+    {
+      "category": "regulacion",
+      "fact_type": "hecho",
+      "explanation": "Amazon enfrenta una demanda antimonopolio activa de la Comisión Federal de Comercio de Estados Unidos (FTC), presentada en 2023, que alega que la empresa usa su posición dominante para perjudicar a vendedores externos y consumidores.",
+      "evidence": "La demanda de la FTC contra Amazon es un hecho público y ampliamente documentado desde su presentación en 2023 — no se verificó en esta ronda de investigación el estado procesal más reciente del caso (si sigue activo, se resolvió, o tiene fecha de juicio).",
+      "watch_indicator": "Cualquier actualización procesal del caso de la FTC contra Amazon — fecha de juicio, resolución o apelación.",
+      "uncertainty": "No se confirmó en esta ronda el estado actual exacto del litigio (noviembre de 2026) — requiere verificación adicional antes de presentarse con más detalle.",
+      "source_name": "Demanda FTC v. Amazon.com, presentada el 26-sep-2023 en el Distrito Oeste de Washington (hecho público, expediente judicial) — estado procesal actual no verificado en esta ronda",
+      "source_document_date": "2023-09-26",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    },
+    {
+      "category": "ejecucion_operativa",
+      "fact_type": "interpretacion",
+      "explanation": "Amazon ha enfrentado esfuerzos reales de sindicalización en varios de sus centros de distribución en Estados Unidos en los últimos años, lo que representa un riesgo potencial de mayores costos laborales o disrupciones operativas si estos esfuerzos se expanden.",
+      "evidence": "Los esfuerzos de sindicalización en centros de distribución de Amazon (por ejemplo, en Staten Island) son hechos públicos y ampliamente documentados en años recientes.",
+      "watch_indicator": "Expansión o resultado de nuevos esfuerzos de sindicalización en centros de distribución adicionales.",
+      "uncertainty": "No se cuantificó en esta ronda el impacto financiero real (si lo hay) de estos esfuerzos sobre los costos operativos de Amazon.",
+      "source_name": "Cobertura pública ampliamente documentada de esfuerzos de sindicalización en centros de Amazon (no verificada con una fuente primaria específica en esta ronda)",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "baja"
+    }
+  ]
+}

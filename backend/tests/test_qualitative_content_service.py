@@ -152,6 +152,7 @@ def test_published_current_content_is_returned(monkeypatch):
         "moat": VALID_MOAT, "risks": VALID_RISKS, "last_updated_at": "2026-11-12T00:00:00Z",
     })
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
     _clear_cache()
 
     result = _run(qcs.get_published_qualitative_content("googl"))
@@ -168,6 +169,7 @@ def test_draft_is_invisible_to_public_read(monkeypatch):
         "last_updated_at": "2026-11-12T00:00:00Z",
     })
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
     _clear_cache()
 
     assert _run(qcs.get_published_qualitative_content("COST")) is None
@@ -181,6 +183,7 @@ def test_reviewed_is_invisible_to_public_read(monkeypatch):
         "last_updated_at": "2026-11-12T00:00:00Z",
     })
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
     _clear_cache()
 
     assert _run(qcs.get_published_qualitative_content("JPM")) is None
@@ -189,6 +192,7 @@ def test_reviewed_is_invisible_to_public_read(monkeypatch):
 def test_nonexistent_ticker_returns_none_not_exception(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
     _clear_cache()
 
     assert _run(qcs.get_published_qualitative_content("ZZZZ")) is None
@@ -207,6 +211,7 @@ def test_transient_supabase_failure_degrades_to_none_never_blocks_ficha(monkeypa
 def test_invalid_ticker_input_handled_safely(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
     _clear_cache()
 
     assert _run(qcs.get_published_qualitative_content("")) is None
@@ -218,6 +223,7 @@ def test_invalid_ticker_input_handled_safely(monkeypatch):
 def test_create_draft_sets_is_current_false_explicitly(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
 
     row = _run(qcs.create_draft("MCD", "x" * 25, VALID_MOAT, VALID_RISKS, "ai_draft:claude-sonnet-5"))
     assert row["review_status"] == "draft"
@@ -227,6 +233,7 @@ def test_create_draft_sets_is_current_false_explicitly(monkeypatch):
 def test_ai_draft_cannot_be_marked_reviewed_without_human_actor(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
     _run(qcs.create_draft("MCD", "x" * 25, VALID_MOAT, VALID_RISKS, "ai_draft:claude-sonnet-5"))
 
     try:
@@ -239,6 +246,7 @@ def test_ai_draft_cannot_be_marked_reviewed_without_human_actor(monkeypatch):
 def test_ai_draft_cannot_be_marked_reviewed_with_blank_actor(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
     _run(qcs.create_draft("MCD", "x" * 25, VALID_MOAT, VALID_RISKS, "ai_draft:claude-sonnet-5"))
 
     try:
@@ -251,6 +259,7 @@ def test_ai_draft_cannot_be_marked_reviewed_with_blank_actor(monkeypatch):
 def test_full_flow_draft_review_publish_preserves_history(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
     _clear_cache()
 
     _run(qcs.create_draft("NVDA", "x" * 25, VALID_MOAT, VALID_RISKS, "ai_draft:claude-sonnet-5"))
@@ -275,6 +284,7 @@ def test_full_flow_draft_review_publish_preserves_history(monkeypatch):
 def test_publish_requires_reviewed_status_not_draft(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
     _run(qcs.create_draft("JPM", "x" * 25, VALID_MOAT, VALID_RISKS, "ai_draft:claude-sonnet-5"))
 
     try:
@@ -287,6 +297,7 @@ def test_publish_requires_reviewed_status_not_draft(monkeypatch):
 def test_publish_without_human_actor_rejected(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
     _run(qcs.create_draft("JPM", "x" * 25, VALID_MOAT, VALID_RISKS, "ai_draft:claude-sonnet-5"))
     _run(qcs.mark_reviewed("JPM", 1, "diego@nuvosai.com"))
 
@@ -300,6 +311,7 @@ def test_publish_without_human_actor_rejected(monkeypatch):
 def test_republishing_supersedes_old_version_exactly_one_current(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
     _clear_cache()
 
     _run(qcs.create_draft("COST", "x" * 25, VALID_MOAT, VALID_RISKS, "ai_draft:claude-sonnet-5"))
@@ -321,6 +333,7 @@ def test_republishing_supersedes_old_version_exactly_one_current(monkeypatch):
 def test_draft_rejected_without_sufficient_evidence(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
 
     bad_moat = [{**VALID_MOAT[0], "confidence": "alta", "source_name": ""}]  # material claim, no source
     try:
@@ -333,6 +346,7 @@ def test_draft_rejected_without_sufficient_evidence(monkeypatch):
 def test_draft_rejected_for_prescriptive_language(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
 
     bad_risk = [{**VALID_RISKS[0], "explanation": "Deberías comprar esta acción ahora mismo."}]
     try:
@@ -345,6 +359,7 @@ def test_draft_rejected_for_prescriptive_language(monkeypatch):
 def test_draft_rejected_with_too_few_risks(monkeypatch):
     db = _FakeDB()
     monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
 
     try:
         _run(qcs.create_draft("ABBV", "x" * 25, VALID_MOAT, VALID_RISKS[:1], "ai_draft:claude-sonnet-5"))
@@ -363,3 +378,119 @@ def test_validate_rejects_invented_future_date():
 def test_validate_accepts_null_dates_as_honest_unknown():
     errors = qcs.validate_qualitative_entries("x" * 25, VALID_MOAT, VALID_RISKS)
     assert errors == []
+
+
+# ── leadership/industry (migration 126) ────────────────────────────────
+
+VALID_LEADERSHIP = {
+    "ceo": {"name": "Sundar Pichai", "role_explanation": "Dirige la empresa.",
+            "source_name": "10-K más reciente", "confidence": "alta"},
+    "capital_allocation": {"fiscal_year": "2025", "capex": 1, "source_name": "Comunicado de resultados"},
+    "decisions": [{"decision": "Aumentar capex en infraestructura.", "outcome": "Crecimiento del segmento de nube.",
+                    "source_name": "Comunicado de resultados"}],
+    "watch": ["Próximo reporte trimestral."],
+}
+
+VALID_INDUSTRY = {
+    "competitors": [{"segment": "Nube", "rivals": ["AWS", "Azure"], "source_name": "Synergy Research"}],
+    "industry_shifts": [{"change": "Adopción de IA.", "what_it_means": "Cambia el comportamiento de búsqueda.",
+                          "effect_on_company": "Impacto incierto.", "is_prediction": True,
+                          "source_name": "Cobertura de prensa"}],
+    "watch": ["Cuota de mercado del próximo trimestre."],
+}
+
+
+def test_validate_leadership_and_industry_none_is_valid_absence():
+    errors = qcs.validate_qualitative_entries("x" * 25, VALID_MOAT, VALID_RISKS, None, None)
+    assert errors == []
+
+
+def test_validate_accepts_real_leadership_and_industry_shape():
+    errors = qcs.validate_qualitative_entries("x" * 25, VALID_MOAT, VALID_RISKS, VALID_LEADERSHIP, VALID_INDUSTRY)
+    assert errors == []
+
+
+def test_validate_rejects_leadership_ceo_without_source():
+    bad = {**VALID_LEADERSHIP, "ceo": {"name": "Sundar Pichai", "role_explanation": "x"}}
+    errors = qcs.validate_qualitative_entries("x" * 25, VALID_MOAT, VALID_RISKS, bad, None)
+    assert any("ceo" in e for e in errors)
+
+
+def test_validate_rejects_leadership_decision_without_source():
+    bad = {**VALID_LEADERSHIP, "decisions": [{"decision": "Aumentar capex."}]}
+    errors = qcs.validate_qualitative_entries("x" * 25, VALID_MOAT, VALID_RISKS, bad, None)
+    assert any("decisions" in e for e in errors)
+
+
+def test_validate_rejects_industry_shift_missing_is_prediction():
+    bad = {**VALID_INDUSTRY, "industry_shifts": [{"change": "x", "what_it_means": "y", "effect_on_company": "z"}]}
+    errors = qcs.validate_qualitative_entries("x" * 25, VALID_MOAT, VALID_RISKS, None, bad)
+    assert any("is_prediction" in e for e in errors)
+
+
+def test_validate_rejects_prescriptive_language_inside_leadership():
+    bad = {**VALID_LEADERSHIP, "ceo": {"name": "X", "role_explanation": "Deberías comprar ahora.",
+                                        "source_name": "x", "confidence": "alta"}}
+    errors = qcs.validate_qualitative_entries("x" * 25, VALID_MOAT, VALID_RISKS, bad, None)
+    assert any("prescriptivo" in e for e in errors)
+
+
+def test_create_draft_persists_leadership_and_industry(monkeypatch):
+    db = _FakeDB()
+    monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
+
+    row = _run(qcs.create_draft(
+        "GOOGL", "x" * 25, VALID_MOAT, VALID_RISKS, "ai_draft:claude-sonnet-5",
+        VALID_LEADERSHIP, VALID_INDUSTRY,
+    ))
+    assert row["leadership"] == VALID_LEADERSHIP
+    assert row["industry"] == VALID_INDUSTRY
+
+
+def test_create_draft_without_leadership_or_industry_still_works(monkeypatch):
+    """A ticker can have real moat/risk content with no leadership/
+    industry research yet — these two fields stay genuinely optional."""
+    db = _FakeDB()
+    monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
+
+    row = _run(qcs.create_draft("JPM", "x" * 25, VALID_MOAT, VALID_RISKS, "ai_draft:claude-sonnet-5"))
+    assert row.get("leadership") is None
+    assert row.get("industry") is None
+
+
+def test_published_content_includes_leadership_and_industry(monkeypatch):
+    db = _FakeDB()
+    db.rows.append({
+        "ticker": "GOOGL", "version": 1, "review_status": "published", "is_current": True,
+        "business_model_summary": "x", "moat": VALID_MOAT, "risks": VALID_RISKS,
+        "leadership": VALID_LEADERSHIP, "industry": VALID_INDUSTRY,
+        "last_updated_at": "2026-11-16T00:00:00Z",
+    })
+    monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
+    _clear_cache()
+
+    result = _run(qcs.get_published_qualitative_content("GOOGL"))
+    assert result["leadership"] == VALID_LEADERSHIP
+    assert result["industry"] == VALID_INDUSTRY
+
+
+def test_published_content_leadership_industry_null_for_rows_predating_migration_126(monkeypatch):
+    """A row inserted before migration 126 (no leadership/industry keys
+    at all) must degrade to None, never raise and never fabricate {}."""
+    db = _FakeDB()
+    db.rows.append({
+        "ticker": "GOOGL", "version": 1, "review_status": "published", "is_current": True,
+        "business_model_summary": "x", "moat": VALID_MOAT, "risks": VALID_RISKS,
+        "last_updated_at": "2026-11-12T00:00:00Z",
+    })
+    monkeypatch.setattr(qcs, "get_supabase", lambda: db)
+    monkeypatch.setattr(qcs, "get_fresh_supabase", lambda: db)
+    _clear_cache()
+
+    result = _run(qcs.get_published_qualitative_content("GOOGL"))
+    assert result is not None
+    assert result["leadership"] is None
+    assert result["industry"] is None

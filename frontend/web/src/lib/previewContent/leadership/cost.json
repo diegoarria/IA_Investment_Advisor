@@ -1,0 +1,75 @@
+{
+  "ticker": "COST",
+  "ceo": {
+    "name": "Ron Vachris",
+    "role_explanation": "Ron Vachris dirige Costco y coordina sus decisiones más importantes — expansión de clubes, precios de membresía, inversión en comercio electrónico.",
+    "since": "1 de enero de 2024 (CEO) — previamente presidente y COO",
+    "source_name": "Wikipedia (resumen biográfico verificable) y firma como Presidente y CEO en el Form 10-Q de Costco de diciembre 2025: https://www.sec.gov/Archives/edgar/data/909832/000090983225000159/cost-20251204.htm",
+    "source_document_date": "2025-12-17",
+    "source_accessed_at": "2026-11-16",
+    "confidence": "alta"
+  },
+  "capital_allocation": {
+    "fiscal_year": "2025 (año fiscal terminado 31-ago-2025)",
+    "capex": 5498000000,
+    "capex_guidance_next_year": "6,000 a 6,500 millones de dólares para el año fiscal 2026 (guía de la administración)",
+    "buybacks": 903000000,
+    "buybacks_shares": 943000,
+    "buybacks_avg_price": 957.66,
+    "buyback_authorization_total": 4000000000,
+    "buyback_authorization_remaining": 1962000000,
+    "buyback_authorization_expires": "enero de 2027",
+    "dividends_paid": 2183000000,
+    "dividends_declared_per_share": 4.92,
+    "dividends_paid_prior_year": 8589000000,
+    "dividends_prior_year_per_share": 19.36,
+    "dividends_prior_year_note": "La cifra de 2024 incluyó un dividendo especial de $15 por acción, no comparable directamente con la de 2025.",
+    "dividend_per_share_quarterly": "$1.30 (tasa trimestral regular actual)",
+    "financing_outflows": 3775000000,
+    "financing_outflows_prior_year": 10764000000,
+    "note": "Costco reinvirtió en el negocio (capex), recompró acciones y pagó dividendos regulares en el año fiscal 2025 — sin un dividendo especial como en 2024, lo que explica la caída aparente en el total de dividendos año contra año.",
+    "source_name": "Costco 10-K FY2025 (SEC EDGAR): https://www.sec.gov/Archives/edgar/data/909832/000090983225000101/cost-20250831.htm",
+    "source_document_date": "2025-10-08",
+    "source_accessed_at": "2026-11-16",
+    "confidence": "alta"
+  },
+  "decisions": [
+    {
+      "decision": "Mantener el aumento regular de dividendo (a $1.30 trimestral) en vez de repetir el dividendo especial de $15/acción pagado en 2024, mientras sube la guía de capex para 2026 a $6,000–6,500 millones.",
+      "outcome": "El financiamiento neto de salida bajó fuertemente de $10,764M (2024, con el dividendo especial) a $3,775M (2025) — una señal de que el año anterior fue atípico, no que Costco esté reduciendo su retorno regular a accionistas.",
+      "uncertainty": "No hay un dato real de si el capex más alto de 2026 ya se tradujo en más clubes abiertos o mejor comercio electrónico — eso solo se podrá verificar con los reportes trimestrales de 2026 según se publiquen.",
+      "source_name": "Costco 10-K FY2025 y 10-Q diciembre 2025 (SEC EDGAR)",
+      "source_document_date": "2025-12-17",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "alta"
+    }
+  ],
+  "incentive_alignment": {
+    "last_confirmed_total_compensation": {
+      "fiscal_year": "2025",
+      "amount_usd": 13932597,
+      "base_salary_usd": 1183270,
+      "stock_awards_usd": 12036800,
+      "non_equity_incentive_usd": 600000,
+      "note": "Compensación total real del año fiscal 2025, confirmada contra la propia tabla resumen del proxy statement de Costco — un 86% del pago es en acciones, no efectivo.",
+      "source_name": "Costco Proxy Statement 2025 (DEF 14A, SEC): https://s201.q4cdn.com/287523651/files/doc_financials/2025/ar/COST-Proxy-2025.pdf",
+      "source_document_date": "2025-12-04",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "alta"
+    },
+    "pay_ratio": {
+      "ceo_to_median_employee": "283 a 1",
+      "median_employee_pay_usd": 49186,
+      "source_name": "Costco Proxy Statement 2025 (DEF 14A, SEC)",
+      "confidence": "alta"
+    },
+    "direct_ownership": null,
+    "direct_ownership_note": "No se pudo confirmar en esta investigación la tenencia accionaria directa de Vachris vía un Formulario 4 específico — queda pendiente de verificación, no se presenta como dato.",
+    "compensation_2025_verified": true
+  },
+  "watch": [
+    "Si el capex más alto de 2026 ($6,000–6,500M de guía) se traduce en más aperturas de clubes o mejoras reales de comercio electrónico.",
+    "Si Costco vuelve a declarar un dividendo especial (como el de 2024) o mantiene solo el dividendo regular.",
+    "El ritmo de recompras bajo la autorización de $4,000M, de la cual queda disponible $1,962M hasta enero de 2027."
+  ]
+}

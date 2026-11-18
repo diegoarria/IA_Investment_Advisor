@@ -11,27 +11,21 @@
 // real data the authenticated ficha uses, just the no-login path. Never
 // fabricated, never hardcoded to one company.
 //
-// Editorial (qualitative) content has TWO distinct sources, and the ticker
-// decides which one applies — never both:
-//   1. The 5 pilot tickers (GOOGL/COST/JPM/NVDA/MCD) still have DRAFT-only
-//      content in Supabase (review_status='draft', never published). For
-//      exactly these 5, this dev route reads a LOCAL, validated JSON
-//      fixture (frontend/web/src/lib/previewContent/<ticker>.json) instead
-//      of calling the real editorial endpoint — so the still-private draft
-//      content is viewable here without ever becoming reachable by a real
-//      user through the public API.
-//   2. Every OTHER ticker goes through the REAL production path:
-//      `qualitativeContentApi.get(ticker)` — backend's public, no-auth
-//      GET /api/qualitative-content/{ticker}, which returns ONLY
-//      published+is_current content, or null (never an error) when none
-//      exists yet. Since nothing is published platform-wide right now,
-//      this correctly returns null for all ~922 non-pilot tickers — the
-//      real, honest, no-editorial-yet state this screen must handle
-//      gracefully (not an error, not a blocked financial ficha).
-// A failure reading EITHER editorial source never blocks the financial
-// diagnostic from rendering — same resilience discipline as the rest of
-// this codebase (screener.py's own "editorial read failure must never
-// block the ficha" rule, mirrored here client-side).
+// Editorial (qualitative) content comes exclusively from the real public
+// production path: `qualitativeContentApi.get(ticker)` — backend's public,
+// no-auth GET /api/qualitative-content/{ticker}, which returns ONLY
+// published+is_current content (business_model_summary/moat/risks/
+// leadership/industry together, since migration 126 added the latter two
+// as columns on the same row), or null (never an error) when none exists
+// yet. Diego, 2026-11-17: the 5 pilots (GOOGL/COST/JPM/NVDA/MCD) are now
+// genuinely published — the earlier local-fixture special case for them
+// was removed, so this route no longer distinguishes "pilot" from
+// "regular" ticker. A failure reading this endpoint never blocks the
+// financial diagnostic from rendering — same resilience discipline as the
+// rest of this codebase (screener.py's own "editorial read failure must
+// never block the ficha" rule, mirrored here client-side). Local fixtures
+// remain in previewContent/*.json for tests/explicit dev use only — never
+// auto-loaded by this routing logic anymore.
 
 import { use, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -40,30 +34,29 @@ import { screenerApi, qualitativeContentApi } from "@/lib/api";
 import { isFullDiagnostic, type CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 import { ResumenPreview, type QualitativeContentDraft } from "@/components/subvaluadas/ResumenPreview";
 import { DegradedTickerCard } from "@/components/subvaluadas/DegradedTickerCard";
+import msftDraft from "@/lib/previewContent/msft.json";
+import amznDraft from "@/lib/previewContent/amzn.json";
+import vDraft from "@/lib/previewContent/v.json";
+import metaDraft from "@/lib/previewContent/meta.json";
+import meliDraft from "@/lib/previewContent/meli.json";
+import msftLeadership from "@/lib/previewContent/leadership/msft.json";
+import amznLeadership from "@/lib/previewContent/leadership/amzn.json";
+import vLeadership from "@/lib/previewContent/leadership/v.json";
+import metaLeadership from "@/lib/previewContent/leadership/meta.json";
+import meliLeadership from "@/lib/previewContent/leadership/meli.json";
+import msftIndustry from "@/lib/previewContent/industry/msft.json";
+import amznIndustry from "@/lib/previewContent/industry/amzn.json";
+import vIndustry from "@/lib/previewContent/industry/v.json";
+import metaIndustry from "@/lib/previewContent/industry/meta.json";
+import meliIndustry from "@/lib/previewContent/industry/meli.json";
 
-// Exactly the 5 pilot tickers whose editorial content is still a private
-// draft — everyone else goes through the real public endpoint. Keeping this
-// list here (route-level, dev-only) rather than inside ResumenPreview itself
-// keeps the reusable component free of any ticker-specific branching.
-const _LOCAL_DRAFT_TICKERS: Record<string, () => Promise<{ default: QualitativeContentDraft }>> = {
-  GOOGL: () => import("@/lib/previewContent/googl_v3.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  COST: () => import("@/lib/previewContent/cost.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  JPM: () => import("@/lib/previewContent/jpm.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  NVDA: () => import("@/lib/previewContent/nvda.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  MCD: () => import("@/lib/previewContent/mcd.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-};
-
-// Diego, 2026-11-15 ("resumas todo lo que contienen las 6 fases"): the new
-// journey-teaser grid on Resumen reuses Fase 3/4's own real research
-// fixtures for 2 of its 6 tiles — same loader pattern, same GOOGL-only
-// availability as those phases themselves (never a fabricated teaser for
-// any other ticker).
-const _LOCAL_LEADERSHIP_TICKERS: Record<string, () => Promise<{ default: unknown }>> = {
-  GOOGL: () => import("@/lib/previewContent/leadership/googl.json"),
-};
-const _LOCAL_INDUSTRY_TICKERS: Record<string, () => Promise<{ default: unknown }>> = {
-  GOOGL: () => import("@/lib/previewContent/industry/googl.json"),
-};
+// Cohorte 2 (2026-11-17): real researched content, not yet written to
+// Supabase — same two-stage local-preview pattern the first cohort used
+// before publication. Does not affect how the first cohort or any other
+// ticker is served (those always hit the real endpoint, unchanged).
+const COHORTE_2_LOCAL: Record<string, { business_model_summary?: string; moat?: unknown[]; risks?: unknown[] }> = { MSFT: msftDraft, AMZN: amznDraft, V: vDraft, META: metaDraft, MELI: meliDraft };
+const COHORTE_2_LEADERSHIP: Record<string, unknown> = { MSFT: msftLeadership, AMZN: amznLeadership, V: vLeadership, META: metaLeadership, MELI: meliLeadership };
+const COHORTE_2_INDUSTRY: Record<string, unknown> = { MSFT: msftIndustry, AMZN: amznIndustry, V: vIndustry, META: metaIndustry, MELI: meliIndustry };
 
 export default function ResumenPreviewPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker: rawTicker } = use(params);
@@ -72,7 +65,6 @@ export default function ResumenPreviewPage({ params }: { params: Promise<{ ticke
   const [data, setData] = useState<CompanyDiagnosticData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editorial, setEditorial] = useState<QualitativeContentDraft | null>(null);
-  const [editorialSource, setEditorialSource] = useState<"local-draft" | "public" | null>(null);
   const [leadership, setLeadership] = useState<unknown | null>(null);
   const [industry, setIndustry] = useState<unknown | null>(null);
 
@@ -81,7 +73,6 @@ export default function ResumenPreviewPage({ params }: { params: Promise<{ ticke
     setData(null);
     setError(null);
     setEditorial(null);
-    setEditorialSource(null);
     setLeadership(null);
     setIndustry(null);
 
@@ -94,62 +85,43 @@ export default function ResumenPreviewPage({ params }: { params: Promise<{ ticke
         if (!cancelled) setError(`No se pudo cargar el diagnóstico financiero real de ${ticker}.`);
       });
 
-    const localLoader = _LOCAL_DRAFT_TICKERS[ticker];
-    if (localLoader) {
-      localLoader()
-        .then((mod) => {
-          if (!cancelled) {
-            setEditorial(mod.default);
-            setEditorialSource("local-draft");
-          }
-        })
-        .catch(() => {
-          /* Editorial read failure never blocks the financial ficha. */
-        });
+    const local = COHORTE_2_LOCAL[ticker];
+    if (local) {
+      setEditorial({
+        ticker,
+        review_status: "draft",
+        is_current: false,
+        business_model_summary: local.business_model_summary ?? "",
+        moat: (local.moat ?? []) as QualitativeContentDraft["moat"],
+        risks: (local.risks ?? []) as QualitativeContentDraft["risks"],
+      });
+      const localLeadership = COHORTE_2_LEADERSHIP[ticker];
+      const localIndustry = COHORTE_2_INDUSTRY[ticker];
+      if (localLeadership) setLeadership(localLeadership);
+      if (localIndustry) setIndustry(localIndustry);
     } else {
       qualitativeContentApi
         .get(ticker)
         .then((res) => {
           if (cancelled) return;
-          const body = res.data;
+          const body = res.data as { business_model_summary?: string; moat?: unknown[]; risks?: unknown[]; leadership?: unknown; industry?: unknown } | null;
           if (body) {
             setEditorial({
               ticker,
               review_status: "published",
               is_current: true,
               business_model_summary: body.business_model_summary ?? "",
-              moat: body.moat ?? [],
-              risks: body.risks ?? [],
+              moat: (body.moat ?? []) as QualitativeContentDraft["moat"],
+              risks: (body.risks ?? []) as QualitativeContentDraft["risks"],
             });
-            setEditorialSource("public");
+            if (body.leadership) setLeadership(body.leadership);
+            if (body.industry) setIndustry(body.industry);
           }
         })
         .catch(() => {
-          /* Editorial read failure never blocks the financial ficha — this
-             is the real-world normal case today (925 of 927 tickers have
-             no published editorial yet), not an error. */
-        });
-    }
-
-    const leadershipLoader = _LOCAL_LEADERSHIP_TICKERS[ticker];
-    if (leadershipLoader) {
-      leadershipLoader()
-        .then((mod) => {
-          if (!cancelled) setLeadership(mod.default);
-        })
-        .catch(() => {
-          /* No leadership research yet for this ticker — the teaser tile falls back to its generic copy. */
-        });
-    }
-
-    const industryLoader = _LOCAL_INDUSTRY_TICKERS[ticker];
-    if (industryLoader) {
-      industryLoader()
-        .then((mod) => {
-          if (!cancelled) setIndustry(mod.default);
-        })
-        .catch(() => {
-          /* No industry research yet for this ticker — the teaser tile falls back to its generic copy. */
+          /* Editorial read failure never blocks the financial ficha — the
+             real-world normal case for any ticker without a published
+             editorial version yet. */
         });
     }
 
@@ -162,7 +134,7 @@ export default function ResumenPreviewPage({ params }: { params: Promise<{ ticke
     <div className="h-screen overflow-y-auto px-4 py-8" style={{ background: "var(--bg)" }}>
       <div className="max-w-[1180px] mx-auto mb-4 text-center">
         <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-          Prototipo interno — Nuevo Resumen de Nuvos Radar{editorialSource === "local-draft" ? " (vista previa de borrador local)" : ""}
+          Prototipo interno — Nuevo Resumen de Nuvos Radar
         </p>
       </div>
       {error && <p className="text-center text-sm" style={{ color: "#ef4444" }}>{error}</p>}

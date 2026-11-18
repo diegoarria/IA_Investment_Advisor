@@ -1,0 +1,57 @@
+{
+  "ticker": "META",
+  "review_status": "draft",
+  "is_current": false,
+  "updated_by": "ai_draft:claude-sonnet-5",
+  "business_model_summary": "Meta Platforms gana dinero casi en su totalidad vendiendo espacio publicitario en sus aplicaciones (Facebook, Instagram, WhatsApp y Messenger — agrupadas como 'Family of Apps'). Un segmento separado, Reality Labs, desarrolla hardware y software de realidad virtual y aumentada (como los cascos Meta Quest), y reporta pérdidas operativas grandes y consistentes — es una apuesta de largo plazo, no un negocio rentable todavía. En 2025 (año calendario), los ingresos totales fueron de aproximadamente $200,970 millones (+22% interanual).",
+  "moat": [
+    {
+      "type": "network_effect",
+      "explanation": "Miles de millones de personas usan Facebook, Instagram o WhatsApp para mantenerse conectadas con las mismas personas que ya están ahí — cuantos más amigos y familiares usan una de estas apps, más valiosa se vuelve para cada usuario individual, lo que hace extremadamente difícil para un competidor nuevo replicar esa red social desde cero.",
+      "evidence": "Meta reportó ingresos de $200,970 millones en 2025, generados en su gran mayoría por publicidad dentro de su familia de aplicaciones.",
+      "weakening_factors": "Plataformas como TikTok compiten directamente por el tiempo de atención de los usuarios (aunque no necesariamente por la misma función de 'mantenerse conectado con amigos reales'), lo que podría erosionar el tiempo total que la gente pasa en las apps de Meta.",
+      "source_name": "Comunicado de resultados Q4/año completo 2025 de Meta: https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Fourth-Quarter-and-Full-Year-2025-Results/",
+      "source_document_date": "2026-01-29",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "alta"
+    }
+  ],
+  "risks": [
+    {
+      "category": "rentabilidad",
+      "fact_type": "hecho",
+      "explanation": "Reality Labs, el segmento de realidad virtual y aumentada de Meta, sigue generando pérdidas operativas muy grandes — aproximadamente $19,190 millones en 2025 — sin que el segmento se acerque todavía a la rentabilidad.",
+      "evidence": "El reporte de resultados del año completo 2025 de Meta documenta esta pérdida operativa de Reality Labs, financiada en su totalidad por la rentabilidad del negocio publicitario de Family of Apps.",
+      "watch_indicator": "Si la pérdida operativa de Reality Labs se reduce, se mantiene estable o sigue creciendo en los próximos años, y si la compañía da alguna señal de un camino hacia la rentabilidad del segmento.",
+      "uncertainty": "La cifra exacta de ingresos de Reality Labs ($2,210 millones aproximados) y su pérdida operativa provienen de cobertura financiera secundaria, no verificadas directamente contra el 10-K en esta ronda.",
+      "source_name": "Cobertura financiera de resultados FY2025 de Meta (cifras de Reality Labs no verificadas directamente contra el 10-K)",
+      "source_document_date": "2026-01-29",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    },
+    {
+      "category": "rentabilidad",
+      "fact_type": "hecho",
+      "explanation": "Meta está aumentando fuertemente su inversión de capital (capex) para infraestructura de inteligencia artificial — aproximadamente $72,200 millones en 2025 (+84% interanual), con una guía para 2026 de entre $115,000 y $135,000 millones.",
+      "evidence": "Meta citó explícitamente 'Meta Superintelligence Labs' e infraestructura central como las razones detrás de esta guía de capex para 2026.",
+      "watch_indicator": "Si el crecimiento de ingresos publicitarios justifica este nivel de inversión, y cómo evoluciona el margen operativo consolidado de la compañía a medida que sube la depreciación de esta infraestructura.",
+      "uncertainty": "La cifra exacta de capex 2025 proviene de cobertura financiera secundaria, no verificada directamente contra el 10-K en esta ronda.",
+      "source_name": "Cobertura financiera de la guía de capex 2026 de Meta",
+      "source_document_date": "2026-01-29",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    },
+    {
+      "category": "regulacion",
+      "fact_type": "interpretacion",
+      "explanation": "Meta enfrenta escrutinio regulatorio activo en la Unión Europea (bajo la Ley de Mercados Digitales) y ha enfrentado litigios antimonopolio en Estados Unidos relacionados con sus adquisiciones pasadas de Instagram y WhatsApp.",
+      "evidence": "Estos son hechos públicos conocidos sobre el entorno regulatorio de Meta — no se verificó en esta ronda el estado procesal más reciente de ningún caso específico ni una fecha de resolución.",
+      "watch_indicator": "Cualquier resolución, sanción o cambio regulatorio nuevo proveniente de la UE o de reguladores estadounidenses.",
+      "uncertainty": "No se confirmó el estado procesal exacto (noviembre de 2026) de ningún litigio específico en esta ronda de investigación.",
+      "source_name": "Hecho público ampliamente conocido sobre el entorno regulatorio de Meta — estado procesal actual no verificado en esta ronda",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "baja"
+    }
+  ]
+}

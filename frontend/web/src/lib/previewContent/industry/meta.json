@@ -1,0 +1,57 @@
+{
+  "ticker": "META",
+  "competitors": [
+    {
+      "segment": "Publicidad digital / atención del usuario",
+      "rivals": [
+        "TikTok",
+        "Google (YouTube)",
+        "Snap"
+      ],
+      "note": "Meta compite por el mismo tiempo de atención de los usuarios y los mismos presupuestos publicitarios de las marcas, especialmente contra TikTok en formatos de video corto.",
+      "source_name": "Cobertura general del mercado de publicidad digital y redes sociales",
+      "confidence": "media"
+    },
+    {
+      "segment": "Realidad virtual/aumentada",
+      "rivals": [
+        "Apple (Vision Pro)",
+        "Otros fabricantes de hardware de RV/RA"
+      ],
+      "note": "Meta Quest compite en un mercado de hardware de realidad virtual todavía pequeño en términos de adopción masiva frente al resto del negocio de la compañía.",
+      "source_name": "Cobertura general del mercado de hardware de realidad virtual",
+      "confidence": "media"
+    }
+  ],
+  "market_growth": {
+    "advertising": {
+      "finding": "El gasto publicitario digital mundial sigue creciendo, aunque las estimaciones de distintas firmas de analistas varían considerablemente según cómo definen 'gasto publicitario' — esta es la misma dispersión de fuentes ya documentada para Alphabet, un competidor directo por los mismos presupuestos publicitarios.",
+      "figure_note": "No se verificó en esta ronda una cifra específica y única para el mercado publicitario digital 2026 — se reutiliza honestamente la misma advertencia de dispersión de fuentes ya confirmada para GOOGL en vez de presentar una cifra no verificada como limpia.",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "baja"
+    }
+  },
+  "competitive_strength": [
+    {
+      "vs": "TikTok",
+      "note": "Meta reportó un crecimiento real de ingresos de 22% en 2025, lo que sugiere que mantiene una posición publicitaria sólida a pesar de la competencia de TikTok por atención — pero no existe una cifra oficial de cuota de mercado comparada directamente entre ambas plataformas.",
+      "source_name": "Comunicado de resultados FY2025 de Meta",
+      "confidence": "media"
+    }
+  ],
+  "industry_shifts": [
+    {
+      "change": "Inversión masiva de la industria tecnológica en infraestructura de inteligencia artificial, incluyendo el propio anuncio de capex de Meta para 2026.",
+      "what_it_means": "Las grandes tecnológicas están apostando a que la IA mejorará sus productos principales (como la selección de anuncios) y abrirá nuevas líneas de negocio.",
+      "effect_on_company": "Meta guió un capex de $115,000-$135,000 millones para 2026, un salto muy grande frente a 2025 — el resultado de esta apuesta todavía no está confirmado en resultados financieros futuros.",
+      "fact_type": "interpretacion",
+      "confidence": "media",
+      "is_prediction": true
+    }
+  ],
+  "watch": [
+    "Evolución del tiempo de atención de usuarios en las apps de Meta frente a TikTok.",
+    "Si el capex de IA guiado para 2026 se traduce en mejoras medibles de ingresos publicitarios."
+  ]
+}

@@ -63,8 +63,15 @@ interface IndustryContent {
     confidence: "alta" | "media" | "baja";
   }[];
   market_growth: {
-    cloud: { finding: string; figure_note: string; source_document_date: string | null; source_accessed_at: string; confidence: "alta" | "media" | "baja" };
-    advertising: { finding: string; figure_note: string; source_document_date: string | null; source_accessed_at: string; confidence: "alta" | "media" | "baja" };
+    // Generic by design — a company's real market-growth findings vary in
+    // count/topic (GOOGL has 2: cloud + advertising; others may have 1 or
+    // 0 when no real sourceable figure was found this round). Never a
+    // fixed cloud/advertising shape forced onto every ticker.
+    findings?: { label: string; finding: string; figure_note: string; source_document_date: string | null; source_accessed_at: string; confidence: "alta" | "media" | "baja" }[];
+    // Legacy GOOGL shape, still read if `findings` is absent.
+    cloud?: { finding: string; figure_note: string; source_document_date: string | null; source_accessed_at: string; confidence: "alta" | "media" | "baja" };
+    advertising?: { finding: string; figure_note: string; source_document_date: string | null; source_accessed_at: string; confidence: "alta" | "media" | "baja" };
+    note?: string;
     distinction_note: string;
   };
   competitive_strength: {
@@ -77,7 +84,9 @@ interface IndustryContent {
   industry_shifts: {
     change: string;
     what_it_means: string;
-    effect_on_googl: string;
+    // Generic field name — this content applies to whatever ticker the
+    // fixture is for, never hardcoded to GOOGL.
+    effect_on_company: string;
     is_prediction: boolean;
     source_name: string;
     confidence: "alta" | "media" | "baja";
@@ -241,31 +250,46 @@ export function EntenderIndustriaPreview({
             }
           />
 
-          {/* B. ¿Está creciendo su mercado? */}
-          <Nivel1Block
-            icon={<BarChart3 className="w-4 h-4" style={{ color: BLOCK_BLUE }} />}
-            iconColor={BLOCK_BLUE}
-            title="¿Está creciendo su mercado?"
-            idea={industry.market_growth.cloud.finding}
-            visual={
-              <div className="rounded-2xl p-3.5" style={{ background: "rgba(91,155,213,0.08)", border: "1px solid rgba(91,155,213,0.3)" }}>
-                <p className="text-[12px] font-black uppercase tracking-wide mb-1" style={{ color: BLOCK_BLUE }}>Importante</p>
-                <p className="text-[12.5px] leading-5" style={{ color: "var(--text)" }}>{industry.market_growth.distinction_note}</p>
-              </div>
-            }
-            expand={
-              <div className="space-y-3">
-                <div>
-                  <p className="text-[13px] font-bold mb-1" style={{ color: "var(--sub)" }}>Mercado de nube</p>
-                  <p className="text-[13.5px] leading-5" style={{ color: "var(--sub)" }}>{industry.market_growth.cloud.figure_note}</p>
-                </div>
-                <div>
-                  <p className="text-[13px] font-bold mb-1" style={{ color: "var(--sub)" }}>Mercado publicitario</p>
-                  <p className="text-[13.5px] leading-5" style={{ color: "var(--sub)" }}>{industry.market_growth.advertising.figure_note}</p>
-                </div>
-              </div>
-            }
-          />
+          {/* B. ¿Está creciendo su mercado? — `findings` is generic (any
+             number of real market-growth findings); GOOGL's legacy
+             `cloud`/`advertising` shape is normalized into the same list
+             so the render never special-cases a ticker. */}
+          {(() => {
+            const mg = industry.market_growth;
+            const findings =
+              mg.findings ??
+              [
+                mg.cloud ? { label: "Mercado de nube", ...mg.cloud } : null,
+                mg.advertising ? { label: "Mercado publicitario", ...mg.advertising } : null,
+              ].filter((f): f is NonNullable<typeof f> => f != null);
+            const lead = findings[0];
+            if (!lead) return null;
+            return (
+              <Nivel1Block
+                icon={<BarChart3 className="w-4 h-4" style={{ color: BLOCK_BLUE }} />}
+                iconColor={BLOCK_BLUE}
+                title="¿Está creciendo su mercado?"
+                idea={lead.finding}
+                visual={
+                  <div className="rounded-2xl p-3.5" style={{ background: "rgba(91,155,213,0.08)", border: "1px solid rgba(91,155,213,0.3)" }}>
+                    <p className="text-[12px] font-black uppercase tracking-wide mb-1" style={{ color: BLOCK_BLUE }}>Importante</p>
+                    <p className="text-[12.5px] leading-5" style={{ color: "var(--text)" }}>{mg.distinction_note}</p>
+                  </div>
+                }
+                expand={
+                  <div className="space-y-3">
+                    {mg.note && <p className="text-[13.5px] leading-5" style={{ color: "var(--sub)" }}>{mg.note}</p>}
+                    {findings.map((f) => (
+                      <div key={f.label}>
+                        <p className="text-[13px] font-bold mb-1" style={{ color: "var(--sub)" }}>{f.label}</p>
+                        <p className="text-[13.5px] leading-5" style={{ color: "var(--sub)" }}>{f.figure_note}</p>
+                      </div>
+                    ))}
+                  </div>
+                }
+              />
+            );
+          })()}
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 items-stretch">
@@ -300,14 +324,14 @@ export function EntenderIndustriaPreview({
               iconColor={BLOCK_STEEL}
               title="¿Qué podría cambiar su industria?"
               idea={shift.is_prediction ? "Esto es un cambio en desarrollo — no una certeza ya confirmada." : "Esto ya es un hecho, no una hipótesis futura."}
-              visual={<ChangeEffectSteps change={shift.change} meaning={shift.what_it_means} effect={shift.effect_on_googl} />}
+              visual={<ChangeEffectSteps change={shift.change} meaning={shift.what_it_means} effect={shift.effect_on_company} />}
               expand={
                 <div className="space-y-2">
                   <SourceLinks raw={shift.source_name} />
                   {industry.industry_shifts[1] && (
                     <div className="pt-3" style={{ borderTop: "1px solid var(--border)" }}>
                       <p className="text-[13.5px] leading-5 font-semibold" style={{ color: "var(--text)" }}>{industry.industry_shifts[1].change}</p>
-                      <p className="text-[13px] leading-5 mt-1" style={{ color: "var(--sub)" }}>{industry.industry_shifts[1].effect_on_googl}</p>
+                      <p className="text-[13px] leading-5 mt-1" style={{ color: "var(--sub)" }}>{industry.industry_shifts[1].effect_on_company}</p>
                       <SourceLinks raw={industry.industry_shifts[1].source_name} />
                     </div>
                   )}

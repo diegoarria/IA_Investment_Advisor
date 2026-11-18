@@ -1,0 +1,57 @@
+{
+  "ticker": "MCD",
+  "competitors": [
+    {
+      "segment": "Hamburguesas rápidas",
+      "rivals": ["Burger King (Restaurant Brands International)", "Wendy's"],
+      "note": "Son los rivales directos más comparables en el mismo tipo de comida — hamburguesas de servicio rápido.",
+      "source_name": "Reportes de ventas por cadena de comida rápida (fuentes secundarias, no filings directos)",
+      "confidence": "media"
+    },
+    {
+      "segment": "Comida rápida en general (franquicias múltiples)",
+      "rivals": ["Yum! Brands (KFC, Taco Bell, Pizza Hut)", "Chipotle Mexican Grill"],
+      "note": "Compiten por el mismo gasto de consumidor en comida rápida/casual, aunque no venden el mismo tipo de comida que McDonald's.",
+      "source_name": "Reportes de mercado de comida rápida (fuentes secundarias)",
+      "confidence": "media"
+    },
+    {
+      "segment": "Retadores regionales con percepción de consumidor en alza",
+      "rivals": ["Chick-fil-A", "Raising Cane's", "Whataburger"],
+      "note": "Una encuesta de consumidores de 2026 ubica a Chick-fil-A como el que mejor convierte conocimiento de marca en preferencia real, aunque sigue siendo más pequeño en escala que McDonald's.",
+      "source_name": "Encuesta de consumidores de comida rápida en EE.UU., 2026: https://conjointly.com/blog/fast-food-chains-us-three-waves-2026/",
+      "confidence": "media"
+    }
+  ],
+  "market_growth": {
+    "note": "Las estimaciones de cuota de mercado de McDonald's varían ampliamente según la fuente y cómo definen el mercado (global vs. EE.UU., ingresos vs. ventas vs. percepción de consumidor) — van de ~7% a ~22% de cuota global según la fuente. Esta dispersión es real y no se puede resolver con una sola cifra confiable sin acceso a un reporte de mercado pagado y auditado.",
+    "source_document_date": "2026",
+    "source_accessed_at": "2026-11-16",
+    "confidence": "baja",
+    "distinction_note": "Que el mercado de comida rápida crezca en general no es lo mismo que McDonald's esté ganando una porción más grande de ese crecimiento — esta investigación no encontró una cifra confiable y separada para distinguir ambas cosas."
+  },
+  "competitive_strength": [
+    {
+      "rival": "Burger King, Taco Bell (percepción de consumidor)",
+      "evidence": "En una encuesta de 2026, McDonald's lideró el embudo completo de conocimiento-consideración-compra-preferencia de marca frente a todos sus rivales en EE.UU., incluyendo Burger King y Taco Bell como los retadores más cercanos.",
+      "caveat": "Esta es una medida de percepción de consumidor, no de cuota de mercado por ventas o ingresos — ambas cosas pueden diferir.",
+      "source_name": "Encuesta de consumidores de comida rápida en EE.UU., 2026: https://conjointly.com/blog/fast-food-chains-us-three-waves-2026/",
+      "confidence": "media"
+    }
+  ],
+  "industry_shifts": [
+    {
+      "change": "Retadores regionales en alza (Chick-fil-A, Raising Cane's, Whataburger, Jollibee) ganando terreno en percepción de consumidor, aunque siguen siendo más pequeños en escala.",
+      "what_it_means": "El liderazgo de McDonald's en escala global no significa que esté exento de presión competitiva en mercados específicos o segmentos de consumidor más jóvenes.",
+      "effect_on_company": "No hay en esta investigación una cifra que cuantifique cuánta participación de mercado específica le han quitado estos retadores a McDonald's — es una tendencia observada, no un impacto medido.",
+      "is_prediction": true,
+      "source_name": "Análisis inmobiliario/de mercado sobre retadores regionales de comida rápida",
+      "confidence": "baja"
+    }
+  ],
+  "watch": [
+    "Si los retadores regionales (Chick-fil-A, Raising Cane's) siguen ganando terreno en percepción de consumidor en EE.UU.",
+    "El ritmo de recompras de McDonald's bajo su autorización de $15,000M (usó solo $2,000M en 2025).",
+    "La diferencia entre el crecimiento de ventas del sistema (incluyendo franquiciados) y el crecimiento de ingresos propios de la compañía."
+  ]
+}

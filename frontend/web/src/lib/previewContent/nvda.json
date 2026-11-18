@@ -8,11 +8,11 @@
     {
       "type": "switching_costs",
       "explanation": "CUDA es la plataforma de software propietaria de NVIDIA para programar sus chips en aplicaciones de inteligencia artificial y computación científica. Miles de aplicaciones, librerías y equipos de investigación construyeron su código específicamente sobre CUDA durante más de una década. Esto hace que migrar a un competidor sea costoso en tiempo de ingeniería y reescritura de código, incluso si el hardware de ese competidor fuera técnicamente competitivo en precio o rendimiento.",
-      "evidence": "CUDA lleva en desarrollo público desde 2007 (hecho histórico verificable). Su estatus como estándar de facto en la industria de inteligencia artificial/aprendizaje automático es un consenso ampliamente documentado en publicaciones académicas y reportes de analistas de semiconductores.",
+      "evidence": "CUDA lleva en desarrollo público desde 2007 (hecho histórico verificable). Su estatus como estándar de facto en la industria de inteligencia artificial/aprendizaje automático es un consenso ampliamente documentado en publicaciones académicas y reportes de analistas de semiconductores. En su 10-Q del segundo trimestre del año fiscal 2027 (período cerrado el 26 de julio de 2026), NVIDIA reportó ingresos del segmento de centros de datos de $89.02 mil millones en ese trimestre, el motor principal del negocio que este ecosistema de software sostiene.",
       "weakening_factors": "Adopción masiva de alternativas abiertas (como ROCm de AMD, u otros marcos de software que no dependen de un solo fabricante) si logran un rendimiento suficientemente competitivo. Presión regulatoria antimonopolio sobre el bloqueo de ecosistema de software.",
-      "source_name": "Lanzamiento de CUDA (2007, hecho histórico verificable); consenso de adopción documentado en papers académicos y reportes de analistas de semiconductores",
-      "source_document_date": null,
-      "source_accessed_at": null,
+      "source_name": "10-Q de NVIDIA, Q2 FY2027 (SEC EDGAR, período 2026-07-26): https://www.sec.gov/Archives/edgar/data/0001045810/000104581026000075/nvda-20260726.htm ; consenso de adopción de CUDA documentado en papers académicos y reportes de analistas de semiconductores",
+      "source_document_date": "2026-07-26",
+      "source_accessed_at": "2026-11-16",
       "confidence": "alta"
     }
   ],
@@ -20,37 +20,37 @@
     {
       "category": "concentracion_clientes",
       "fact_type": "hecho",
-      "explanation": "Una porción muy concentrada de los ingresos de NVIDIA proviene de un número reducido de clientes grandes (las principales empresas de computación en la nube, conocidas como 'hyperscalers').",
-      "evidence": "NVIDIA divulga la concentración de ingresos por cliente en su reporte anual (10-K), como es obligatorio para empresas públicas cuando esa concentración es material.",
-      "watch_indicator": "Cambios en los anuncios de gasto de capital (capex) que estos clientes grandes hacen públicamente, ya que afecta directamente la demanda de chips de NVIDIA.",
-      "uncertainty": "La concentración por sí sola no implica que vaya a reducirse pronto, pero sí significa que la pérdida o reducción de compras de un solo cliente grande tendría un impacto material.",
-      "source_name": "10-K de NVIDIA (divulgación de concentración de clientes)",
-      "source_document_date": null,
-      "source_accessed_at": null,
+      "explanation": "Una porción concentrada de las cuentas por cobrar de NVIDIA proviene de un número reducido de clientes grandes. Esto es distinto de — y no debe confundirse con — la concentración de ingresos: el 10-Q divulga concentración de cuentas por cobrar, no necesariamente en la misma proporción exacta que la concentración de ingresos del período.",
+      "evidence": "Verificado directamente contra el texto del 10-Q del segundo trimestre del año fiscal 2027 (período cerrado el 26 de julio de 2026): 'Five direct customers accounted for 22%, 14%, 13%, 11%, and 10% of our accounts receivable balance as of July 26, 2026.' Al cierre del año fiscal anterior, tres clientes concentraban 25%, 18% y 13% de las cuentas por cobrar — es decir, la concentración disminuyó algo en número de clientes dominantes pero sigue siendo alta en términos absolutos (cinco clientes suman 70% de las cuentas por cobrar).",
+      "watch_indicator": "Cambios en los anuncios de gasto de capital (capex) que estos clientes grandes hacen públicamente, ya que afecta directamente la demanda de chips de NVIDIA; la evolución de esta concentración en futuros reportes trimestrales.",
+      "uncertainty": "La concentración de cuentas por cobrar no es necesariamente idéntica a la concentración de ingresos del mismo período — el 10-Q no vincula ambas cifras directamente en el texto que pude verificar, así que esta entrada describe específicamente cuentas por cobrar, no ingresos totales.",
+      "source_name": "10-K/10-Q de NVIDIA, verificado directamente (Q2 FY2027, SEC EDGAR, accession visible en la URL): https://www.sec.gov/Archives/edgar/data/0001045810/000104581026000075/nvda-20260726.htm",
+      "source_document_date": "2026-07-26",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "alta"
+    },
+    {
+      "category": "regulacion",
+      "fact_type": "hecho",
+      "explanation": "A diferencia de un escenario hipotético futuro, las restricciones de exportación hacia China ya están materializadas y afectando los resultados actuales: el propio 10-Q de NVIDIA indica que la empresa está efectivamente excluida de competir en el mercado de cómputo de centros de datos en China bajo las reglas y el panorama geopolítico vigentes, aunque sí puede seguir enviando productos no controlados (como GPUs de videojuegos/estaciones de trabajo) a ese mercado. Los clientes con sede en China representaron aproximadamente 8% de los ingresos del trimestre cerrado en julio de 2026, y los envíos de chips H200 (con licencia) a China fueron menos del 1% de los ingresos del segmento de centros de datos en ese mismo trimestre.",
+      "evidence": "Verificado directamente contra el texto del 10-Q: la empresa declara que, bajo las reglas y el panorama geopolítico actuales, no puede construir un producto de centro de datos que obtenga aprobación tanto del gobierno de EE.UU. como de Beijing. La guía de ingresos de NVIDIA para el tercer trimestre del año fiscal 2027 (~$108.0 mil millones) excluye explícitamente cómputo de centros de datos para China. El propio documento menciona además que China tiene un 'Plan de Acción' con estándares de eficiencia para aceleradores en nuevos centros de datos que, de reabrirse el acceso, podría igualmente bloquear productos de NVIDIA si no los cumplen, y que el gobierno chino ha alentado a sus clientes a comprar de competidores locales.",
+      "watch_indicator": "Cualquier cambio en la política de controles de exportación de EE.UU. hacia semiconductores avanzados de IA; resultado de la cumbre comercial EE.UU.-China mencionada en cobertura de prensa (24 de septiembre de 2026) y si eventualmente se permiten ventas de cómputo de centro de datos a China; evolución del porcentaje de ingresos atribuible a clientes con sede en China.",
+      "uncertainty": "No hay certeza sobre si estas restricciones se ampliarán, se mantendrán igual, o se relajarán en el futuro — existe cobertura de prensa (no verificada de forma independiente por esta investigación) sobre posibles cambios ligados a negociaciones comerciales entre EE.UU. y China, que se trata aquí con cautela, no como hecho confirmado.",
+      "source_name": "10-Q de NVIDIA, Q2 FY2027 (SEC EDGAR, verificado directamente): https://www.sec.gov/Archives/edgar/data/0001045810/000104581026000075/nvda-20260726.htm ; cobertura de la guía de ingresos y exclusión de China: https://fourweekmba.com/ai-nvidia-tells-data-centre-clients-to-cut-their-china-exposure/ ; cumbre comercial del 24-sep-2026: https://www.fool.com/investing/2026/09/21/nvidia-s-forecast-assumes-no-data-center-chip-sales-to-china-the-sept-24-u-s-china-summit-could-change-that/",
+      "source_document_date": "2026-07-26",
+      "source_accessed_at": "2026-11-16",
       "confidence": "alta"
     },
     {
       "category": "competencia",
       "fact_type": "interpretacion",
-      "explanation": "Varios de los principales clientes de NVIDIA han anunciado públicamente que están desarrollando sus propios chips de inteligencia artificial internamente. Si estos esfuerzos maduran, la dependencia de esos clientes hacia los chips de NVIDIA podría reducirse con el tiempo.",
-      "evidence": "Estos anuncios de desarrollo de chips propios por parte de grandes clientes son públicos y verificables.",
-      "watch_indicator": "Actualizaciones de estos clientes sobre el progreso y despliegue real (no solo el anuncio) de sus propios chips de IA en producción.",
-      "uncertainty": "Un anuncio de desarrollo no garantiza que el chip resultante sea competitivo en rendimiento, ni que reemplace completamente la compra de chips de NVIDIA — es una lectura razonable de una tendencia, no un hecho consumado hoy.",
-      "source_name": "Anuncios públicos de clientes de NVIDIA sobre desarrollo interno de chips de IA",
+      "explanation": "Varios de los principales clientes de NVIDIA (grandes empresas de computación en la nube) han anunciado públicamente que están desarrollando sus propios chips de inteligencia artificial internamente (silicio personalizado). Si estos esfuerzos maduran, la dependencia de esos clientes hacia los chips de NVIDIA podría reducirse con el tiempo — aunque esto es una expectativa a futuro, no un resultado ya confirmado en las cifras de ingresos actuales de NVIDIA, que siguen creciendo con fuerza.",
+      "evidence": "Estos anuncios de desarrollo de chips propios por parte de grandes clientes son públicos y verificables (es ampliamente conocido que varias de las principales empresas de cómputo en la nube tienen programas de silicio personalizado en distintas etapas de madurez). No encontré, en esta investigación puntual, una cifra oficial que cuantifique cuánta demanda de NVIDIA ya se ha desplazado por este motivo específico.",
+      "watch_indicator": "Actualizaciones de estos clientes sobre el progreso y despliegue real (no solo el anuncio) de sus propios chips de IA en producción; cualquier divulgación futura de NVIDIA sobre el efecto de este fenómeno en su demanda.",
+      "uncertainty": "Un anuncio de desarrollo no garantiza que el chip resultante sea competitivo en rendimiento, ni que reemplace completamente la compra de chips de NVIDIA — es una lectura razonable de una tendencia estructural de la industria, no un hecho consumado hoy en las cifras de NVIDIA.",
+      "source_name": "Interpretación basada en anuncios públicos ampliamente conocidos de clientes de NVIDIA sobre desarrollo interno de chips de IA; no se cita una fuente primaria única porque es un fenómeno de industria, no una afirmación de un solo documento",
       "source_document_date": null,
-      "source_accessed_at": null,
-      "confidence": "media"
-    },
-    {
-      "category": "regulacion",
-      "fact_type": "escenario_hipotetico",
-      "explanation": "Controles de exportación más estrictos hacia ciertos mercados (como ya ha ocurrido parcialmente en el pasado) podrían cerrar una porción material de los ingresos de NVIDIA si se amplían.",
-      "evidence": "Existe un precedente real de restricciones de exportación de chips avanzados de IA hacia ciertos países, ya aplicadas en el pasado — pero una ampliación futura de esas restricciones es un escenario especulativo, no un hecho ya ocurrido en su forma más amplia.",
-      "watch_indicator": "Anuncios de política comercial/exportación del gobierno de EE.UU. relacionados con semiconductores avanzados de IA.",
-      "uncertainty": "No hay certeza sobre si estas restricciones se ampliarán, se mantendrán igual, o se relajarán en el futuro.",
-      "source_name": "Interpretación propia basada en el precedente regulatorio real de controles de exportación de semiconductores de IA",
-      "source_document_date": null,
-      "source_accessed_at": null,
+      "source_accessed_at": "2026-11-16",
       "confidence": "media"
     }
   ]

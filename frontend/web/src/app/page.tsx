@@ -157,9 +157,7 @@ function HomeContent() {
 
   // Forgot password flow
   const [forgotStep, setForgotStep]         = useState<"email" | "code" | "newpass">("email");
-  const [forgotMethod, setForgotMethod]     = useState<"email" | "sms">("email");
   const [forgotEmail, setForgotEmail]       = useState("");
-  const [forgotPhone, setForgotPhone]       = useState("");
   const [forgotCode, setForgotCode]         = useState("");
   const [forgotNewPass, setForgotNewPass]   = useState("");
   const [forgotDone, setForgotDone]         = useState(false);
@@ -169,6 +167,8 @@ function HomeContent() {
   const [existingUserName, setExistingUserName] = useState<string | null>(null);
 
   const extractErrorMsg = (err: unknown): string => {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    if (status === 429) return t("landing.rateLimited");
     const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
     if (typeof detail === "string") return detail;
     if (Array.isArray(detail) && detail.length > 0) return String(detail[0]?.msg ?? detail[0]);
@@ -330,19 +330,12 @@ function HomeContent() {
     setLoading(true); setError("");
     try {
       if (forgotStep === "email") {
-        if (forgotMethod === "sms") {
-          await auth.forgotPasswordSms(forgotEmail, forgotPhone);
-        } else {
-          await auth.forgotPassword(forgotEmail);
-        }
+        await auth.forgotPassword(forgotEmail);
         setForgotStep("code");
       } else if (forgotStep === "code") {
         setForgotStep("newpass");
       } else {
-        await auth.resetPassword(
-          forgotEmail, forgotCode, forgotNewPass,
-          forgotMethod === "sms" ? forgotPhone : undefined,
-        );
+        await auth.resetPassword(forgotEmail, forgotCode, forgotNewPass);
         setForgotDone(true);
       }
     } catch (err: unknown) {
@@ -354,11 +347,7 @@ function HomeContent() {
     if (resendCooldown > 0) return;
     setLoading(true); setError("");
     try {
-      if (forgotMethod === "sms") {
-        await auth.forgotPasswordSms(forgotEmail, forgotPhone);
-      } else {
-        await auth.forgotPassword(forgotEmail);
-      }
+      await auth.forgotPassword(forgotEmail);
       setResendCooldown(30);
     } catch (err: unknown) {
       setError(extractErrorMsg(err) || t("landing.resendError"));
@@ -744,46 +733,23 @@ function HomeContent() {
                           style={{ color: "var(--muted)" }}>{t("landing.back")}</button>
                   <h2 className="text-xl font-black tracking-tight mb-1"
                       style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    {forgotStep === "email" ? t("landing.forgotPasswordTitle") : forgotStep === "code" ? t("landing.verifyYour", { channel: forgotMethod === "sms" ? t("landing.phone") : t("landing.email") }) : t("landing.newPassword")}
+                    {forgotStep === "email" ? t("landing.forgotPasswordTitle") : forgotStep === "code" ? t("landing.verifyYour", { channel: t("landing.email") }) : t("landing.newPassword")}
                   </h2>
                   <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
                     {forgotStep === "email"
                       ? t("landing.chooseVerificationMethod")
                       : forgotStep === "code"
-                      ? t("landing.codeSentTo", { destination: forgotMethod === "sms" ? forgotPhone : forgotEmail })
+                      ? t("landing.codeSentTo", { destination: forgotEmail })
                       : t("landing.choosePassword")}
                   </p>
                   <form onSubmit={handleForgotSubmit} className="space-y-4">
                     {forgotStep === "email" && (
-                      <>
-                        <div className="flex gap-2 p-1 rounded-xl mb-1" style={{ background: "var(--raised)" }}>
-                          {(["email", "sms"] as const).map((m) => (
-                            <button key={m} type="button" onClick={() => setForgotMethod(m)}
-                                    className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
-                                    style={{
-                                      background: forgotMethod === m ? "var(--card)" : "transparent",
-                                      color: forgotMethod === m ? "var(--text)" : "var(--muted)",
-                                    }}>
-                              {m === "email" ? t("landing.emailOption") : t("landing.smsOption")}
-                            </button>
-                          ))}
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
-                                 style={{ color: "var(--muted)" }}>{t("landing.emailLabel")}</label>
-                          <input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)}
-                                 className="input-premium" placeholder="tu@email.com" required autoFocus />
-                        </div>
-                        {forgotMethod === "sms" && (
-                          <div>
-                            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
-                                   style={{ color: "var(--muted)" }}>{t("landing.phoneLabel")}</label>
-                            <input type="tel" value={forgotPhone} onChange={(e) => setForgotPhone(e.target.value)}
-                                   className="input-premium" placeholder="+52 55 1234 5678" required />
-                            <p className="text-[11px] mt-1.5" style={{ color: "var(--dim)" }}>{t("landing.countryCodeHint")}</p>
-                          </div>
-                        )}
-                      </>
+                      <div>
+                        <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
+                               style={{ color: "var(--muted)" }}>{t("landing.emailLabel")}</label>
+                        <input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)}
+                               className="input-premium" placeholder="tu@email.com" required autoFocus />
+                      </div>
                     )}
                     {forgotStep === "code" && (
                       <div>
@@ -825,7 +791,7 @@ function HomeContent() {
                     )}
                     <button type="submit"
                             disabled={loading
-                              || (forgotStep === "email" && (!forgotEmail || (forgotMethod === "sms" && !forgotPhone)))
+                              || (forgotStep === "email" && !forgotEmail)
                               || (forgotStep === "code" && forgotCode.length < 6)
                               || (forgotStep === "newpass" && forgotNewPass.length < 6)}
                             className="btn-primary w-full flex items-center justify-center gap-2">

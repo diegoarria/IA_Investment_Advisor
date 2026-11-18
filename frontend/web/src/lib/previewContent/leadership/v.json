@@ -1,0 +1,49 @@
+{
+  "ticker": "V",
+  "ceo": {
+    "name": "Ryan McInerney",
+    "role_explanation": "Ryan McInerney dirige Visa desde febrero de 2023, cuando sucedió a Al Kelly. En asambleas de accionistas ha descrito explícitamente 4 prioridades de asignación de capital: invertir en el negocio, devolver entre 20% y 25% de la utilidad por acción vía dividendos, devolver capital excedente vía recompras, y mantener un objetivo de deuda bruta por debajo de 1.5 veces el EBITDA.",
+    "since": "Febrero de 2023",
+    "source_name": "Cobertura de la asamblea de accionistas de Visa citando directamente las prioridades de capital de Ryan McInerney",
+    "source_document_date": "2025",
+    "source_accessed_at": "2026-11-17",
+    "confidence": "alta"
+  },
+  "capital_allocation": {
+    "fiscal_year": "2025 (año fiscal terminado 30-sep-2025)",
+    "dividends_buybacks_total": 22800000000,
+    "buybacks_note": "Las fuentes secundarias disponibles reportan cifras ligeramente distintas de recompras por sí solas (entre $18,200 y $18,300 millones) — se reporta el rango honestamente en vez de elegir una cifra al azar.",
+    "dividend_per_share_quarterly": "$0.670 (subido 14% durante el año fiscal 2025)",
+    "repurchase_authorization_remaining": 24900000000,
+    "note": "Visa combina dividendos regulares crecientes con recompras sustanciales de acciones — consistente con su modelo de negocio de bajo capex (no necesita construir fábricas ni infraestructura física intensiva, es un negocio de 'peaje' sobre transacciones).",
+    "source_name": "Reporte anual fiscal 2025 de Visa: https://s29.q4cdn.com/385744025/files/doc_downloads/2025/Visa-Fiscal-2025-Annual-Report.pdf",
+    "source_document_date": "2025-09-30",
+    "source_accessed_at": "2026-11-17",
+    "confidence": "alta"
+  },
+  "decisions": [
+    {
+      "decision": "Mantener la estrategia de devolver un porcentaje fijo de la utilidad por acción a accionistas vía dividendos (20-25%) mientras se usa el capital excedente para recompras de acciones.",
+      "outcome": "El dividendo trimestral subió 14% a $0.670 por acción durante el año fiscal 2025, y la autorización de recompra restante al cierre del año era de $24,900 millones — consistente con la estrategia declarada por el propio CEO.",
+      "uncertainty": "No se verificó si esta estrategia de asignación de capital ha cambiado o se mantiene igual en los trimestres más recientes del año fiscal 2026.",
+      "source_name": "Reporte anual fiscal 2025 de Visa",
+      "source_document_date": "2025-09-30",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "alta"
+    }
+  ],
+  "incentive_alignment": {
+    "note": "Compensación total reportada de Ryan McInerney en el año fiscal 2025 (proxy de diciembre de 2025): aproximadamente $31.5 millones (salario base $1.5M; incentivo no-equity ~$5.25M; premios en acciones ~$18.7M; otros ~$373K) — la mayor cifra de su carrera en el cargo, frente a ~$26M en 2024. Una métrica adicional del proxy ('compensación realmente pagada', que ajusta por cambios de valor de mercado de las acciones) fue de $55.8M. Razón de pago CEO-a-empleado-mediano reportada: 204 a 1 (empleado mediano ~$154,909). Tenencia accionaria directa: no verificada con cifra exacta en esta ronda.",
+    "compensation_verified": true,
+    "compensation_amount_usd": 31500000,
+    "compensation_period": "Año fiscal 2025",
+    "source_name": "Proxy statement de Visa, diciembre de 2025 (vía cobertura secundaria convergente: Payment Expert, Salary.com, Payments Dive — no se abrió el documento SEC directamente)",
+    "source_document_date": "2025-12-08",
+    "source_accessed_at": "2026-11-17"
+  },
+  "watch": [
+    "Si el dividendo trimestral sigue creciendo a un ritmo similar en los próximos años fiscales.",
+    "Ritmo de ejecución de la autorización de recompra restante ($24,900 millones al cierre de FY2025).",
+    "Evolución del litigio de interchange y cualquier provisión adicional relacionada."
+  ]
+}

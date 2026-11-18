@@ -115,10 +115,10 @@ export const authApi = {
     api.delete("/api/auth/account"),
   forgotPassword: (email: string) =>
     api.post("/api/auth/forgot-password", { email }),
-  forgotPasswordSms: (email: string, phone: string) =>
-    api.post("/api/auth/forgot-password-sms", { email, phone }),
-  resetPassword: (email: string, code: string, new_password: string, phone?: string) =>
-    api.post("/api/auth/reset-password", { email, code, new_password, ...(phone ? { phone } : {}) }),
+  // SMS recovery (forgot-password-sms) is intentionally not exposed here —
+  // Twilio isn't provisioned, so it would silently fail. Email-only for now.
+  resetPassword: (email: string, code: string, new_password: string) =>
+    api.post("/api/auth/reset-password", { email, code, new_password }),
 };
 
 export const profileApi = {

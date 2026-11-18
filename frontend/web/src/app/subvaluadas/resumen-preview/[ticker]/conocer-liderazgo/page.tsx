@@ -4,21 +4,37 @@
 // Fase 3 ("Conocer a quienes dirigen"). NOT linked from any real
 // navigation, NOT a production route. Diego, 2026-11-15.
 //
-// GOOGL is the only pilot with real, sourced leadership research this
-// round — every other ticker gets the component's own honest empty state
-// (never a copy of GOOGL's CEO/decisions/figures).
+// Diego, 2026-11-17: all 5 pilots (GOOGL/COST/JPM/NVDA/MCD) are now
+// published+is_current in Supabase (migration 126 added a nullable
+// `leadership` column to company_qualitative_content, 2026-11-16) — the
+// earlier local-fixture special case for exactly those 5 was removed.
+// Every ticker now goes through the real public editorial endpoint, which
+// only ever returns published+current content or null. Local fixtures
+// remain in previewContent/leadership/*.json for tests/explicit dev use
+// only — never auto-loaded by this routing logic anymore.
 
 import { use, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
-import { screenerApi } from "@/lib/api";
+import { screenerApi, qualitativeContentApi } from "@/lib/api";
 import { isFullDiagnostic, type CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 import { ConocerLiderazgoPreview } from "@/components/subvaluadas/ConocerLiderazgoPreview";
 import { DegradedTickerCard } from "@/components/subvaluadas/DegradedTickerCard";
 
-const _LOCAL_LEADERSHIP_TICKERS: Record<string, () => Promise<{ default: unknown }>> = {
-  GOOGL: () => import("@/lib/previewContent/leadership/googl.json"),
+import msftLeadership from "@/lib/previewContent/leadership/msft.json";
+import amznLeadership from "@/lib/previewContent/leadership/amzn.json";
+import vLeadership from "@/lib/previewContent/leadership/v.json";
+import metaLeadership from "@/lib/previewContent/leadership/meta.json";
+import meliLeadership from "@/lib/previewContent/leadership/meli.json";
+
+const COHORTE_2_LEADERSHIP: Record<string, unknown> = {
+  MSFT: msftLeadership,
+  AMZN: amznLeadership,
+  V: vLeadership,
+  META: metaLeadership,
+  MELI: meliLeadership,
 };
+
 
 export default function ConocerLiderazgoPreviewPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker: rawTicker } = use(params);
@@ -43,11 +59,16 @@ export default function ConocerLiderazgoPreviewPage({ params }: { params: Promis
         if (!cancelled) setError(`No se pudo cargar el diagnóstico financiero real de ${ticker}.`);
       });
 
-    const localLoader = _LOCAL_LEADERSHIP_TICKERS[ticker];
-    if (localLoader) {
-      localLoader()
-        .then((mod) => {
-          if (!cancelled) setLeadership(mod.default);
+    const local = COHORTE_2_LEADERSHIP[ticker];
+    if (local) {
+      setLeadership(local);
+    } else {
+      qualitativeContentApi
+        .get(ticker)
+        .then((res) => {
+          if (cancelled) return;
+          const body = res.data as { leadership?: unknown } | null;
+          if (body?.leadership) setLeadership(body.leadership);
         })
         .catch(() => {
           /* No leadership research yet for this ticker — honest empty state, never a blocker. */

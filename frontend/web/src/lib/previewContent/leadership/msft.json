@@ -1,0 +1,47 @@
+{
+  "ticker": "MSFT",
+  "ceo": {
+    "name": "Satya Nadella",
+    "role_explanation": "Satya Nadella dirige Microsoft y coordina sus decisiones más importantes de inversión — especialmente la enorme apuesta de capital en infraestructura de nube e inteligencia artificial.",
+    "since": "Febrero de 2014",
+    "source_name": "Cobertura corporativa consistente y ampliamente documentada sobre el liderazgo de Microsoft (no se accedió al proxy statement específico en esta ronda)",
+    "source_document_date": null,
+    "source_accessed_at": "2026-11-17",
+    "confidence": "alta"
+  },
+  "capital_allocation": {
+    "fiscal_year": "2025 (año fiscal terminado 30-jun-2025)",
+    "capex_range_note": "Las fuentes secundarias disponibles no coinciden en la cifra exacta de capex del año fiscal 2025: una reporta ~$88,200 millones (incluyendo arrendamientos financieros, con $24,200 millones solo en el Q4), otra reporta ~$64,600 millones (+45% interanual). No se pudo conciliar esta discrepancia contra el estado de flujos de efectivo del 10-K directamente en esta investigación — se reporta honestamente como un rango sin resolver, no como un hecho con una sola cifra.",
+    "dividends_buybacks_note": "Microsoft reportó haber devuelto $9,400 millones a accionistas (dividendos + recompras) solo en el cuarto trimestre del año fiscal 2025 — la cifra anual completa no se encontró en esta ronda de investigación y debe verificarse directamente contra el 10-K antes de presentarse como hecho.",
+    "note": "Microsoft es un pagador de dividendos consolidado (a diferencia de Amazon) y combina dividendos regulares con recompras de acciones, financiando simultáneamente una expansión de capex muy grande para infraestructura de IA.",
+    "source_name": "Microsoft Investor Relations, comunicado de resultados Q4 FY2025: https://www.microsoft.com/en-us/Investor/earnings/FY-2025-Q4/press-release-webcast",
+    "source_document_date": "2025-07-30",
+    "source_accessed_at": "2026-11-17",
+    "confidence": "media"
+  },
+  "decisions": [
+    {
+      "decision": "Expandir fuertemente el capex de infraestructura de nube e IA durante el año fiscal 2025, apalancado en la asociación estratégica con OpenAI.",
+      "outcome": "Azure y otros servicios de nube crecieron 34% interanual, alcanzando aproximadamente $75,000 millones de ingresos en el año fiscal 2025 — la inversión coincide con una aceleración real del crecimiento del segmento de nube.",
+      "uncertainty": "No se verificó si este ritmo de crecimiento es sostenible a medida que la base de ingresos de Azure se vuelve más grande, ni cómo evoluciona el margen operativo del segmento frente al aumento de la depreciación de la nueva infraestructura.",
+      "source_name": "Microsoft Investor Relations, FY2025 Q4 performance: https://www.microsoft.com/en-us/investor/earnings/fy-2025-q4/performance",
+      "source_document_date": "2025-07-30",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "alta"
+    }
+  ],
+  "incentive_alignment": {
+    "note": "Compensación total verificada de Satya Nadella en el año fiscal 2025 (proxy statement de octubre de 2025): aproximadamente $96.5 millones (salario base $2.5M, sin cambios desde 2023; premios en acciones ~$84M; incentivo en efectivo no-equity ~$9.5M; otros ~$196K) — más del 95% de su compensación objetivo anual es variable, ligada a desempeño, y su equity se entrega exclusivamente vía 'performance stock awards' sin acciones basadas solo en tiempo. La razón de pago CEO-a-empleado-mediano reportada fue 480 a 1. Tenencia accionaria directa: no verificada en esta ronda.",
+    "compensation_verified": true,
+    "compensation_amount_usd": 96500000,
+    "compensation_period": "Año fiscal 2025 (terminado 30-jun-2025)",
+    "source_name": "Proxy statement DEF 14A de Microsoft, octubre de 2025 (vía cobertura secundaria convergente: GeekWire, The Register, HCA Magazine — no se abrió el documento SEC directamente)",
+    "source_document_date": "2025-10-21",
+    "source_accessed_at": "2026-11-17"
+  },
+  "watch": [
+    "Si se conciliá la cifra exacta de capex del año fiscal 2025 contra el 10-K real.",
+    "Si el crecimiento de Azure (34% en FY2025) se sostiene en los próximos trimestres a medida que la base de ingresos crece.",
+    "Evolución del margen operativo de Nube Inteligente frente al aumento de depreciación por la nueva infraestructura de IA."
+  ]
+}

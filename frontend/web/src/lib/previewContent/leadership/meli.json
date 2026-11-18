@@ -1,0 +1,44 @@
+{
+  "ticker": "MELI",
+  "ceo": {
+    "name": "Ariel Szarfsztejn",
+    "role_explanation": "Ariel Szarfsztejn es el CEO global de MercadoLibre desde el 1 de enero de 2026 — antes de eso, el cofundador Marcos Galperin dirigió la empresa durante 26 años (1999-2025). Galperin pasó a presidente ejecutivo (Executive Chairman), enfocado en estrategia, evolución de producto, asignación de capital y aplicación de IA en el negocio. Szarfsztejn llevaba en la empresa desde 2017 y lideró previamente el negocio de Marketplace (comercio electrónico) como presidente de esa unidad.",
+    "since": "1 de enero de 2026",
+    "source_name": "Comunicado oficial de transición de liderazgo de MercadoLibre (mayo de 2025, efectivo 1-ene-2026), corroborado por Buenos Aires Herald y Batimes: https://buenosairesherald.com/business/tech/galperin-steps-aside-as-mercado-libre-ceo-in-generational-change",
+    "source_document_date": "2025-05-22",
+    "source_accessed_at": "2026-11-17",
+    "confidence": "alta"
+  },
+  "capital_allocation": {
+    "summary": "MercadoLibre no paga un dividendo regular — su política histórica ha sido reinvertir las ganancias en el crecimiento del negocio (logística, expansión geográfica, y el negocio de crédito de Mercado Pago). Tiene un programa de recompra de acciones autorizado en agosto de 2025 por $4,050 millones (vigente hasta el 30-jun-2027), pero el uso real de ese programa ha sido mínimo en 2024-2026 (aproximadamente $1 millón gastado en recompras según fuentes agregadoras, muy por debajo de años anteriores como 2023, cuando gastó $356 millones) — la cifra exacta del uso reciente del programa no se verificó contra el 10-Q directamente en esta ronda.",
+    "source_name": "Cobertura financiera agregada sobre el programa de recompra de MercadoLibre (agosto 2025, vigencia hasta jun-2027) y su uso histórico — cifras no verificadas directamente contra el 10-Q/10-K real",
+    "source_document_date": null,
+    "source_accessed_at": "2026-11-17",
+    "confidence": "media"
+  },
+  "decisions": [
+    {
+      "decision": "Expandir fuertemente la inversión en logística y envíos gratuitos durante 2025, y anunciar la construcción de un nuevo centro logístico para competir específicamente con Temu y Shein.",
+      "outcome": "Las ventas del cuarto trimestre de 2025 crecieron 45% interanual, impulsadas en parte por la política de envíos gratuitos.",
+      "uncertainty": "No se verificó el costo exacto de esta inversión logística ni su efecto específico sobre el margen operativo de la compañía.",
+      "source_name": "Cobertura de resultados Q4 2025 de MercadoLibre: https://mexicobusiness.news/ecommerce/news/mercado-libre-delivers-record-2025-sales-45-4q25-growth",
+      "source_document_date": "2026",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    }
+  ],
+  "incentive_alignment": {
+    "note": "La compensación del nuevo CEO Ariel Szarfsztejn para 2026 (su primer año en el cargo) no está disponible todavía en un proxy statement completo — el cargo cambió el 1-ene-2026 y el próximo proxy con su compensación real como CEO aún no se ha publicado al momento de esta investigación. La última cifra de compensación disponible corresponde a Marcos Galperin como CEO en 2024: $13,747,133 total (salario base $565,871; bono en efectivo $220,159; pagos del plan de retención de largo plazo $12,961,103) — un alza de ~43% frente a 2023 ($9,591,176). Esta cifra ya NO describe el liderazgo ejecutivo actual de la empresa. Tenencia accionaria: Galperin y su familia (vía Meliga LP y fideicomisos) reportan en su más reciente Schedule 13G una participación conjunta de 3,650,136 acciones (~7.2% de la clase), aunque esto mide su participación como fundador/presidente, no la del CEO actual.",
+    "compensation_verified": false,
+    "compensation_amount_usd": null,
+    "compensation_period": null,
+    "source_name": "Proxy statement de MercadoLibre con compensación de Galperin FY2024; Schedule 13G más reciente sobre tenencia de Galperin/Meliga LP — ambos desactualizados respecto al CEO actual",
+    "source_document_date": null,
+    "source_accessed_at": "2026-11-17"
+  },
+  "watch": [
+    "Evolución de la cartera de crédito de Mercado Crédito y su tasa de morosidad.",
+    "Efecto cambiario de Argentina en los resultados reportados.",
+    "Avance del nuevo centro logístico frente a la competencia de Temu/Shein."
+  ]
+}

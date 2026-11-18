@@ -5,13 +5,11 @@
 // production route. Distinct from the existing main "Mi tesis" tab's own
 // route (`/mi-tesis`), which stays untouched.
 //
-// Same dual editorial-source pattern every phase this session already uses
-// (copied deliberately, not abstracted into a shared hook — the same
-// convention riesgos-a-vigilar/page.tsx already follows): the 5 pilot
-// tickers still have DRAFT-only content in Supabase — read from the local
-// JSON fixture for exactly those 5; every other ticker goes through the
-// real public editorial endpoint, which only ever returns published+
-// current content or null.
+// Diego, 2026-11-17: all 5 pilots are now published+is_current in
+// Supabase, so the earlier local-fixture special case was removed. Every
+// ticker goes through the real public editorial endpoint, which only ever
+// returns published+current content or null. Local fixtures remain in
+// previewContent/*.json for tests/explicit dev use only.
 
 import { use, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -22,13 +20,20 @@ import { ConstruirTesisPreview } from "@/components/subvaluadas/ConstruirTesisPr
 import { type QualitativeContentDraft } from "@/components/subvaluadas/ResumenPreview";
 import { DegradedTickerCard } from "@/components/subvaluadas/DegradedTickerCard";
 
-const _LOCAL_DRAFT_TICKERS: Record<string, () => Promise<{ default: QualitativeContentDraft }>> = {
-  GOOGL: () => import("@/lib/previewContent/googl_v3.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  COST: () => import("@/lib/previewContent/cost.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  JPM: () => import("@/lib/previewContent/jpm.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  NVDA: () => import("@/lib/previewContent/nvda.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  MCD: () => import("@/lib/previewContent/mcd.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
+import msftDraft from "@/lib/previewContent/msft.json";
+import amznDraft from "@/lib/previewContent/amzn.json";
+import vDraft from "@/lib/previewContent/v.json";
+import metaDraft from "@/lib/previewContent/meta.json";
+import meliDraft from "@/lib/previewContent/meli.json";
+
+const COHORTE_2_LOCAL: Record<string, { business_model_summary?: string; moat?: unknown[]; risks?: unknown[] }> = {
+  MSFT: msftDraft,
+  AMZN: amznDraft,
+  V: vDraft,
+  META: metaDraft,
+  MELI: meliDraft,
 };
+
 
 export default function ConstruirTesisPreviewPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker: rawTicker } = use(params);
@@ -53,15 +58,16 @@ export default function ConstruirTesisPreviewPage({ params }: { params: Promise<
         if (!cancelled) setError(`No se pudo cargar el diagnóstico financiero real de ${ticker}.`);
       });
 
-    const localLoader = _LOCAL_DRAFT_TICKERS[ticker];
-    if (localLoader) {
-      localLoader()
-        .then((mod) => {
-          if (!cancelled) setEditorial(mod.default);
-        })
-        .catch(() => {
-          /* Editorial read failure never blocks the financial ficha. */
-        });
+    const local = COHORTE_2_LOCAL[ticker];
+    if (local) {
+      setEditorial({
+        ticker,
+        review_status: "draft",
+        is_current: false,
+        business_model_summary: local.business_model_summary ?? "",
+        moat: (local.moat ?? []) as QualitativeContentDraft["moat"],
+        risks: (local.risks ?? []) as QualitativeContentDraft["risks"],
+      });
     } else {
       qualitativeContentApi
         .get(ticker)
@@ -80,7 +86,11 @@ export default function ConstruirTesisPreviewPage({ params }: { params: Promise<
           }
         })
         .catch(() => {
-          /* Real-world normal case today: no published editorial yet. */
+          /* Editorial read failure never blocks the financial ficha — the
+             real-world normal case for any ticker without a published
+             editorial version yet (no longer special-cased: every ticker,
+             including the 5 pilots, now goes through this same real public
+             endpoint, 2026-11-17). */
         });
     }
 

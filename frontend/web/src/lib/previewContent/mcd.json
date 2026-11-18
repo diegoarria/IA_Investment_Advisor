@@ -7,12 +7,12 @@
   "moat": [
     {
       "type": "scale",
-      "explanation": "McDonald's es dueño o arrendatario a largo plazo de la mayoría de los terrenos donde operan sus restaurantes franquiciados, y cobra renta más regalía sobre las ventas del franquiciatario. Esto significa que gran parte de su ingreso no depende de qué tan bien se opere un restaurante día a día (ese riesgo operativo lo asume el franquiciatario), sino de la ubicación inmobiliaria y del volumen de ventas de todo el sistema de restaurantes en conjunto.",
-      "evidence": "McDonald's divulga públicamente en sus reportes anuales el desglose de ingresos entre restaurantes operados por franquiciatarios (renta + regalía) y restaurantes operados directamente por la compañía — este desglose por segmento es un hecho reportado, no una inferencia.",
+      "explanation": "McDonald's es dueño o arrendatario a largo plazo de la mayoría de los terrenos donde operan sus restaurantes franquiciados, y cobra renta más regalía sobre las ventas del franquiciatario. Esto significa que gran parte de su ingreso no depende de qué tan bien se opere un restaurante día a día (ese riesgo operativo lo asume el franquiciatario), sino de la ubicación inmobiliaria y del volumen de ventas de todo el sistema de restaurantes en conjunto. Es clave no confundir dos cifras distintas: las ventas sistémicas (systemwide sales, que incluyen ventas de restaurantes franquiciados que McDonald's NO reconoce como ingreso propio) frente a los ingresos consolidados (total revenues, que son solo ventas de restaurantes operados por la compañía más las regalías/rentas cobradas a franquiciatarios).",
+      "evidence": "En el comunicado oficial de resultados del tercer trimestre de 2026 (presentado ante la SEC el 4 de noviembre de 2026, período cerrado el 30 de septiembre de 2026), McDonald's reporta textualmente que 'aproximadamente el 95% de los restaurantes de McDonald's en todo el mundo son propiedad y operados por empresarios locales independientes' (más de 45,000 ubicaciones en más de 100 países). Las ventas sistémicas globales crecieron 4% hasta superar los $38 mil millones en el trimestre, mientras que los ingresos totales consolidados fueron de $7,157 millones (+1%) — la propia empresa aclara explícitamente que 'las ventas franquiciadas no se registran como ingresos de la Compañía'.",
       "weakening_factors": "Un cambio de hábitos de consumo hacia alimentación percibida como más saludable que reduzca el tráfico de largo plazo. Tensiones con la red de franquiciatarios sobre los términos de renta/regalía que pudieran afectar la relación comercial.",
-      "source_name": "10-K de McDonald's (desglose de ingresos por segmento franquiciado vs. operado por la compañía), reporte anual más reciente disponible",
-      "source_document_date": null,
-      "source_accessed_at": null,
+      "source_name": "Comunicado oficial de resultados Q3 2026 ante la SEC (Exhibit 99.1, período 2026-09-30, presentado 2026-11-04): https://www.sec.gov/Archives/edgar/data/63908/000006390826000080/exhibit991-9302026.htm",
+      "source_document_date": "2026-11-04",
+      "source_accessed_at": "2026-11-16",
       "confidence": "alta"
     }
   ],
@@ -20,37 +20,37 @@
     {
       "category": "ejecucion_operativa",
       "fact_type": "hecho",
-      "explanation": "McDonald's depende de una extensa red de franquiciatarios independientes para operar la mayoría de sus restaurantes, lo que crea un riesgo de ejecución (calidad de servicio, cumplimiento de estándares) que está fuera del control operativo directo de la empresa matriz.",
-      "evidence": "Este es un hecho estructural del modelo de negocio, divulgado públicamente por la propia McDonald's.",
+      "explanation": "McDonald's depende de una extensa red de franquiciatarios independientes (aproximadamente 95% de sus restaurantes) para operar la mayoría de sus locaciones, lo que crea un riesgo de ejecución (calidad de servicio, cumplimiento de estándares) que está fuera del control operativo directo de la empresa matriz.",
+      "evidence": "Verificado directamente contra el comunicado oficial de resultados del tercer trimestre de 2026: 'Approximately 95% of McDonald's restaurants worldwide are owned and operated by independent local business owners.'",
       "watch_indicator": "Disputas legales o tensiones reportadas con asociaciones de franquiciatarios.",
       "uncertainty": "El riesgo es estructural y permanente al modelo, no un evento puntual predecible.",
-      "source_name": "Modelo de negocio divulgado públicamente por McDonald's Corporation",
-      "source_document_date": null,
-      "source_accessed_at": null,
+      "source_name": "Comunicado oficial de resultados Q3 2026 ante la SEC: https://www.sec.gov/Archives/edgar/data/63908/000006390826000080/exhibit991-9302026.htm",
+      "source_document_date": "2026-11-04",
+      "source_accessed_at": "2026-11-16",
       "confidence": "alta"
     },
     {
       "category": "competencia",
-      "fact_type": "interpretacion",
-      "explanation": "Un cambio generacional hacia preferencias de alimentación percibidas como más saludables podría, con el tiempo, presionar el tráfico de largo plazo en los restaurantes de McDonald's.",
-      "evidence": "Esta es una lectura razonable de una tendencia de consumo observada en la industria de restaurantes en general, no un hecho con una fecha específica atribuible solo a McDonald's.",
-      "watch_indicator": "Tendencias de tráfico de clientes (comparable sales) reportadas trimestralmente y cambios en el menú de la empresa como respuesta a esta presión.",
-      "uncertainty": "El ritmo y la magnitud real de este cambio de hábito en el tráfico de McDonald's específicamente no están cuantificados con certeza.",
-      "source_name": "Interpretación propia basada en tendencias de consumo observadas en la industria de restaurantes",
-      "source_document_date": null,
-      "source_accessed_at": null,
-      "confidence": "media"
+      "fact_type": "hecho",
+      "explanation": "El tráfico de clientes en EE.UU. está mostrando presión real y actual, no solo una tendencia teórica a futuro: en el tercer trimestre de 2026, las ventas comparables en EE.UU. cayeron 0.2%, con un conteo de visitantes (guest counts) negativo que fue compensado en su mayor parte, pero no del todo, por un mayor ticket promedio (check growth). El propio CEO reconoció la necesidad de intervenir en precio/valor durante el trimestre.",
+      "evidence": "Verificado directamente contra el comunicado oficial: 'Comparable sales declined slightly as negative comparable guest counts were largely offset by positive check growth' y una cita textual del CEO Chris Kempczinski: 'In the U.S., we're encouraged by improvement as the quarter progressed following our intervention on value.' El comunicado no detalla las cifras exactas de la intervención de valor ni su efecto cuantificado.",
+      "watch_indicator": "Tendencias de tráfico de clientes (comparable guest counts, no solo comparable sales) reportadas trimestralmente, y la evolución de las promociones/combos de valor mencionadas por la dirección.",
+      "uncertainty": "El comunicado confirma la presión de tráfico y la intervención de precio como hechos del trimestre, pero no cuantifica si la 'mejora' que menciona el CEO ya revirtió la caída de tráfico o solo moderó su ritmo — esa distinción no pudo confirmarse con la evidencia disponible.",
+      "source_name": "Comunicado oficial de resultados Q3 2026 ante la SEC: https://www.sec.gov/Archives/edgar/data/63908/000006390826000080/exhibit991-9302026.htm",
+      "source_document_date": "2026-11-04",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "alta"
     },
     {
       "category": "deuda_liquidez",
       "fact_type": "hecho",
-      "explanation": "McDonald's está expuesta al riesgo de costos de insumos (como carne de res y papa), lo cual afecta los márgenes de los franquiciatarios y, por extensión, su capacidad de pagar la renta y regalía a la empresa matriz.",
-      "evidence": "Este riesgo de costo de materias primas se menciona explícitamente como factor de riesgo en los propios reportes de la compañía.",
-      "watch_indicator": "Movimientos significativos en los precios de commodities clave (carne de res, papa) y su impacto reportado en los márgenes de los franquiciatarios.",
+      "explanation": "McDonald's está expuesta al riesgo de costos de insumos — específicamente carne de res y pollo, las dos materias primas que la propia empresa identifica como particularmente volátiles — lo cual afecta los márgenes de los franquiciatarios (que generan ~90% de los dólares de margen de todo el sistema) y, por extensión, su capacidad de pagar la renta y regalía a la empresa matriz.",
+      "evidence": "El 10-K del año fiscal 2025 (período cerrado 2025-12-31, presentado ante la SEC el 2026-02-24) divulga como factor de riesgo que la volatilidad de ciertos precios de commodities y las fluctuaciones en costos laborales ya han afectado adversamente, y podrían seguir afectando, los resultados operativos — nombrando específicamente la carne de res y el pollo como particularmente volátiles por factores estacionales, climáticos y de demanda de la industria. El documento aclara además que la empresa solo puede cubrir parcialmente ese riesgo de precio mediante coberturas financieras. No se re-verificó el párrafo completo carácter por carácter contra el HTML primario (el archivo es demasiado grande para extraerlo completo con las herramientas disponibles), pero la cita y los commodities específicos están corroborados por múltiples fuentes secundarias independientes que citan el mismo texto del 10-K.",
+      "watch_indicator": "Movimientos significativos en los precios de commodities clave (carne de res, pollo) y su impacto reportado en los márgenes de los franquiciatarios.",
       "uncertainty": "La volatilidad de precios de commodities agrícolas es inherentemente difícil de predecir con anticipación.",
-      "source_name": "Factores de riesgo divulgados en los reportes anuales de McDonald's",
-      "source_document_date": null,
-      "source_accessed_at": null,
+      "source_name": "10-K de McDonald's FY2025 (SEC EDGAR, accession 0000063908-26-000035, período 2025-12-31, presentado 2026-02-24): https://www.sec.gov/Archives/edgar/data/63908/000006390826000035/mcd-20251231.htm",
+      "source_document_date": "2026-02-24",
+      "source_accessed_at": "2026-11-16",
       "confidence": "alta"
     }
   ]

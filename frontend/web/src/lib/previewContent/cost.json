@@ -8,11 +8,21 @@
     {
       "type": "scale",
       "explanation": "Como la ganancia de Costco viene de las cuotas de membresía y no de vender caro, puede permitirse vender con márgenes extremadamente bajos — algo que un competidor sin ese modelo de ingresos no puede igualar de forma sostenible sin perder dinero en cada venta. Esto crea un círculo: precios bajos atraen más miembros, más miembros compran más volumen, y ese volumen le da a Costco más poder de negociación con sus proveedores para mantener los precios bajos.",
-      "evidence": "Costco reporta públicamente, trimestre a trimestre, que el ingreso por cuotas de membresía representa una porción desproporcionadamente alta de su utilidad operativa en comparación con el margen bruto de la mercancía que vende — este es un hecho estructural del modelo de negocio, reportado en sus propios resultados trimestrales, y ampliamente conocido en la industria del retail.",
-      "weakening_factors": "Un estancamiento o caída sostenida en la tasa de renovación de membresías debilitaría directamente este modelo. Competencia de otros clubes de descuento o del comercio electrónico que erosione el tráfico físico en tienda.",
-      "source_name": "Reportes trimestrales públicos de Costco (10-Q/10-K), patrón consistente en los más recientes disponibles",
-      "source_document_date": null,
-      "source_accessed_at": null,
+      "evidence": "En el 10-K del año fiscal 2026 (cerrado el 30 de agosto de 2026), Costco reportó 84.1 millones de miembros que pagan cuota, frente a 81.0 millones un año antes, y ventas netas de $297,247 millones (+10% interanual) con una utilidad neta de $9,226 millones ($20.76 por acción diluida) frente a $8,099 millones ($18.21) en el año fiscal 2025. El crecimiento de ventas se atribuye principalmente a un aumento de 8% en ventas comparables y 25 nuevos almacenes abiertos desde el cierre de 2025. (Cifras de ventas/utilidad tomadas de un resumen del 10-K vía TradingView, no re-verificadas línea por línea contra el documento primario completo porque mi herramienta de verificación truncó el PDF antes de llegar a los estados financieros — la cifra de miembros y tasa de renovación, en cambio, sí se verificó directamente contra el texto del 10-K.)",
+      "weakening_factors": "Un estancamiento o caída sostenida en la tasa de renovación de membresías debilitaría directamente este modelo. Competencia de otros clubes de descuento (Sam's Club, BJ's Wholesale) o del comercio electrónico que erosione el tráfico físico en tienda.",
+      "source_name": "10-K de Costco FY2026 (SEC EDGAR, accession 0000909832-26-000093, período cerrado 2026-08-30): https://www.sec.gov/Archives/edgar/data/0000909832/000090983226000093/cost-20260830.htm ; resumen de cifras financieras: https://www.tradingview.com/news/tradingview:276b7af1afc4d:0-costco-wholesale-corp-new-fy-2026-revenue-303-15b-eps-20-76-10-k-summary/",
+      "source_document_date": "2026-08-30",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "alta"
+    },
+    {
+      "type": "brand",
+      "explanation": "La confianza de los miembros en que Costco limita deliberadamente su margen sobre la mercancía (en vez de maximizarlo como haría un minorista tradicional) es, en sí misma, una ventaja difícil de copiar: un competidor no puede simplemente 'anunciar' esa confianza, tiene que ganársela con años de comportamiento consistente. La tasa de renovación de membresía, sostenida por encima del 89% a nivel mundial durante años, es la evidencia más directa de que esa confianza es real y se traduce en lealtad medible.",
+      "evidence": "El 10-K FY2026 reporta una tasa de renovación de 92.3% en EE.UU./Canadá y 89.8% a nivel mundial — verificado directamente contra el texto del documento ('Our member renewal rate was 92.3% in the U.S. and Canada'). Estas cifras son idénticas a las del año fiscal 2025, lo cual confirmé explícitamente porque una tasa de renovación repetida punto por punto entre dos años es inusual y merece mencionarse como tal, no darse por sentado.",
+      "weakening_factors": "La propia tendencia trimestral reciente muestra presión: la tasa mundial bajó de 90.2% a 89.8% en un trimestre reciente, y una porción creciente de nuevas membresías se vende en línea (incluyendo promociones digitales), las cuales renuevan, en promedio, a una tasa algo menor que las membresías tradicionales en tienda — un cambio de mezcla que podría presionar la tasa general hacia abajo con el tiempo incluso si cada canal individual no se deteriora.",
+      "source_name": "10-K de Costco FY2026 (SEC EDGAR, verificado directamente): https://www.sec.gov/Archives/edgar/data/0000909832/000090983226000093/cost-20260830.htm ; tendencia trimestral y mezcla de canales: https://finance.yahoo.com/news/costco-renewal-rates-stay-near-155000597.html",
+      "source_document_date": "2026-08-30",
+      "source_accessed_at": "2026-11-16",
       "confidence": "alta"
     }
   ],
@@ -20,38 +30,38 @@
     {
       "category": "rentabilidad",
       "fact_type": "hecho",
-      "explanation": "El modelo de negocio de Costco depende de que la tasa de renovación de membresías se mantenga consistentemente alta. Si esa tasa cae, el ingreso que sostiene toda la rentabilidad de la empresa se ve directamente afectado.",
-      "evidence": "Costco reporta su tasa de renovación de membresía como una métrica pública trimestral.",
-      "watch_indicator": "Cualquier caída sostenida (no un solo trimestre aislado) en la tasa de renovación de membresía reportada.",
-      "uncertainty": "Una caída puntual de un trimestre no necesariamente indica una tendencia — hay que distinguir ruido de una señal real.",
-      "source_name": "Reportes trimestrales públicos de Costco",
-      "source_document_date": null,
-      "source_accessed_at": null,
+      "explanation": "El modelo de negocio de Costco depende de que la tasa de renovación de membresías se mantenga consistentemente alta, porque las cuotas de membresía son la fuente desproporcionada de su utilidad. La tasa mundial más reciente reportada (89.8%) es idéntica a la del año anterior, pero una tendencia intertrimestral reciente la muestra bajando ligeramente (90.2% → 89.8%), y una porción creciente de membresías nuevas se vende en línea, con una tasa de renovación promedio algo menor que las vendidas en tienda.",
+      "evidence": "Verificado directamente contra el texto del 10-K FY2026: 'Our member renewal rate was 92.3% in the U.S. and Canada' (y 89.8% a nivel mundial). El detalle de la tendencia trimestral y el efecto de mezcla de canal (en línea vs. en tienda) provienen de una fuente secundaria de análisis financiero, no re-verificada directamente contra el propio reporte trimestral que la originó.",
+      "watch_indicator": "Cualquier caída sostenida (no un solo trimestre aislado) en la tasa de renovación mundial o de EE.UU./Canadá en los próximos reportes trimestrales; el ritmo al que crece la proporción de membresías vendidas en línea.",
+      "uncertainty": "Una caída puntual de un trimestre no necesariamente indica una tendencia — hay que distinguir ruido de una señal real. No hay forma de saber hoy si el efecto de mezcla de canal seguirá compensándose con crecimiento total de miembros (que sí sigue creciendo: 84.1 millones vs. 81.0 millones el año anterior).",
+      "source_name": "10-K de Costco FY2026 (SEC EDGAR): https://www.sec.gov/Archives/edgar/data/0000909832/000090983226000093/cost-20260830.htm ; tendencia trimestral y mezcla de canal: https://finance.yahoo.com/news/costco-renewal-rates-stay-near-155000597.html",
+      "source_document_date": "2026-08-30",
+      "source_accessed_at": "2026-11-16",
       "confidence": "alta"
-    },
-    {
-      "category": "rentabilidad",
-      "fact_type": "interpretacion",
-      "explanation": "La compresión de márgenes que afecta a la industria minorista en general podría, con el tiempo, presionar a Costco a elegir entre subir el precio de la membresía (con el riesgo de generar fricción o pérdida de miembros) o absorber más costo operativo sin trasladarlo al consumidor.",
-      "evidence": "Esta es una lectura razonable de la dinámica general del sector retail, no un hecho ya materializado específicamente para Costco hoy.",
-      "watch_indicator": "Cualquier anuncio de incremento en el precio de membresía y la reacción posterior en la tasa de renovación.",
-      "uncertainty": "No hay evidencia de que esto esté ocurriendo activamente en Costco en este momento — es una presión estructural del sector, no un hecho específico y actual de la empresa.",
-      "source_name": "Interpretación propia basada en dinámicas conocidas del sector retail",
-      "source_document_date": null,
-      "source_accessed_at": null,
-      "confidence": "media"
     },
     {
       "category": "riesgo_sectorial",
       "fact_type": "hecho",
-      "explanation": "Costco depende de una cadena de suministro global extensa, lo que la expone a disrupciones por eventos geopolíticos, aranceles, o problemas logísticos internacionales.",
-      "evidence": "La propia Costco menciona explícitamente la exposición a la cadena de suministro global como un factor de riesgo en sus propios reportes.",
-      "watch_indicator": "Anuncios de aranceles nuevos, disrupciones logísticas mayores, o cambios en los costos de importación reportados por la empresa.",
-      "uncertainty": "El momento y la magnitud de una disrupción específica no son predecibles de antemano.",
-      "source_name": "Factores de riesgo divulgados en los reportes anuales de Costco",
-      "source_document_date": null,
-      "source_accessed_at": null,
-      "confidence": "alta"
+      "explanation": "Costco depende de una cadena de suministro global extensa, lo que la expone a aranceles y disrupciones logísticas internacionales. Esto no es solo un riesgo teórico: en su cuarto trimestre del año fiscal 2026, la propia empresa reportó un beneficio no recurrente de $0.15 por acción diluida proveniente de reembolsos de aranceles bajo la ley IEEPA — es decir, hubo un episodio arancelario con un efecto contable medible y confirmado, aunque en este caso específico el efecto fue favorable, no adverso.",
+      "evidence": "El resumen del 10-K FY2026 reporta explícitamente este 'non-recurring benefit of $0.15 per diluted share from IEEPA tariff refunds' en el cuarto trimestre. Que el efecto más reciente haya sido un reembolso (beneficio) no elimina el riesgo subyacente — confirma que la exposición arancelaria de Costco es real y puede moverse en cualquier dirección según cómo evolucione la política comercial.",
+      "watch_indicator": "Anuncios de aranceles nuevos o cambios en disputas comerciales que afecten a los proveedores internacionales de Costco; cualquier nuevo efecto arancelario (favorable o adverso) divulgado en reportes trimestrales futuros.",
+      "uncertainty": "El momento, la dirección (beneficio vs. costo) y la magnitud de un futuro episodio arancelario no son predecibles de antemano a partir de este único dato.",
+      "source_name": "Resumen de cifras del 10-K FY2026 (TradingView): https://www.tradingview.com/news/tradingview:276b7af1afc4d:0-costco-wholesale-corp-new-fy-2026-revenue-303-15b-eps-20-76-10-k-summary/",
+      "source_document_date": "2026-08-30",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "media"
+    },
+    {
+      "category": "competencia",
+      "fact_type": "interpretacion",
+      "explanation": "Costco compite por el mismo tipo de cliente que otros clubes de membresía (Sam's Club de Walmart, BJ's Wholesale) y, en la categoría de abarrotes/artículos para el hogar en general, con minoristas de descuento y comercio electrónico. El crecimiento de ventas comparables de Costco (+8% en el año fiscal 2026) sugiere que, hasta ahora, mantiene o gana tráfico frente a esa competencia, pero esto es una lectura de la tendencia reciente, no una medición directa de participación de mercado frente a esos competidores específicos.",
+      "evidence": "La cifra de ventas comparables (+8% FY2026) proviene del mismo resumen del 10-K citado arriba. No encontré, en esta investigación, una cifra oficial y verificable de participación de mercado de Costco frente a Sam's Club o BJ's Wholesale específicamente — por eso esta entrada se marca como interpretación, no como hecho de participación de mercado.",
+      "watch_indicator": "Resultados comparables de ventas de Sam's Club (reportados por Walmart) y BJ's Wholesale en los mismos períodos, para contrastar tendencias relativas.",
+      "uncertainty": "Un crecimiento de ventas comparables saludable no descarta que un competidor esté creciendo todavía más rápido en algún segmento específico — esta entrada no cuantifica la intensidad competitiva real, solo señala que la competencia existe y es relevante para la tesis de largo plazo.",
+      "source_name": "Resumen de cifras del 10-K FY2026 (TradingView): https://www.tradingview.com/news/tradingview:276b7af1afc4d:0-costco-wholesale-corp-new-fy-2026-revenue-303-15b-eps-20-76-10-k-summary/",
+      "source_document_date": "2026-08-30",
+      "source_accessed_at": "2026-11-16",
+      "confidence": "media"
     }
   ]
 }

@@ -108,9 +108,7 @@ export default function AuthScreen() {
   const [biometricLoading, setBiometricLoading] = useState(false);
 
   const [forgotStep, setForgotStep]       = useState<"email" | "code" | "newpass">("email");
-  const [forgotMethod, setForgotMethod]   = useState<"email" | "sms">("email");
   const [forgotEmail, setForgotEmail]     = useState("");
-  const [forgotPhone, setForgotPhone]     = useState("");
   const [forgotCode, setForgotCode]       = useState("");
   const [forgotNewPass, setForgotNewPass] = useState("");
   const [forgotDone, setForgotDone]       = useState(false);
@@ -401,19 +399,12 @@ export default function AuthScreen() {
     setLoading(true);
     try {
       if (forgotStep === "email") {
-        if (forgotMethod === "sms") {
-          await authApi.forgotPasswordSms(forgotEmail.trim().toLowerCase(), forgotPhone.trim());
-        } else {
-          await authApi.forgotPassword(forgotEmail.trim().toLowerCase());
-        }
+        await authApi.forgotPassword(forgotEmail.trim().toLowerCase());
         setForgotStep("code");
       } else if (forgotStep === "code") {
         setForgotStep("newpass");
       } else {
-        await authApi.resetPassword(
-          forgotEmail.trim().toLowerCase(), forgotCode, forgotNewPass,
-          forgotMethod === "sms" ? forgotPhone.trim() : undefined,
-        );
+        await authApi.resetPassword(forgotEmail.trim().toLowerCase(), forgotCode, forgotNewPass);
         setForgotDone(true);
       }
     } catch (err: unknown) {
@@ -549,7 +540,7 @@ export default function AuthScreen() {
 
   const forgotDisabled =
     loading ||
-    (forgotStep === "email" && (!forgotEmail || (forgotMethod === "sms" && !forgotPhone))) ||
+    (forgotStep === "email" && !forgotEmail) ||
     (forgotStep === "code" && forgotCode.length < 6) ||
     (forgotStep === "newpass" && forgotNewPass.length < 6);
 
@@ -706,49 +697,25 @@ export default function AuthScreen() {
 
                     <Text style={S.sectionTitle}>
                       {forgotStep === "email" ? t("index.forgotPasswordTitle") :
-                       forgotStep === "code"  ? t("index.checkYour", { channel: forgotMethod === "sms" ? t("index.phone") : t("index.email") }) :
+                       forgotStep === "code"  ? t("index.checkYour", { channel: t("index.email") }) :
                        t("index.newPassword")}
                     </Text>
                     <Text style={[S.sectionSub, { marginBottom: 24 }]}>
                       {forgotStep === "email"
                         ? t("index.chooseVerificationMethod")
                         : forgotStep === "code"
-                        ? t("index.codeSentTo", { destination: forgotMethod === "sms" ? forgotPhone : forgotEmail })
+                        ? t("index.codeSentTo", { destination: forgotEmail })
                         : t("index.choosePassword")}
                     </Text>
 
                     {forgotStep === "email" && (
                       <>
-                        <View style={S.methodPicker}>
-                          {(["email", "sms"] as const).map((m) => (
-                            <TouchableOpacity
-                              key={m}
-                              style={[S.methodTab, forgotMethod === m && S.methodTabActive]}
-                              onPress={() => setForgotMethod(m)}
-                            >
-                              <Text style={[S.methodTabText, forgotMethod === m && { color: colors.text }]}>
-                                {m === "email" ? t("index.emailOption") : t("index.smsOption")}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
                         <Text style={S.inputLabel}>{t("index.emailLabel")}</Text>
                         <TextInput
                           style={S.input} value={forgotEmail} onChangeText={setForgotEmail}
                           placeholder="tu@email.com" placeholderTextColor={colors.placeholder}
                           keyboardType="email-address" autoCapitalize="none" autoFocus
                         />
-                        {forgotMethod === "sms" && (
-                          <>
-                            <Text style={[S.inputLabel, { marginTop: 16 }]}>{t("index.phoneLabel")}</Text>
-                            <TextInput
-                              style={S.input} value={forgotPhone} onChangeText={setForgotPhone}
-                              placeholder="+52 55 1234 5678" placeholderTextColor={colors.placeholder}
-                              keyboardType="phone-pad"
-                            />
-                            <Text style={S.hint}>{t("index.countryCodeHint")}</Text>
-                          </>
-                        )}
                       </>
                     )}
 
@@ -772,8 +739,7 @@ export default function AuthScreen() {
                               onPress={async () => {
                                 setLoading(true);
                                 try {
-                                  if (forgotMethod === "sms") await authApi.forgotPasswordSms(forgotEmail.trim().toLowerCase(), forgotPhone.trim());
-                                  else await authApi.forgotPassword(forgotEmail.trim().toLowerCase());
+                                  await authApi.forgotPassword(forgotEmail.trim().toLowerCase());
                                   setResendCooldown(30);
                                 } catch {}
                                 setLoading(false);
@@ -1030,11 +996,4 @@ const S = StyleSheet.create({
     backgroundColor: "rgba(0,212,126,0.1)",
     alignItems: "center", justifyContent: "center",
   },
-  methodPicker: {
-    flexDirection: "row", backgroundColor: colors.bg, borderRadius: 12,
-    padding: 4, marginBottom: 20, borderWidth: 1, borderColor: colors.border,
-  },
-  methodTab: { flex: 1, paddingVertical: 11, borderRadius: 9, alignItems: "center" },
-  methodTabActive: { backgroundColor: colors.borderStrong },
-  methodTabText: { color: colors.textMuted, fontSize: 14, fontWeight: "600" },
 });

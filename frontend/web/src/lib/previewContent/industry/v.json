@@ -1,0 +1,55 @@
+{
+  "ticker": "V",
+  "competitors": [
+    {
+      "segment": "Redes de pago con tarjeta",
+      "rivals": [
+        "Mastercard"
+      ],
+      "note": "Mastercard es el competidor directo más comparable a Visa — ambas operan redes de pago con un modelo de negocio muy similar (comisión por transacción, sin asumir riesgo crediticio del consumidor).",
+      "source_name": "Hecho ampliamente conocido sobre la estructura del mercado de redes de pago con tarjeta",
+      "confidence": "alta"
+    },
+    {
+      "segment": "Pagos alternativos",
+      "rivals": [
+        "Sistemas de pago en tiempo real (ej. FedNow)",
+        "Billeteras digitales y compra-ahora-paga-después"
+      ],
+      "note": "Estos no son redes de tarjetas tradicionales, pero compiten por el mismo volumen de transacciones de consumo, ofreciendo formas alternativas de pagar sin usar una tarjeta Visa o Mastercard.",
+      "source_name": "Cobertura general del sector de pagos y fintech",
+      "confidence": "media"
+    }
+  ],
+  "market_growth": {
+    "payments": {
+      "finding": "El volumen global de pagos digitales sigue creciendo de forma sostenida, impulsado por la adopción continua de pagos electrónicos sobre efectivo a nivel mundial.",
+      "figure_note": "No se verificó en esta ronda una cifra específica del tamaño total del mercado global de pagos digitales para 2026 — se reporta la dirección general de la tendencia sin una cifra numérica no verificada.",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "baja"
+    }
+  },
+  "competitive_strength": [
+    {
+      "vs": "Mastercard",
+      "note": "Visa es, por volumen de transacciones e ingresos, la red de pagos más grande del mundo — pero no se verificó en esta ronda una cifra específica de cuota de mercado comparada directamente contra Mastercard.",
+      "source_name": "Hecho ampliamente conocido, cifra comparativa específica no verificada en esta ronda",
+      "confidence": "media"
+    }
+  ],
+  "industry_shifts": [
+    {
+      "change": "Crecimiento de sistemas de pago en tiempo real entre cuentas bancarias y de métodos de pago alternativos (billeteras digitales, compra-ahora-paga-después).",
+      "what_it_means": "Existe una tendencia real hacia formas de pago que no requieren necesariamente una tarjeta de red tradicional.",
+      "effect_on_company": "El efecto material sobre el volumen de transacciones de Visa todavía no está confirmado en los resultados financieros disponibles — se trata como una tendencia a vigilar, no como un hecho ya materializado.",
+      "fact_type": "interpretacion",
+      "confidence": "media",
+      "is_prediction": true
+    }
+  ],
+  "watch": [
+    "Adopción de sistemas de pago en tiempo real y su efecto, si lo hay, sobre el volumen de transacciones de Visa.",
+    "Evolución del litigio de interchange."
+  ]
+}

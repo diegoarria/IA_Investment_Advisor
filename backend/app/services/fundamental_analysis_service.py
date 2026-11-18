@@ -808,6 +808,41 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
     return items
 
 
+def _apply_dual_track_blend_to_scenarios(scenarios: dict, blended: Optional[float]) -> None:
+    """Shared by both shadow_dual_track call sites below (the rich one and
+    the recovery-DCF fallback one) — extracted 2026-11-17 while fixing a
+    real bug: both sites independently overwrote `base`/`bear`/`bull`
+    `fair_value_per_share` with the blended dual-track result, but neither
+    refreshed `margin_of_safety_pct`, which `scenarios.py::build_scenarios`
+    had already computed once from the PRE-blend base value. That stale
+    field is exactly what `company_diagnostic_service._primary_scenarios`/
+    `_pillar_scores` read for the `value` pillar and overall score — so a
+    ticker whose dual-track blend moved the shown fair value also silently
+    carried a wrong margin/score (confirmed live: GOOGL's score pillar was
+    0 instead of 40, NVDA 23 instead of 47, with the post-blend base value
+    itself always correct).
+
+    Mutates `scenarios` in place. No-op if `blended`/the existing base
+    aren't usable (mirrors the guard each call site already had). Reuses
+    the SAME `calc_margin_of_safety` helper the rest of the engine uses —
+    never a parallel formula — and the SAME `current_price` already carried
+    on this scenarios dict (set by `build_scenarios`), never a new price
+    source. Never touches `financial_engine.py`'s sector-specific (bank/
+    insurance) path, which doesn't go through this function at all."""
+    old_base = (scenarios.get("base") or {}).get("fair_value_per_share")
+    if not (blended and blended > 0 and old_base and old_base > 0):
+        return
+    ratio = blended / old_base
+    scenarios["base"]["fair_value_per_share"] = round(blended, 2)
+    if scenarios.get("bear", {}).get("fair_value_per_share") is not None:
+        scenarios["bear"]["fair_value_per_share"] = round(scenarios["bear"]["fair_value_per_share"] * ratio, 2)
+    if scenarios.get("bull", {}).get("fair_value_per_share") is not None:
+        scenarios["bull"]["fair_value_per_share"] = round(scenarios["bull"]["fair_value_per_share"] * ratio, 2)
+    price = scenarios.get("current_price")
+    if price:
+        scenarios["margin_of_safety_pct"] = calc_margin_of_safety(blended, price)
+
+
 def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = True) -> Optional[dict]:
     """Returns a fully computed fundamental-analysis dict for `ticker`, or
     None if there isn't enough real financial data to compute one reliably
@@ -2908,14 +2943,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             dcf["gqv_fair_value"]["shadow_dual_track"] = shadow_result_fb
             _blended_fb = (shadow_result_fb or {}).get("blended_fair_value")
             _scenarios_fb = dcf["gqv_fair_value"].get("scenarios") or {}
-            _old_base_fb = (_scenarios_fb.get("base") or {}).get("fair_value_per_share")
-            if _blended_fb and _blended_fb > 0 and _old_base_fb and _old_base_fb > 0:
-                _ratio_fb = _blended_fb / _old_base_fb
-                _scenarios_fb["base"]["fair_value_per_share"] = round(_blended_fb, 2)
-                if _scenarios_fb.get("bear", {}).get("fair_value_per_share") is not None:
-                    _scenarios_fb["bear"]["fair_value_per_share"] = round(_scenarios_fb["bear"]["fair_value_per_share"] * _ratio_fb, 2)
-                if _scenarios_fb.get("bull", {}).get("fair_value_per_share") is not None:
-                    _scenarios_fb["bull"]["fair_value_per_share"] = round(_scenarios_fb["bull"]["fair_value_per_share"] * _ratio_fb, 2)
+            _apply_dual_track_blend_to_scenarios(_scenarios_fb, _blended_fb)
         except Exception as e:
             logger.info("get_fundamental_analysis(%s): shadow_dual_track (fallback site) not computable: %s", ticker, e)
 
@@ -3164,14 +3192,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             dcf["gqv_fair_value"]["shadow_dual_track"] = shadow_result
             _blended = (shadow_result or {}).get("blended_fair_value")
             _scenarios = dcf["gqv_fair_value"].get("scenarios") or {}
-            _old_base = ((_scenarios.get("base") or {}).get("fair_value_per_share"))
-            if _blended and _blended > 0 and _old_base and _old_base > 0:
-                _ratio = _blended / _old_base
-                _scenarios["base"]["fair_value_per_share"] = round(_blended, 2)
-                if _scenarios.get("bear", {}).get("fair_value_per_share") is not None:
-                    _scenarios["bear"]["fair_value_per_share"] = round(_scenarios["bear"]["fair_value_per_share"] * _ratio, 2)
-                if _scenarios.get("bull", {}).get("fair_value_per_share") is not None:
-                    _scenarios["bull"]["fair_value_per_share"] = round(_scenarios["bull"]["fair_value_per_share"] * _ratio, 2)
+            _apply_dual_track_blend_to_scenarios(_scenarios, _blended)
         except Exception as e:
             logger.info("get_fundamental_analysis(%s): shadow_dual_track not computable: %s", ticker, e)
 

@@ -1,0 +1,67 @@
+{
+  "ticker": "MSFT",
+  "review_status": "draft",
+  "is_current": false,
+  "updated_by": "ai_draft:claude-sonnet-5",
+  "business_model_summary": "Microsoft gana dinero principalmente de tres formas: software y servicios empresariales por suscripción (Microsoft 365/Office, LinkedIn, Dynamics 365 — agrupados como 'Productividad y Procesos de Negocio'), servicios en la nube (Azure y otros servicios de nube — 'Nube Inteligente'), y productos para consumidores (Windows, Xbox, Surface — 'Más Computación Personal'). En su año fiscal 2025 (que termina el 30 de junio, no en diciembre — Microsoft usa un año fiscal distinto al calendario), reportó ingresos de $281,700 millones (+15% interanual).",
+  "moat": [
+    {
+      "type": "switching_costs",
+      "explanation": "Las grandes empresas firman acuerdos empresariales de varios años con Microsoft 365 y Windows que integran correo, documentos, identidad y seguridad en un mismo ecosistema — cambiar de proveedor implica migrar procesos de trabajo de toda la organización, no solo un programa.",
+      "evidence": "Microsoft reportó ingresos de $281,700 millones en su año fiscal 2025 (terminado 30-jun-2025), impulsados en parte por renovaciones de estos acuerdos empresariales de largo plazo.",
+      "weakening_factors": "Alternativas como Google Workspace existen y compiten por contratos empresariales nuevos, especialmente en empresas más jóvenes o con menor dependencia histórica de Microsoft.",
+      "source_name": "Comunicado de resultados Q4 FY2025 de Microsoft: https://www.microsoft.com/en-us/Investor/earnings/FY-2025-Q4/press-release-webcast",
+      "source_document_date": "2025-07-30",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "alta"
+    },
+    {
+      "type": "scale",
+      "explanation": "Azure es el segundo proveedor de infraestructura en la nube por ingresos (detrás de AWS), y su crecimiento se acelera por la demanda de cómputo para inteligencia artificial, apalancada además por la asociación estratégica de Microsoft con OpenAI, que integra sus modelos en Azure y en productos como Copilot.",
+      "evidence": "Azure y otros servicios de nube crecieron 34% interanual en el año fiscal 2025, con ingresos reportados de aproximadamente $75,000 millones.",
+      "weakening_factors": "El gasto de capital necesario para sostener este crecimiento es enorme y ya se reconcilió: el estado de flujos de efectivo del año fiscal 2025 (terminado 30-jun-2025) reporta $64,551 millones bajo la línea \"Additions to property and equipment\" (capex en efectivo). La cifra más alta reportada por cobertura financiera (~$88,200 millones) corresponde al capex TOTAL que la propia Microsoft comunica en sus llamadas de resultados, que suma además los activos adquiridos vía arrendamientos financieros (finance leases, una adición no monetaria que no pasa por el estado de flujos de efectivo pero sí forma parte del capex total que el CFO reporta) — por ejemplo, en el Q4 FY2025 la CFO Amy Hood desglosó $24,200 millones de capex total del trimestre, de los cuales aproximadamente $5,000 millones fueron arrendamientos financieros. Ambas cifras son reales y correctas, solo miden cosas distintas — no es una discrepancia sin resolver, es una diferencia de definición ya documentada.",
+      "source_name": "Microsoft Investor Relations, FY2025 Q4 performance: https://www.microsoft.com/en-us/investor/earnings/fy-2025-q4/performance",
+      "source_document_date": "2025-07-30",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "alta"
+    }
+  ],
+  "risks": [
+    {
+      "category": "rentabilidad",
+      "fact_type": "hecho",
+      "explanation": "Microsoft está invirtiendo cifras extraordinariamente altas de capital (capex) en infraestructura de nube e IA. El capex en efectivo del año fiscal 2025 (terminado 30-jun-2025) fue de $64,551 millones según el estado de flujos de efectivo; el capex TOTAL que la empresa comunica en sus resultados (que incluye arrendamientos financieros, una adición no monetaria) es de aproximadamente $88,200 millones — ambas cifras representan un salto muy grande frente al año anterior.",
+      "evidence": "Estado de flujos de efectivo del 10-K FY2025: $64,551M en \"Additions to property and equipment\" (vs. $44,477M en FY2024). La CFO Amy Hood desglosó en la llamada de resultados del Q4 FY2025 que ese trimestre incluyó aproximadamente $5,000 millones de arrendamientos financieros adicionales al capex en efectivo del trimestre ($24,200M total), consistente con la brecha entre ambas cifras anuales.",
+      "watch_indicator": "Si el crecimiento de ingresos de Azure se mantiene lo suficientemente alto como para justificar este nivel de inversión, y si el margen operativo de Nube Inteligente se mantiene estable a medida que sube la depreciación de esta infraestructura.",
+      "uncertainty": "La cifra exacta de capex total FY2025 (incluyendo arrendamientos financieros) para el año completo no se confirmó directamente contra una tabla del 10-K con el desglose anual completo — se reconstruyó a partir del estado de flujos de efectivo (capex en efectivo, cifra sólida) más el patrón trimestral comentado por la CFO (arrendamientos financieros, cifra aproximada).",
+      "source_name": "10-K de Microsoft FY2025, estado de flujos de efectivo (capex en efectivo: $64,551M); llamada de resultados Q4 FY2025, comentarios de la CFO Amy Hood sobre arrendamientos financieros: https://www.microsoft.com/en-us/Investor/earnings/FY-2025-Q4/press-release-webcast",
+      "source_document_date": "2025-07-30",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "alta"
+    },
+    {
+      "category": "competencia",
+      "fact_type": "interpretacion",
+      "explanation": "Azure compite directamente contra Amazon Web Services (el líder actual del mercado) y Google Cloud por la misma demanda de cómputo en la nube e infraestructura de IA — si alguno de estos dos competidores gana terreno de forma sostenida, podría presionar el crecimiento de Azure.",
+      "evidence": "Los tres proveedores (AWS, Azure, Google Cloud) reportan crecimiento de doble dígito alto o más en sus respectivos segmentos de nube, lo que indica que el mercado total sigue creciendo, pero no resuelve quién está ganando participación relativa.",
+      "watch_indicator": "Comparación trimestral del crecimiento interanual de Azure frente al de AWS y Google Cloud en sus respectivos reportes de resultados.",
+      "uncertainty": "Esta es una interpretación sobre dinámica competitiva, no una medición directa de cuota de mercado — ninguna de las tres empresas publica una cifra oficial y comparable de 'cuota de mercado de nube'.",
+      "source_name": "Interpretación propia basada en los reportes de resultados trimestrales comparados de los 3 proveedores principales de nube",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    },
+    {
+      "category": "regulacion",
+      "fact_type": "interpretacion",
+      "explanation": "Microsoft, como las demás grandes tecnológicas, enfrenta escrutinio regulatorio y antimonopolio recurrente en Estados Unidos y la Unión Europea sobre sus prácticas de empaquetamiento de productos (por ejemplo, Teams incluido con Office) y su posición dominante en software empresarial.",
+      "evidence": "No se identificó en esta investigación un fallo o sanción material reciente y específico contra Microsoft comparable a los casos activos de Alphabet — este riesgo se marca como una posibilidad estructural del sector, no como un litigio activo con fecha confirmada en esta ronda de investigación.",
+      "watch_indicator": "Cualquier anuncio de investigación formal nueva o sanción por parte de reguladores de EE.UU. o la UE.",
+      "uncertainty": "No se verificó en esta ronda si existe algún litigio antimonopolio activo y material contra Microsoft con una fecha y resultado específicos — esto requeriría una ronda de investigación dedicada antes de publicarse como hecho.",
+      "source_name": "No verificado con una fuente primaria específica en esta ronda de investigación",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "baja"
+    }
+  ]
+}

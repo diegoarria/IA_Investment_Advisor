@@ -29,7 +29,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from app.core.cache import cache_delete, cache_get, cache_set
-from app.core.database import get_supabase, run_query
+from app.core.database import get_fresh_supabase, get_supabase, run_query
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +127,94 @@ def _validate_moat_entry(entry: dict, idx: int) -> list[str]:
     return errors
 
 
+def _validate_leadership(leadership: dict | None) -> list[str]:
+    """Structural validation for the optional `leadership` column
+    (migration 126) — mirrors previewContent/leadership/*.json's real
+    shape (ceo/capital_allocation/decisions/incentive_alignment/watch).
+    `None` is a valid, honest "no leadership content yet" — only
+    validated when present. Never a semantic fact-check."""
+    if leadership is None:
+        return []
+    errors: list[str] = []
+    if not isinstance(leadership, dict):
+        return ["leadership debe ser un objeto o null"]
+
+    ceo = leadership.get("ceo")
+    if not isinstance(ceo, dict) or not (ceo.get("name") or "").strip():
+        errors.append("leadership.ceo.name ausente")
+    elif not (ceo.get("source_name") or "").strip():
+        errors.append("leadership.ceo: afirmación material (CEO) sin source_name")
+
+    capital_allocation = leadership.get("capital_allocation")
+    if capital_allocation is not None and not isinstance(capital_allocation, dict):
+        errors.append("leadership.capital_allocation debe ser un objeto o null")
+    elif isinstance(capital_allocation, dict) and not (capital_allocation.get("source_name") or "").strip():
+        errors.append("leadership.capital_allocation: cifras materiales sin source_name")
+
+    decisions = leadership.get("decisions")
+    if decisions is not None:
+        if not isinstance(decisions, list):
+            errors.append("leadership.decisions debe ser una lista o null")
+        else:
+            for i, d in enumerate(decisions):
+                if not isinstance(d, dict) or not (d.get("decision") or "").strip():
+                    errors.append(f"leadership.decisions[{i}].decision ausente")
+                elif not (d.get("source_name") or "").strip():
+                    errors.append(f"leadership.decisions[{i}]: decisión sin source_name")
+
+    for field in ("ceo", "capital_allocation"):
+        sub = leadership.get(field)
+        if isinstance(sub, dict):
+            for k in ("role_explanation", "note", "acquisition_note"):
+                if _contains_prescriptive_language(sub.get(k)):
+                    errors.append(f"leadership.{field}.{k} contiene lenguaje prescriptivo de compra/venta")
+    return errors
+
+
+def _validate_industry(industry: dict | None) -> list[str]:
+    """Structural validation for the optional `industry` column
+    (migration 126) — mirrors previewContent/industry/*.json's real shape
+    (competitors/market_growth/competitive_strength/industry_shifts/watch).
+    `None` is a valid, honest "no industry content yet"."""
+    if industry is None:
+        return []
+    errors: list[str] = []
+    if not isinstance(industry, dict):
+        return ["industry debe ser un objeto o null"]
+
+    competitors = industry.get("competitors")
+    if competitors is not None:
+        if not isinstance(competitors, list):
+            errors.append("industry.competitors debe ser una lista o null")
+        else:
+            for i, c in enumerate(competitors):
+                if not isinstance(c, dict) or not (c.get("segment") or "").strip():
+                    errors.append(f"industry.competitors[{i}].segment ausente")
+                if isinstance(c, dict) and not isinstance(c.get("rivals"), list):
+                    errors.append(f"industry.competitors[{i}].rivals debe ser una lista")
+
+    industry_shifts = industry.get("industry_shifts")
+    if industry_shifts is not None:
+        if not isinstance(industry_shifts, list):
+            errors.append("industry.industry_shifts debe ser una lista o null")
+        else:
+            for i, s in enumerate(industry_shifts):
+                if not isinstance(s, dict) or not (s.get("change") or "").strip():
+                    errors.append(f"industry.industry_shifts[{i}].change ausente")
+                elif "is_prediction" not in s:
+                    errors.append(f"industry.industry_shifts[{i}]: falta is_prediction (hecho vs. predicción debe ser explícito)")
+
+    for field in ("competitors", "industry_shifts", "competitive_strength"):
+        items = industry.get(field)
+        if isinstance(items, list):
+            for item in items:
+                if isinstance(item, dict):
+                    for k in ("note", "evidence", "caveat", "what_it_means", "effect_on_company"):
+                        if _contains_prescriptive_language(item.get(k)):
+                            errors.append(f"industry.{field}.{k} contiene lenguaje prescriptivo de compra/venta")
+    return errors
+
+
 def _validate_risk_entry(entry: dict, idx: int) -> list[str]:
     errors = []
     prefix = f"risks[{idx}]"
@@ -158,12 +246,22 @@ def _validate_risk_entry(entry: dict, idx: int) -> list[str]:
 
 
 def validate_qualitative_entries(
-    business_model_summary: str | None, moat: list[dict], risks: list[dict]
+    business_model_summary: str | None,
+    moat: list[dict],
+    risks: list[dict],
+    leadership: dict | None = None,
+    industry: dict | None = None,
 ) -> list[str]:
     """Structural/formal validation only — required fields, enum values,
     evidence for material claims, no invented-looking dates, no
     buy/sell language. Never a semantic fact-check (that's a human
-    reviewer's job, not this function's, and never an LLM call's)."""
+    reviewer's job, not this function's, and never an LLM call's).
+
+    `leadership`/`industry` (migration 126, both nullable) are validated
+    only when present — unlike moat/risks, they're genuinely optional:
+    a ticker can have real moat/risk content with no leadership/industry
+    research yet, same "null means honestly absent" discipline the
+    columns themselves use."""
     errors: list[str] = []
     if not isinstance(moat, list) or not moat:
         errors.append("moat debe ser una lista no vacía")
@@ -177,17 +275,26 @@ def validate_qualitative_entries(
         errors.extend(_validate_moat_entry(entry, i))
     for i, entry in enumerate(risks):
         errors.extend(_validate_risk_entry(entry, i))
+    errors.extend(_validate_leadership(leadership))
+    errors.extend(_validate_industry(industry))
     return errors
 
 
 def _row_to_response(row: dict) -> dict:
     """Stable response contract for the frontend — see QualitativeContentResponse
-    in routes/qualitative_content.py for the Pydantic mirror of this shape."""
+    in routes/qualitative_content.py for the Pydantic mirror of this shape.
+
+    `leadership`/`industry` (migration 126) are passed through as-is —
+    `None` for any row that predates these columns or simply has no such
+    research yet, never defaulted to `{}` (which would look like "empty
+    but researched" rather than "not researched")."""
     return {
         "ticker": row.get("ticker"),
         "business_model_summary": row.get("business_model_summary"),
         "moat": row.get("moat") or [],
         "risks": row.get("risks") or [],
+        "leadership": row.get("leadership"),
+        "industry": row.get("industry"),
         "last_updated_at": row.get("last_updated_at"),
     }
 
@@ -215,7 +322,7 @@ async def get_published_qualitative_content(ticker: str) -> dict | None:
         db = get_supabase()
         result = await run_query(
             db.table("company_qualitative_content")
-            .select("ticker,business_model_summary,moat,risks,last_updated_at")
+            .select("ticker,business_model_summary,moat,risks,leadership,industry,last_updated_at")
             .eq("ticker", ticker)
             .eq("review_status", "published")
             .eq("is_current", True)
@@ -239,21 +346,44 @@ async def get_published_qualitative_content(ticker: str) -> dict | None:
 
 
 async def create_draft(
-    ticker: str, business_model_summary: str, moat: list[dict], risks: list[dict], updated_by: str
+    ticker: str,
+    business_model_summary: str,
+    moat: list[dict],
+    risks: list[dict],
+    updated_by: str,
+    leadership: dict | None = None,
+    industry: dict | None = None,
 ) -> dict:
     """Insert a new draft row. is_current is left at its column default
     (FALSE, migration 125) — never set TRUE here, drafts are never live.
     Structural validation runs regardless of who the author is (AI draft
     or human) — only the STATUS TRANSITION (mark_reviewed/publish_version)
-    distinguishes AI from human actors."""
+    distinguishes AI from human actors.
+
+    `leadership`/`industry` (migration 126) are optional and default to
+    None — a draft can have real moat/risk content with no leadership/
+    industry research yet; this mirrors the honest-absence discipline
+    those two columns already use everywhere else."""
     if not updated_by or not updated_by.strip():
         raise QualitativeContentError("create_draft: updated_by es obligatorio (humano o 'ai_draft:<modelo>')")
-    errors = validate_qualitative_entries(business_model_summary, moat, risks)
+    errors = validate_qualitative_entries(business_model_summary, moat, risks, leadership, industry)
     if errors:
         raise QualitativeContentError("Contenido rechazado por validación: " + "; ".join(errors))
 
     ticker = ticker.strip().upper()
-    db = get_supabase()
+    # get_fresh_supabase(), not the shared get_supabase() singleton: this is
+    # always called right after Depends(get_current_user), whose
+    # _resolve_user_token() calls db.auth.get_user(token) on that SAME
+    # singleton — which silently leaves its internal gotrue session pointed
+    # at the end user's own session (not service_role), even though
+    # get_supabase()'s own self-check only inspects the postgrest-level
+    # Authorization header and reports clean. Confirmed live 2026-10-20 for
+    # delete_account (auth.py) via the identical root cause; confirmed again
+    # 2026-11-17 for this module — mark_reviewed() under the singleton
+    # returned zero rows for a real, existing draft, because RLS silently
+    # filtered the query down to the admin's own (non-service-role) view,
+    # which never includes drafts.
+    db = get_fresh_supabase()
     existing = await run_query(
         db.table("company_qualitative_content").select("version").eq("ticker", ticker).order("version", desc=True).limit(1)
     )
@@ -268,6 +398,8 @@ async def create_draft(
             "business_model_summary": business_model_summary,
             "moat": moat,
             "risks": risks,
+            "leadership": leadership,
+            "industry": industry,
             "created_at": now,
             "last_updated_at": now,
             "updated_by": updated_by,
@@ -281,7 +413,12 @@ async def mark_reviewed(ticker: str, version: int, reviewer_email: str) -> dict:
     reviewer — never an AI actor, never blank."""
     _require_human_actor(reviewer_email, "mark_reviewed")
     ticker = ticker.strip().upper()
-    db = get_supabase()
+    # get_fresh_supabase(): see create_draft()'s comment above — this runs
+    # right after Depends(get_current_user) contaminates the shared
+    # singleton with the admin's own user session, which would otherwise
+    # make this SELECT run under RLS as that user (drafts invisible) instead
+    # of as service_role.
+    db = get_fresh_supabase()
     current = await run_query(
         db.table("company_qualitative_content").select("*").eq("ticker", ticker).eq("version", version).limit(1)
     )
@@ -291,7 +428,10 @@ async def mark_reviewed(ticker: str, version: int, reviewer_email: str) -> dict:
     if row["review_status"] != "draft":
         raise QualitativeContentError(f"mark_reviewed: {ticker} v{version} no está en draft (está en {row['review_status']})")
 
-    errors = validate_qualitative_entries(row.get("business_model_summary"), row.get("moat") or [], row.get("risks") or [])
+    errors = validate_qualitative_entries(
+        row.get("business_model_summary"), row.get("moat") or [], row.get("risks") or [],
+        row.get("leadership"), row.get("industry"),
+    )
     if errors:
         raise QualitativeContentError("No se puede marcar reviewed, contenido inválido: " + "; ".join(errors))
 
@@ -313,7 +453,10 @@ async def publish_version(ticker: str, version: int, publisher_email: str) -> di
     the pre-publish state for the remaining TTL window."""
     _require_human_actor(publisher_email, "publish_version")
     ticker = ticker.strip().upper()
-    db = get_supabase()
+    # get_fresh_supabase(): see create_draft()'s comment above — same
+    # singleton-contamination risk, since this also runs right after
+    # Depends(get_current_user).
+    db = get_fresh_supabase()
     current = await run_query(
         db.table("company_qualitative_content").select("*").eq("ticker", ticker).eq("version", version).limit(1)
     )
@@ -332,6 +475,8 @@ async def publish_version(ticker: str, version: int, publisher_email: str) -> di
             "p_moat": row.get("moat") or [],
             "p_risks": row.get("risks") or [],
             "p_updated_by": publisher_email,
+            "p_leadership": row.get("leadership"),
+            "p_industry": row.get("industry"),
         })
     )
     cache_delete(_cache_key(ticker))

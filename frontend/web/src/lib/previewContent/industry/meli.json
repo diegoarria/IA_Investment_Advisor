@@ -1,0 +1,57 @@
+{
+  "ticker": "MELI",
+  "competitors": [
+    {
+      "segment": "Comercio electrónico en América Latina",
+      "rivals": [
+        "Amazon",
+        "Shein",
+        "Temu"
+      ],
+      "note": "Estos competidores globales están expandiendo activamente su presencia e infraestructura logística en la región, un mercado que MercadoLibre ha dominado históricamente.",
+      "source_name": "Forbes Argentina, expansión logística de MercadoLibre frente a Temu/Shein: https://www.forbesargentina.com/negocios/mercado-libre-aterriza-china-centro-logistico-competir-temu-shein-n86752",
+      "confidence": "media"
+    },
+    {
+      "segment": "Fintech / pagos en América Latina",
+      "rivals": [
+        "Nu (Nubank)",
+        "Otros bancos digitales y fintechs regionales"
+      ],
+      "note": "Mercado Pago compite con bancos digitales y fintechs de la región por el mismo tipo de clientes que buscan servicios financieros digitales — no se investigó en esta ronda una comparación directa y detallada entre ambos negocios.",
+      "source_name": "Interpretación propia basada en la estructura del mercado fintech latinoamericano",
+      "confidence": "baja"
+    }
+  ],
+  "market_growth": {
+    "latam_ecommerce": {
+      "finding": "El comercio electrónico en América Latina sigue en expansión, con MercadoLibre reportando un crecimiento real de ingresos de 39% en 2025 — pero esto es el crecimiento específico de MercadoLibre, no necesariamente el crecimiento del mercado total de e-commerce en la región.",
+      "figure_note": "No se verificó en esta ronda una cifra independiente y confiable del tamaño total del mercado de comercio electrónico en América Latina para 2025-2026.",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "baja"
+    }
+  },
+  "competitive_strength": [
+    {
+      "vs": "Amazon, Shein, Temu",
+      "note": "MercadoLibre mantiene una posición de liderazgo construida durante más de 2 décadas en logística e infraestructura regional, respondiendo a la entrada de estos competidores con inversión adicional en su propia red logística — no existe una cifra oficial de cuota de mercado comparada directamente.",
+      "source_name": "Cobertura de resultados 2025 de MercadoLibre y su respuesta competitiva",
+      "confidence": "media"
+    }
+  ],
+  "industry_shifts": [
+    {
+      "change": "Entrada acelerada de competidores globales de comercio electrónico de bajo costo (Shein, Temu) en el mercado latinoamericano.",
+      "what_it_means": "Estos competidores podrían presionar los márgenes de MercadoLibre si logran ganar una porción significativa del gasto de consumo en la región.",
+      "effect_on_company": "MercadoLibre respondió anunciando la construcción de un nuevo centro logístico específicamente diseñado para competir con ellos — el resultado de esta respuesta todavía no está confirmado.",
+      "fact_type": "interpretacion",
+      "confidence": "media",
+      "is_prediction": true
+    }
+  ],
+  "watch": [
+    "Evolución de la presencia de Amazon, Shein y Temu en América Latina.",
+    "Resultado del nuevo centro logístico de MercadoLibre frente a esta competencia."
+  ]
+}

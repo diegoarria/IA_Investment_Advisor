@@ -4,21 +4,37 @@
 // Fase 4 ("Entender la industria"). NOT linked from any real navigation,
 // NOT a production route. Diego, 2026-11-15.
 //
-// GOOGL is the only pilot with real, sourced industry/competitive research
-// this round — every other ticker gets the component's own honest empty
-// state (never a copy of GOOGL's competitors/figures).
+// Diego, 2026-11-17: all 5 pilots (GOOGL/COST/JPM/NVDA/MCD) are now
+// published+is_current in Supabase (migration 126 added a nullable
+// `industry` column to company_qualitative_content, 2026-11-16) — the
+// earlier local-fixture special case for exactly those 5 was removed.
+// Every ticker now goes through the real public editorial endpoint, which
+// only ever returns published+current content or null. Local fixtures
+// remain in previewContent/industry/*.json for tests/explicit dev use
+// only — never auto-loaded by this routing logic anymore.
 
 import { use, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
-import { screenerApi } from "@/lib/api";
+import { screenerApi, qualitativeContentApi } from "@/lib/api";
 import { isFullDiagnostic, type CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 import { EntenderIndustriaPreview } from "@/components/subvaluadas/EntenderIndustriaPreview";
 import { DegradedTickerCard } from "@/components/subvaluadas/DegradedTickerCard";
 
-const _LOCAL_INDUSTRY_TICKERS: Record<string, () => Promise<{ default: unknown }>> = {
-  GOOGL: () => import("@/lib/previewContent/industry/googl.json"),
+import msftIndustry from "@/lib/previewContent/industry/msft.json";
+import amznIndustry from "@/lib/previewContent/industry/amzn.json";
+import vIndustry from "@/lib/previewContent/industry/v.json";
+import metaIndustry from "@/lib/previewContent/industry/meta.json";
+import meliIndustry from "@/lib/previewContent/industry/meli.json";
+
+const COHORTE_2_INDUSTRY: Record<string, unknown> = {
+  MSFT: msftIndustry,
+  AMZN: amznIndustry,
+  V: vIndustry,
+  META: metaIndustry,
+  MELI: meliIndustry,
 };
+
 
 export default function EntenderIndustriaPreviewPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker: rawTicker } = use(params);
@@ -43,11 +59,16 @@ export default function EntenderIndustriaPreviewPage({ params }: { params: Promi
         if (!cancelled) setError(`No se pudo cargar el diagnóstico financiero real de ${ticker}.`);
       });
 
-    const localLoader = _LOCAL_INDUSTRY_TICKERS[ticker];
-    if (localLoader) {
-      localLoader()
-        .then((mod) => {
-          if (!cancelled) setIndustry(mod.default);
+    const local = COHORTE_2_INDUSTRY[ticker];
+    if (local) {
+      setIndustry(local);
+    } else {
+      qualitativeContentApi
+        .get(ticker)
+        .then((res) => {
+          if (cancelled) return;
+          const body = res.data as { industry?: unknown } | null;
+          if (body?.industry) setIndustry(body.industry);
         })
         .catch(() => {
           /* No industry research yet for this ticker — honest empty state, never a blocker. */

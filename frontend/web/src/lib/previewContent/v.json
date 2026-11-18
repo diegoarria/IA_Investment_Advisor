@@ -1,0 +1,57 @@
+{
+  "ticker": "V",
+  "review_status": "draft",
+  "is_current": false,
+  "updated_by": "ai_draft:claude-sonnet-5",
+  "business_model_summary": "Visa NO es un banco — es importante entender esta distinción desde el inicio. Visa no presta dinero a consumidores ni asume el riesgo de que alguien no pague su tarjeta de crédito (eso lo hacen los bancos que emiten las tarjetas, como Chase o Bank of America). Visa opera la red que conecta a comercios, bancos y consumidores, y cobra una pequeña comisión cada vez que esa red procesa un pago — un modelo de 'peaje' sobre el volumen de transacciones, no de préstamo. Visa usa un año fiscal que termina el 30 de septiembre (no en diciembre). En su año fiscal 2025, reportó ingresos netos de $40,000 millones (+11% interanual) y utilidad neta de $20,100 millones.",
+  "moat": [
+    {
+      "type": "network_effect",
+      "explanation": "Cuantos más bancos emiten tarjetas Visa y cuantos más comercios las aceptan, más útil se vuelve la red para ambos lados — un consumidor quiere una tarjeta que acepten en todas partes, y un comercio quiere aceptar la tarjeta que más consumidores usan. Este círculo lleva décadas reforzándose a sí mismo.",
+      "evidence": "Visa reportó ingresos netos de $40,000 millones en el año fiscal 2025, con crecimiento impulsado principalmente por mayor volumen de transacciones procesadas, no por aumentar las comisiones.",
+      "weakening_factors": "Sistemas de pago en tiempo real alternativos (como FedNow en EE.UU.) y plataformas de pago directo entre cuentas bancarias podrían, con el tiempo, reducir la necesidad de una red de tarjetas tradicional para ciertos tipos de transacciones.",
+      "source_name": "Reporte anual fiscal 2025 de Visa: https://s29.q4cdn.com/385744025/files/doc_downloads/2025/Visa-Fiscal-2025-Annual-Report.pdf",
+      "source_document_date": "2025-09-30",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "alta"
+    }
+  ],
+  "risks": [
+    {
+      "category": "regulacion",
+      "fact_type": "hecho",
+      "explanation": "Visa está involucrada en litigios de larga duración sobre las comisiones de intercambio (interchange) que cobra a los comercios — en el año fiscal 2025, la empresa registró $2,200 millones adicionales en provisiones específicamente para atender reclamos relacionados con este litigio multidistrito.",
+      "evidence": "El reporte anual fiscal 2025 de Visa documenta esta provisión adicional de $2,200 millones para el litigio de interchange.",
+      "watch_indicator": "Cualquier resolución, apelación o nueva provisión relacionada con este litigio en reportes trimestrales futuros.",
+      "uncertainty": "No se verificó en esta ronda el estado procesal exacto del litigio (si sigue en curso, en qué corte, o fecha estimada de resolución).",
+      "source_name": "Reporte anual fiscal 2025 de Visa: https://s29.q4cdn.com/385744025/files/doc_downloads/2025/Visa-Fiscal-2025-Annual-Report.pdf",
+      "source_document_date": "2025-09-30",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "alta"
+    },
+    {
+      "category": "tecnologia_disrupcion",
+      "fact_type": "interpretacion",
+      "explanation": "El crecimiento de sistemas de pago en tiempo real entre cuentas bancarias (como FedNow) y de métodos alternativos de pago (billeteras digitales, compra-ahora-paga-después) podría, con el tiempo, reducir la dependencia de las redes de tarjetas tradicionales para ciertos tipos de transacciones.",
+      "evidence": "Estos sistemas alternativos existen y están en expansión real, pero no hay evidencia en esta investigación de que ya estén desplazando de forma material el volumen de transacciones de Visa.",
+      "watch_indicator": "Adopción de sistemas de pago en tiempo real y su efecto, si lo hay, sobre el crecimiento del volumen de pagos procesado por Visa.",
+      "uncertainty": "Esto es una interpretación sobre una tendencia tecnológica, no un hecho observado todavía en los resultados financieros de Visa.",
+      "source_name": "Interpretación propia basada en tendencias públicamente conocidas del sector de pagos",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    },
+    {
+      "category": "riesgo_sectorial",
+      "fact_type": "interpretacion",
+      "explanation": "Los ingresos de Visa dependen directamente del volumen de gasto de consumidores y empresas que pasa por su red — a diferencia de un negocio con ingresos contractuales fijos, una desaceleración económica real (menor gasto de consumo) se traduciría directamente en menor crecimiento de ingresos para Visa, sin que la empresa pueda hacer mucho para evitarlo.",
+      "evidence": "El crecimiento de ingresos de Visa en el año fiscal 2025 (+11%) estuvo impulsado explícitamente por mayor volumen de transacciones procesadas — la relación directa entre volumen de gasto y resultados de Visa es estructural a su modelo de negocio, documentada en su propio reporte anual.",
+      "watch_indicator": "Indicadores de gasto de consumo en las principales economías donde opera Visa, y el crecimiento de volumen de pagos reportado trimestralmente.",
+      "uncertainty": "Esto es una característica estructural conocida del negocio, no una predicción de que una desaceleración vaya a ocurrir en un plazo específico.",
+      "source_name": "Reporte anual fiscal 2025 de Visa: https://s29.q4cdn.com/385744025/files/doc_downloads/2025/Visa-Fiscal-2025-Annual-Report.pdf",
+      "source_document_date": "2025-09-30",
+      "source_accessed_at": "2026-11-17",
+      "confidence": "alta"
+    }
+  ]
+}

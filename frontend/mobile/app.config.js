@@ -13,7 +13,7 @@ export default {
       backgroundColor: "#0f1117",
     },
     ios: {
-      supportsTablet: true,
+      supportsTablet: false,
       bundleIdentifier: "com.nuvosai.app",
       buildNumber: "7",
       infoPlist: {

@@ -60,7 +60,7 @@
     {
       "change": "Adopción creciente de asistentes de inteligencia artificial conversacional como forma alternativa de buscar información.",
       "what_it_means": "Una parte de las búsquedas que antes se resolvían con una consulta tradicional en Google podría, con el tiempo, resolverse directamente dentro de un asistente de IA conversacional.",
-      "effect_on_googl": "En el tercer trimestre de 2026, el segmento 'Search & other' creció 12% interanual pero quedó por debajo de la expectativa de los analistas — la primera vez en casi 4 años que esto ocurre. No hay una cifra oficial de Alphabet que atribuya explícitamente ese incumplimiento a la IA conversacional; podría deberse a otros factores.",
+      "effect_on_company": "En el tercer trimestre de 2026, el segmento 'Search & other' creció 12% interanual pero quedó por debajo de la expectativa de los analistas — la primera vez en casi 4 años que esto ocurre. No hay una cifra oficial de Alphabet que atribuya explícitamente ese incumplimiento a la IA conversacional; podría deberse a otros factores.",
       "is_prediction": true,
       "source_name": "CNBC, cobertura de resultados Q3 2026: https://www.cnbc.com/2026/10/28/alphabet-googl-earnings-q3-2026.html",
       "confidence": "media"
@@ -68,7 +68,7 @@
     {
       "change": "Litigios antimonopolio con sentencia firme en EE.UU. (búsqueda y tecnología publicitaria).",
       "what_it_means": "Los reguladores ya determinaron que Alphabet mantuvo ilegalmente un monopolio en dos áreas distintas: búsqueda general y tecnología publicitaria (adtech).",
-      "effect_on_googl": "El fallo de remedios de diciembre de 2025 prohíbe ciertos contratos exclusivos y obliga a compartir información de búsqueda con competidores; el caso sigue en apelación. Esto es un hecho ya ocurrido, no una hipótesis futura.",
+      "effect_on_company": "El fallo de remedios de diciembre de 2025 prohíbe ciertos contratos exclusivos y obliga a compartir información de búsqueda con competidores; el caso sigue en apelación. Esto es un hecho ya ocurrido, no una hipótesis futura.",
       "is_prediction": false,
       "source_name": "Mismas fuentes ya verificadas en el contenido editorial de Riesgos (fallos de responsabilidad 2024/2025, remedios 2025)",
       "confidence": "alta"

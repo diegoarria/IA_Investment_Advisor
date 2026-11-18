@@ -1,0 +1,67 @@
+{
+  "ticker": "MELI",
+  "review_status": "draft",
+  "is_current": false,
+  "updated_by": "ai_draft:claude-sonnet-5",
+  "business_model_summary": "MercadoLibre es, en realidad, dos negocios distintos operando bajo la misma marca en América Latina: Commerce (el mercado en línea, donde cobra comisiones a vendedores y servicios de envío) y Mercado Pago (su negocio de fintech — procesamiento de pagos, tarjetas de crédito propias, y préstamos a consumidores y comercios). Es importante no confundir ambos negocios: Commerce es comercio electrónico tradicional; Mercado Pago es un negocio financiero con riesgo de crédito real. En 2025, los ingresos netos totales fueron de aproximadamente $28,900 millones (+39% interanual), de los cuales Mercado Pago aportó $12,600 millones (+46%) y Commerce $16,300 millones. Por país, aproximadamente 53% de los ingresos de 2025 vinieron de Brasil, 22% de México y 21% de Argentina.",
+  "moat": [
+    {
+      "type": "scale",
+      "explanation": "MercadoLibre construyó la red de comercio electrónico y logística más grande de América Latina durante más de dos décadas — una infraestructura de almacenes y entrega propia que es extremadamente costosa y lenta de replicar para un competidor nuevo en la región.",
+      "evidence": "Los ingresos netos crecieron 39% en 2025 a $28,900 millones, con un crecimiento de ventas del cuarto trimestre reportado de 45% interanual, impulsado en parte por envíos gratuitos.",
+      "weakening_factors": "Competidores globales como Amazon, Shein y Temu están expandiendo su presencia e infraestructura logística en América Latina — MercadoLibre anunció la construcción de un centro logístico específicamente para competir con Temu y Shein.",
+      "source_name": "Cobertura de resultados anuales 2025 de MercadoLibre; Forbes Argentina sobre expansión logística frente a Temu/Shein: https://www.forbesargentina.com/negocios/mercado-libre-aterriza-china-centro-logistico-competir-temu-shein-n86752",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    },
+    {
+      "type": "network_effect",
+      "explanation": "Mercado Pago comenzó como el método de pago dentro del marketplace de MercadoLibre, pero se expandió a una billetera digital y negocio de crédito independiente usado incluso por personas que no compran en el marketplace — esta integración entre comercio y fintech es una ventaja que un competidor de un solo negocio (solo e-commerce, o solo fintech) no tiene fácilmente.",
+      "evidence": "Mercado Pago generó $12,600 millones en ingresos netos en 2025 (+46% interanual), creciendo más rápido que el negocio de Commerce.",
+      "weakening_factors": "El negocio de crédito de Mercado Pago (Mercado Crédito) conlleva riesgo crediticio real que no existe en el negocio de comercio electrónico puro — la cartera de crédito creció a aproximadamente $17,900 millones al 30-sep-2026 (+62% interanual), según el 10-Q del tercer trimestre de 2026, con tarjetas de crédito representando ~47% de la cartera (frente a ~44% un año antes).",
+      "source_name": "Cobertura de resultados anuales 2025 de MercadoLibre (cifras de cartera de crédito no conciliadas entre fuentes)",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    }
+  ],
+  "risks": [
+    {
+      "category": "riesgo_sectorial",
+      "fact_type": "hecho",
+      "explanation": "MercadoLibre opera en varios países de América Latina con monedas inestables, especialmente Argentina, que la propia empresa contabiliza como economía hiperinflacionaria desde julio de 2018 — esto significa que los resultados financieros reportados en dólares pueden distorsionarse por efectos cambiarios que no reflejan el desempeño real del negocio.",
+      "evidence": "La debilidad de la moneda, particularmente en Argentina, afecta de forma real los resultados reportados de la compañía — Argentina, pese a esto, sigue siendo el mercado más rentable por margen para MercadoLibre, aunque con cierta compresión reciente atribuida a inversión en cumplimiento y tarjetas de crédito.",
+      "watch_indicator": "Evolución del tipo de cambio en Argentina y su efecto en los resultados reportados en dólares; cualquier cambio en la política macroeconómica argentina que afecte el negocio.",
+      "uncertainty": "El efecto cambiario es real pero su magnitud exacta trimestre a trimestre no se cuantificó en esta ronda de investigación.",
+      "source_name": "Cobertura de resultados de MercadoLibre sobre el efecto de la moneda en Argentina",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "alta"
+    },
+    {
+      "category": "rentabilidad",
+      "fact_type": "interpretacion",
+      "explanation": "El negocio de crédito de Mercado Pago (Mercado Crédito) ha crecido muy rápido — la cartera de crédito alcanzó aproximadamente $17,900 millones al 30 de septiembre de 2026 (+62% interanual, y 2.7 veces el nivel de diciembre de 2024), según el 10-Q del tercer trimestre de 2026. Las tarjetas de crédito representan aproximadamente 47% de la cartera. Este crecimiento acelerado introduce riesgo crediticio real que un negocio de comercio electrónico puro no tiene.",
+      "evidence": "10-Q de MercadoLibre, Q3 2026: cartera de crédito ~$17,900M (+62% interanual); ratio de morosidad de 15-90 días de 7.0% (descrito como 'ampliamente estable' en la carta a accionistas); margen de interés neto ajustado por riesgo (NIMAL) de ~20.1%, frente a ~21.0% un año antes.",
+      "watch_indicator": "Evolución trimestral del ratio de morosidad de 15-90 días y del NIMAL en los próximos reportes; si el ritmo de crecimiento de la cartera (+62% interanual) se sostiene sin deterioro de la calidad crediticia.",
+      "uncertainty": "El ratio de morosidad reportado (7.0%) corresponde a una ventana de 15-90 días, no a la morosidad total de la cartera; no se verificó en esta ronda la cifra de provisiones para pérdidas crediticias del Q3 2026 ni la morosidad de más de 90 días.",
+      "source_name": "10-Q de MercadoLibre Q3 2026 (vía cobertura secundaria convergente: sec-api.io análisis del filing, finsee.ai, Rio Times Online — no se abrió el documento SEC directamente): https://sec-api.io/insights/mercadolibre-meli-q3-2026-earnings-sec-filing-analysis-17-9bn-credit-book-up-62-as-operating-margin-falls-to-6-3",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    },
+    {
+      "category": "competencia",
+      "fact_type": "hecho",
+      "explanation": "Competidores globales de comercio electrónico (Amazon, Shein, Temu) están expandiendo activamente su presencia en América Latina, un mercado que MercadoLibre ha dominado históricamente.",
+      "evidence": "MercadoLibre anunció la construcción de un centro logístico específicamente diseñado para competir con Temu y Shein en la región.",
+      "watch_indicator": "Evolución de la cuota de mercado de MercadoLibre frente a estos competidores en los próximos trimestres.",
+      "uncertainty": "No existe una cifra oficial y verificable de cuota de mercado comparada entre MercadoLibre y estos competidores en esta investigación.",
+      "source_name": "Forbes Argentina, sobre la expansión logística de MercadoLibre frente a Temu/Shein: https://www.forbesargentina.com/negocios/mercado-libre-aterriza-china-centro-logistico-competir-temu-shein-n86752",
+      "source_document_date": null,
+      "source_accessed_at": "2026-11-17",
+      "confidence": "media"
+    }
+  ]
+}

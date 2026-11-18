@@ -34,11 +34,17 @@ class QualitativeContentResponse(BaseModel):
     Deliberately omits review_status/is_current: by construction, any
     instance of this model already represents published+current content
     (or the endpoint returned null), so those fields would only ever
-    carry one constant value and add nothing a reader needs."""
+    carry one constant value and add nothing a reader needs.
+
+    `leadership`/`industry` (migration 126, both nullable) are `None`
+    for any ticker without that research yet — honest absence, never an
+    empty object standing in for "researched but empty"."""
     ticker: str
     business_model_summary: str | None
     moat: list[dict]
     risks: list[dict]
+    leadership: dict | None = None
+    industry: dict | None = None
     last_updated_at: str | None
 
 
@@ -48,6 +54,8 @@ class DraftRequest(BaseModel):
     moat: list[dict]
     risks: list[dict]
     updated_by: str  # human email, or "ai_draft:<model-id>" for an AI-generated draft
+    leadership: dict | None = None
+    industry: dict | None = None
 
 
 class VersionActionRequest(BaseModel):
@@ -68,7 +76,8 @@ async def create_draft(payload: DraftRequest, user: dict = Depends(get_current_u
     _require_admin(user)
     try:
         row = await qcs.create_draft(
-            payload.ticker, payload.business_model_summary, payload.moat, payload.risks, payload.updated_by
+            payload.ticker, payload.business_model_summary, payload.moat, payload.risks, payload.updated_by,
+            payload.leadership, payload.industry,
         )
     except qcs.QualitativeContentError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

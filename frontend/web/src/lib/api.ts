@@ -130,10 +130,10 @@ export const auth = {
   exportData: () => api.get("/api/auth/export-data"),
   forgotPassword: (email: string) =>
     api.post("/api/auth/forgot-password", { email }),
-  forgotPasswordSms: (email: string, phone: string) =>
-    api.post("/api/auth/forgot-password-sms", { email, phone }),
-  resetPassword: (email: string, code: string, new_password: string, phone?: string) =>
-    api.post("/api/auth/reset-password", { email, code, new_password, ...(phone ? { phone } : {}) }),
+  // SMS recovery (forgot-password-sms) is intentionally not exposed here —
+  // Twilio isn't provisioned, so it would silently fail. Email-only for now.
+  resetPassword: (email: string, code: string, new_password: string) =>
+    api.post("/api/auth/reset-password", { email, code, new_password }),
   setSession: (access_token: string, refresh_token?: string) =>
     api.post("/api/auth/set-session", { access_token, refresh_token }),
 };
@@ -779,6 +779,29 @@ export const screenerApi = {
 // reviewing not-yet-published drafts.
 export const qualitativeContentApi = {
   get: (ticker: string) => api.get(`/api/qualitative-content/${encodeURIComponent(ticker)}`),
+  // Admin-gated (backend re-checks the admin allowlist on every call — these
+  // functions grant nothing by themselves). Using the shared `api` client
+  // (not a raw fetch) matters here: it carries the same httpOnly session
+  // cookie and, critically, its 401 interceptor transparently refreshes an
+  // expired access token and retries — a raw `fetch('/api/...', {credentials:
+  // 'include'})` from the console sends whatever cookie exists right now
+  // with no refresh attempt, so a session that's merely due for a silent
+  // refresh looks identical to "not logged in" (empty/expired token →
+  // backend's "Invalid token format").
+  review: (ticker: string, version: number) => api.post("/api/qualitative-content/review", { ticker, version }),
+  publish: (ticker: string, version: number) => api.post("/api/qualitative-content/publish", { ticker, version }),
+};
+
+// Nuvos Radar 2.0, Fase 7 "Mi tesis" — private, authenticated persistence
+// (backend/app/api/routes/radar_thesis.py, migration 127, NOT applied to
+// real Supabase yet). user_id is never sent here — the backend derives it
+// from the real session cookie (get_current_user_id), same `api` client
+// (not raw fetch) as qualitativeContentApi, for the same refresh-on-401
+// reason documented above.
+export const radarThesisApi = {
+  get: (ticker: string) => api.get(`/api/radar/thesis/${encodeURIComponent(ticker)}`),
+  save: (ticker: string, answers: object) =>
+    api.put(`/api/radar/thesis/${encodeURIComponent(ticker)}`, answers),
 };
 
 export const simulateApi = {

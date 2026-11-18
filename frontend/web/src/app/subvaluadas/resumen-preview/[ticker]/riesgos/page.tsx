@@ -4,16 +4,14 @@
 // "Riesgos" tab, first functional version. NOT linked from any real
 // navigation, NOT a production route. Diego, 2026-11-12.
 //
-// Same dual editorial-source pattern already used by the Resumen route
-// (`[ticker]/page.tsx`) — copied deliberately rather than abstracted into a
-// shared hook, to avoid touching that file's own data-loading logic:
-//   1. The 5 pilot tickers (GOOGL/COST/JPM/NVDA/MCD) still have DRAFT-only
-//      content in Supabase — this route reads the local JSON fixture for
-//      exactly those 5, never the real public editorial endpoint.
-//   2. Every other ticker goes through the real public endpoint
-//      (`qualitativeContentApi.get`), which only ever returns
-//      published+is_current content, or null. Null renders the honest
-//      empty state inside RiesgosPreview, never an error.
+// Diego, 2026-11-17: all 5 pilots (GOOGL/COST/JPM/NVDA/MCD) are now
+// published+is_current in Supabase, so the earlier local-fixture special
+// case for exactly those 5 was removed. Every ticker now goes through the
+// real public endpoint (`qualitativeContentApi.get`), which only ever
+// returns published+is_current content, or null. Null renders the honest
+// empty state inside RiesgosPreview, never an error. Local fixtures remain
+// in previewContent/*.json for tests/explicit dev use only — never
+// auto-loaded here anymore.
 //
 // Financial data (for the header: name/ticker/sector/price, and so the
 // TabNav can render) is the same real, public, no-auth company-diagnostic
@@ -27,14 +25,6 @@ import { isFullDiagnostic, type CompanyDiagnosticData } from "@/lib/types/compan
 import { RiesgosPreview } from "@/components/subvaluadas/RiesgosPreview";
 import { type QualitativeContentDraft } from "@/components/subvaluadas/ResumenPreview";
 import { DegradedTickerCard } from "@/components/subvaluadas/DegradedTickerCard";
-
-const _LOCAL_DRAFT_TICKERS: Record<string, () => Promise<{ default: QualitativeContentDraft }>> = {
-  GOOGL: () => import("@/lib/previewContent/googl_v3.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  COST: () => import("@/lib/previewContent/cost.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  JPM: () => import("@/lib/previewContent/jpm.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  NVDA: () => import("@/lib/previewContent/nvda.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-  MCD: () => import("@/lib/previewContent/mcd.json") as unknown as Promise<{ default: QualitativeContentDraft }>,
-};
 
 export default function RiesgosPreviewPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker: rawTicker } = use(params);
@@ -59,36 +49,29 @@ export default function RiesgosPreviewPage({ params }: { params: Promise<{ ticke
         if (!cancelled) setError(`No se pudo cargar el diagnóstico financiero real de ${ticker}.`);
       });
 
-    const localLoader = _LOCAL_DRAFT_TICKERS[ticker];
-    if (localLoader) {
-      localLoader()
-        .then((mod) => {
-          if (!cancelled) setEditorial(mod.default);
-        })
-        .catch(() => {
-          /* Editorial read failure never blocks the financial ficha. */
-        });
-    } else {
-      qualitativeContentApi
-        .get(ticker)
-        .then((res) => {
-          if (cancelled) return;
-          const body = res.data;
-          if (body) {
-            setEditorial({
-              ticker,
-              review_status: "published",
-              is_current: true,
-              business_model_summary: body.business_model_summary ?? "",
-              moat: body.moat ?? [],
-              risks: body.risks ?? [],
-            });
-          }
-        })
-        .catch(() => {
-          /* Real-world normal case today: no published editorial yet. */
-        });
-    }
+    qualitativeContentApi
+      .get(ticker)
+      .then((res) => {
+        if (cancelled) return;
+        const body = res.data;
+        if (body) {
+          setEditorial({
+            ticker,
+            review_status: "published",
+            is_current: true,
+            business_model_summary: body.business_model_summary ?? "",
+            moat: body.moat ?? [],
+            risks: body.risks ?? [],
+          });
+        }
+      })
+      .catch(() => {
+        /* Editorial read failure never blocks the financial ficha — the
+           real-world normal case for any ticker without a published
+           editorial version yet (no longer special-cased: every ticker,
+           including the 5 pilots, now goes through this same real public
+           endpoint, 2026-11-17). */
+      });
 
     return () => {
       cancelled = true;
