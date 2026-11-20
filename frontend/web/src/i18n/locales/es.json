@@ -4331,7 +4331,17 @@
       "removeButton": "Eliminar",
       "creating": "Guardando...",
       "created": "¡Guardado!",
-      "error": "No se pudo guardar tu precio objetivo. Intenta de nuevo."
+      "error": "No se pudo guardar tu precio objetivo. Intenta de nuevo.",
+      "gauge": {
+        "current": "Hoy",
+        "toReachAbove": "Falta {{pct}}% para subir a tu objetivo",
+        "toReachBelow": "Falta {{pct}}% para bajar a tu objetivo",
+        "reached": "Tu objetivo ya fue alcanzado",
+        "inRange": "El precio ya está dentro de tu rango",
+        "belowRange": "Falta {{pct}}% para entrar a tu rango",
+        "aboveRange": "El precio está {{pct}}% por encima de tu rango"
+      },
+      "rangeInvalid": "El máximo debe ser mayor que el mínimo"
     },
     "periods": {
       "d1": "1D",

@@ -4331,7 +4331,17 @@
       "removeButton": "Remove",
       "creating": "Saving...",
       "created": "Saved!",
-      "error": "Couldn't save your target price. Try again."
+      "error": "Couldn't save your target price. Try again.",
+      "gauge": {
+        "current": "Today",
+        "toReachAbove": "{{pct}}% to go to reach your target",
+        "toReachBelow": "{{pct}}% to go to drop to your target",
+        "reached": "Your target has been reached",
+        "inRange": "The price is already inside your range",
+        "belowRange": "{{pct}}% to go to enter your range",
+        "aboveRange": "The price is {{pct}}% above your range"
+      },
+      "rangeInvalid": "The max must be greater than the min"
     },
     "periods": {
       "d1": "1D",

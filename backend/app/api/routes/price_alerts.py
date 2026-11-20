@@ -2,6 +2,7 @@
 # (target_price_high, condition='range') added in
 # migrations/120_price_alerts_target_range.sql.
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -9,6 +10,8 @@ from datetime import datetime, timezone
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.core.cache import cache_delete
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/price-alerts", tags=["price-alerts"])
 
@@ -88,29 +91,41 @@ async def create_alert(
         "triggered_at": None,
     }
 
-    if existing.data:
-        result = await run_query(
-            db.table("price_alerts")
-            .update({k: v for k, v in record.items() if k != "created_at"})
-            .eq("user_id", user_id)
-            .eq("ticker", data.ticker.upper())
-        )
-    else:
-        # A double-submit (or two devices) between the `existing` check above
-        # and this insert can both see "no existing alert" and both try to
-        # insert — the table's UNIQUE(user_id, ticker) constraint then throws
-        # on whichever request loses the race, and unlike watchlist.py's
-        # add_to_watchlist (which catches this and returns a clean 409), this
-        # had no try/except at all: the exception propagated as a raw 500,
-        # which frontend retry logic treats as retryable even though the
-        # alert already exists.
-        try:
+    try:
+        if existing.data:
+            result = await run_query(
+                db.table("price_alerts")
+                .update({k: v for k, v in record.items() if k != "created_at"})
+                .eq("user_id", user_id)
+                .eq("ticker", data.ticker.upper())
+            )
+        else:
+            # A double-submit (or two devices) between the `existing` check
+            # above and this insert can both see "no existing alert" and both
+            # try to insert — the table's UNIQUE(user_id, ticker) constraint
+            # then throws on whichever request loses the race.
             result = await run_query(db.table("price_alerts").insert(record))
-        except Exception as e:
-            err_str = str(e).lower()
-            if "unique" in err_str or "duplicate" in err_str or "23505" in err_str:
-                raise HTTPException(status_code=409, detail=f"Ya existe una alerta para {data.ticker.upper()}")
-            raise HTTPException(status_code=500, detail="No se pudo crear la alerta")
+    except Exception as e:
+        err_str = str(e).lower()
+        logger.error(
+            "price_alerts save failed user_id=%s ticker=%s condition=%s existing=%s: %s",
+            user_id, data.ticker.upper(), data.condition, bool(existing.data), e,
+        )
+        if "unique" in err_str or "duplicate" in err_str or "23505" in err_str:
+            raise HTTPException(status_code=409, detail=f"Ya existe una alerta para {data.ticker.upper()}")
+        if "check constraint" in err_str or "23514" in err_str:
+            raise HTTPException(
+                status_code=503,
+                detail="Nuvos todavía no soporta este tipo de precio objetivo en este entorno. "
+                       "Ya quedó registrado para revisión — vuelve a intentarlo más tarde.",
+            )
+        if "column" in err_str and ("does not exist" in err_str or "not found" in err_str or "schema cache" in err_str):
+            raise HTTPException(
+                status_code=503,
+                detail="Nuvos está actualizando esta función — tu precio objetivo no se guardó. "
+                       "Vuelve a intentarlo en unos minutos.",
+            )
+        raise HTTPException(status_code=500, detail="No se pudo guardar tu precio objetivo. Intenta de nuevo.")
 
     cache_delete(f"price_alerts:{user_id}")
     return result.data[0] if result.data else record
